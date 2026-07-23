@@ -1,8 +1,8 @@
 import { motion } from "motion/react";
+import Navbar from "./Navbar";
+import HeroBadge from "./HeroBadge";
 import BottomLeftCard from "./BottomLeftCard";
 import BottomRightCorner from "./BottomRightCorner";
-import HeroBadge from "./HeroBadge";
-import Navbar from "./Navbar";
 
 const VIDEO_URL = `${import.meta.env.BASE_URL}assets/hf_20260428_193507_4286c423-2fd9-4efd-92bd-91a939453fc1.mp4`;
 
@@ -31,7 +31,7 @@ export default function Hero() {
 							transition={{ duration: 0.8, delay: 0.2 }}
 							className="text-4xl sm:text-5xl md:text-6xl lg:text-[80px] font-normal text-[#5E6470] mb-2 tracking-tight leading-[1.05]"
 						>
-							Fluid Asset Streams
+							Renewal Infrastructure
 						</motion.h1>
 
 						<motion.p
@@ -40,8 +40,8 @@ export default function Hero() {
 							transition={{ duration: 0.8, delay: 0.4 }}
 							className="text-sm sm:text-base md:text-lg text-[#5E6470] opacity-80 leading-relaxed max-w-xl font-normal"
 						>
-							Access Smart Vaults, stake RIVR, NFTs, transform rigid holdings
-							into liquid cash instantly.
+							A permanent address for every ENS name. Stablecoins in from any
+							chain, renewal time out, always at the best available rate.
 						</motion.p>
 					</div>
 

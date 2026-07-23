@@ -1,5 +1,5 @@
-import { ArrowUpRight, ChevronRight } from "lucide-react";
 import { motion } from "motion/react";
+import { ArrowUpRight, ChevronRight } from "lucide-react";
 
 export default function BottomRightCorner() {
 	return (
@@ -45,7 +45,7 @@ export default function BottomRightCorner() {
 				</span>
 				<div className="flex items-center gap-1 text-[rgba(30,50,90,0.6)] cursor-pointer hover:text-[rgba(30,50,90,0.8)] transition-colors">
 					<span className="text-[12px] md:text-[15px] font-normal">
-						Library
+						Integrate
 					</span>
 					<ChevronRight className="w-3 h-3 md:w-4 md:h-4" />
 				</div>

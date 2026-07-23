@@ -1,5 +1,5 @@
-import { ArrowUpRight, ChevronRight } from "lucide-react";
 import { motion } from "motion/react";
+import { ArrowUpRight, ChevronRight } from "lucide-react";
 
 interface MenuItem {
 	label: string;
@@ -7,10 +7,10 @@ interface MenuItem {
 }
 
 const MENU_ITEMS: MenuItem[] = [
-	{ label: "Ecosystem" },
-	{ label: "Economics", hasDropdown: true },
+	{ label: "Protocol" },
+	{ label: "Pricing", hasDropdown: true },
 	{ label: "Developers" },
-	{ label: "Governance", hasDropdown: true },
+	{ label: "Treasury", hasDropdown: true },
 ];
 
 export default function Navbar() {
@@ -34,7 +34,7 @@ export default function Navbar() {
 
 			<div className="md:hidden">
 				<span className="font-regular tracking-tighter text-xl text-[rgba(30,50,90,0.9)]">
-					RIVR
+					Namepass
 				</span>
 			</div>
 
@@ -47,7 +47,7 @@ export default function Navbar() {
 					<div className="bg-white/20 p-1 md:p-1.5 rounded-full flex items-center justify-center">
 						<ArrowUpRight className="w-4 h-4 md:w-5 md:h-5 text-white" />
 					</div>
-					<span className="text-xs md:text-sm font-normal">Book Demo</span>
+					<span className="text-xs md:text-sm font-normal">Talk to us</span>
 				</motion.button>
 			</div>
 		</nav>
