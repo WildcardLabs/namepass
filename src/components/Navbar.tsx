@@ -4,16 +4,22 @@ import { ArrowUpRight, ChevronRight } from "lucide-react";
 interface MenuItem {
 	label: string;
 	hasDropdown?: boolean;
+	action?: "explore";
 }
 
 const MENU_ITEMS: MenuItem[] = [
 	{ label: "Protocol" },
 	{ label: "Pricing", hasDropdown: true },
-	{ label: "Developers" },
+	{ label: "Explorer", action: "explore" },
 	{ label: "Treasury", hasDropdown: true },
 ];
 
-export default function Navbar() {
+interface Props {
+	onClaim: () => void;
+	onExplore: () => void;
+}
+
+export default function Navbar({ onClaim, onExplore }: Props) {
 	return (
 		<nav className="flex items-center justify-between py-6 px-6 md:px-10 w-full relative z-10">
 			<div className="flex-1 hidden md:block" />
@@ -22,6 +28,7 @@ export default function Navbar() {
 				{MENU_ITEMS.map((item) => (
 					<li
 						key={item.label}
+						onClick={item.action === "explore" ? onExplore : undefined}
 						className="cursor-pointer hover:opacity-70 transition-opacity flex items-center gap-1 group"
 					>
 						{item.label}
@@ -42,12 +49,13 @@ export default function Navbar() {
 				<motion.button
 					whileHover={{ scale: 1.02 }}
 					whileTap={{ scale: 0.98 }}
+					onClick={onClaim}
 					className="flex items-center bg-[rgba(30,50,90,0.8)] text-white rounded-full pl-2 pr-4 md:pr-6 py-1.5 md:py-2 gap-2 md:gap-3 hover:bg-[rgba(30,50,90,1)] transition-colors group"
 				>
 					<div className="bg-white/20 p-1 md:p-1.5 rounded-full flex items-center justify-center">
 						<ArrowUpRight className="w-4 h-4 md:w-5 md:h-5 text-white" />
 					</div>
-					<span className="text-xs md:text-sm font-normal">Talk to us</span>
+					<span className="text-xs md:text-sm font-normal">Claim address</span>
 				</motion.button>
 			</div>
 		</nav>

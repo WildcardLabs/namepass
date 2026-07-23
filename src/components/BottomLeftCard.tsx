@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { solve, YEAR_SECONDS } from "../lib/pricing";
+import { fmtMonthYear } from "../lib/format";
 
 /* Inbound payments, cycled to show money resolving into renewal time.
    `label` is the display string; `amount` is the exact USDC charged (6dp). */
@@ -14,14 +15,7 @@ const INBOUND = [
 const START_EXPIRY = Date.UTC(2029, 2, 18);
 const CYCLE_MS = 3600;
 
-function formatExpiry(ms: number) {
-	return new Date(ms).toLocaleDateString("en-GB", {
-		month: "short",
-		year: "numeric",
-	});
-}
-
-export default function BottomLeftCard() {
+export default function BottomLeftCard({ onClaim }: { onClaim: () => void }) {
 	const [index, setIndex] = useState(0);
 	const [expiry, setExpiry] = useState(() => {
 		const { seconds } = solve(INBOUND[0].amount);
@@ -64,7 +58,7 @@ export default function BottomLeftCard() {
 						transition={{ duration: 0.35, ease: "easeOut" }}
 						className="text-2xl md:text-3xl font-normal text-[rgba(30,50,90,0.9)] tracking-tight"
 					>
-						{formatExpiry(expiry)}
+						{fmtMonthYear(expiry)}
 					</motion.span>
 				</AnimatePresence>
 				<span className="text-[10px] md:text-[12px] font-normal text-[rgba(30,50,90,0.6)] uppercase tracking-wider">
@@ -96,6 +90,7 @@ export default function BottomLeftCard() {
 			<motion.button
 				whileHover={{ scale: 1.02 }}
 				whileTap={{ scale: 0.98 }}
+				onClick={onClaim}
 				className="flex items-center bg-white rounded-full pl-1.5 pr-5 py-1.5 gap-2 hover:bg-white/90 transition-colors self-start group"
 			>
 				<div className="bg-[rgba(30,50,90,0.1)] p-1 rounded-full flex items-center justify-center">
