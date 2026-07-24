@@ -17,7 +17,20 @@ export default function Navbar({ onClaim, onExplore, onSimulate, onSearch }: Pro
 
 	return (
 		<nav className="flex items-center justify-between py-6 px-6 md:px-10 w-full relative z-10">
-			<div className="flex-1 hidden md:block" />
+			<a
+				href="#"
+				aria-label="Namepass — home"
+				className="flex-1 flex items-center gap-2.5 min-w-0"
+			>
+				<img
+					src={`${import.meta.env.BASE_URL}logo.svg`}
+					alt=""
+					className="h-7 md:h-8 w-auto shrink-0"
+				/>
+				<span className="hidden lg:block text-[17px] tracking-tight text-[rgba(30,50,90,0.9)]">
+					Namepass
+				</span>
+			</a>
 
 			<ul className="hidden md:flex items-center gap-8 text-[rgb(45,45,45)] font-normal text-sm">
 				{items.map((item) => (
@@ -31,12 +44,6 @@ export default function Navbar({ onClaim, onExplore, onSimulate, onSearch }: Pro
 					</li>
 				))}
 			</ul>
-
-			<div className="md:hidden">
-				<span className="font-regular tracking-tighter text-xl text-[rgba(30,50,90,0.9)]">
-					Namepass
-				</span>
-			</div>
 
 			<div className="flex-1 flex justify-end">
 				<motion.button

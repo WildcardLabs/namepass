@@ -44,9 +44,18 @@ Two rules that broke in earlier revisions and are worth preserving:
 - **`truncate` inside a flex row needs `min-w-0` on the same element.** Without it the element
   refuses to shrink and pushes its siblings out — long ENS names were doing exactly this.
 
-On mobile the detail pairs use `flex justify-between` rather than `grid-cols-4`: equal columns
-leave dead space on the right when content widths differ ("Base" vs "43.75% off"), whereas flex
-sizes each column to its content and distributes the remainder.
+On mobile the detail pairs use a **fixed** column template
+(`grid-cols-[5.5rem_4.5rem_5rem_1fr]`), not equal fractions and not flex. Two failure modes to
+avoid:
+
+- `grid-cols-4` gives equal columns, which leaves dead space on the right because content widths
+  differ ("Base" vs "43.75% off").
+- `flex justify-between` sizes each column to its content, so a longer chain name ("Arbitrum"
+  vs "Base") shifts every column after it — rows stop lining up with each other.
+
+Fixed rem widths sized to worst-case content keep every row's columns in the same place.
+`ChainTag` uses `items-baseline` with a `self-center` dot so it sits level with plain-text
+siblings; `items-center` would raise it above their baseline.
 
 ## Mobile: tables become cards
 

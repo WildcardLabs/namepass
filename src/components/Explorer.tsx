@@ -49,11 +49,15 @@ const CHAIN_DOT: Record<string, string> = {
 };
 
 function ChainTag({ chain }: { chain: string }) {
+	const color = CHAIN_DOT[chain] ?? "#8899aa";
 	return (
-		<span className="inline-flex items-center gap-1.5 text-[rgba(30,50,90,0.7)] whitespace-nowrap">
+		<span className="inline-flex items-baseline gap-1.5 text-[rgba(30,50,90,0.7)] whitespace-nowrap">
 			<span
-				className="w-1.5 h-1.5 rounded-full shrink-0"
-				style={{ background: CHAIN_DOT[chain] ?? "#8899aa" }}
+				className="w-1.5 h-1.5 rounded-full shrink-0 self-center"
+				style={{
+					background: color,
+					boxShadow: `0 0 6px ${color}, 0 0 2px ${color}`,
+				}}
 			/>
 			{chain}
 		</span>
@@ -140,7 +144,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 							</div>
 
 							{/* Mobile: labelled detail pairs */}
-							<dl className="md:hidden mt-2.5 flex justify-between gap-3">
+							<dl className="md:hidden mt-2.5 grid grid-cols-[5.5rem_4.5rem_5rem_1fr] gap-x-2 gap-y-1 items-baseline">
 								<div>
 									<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
 										From
@@ -433,9 +437,7 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 									</span>
 
 									<span className="min-w-0 text-[15px] md:text-[14.5px] text-[rgba(30,50,90,0.95)] truncate">
-										{e.kind === "activated"
-											? "Namepass activated"
-											: `Renewal · ${e.funder}`}
+										{e.kind === "activated" ? "Namepass activated" : "Renewal"}
 									</span>
 
 									<span className="hidden md:block text-[13.5px]">
@@ -466,7 +468,7 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 
 								{/* Mobile detail pairs */}
 								{e.kind === "renewal" && (
-									<dl className="md:hidden mt-2.5 flex justify-between gap-3">
+									<dl className="md:hidden mt-2.5 grid grid-cols-[5.5rem_4.5rem_5rem_1fr] gap-x-2 gap-y-1 items-baseline">
 										<div>
 											<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
 												From
@@ -587,7 +589,7 @@ export default function Explorer({ selected, onSelect, onActivated }: Props) {
 					</div>
 
 					<div className="w-full md:w-[300px] shrink-0">
-						<div className="flex items-center bg-white border border-[rgba(30,50,90,0.15)] rounded-full pl-4 pr-2 py-2 focus-within:border-[rgba(30,50,90,0.4)] transition-colors">
+						<div className="flex items-center bg-white border border-[rgba(30,50,90,0.15)] rounded-[1.4rem] pl-4 pr-2 py-2.5 focus-within:border-[rgba(30,50,90,0.4)] transition-colors">
 							<Search className="w-4 h-4 text-[rgba(30,50,90,0.4)] shrink-0" />
 							<input
 								value={query}
@@ -602,7 +604,7 @@ export default function Explorer({ selected, onSelect, onActivated }: Props) {
 						</div>
 
 						{suggestions.length > 0 && (
-							<div className="mt-2 border border-[rgba(30,50,90,0.12)] rounded-2xl overflow-hidden bg-white">
+							<div className="mt-2 border border-[rgba(30,50,90,0.12)] rounded-[1.4rem] overflow-hidden bg-white">
 								{suggestions.map((s) => (
 									<button
 										key={s.name}
@@ -626,7 +628,7 @@ export default function Explorer({ selected, onSelect, onActivated }: Props) {
 								initial={{ opacity: 0, y: -4 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ duration: 0.25 }}
-								className="mt-2 rounded-2xl border border-[rgba(30,50,90,0.15)] bg-[rgba(30,50,90,0.03)] p-4"
+								className="mt-2 rounded-[1.4rem] border border-[rgba(30,50,90,0.15)] bg-[rgba(30,50,90,0.03)] p-4"
 							>
 								<div className="text-[13.5px] text-[rgba(30,50,90,0.9)]">
 									<span className="font-medium">{notFound}</span> has no Namepass
