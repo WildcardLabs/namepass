@@ -48,17 +48,32 @@ const CHAIN_DOT: Record<string, string> = {
 	Polygon: "#8247E5",
 };
 
+const PING_DELAY: Record<string, string> = {
+	Base: "0ms",
+	Arbitrum: "300ms",
+	Optimism: "600ms",
+	Ethereum: "900ms",
+	Polygon: "1200ms",
+};
+
 function ChainTag({ chain }: { chain: string }) {
 	const color = CHAIN_DOT[chain] ?? "#8899aa";
 	return (
 		<span className="inline-flex items-baseline gap-1.5 text-[rgba(30,50,90,0.7)] whitespace-nowrap">
-			<span
-				className="w-1.5 h-1.5 rounded-full shrink-0 self-center"
-				style={{
-					background: color,
-					boxShadow: `0 0 6px ${color}, 0 0 2px ${color}`,
-				}}
-			/>
+			<span className="relative flex w-1.5 h-1.5 shrink-0 self-center">
+				<span
+					className="absolute inline-flex w-full h-full rounded-full opacity-70 animate-ping"
+					style={{
+						background: color,
+						animationDelay: PING_DELAY[chain] ?? "0ms",
+						animationDuration: "2.4s",
+					}}
+				/>
+				<span
+					className="relative inline-flex w-1.5 h-1.5 rounded-full"
+					style={{ background: color }}
+				/>
+			</span>
 			{chain}
 		</span>
 	);
@@ -589,7 +604,7 @@ export default function Explorer({ selected, onSelect, onActivated }: Props) {
 					</div>
 
 					<div className="w-full md:w-[300px] shrink-0">
-						<div className="flex items-center bg-white border border-[rgba(30,50,90,0.15)] rounded-[1.4rem] pl-4 pr-2 py-2.5 focus-within:border-[rgba(30,50,90,0.4)] transition-colors">
+						<div className="flex items-center bg-white border border-[rgba(30,50,90,0.15)] rounded-[0.9rem] pl-4 pr-2 py-2.5 focus-within:border-[rgba(30,50,90,0.4)] transition-colors">
 							<Search className="w-4 h-4 text-[rgba(30,50,90,0.4)] shrink-0" />
 							<input
 								value={query}
@@ -604,7 +619,7 @@ export default function Explorer({ selected, onSelect, onActivated }: Props) {
 						</div>
 
 						{suggestions.length > 0 && (
-							<div className="mt-2 border border-[rgba(30,50,90,0.12)] rounded-[1.4rem] overflow-hidden bg-white">
+							<div className="mt-2 border border-[rgba(30,50,90,0.12)] rounded-[0.9rem] overflow-hidden bg-white">
 								{suggestions.map((s) => (
 									<button
 										key={s.name}
@@ -628,7 +643,7 @@ export default function Explorer({ selected, onSelect, onActivated }: Props) {
 								initial={{ opacity: 0, y: -4 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ duration: 0.25 }}
-								className="mt-2 rounded-[1.4rem] border border-[rgba(30,50,90,0.15)] bg-[rgba(30,50,90,0.03)] p-4"
+								className="mt-2 rounded-[0.9rem] border border-[rgba(30,50,90,0.15)] bg-[rgba(30,50,90,0.03)] p-4"
 							>
 								<div className="text-[13.5px] text-[rgba(30,50,90,0.9)]">
 									<span className="font-medium">{notFound}</span> has no Namepass

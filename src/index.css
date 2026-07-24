@@ -15,11 +15,6 @@
 
 @theme {
 	--font-helvetica: "Helvetica Regular", ui-sans-serif, system-ui, sans-serif;
-	/* The Helvetica webfont is a single static face (usWeightClass 400, no fvar),
-	   so font-weight:900 on it yields synthetic bold. The system UI stack has a
-	   genuine heavy face on every platform, and costs no extra request. */
-	--font-wordmark: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-		"Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {

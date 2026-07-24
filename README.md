@@ -34,17 +34,6 @@ avatar and contenthash. Two things are deliberately dropped:
   reader. The one exception is coin 60 (ETH), lifted out as `addr`.
 - **`header`, `name`, `com.discord`, `com.youtube`** — rarely set, and not identity-defining.
 
-## Wordmark
-
-The bundled Helvetica webfont is a single static face — `usWeightClass: 400`, no `fvar` axis,
-bold bit unset. Setting `font-weight: 900` on it produces **synthetic bold**: the browser
-algorithmically thickens Regular glyphs rather than loading a drawn heavy face. It looks bolder,
-but strokes smear at the joins and the result differs between Chrome, Safari and Firefox.
-
-The wordmark therefore uses `--font-wordmark`, the platform UI stack (SF Pro on Apple, Segoe UI
-on Windows, Roboto on Android). Every one of those ships a genuine heavy weight, and it costs no
-network request.
-
 ## Layout invariants
 
 Two rules that broke in earlier revisions and are worth preserving:
