@@ -229,7 +229,7 @@ export default function Simulator() {
 													<div className="text-[13.5px] text-[rgba(30,50,90,0.95)] leading-snug">
 														Add {fmtUsdc(hint.delta)} to get{" "}
 														<span className="whitespace-nowrap">
-															{(Number(hint.gain) / Number(YEAR_SECONDS)).toFixed(1)} more years
+															{Math.round(Number(hint.gain) / 2629800)} more months
 														</span>
 													</div>
 													<div className="mt-0.5 text-[12px] text-[rgba(30,50,90,0.55)]">

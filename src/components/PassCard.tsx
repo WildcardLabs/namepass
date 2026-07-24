@@ -79,7 +79,7 @@ export default function PassCard({
 			<div className="flex justify-center">
 				<div className="relative">
 					<div
-						className={`rounded-2xl p-4 ${glass ? "bg-white/80" : "bg-white"} border ${
+						className={`rounded-[1.4rem] p-4 ${glass ? "bg-white/80" : "bg-white"} border ${
 							glass ? "border-white/60" : "border-[rgba(30,50,90,0.08)]"
 						}`}
 					>
@@ -138,14 +138,14 @@ export default function PassCard({
 			{/* Primary: the human-readable name */}
 			<button
 				onClick={() => copy(pass, "pass")}
-				className={`${split ? "mt-5 sm:mt-0" : "mt-5"} w-full text-left rounded-2xl border px-4 py-3 transition-colors group ${fieldBg}`}
+				className={`${split ? "mt-5 sm:mt-0" : "mt-5"} w-full text-left rounded-[1.4rem] border px-4 py-3 transition-colors group ${fieldBg}`}
 			>
 				<div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
 					<InfinityIcon className="w-3 h-3" />
 					Send here · permanent
 				</div>
 				<div className="mt-1 flex items-center justify-between gap-3">
-					<span className="text-[15px] md:text-[16px] text-[rgba(30,50,90,0.95)] truncate">
+					<span className="min-w-0 text-[15px] md:text-[16px] text-[rgba(30,50,90,0.95)] truncate">
 						{pass}
 					</span>
 					{copied === "pass" ? (
@@ -173,7 +173,7 @@ export default function PassCard({
 					animate={{ opacity: 1, height: "auto" }}
 					transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
 					onClick={() => copy(address, "address")}
-					className={`mt-2.5 w-full text-left rounded-2xl border px-4 py-3 transition-colors group overflow-hidden ${fieldBg}`}
+					className={`mt-2.5 w-full text-left rounded-[1.4rem] border px-4 py-3 transition-colors group overflow-hidden ${fieldBg}`}
 				>
 					<div className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
 						Deposit address · any chain
@@ -203,7 +203,7 @@ export default function PassCard({
 
 			{/* What this address accepts — the question every sender has. */}
 			<div
-				className={`mt-5 rounded-2xl border px-4 py-3.5 ${
+				className={`mt-5 rounded-[1.4rem] border px-4 py-3.5 ${
 					glass ? "bg-white/35 border-white/50" : "bg-[rgba(30,50,90,0.025)] border-[rgba(30,50,90,0.08)]"
 				}`}
 			>

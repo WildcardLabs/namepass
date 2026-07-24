@@ -34,6 +34,20 @@ avatar and contenthash. Two things are deliberately dropped:
   reader. The one exception is coin 60 (ETH), lifted out as `addr`.
 - **`header`, `name`, `com.discord`, `com.youtube`** — rarely set, and not identity-defining.
 
+## Layout invariants
+
+Two rules that broke in earlier revisions and are worth preserving:
+
+- **A grid header and its rows must declare the same `grid-cols-[…]` string.** Editing one
+  without the other silently misaligns every column. Both tables in `Explorer.tsx` now share
+  their definition between header and row.
+- **`truncate` inside a flex row needs `min-w-0` on the same element.** Without it the element
+  refuses to shrink and pushes its siblings out — long ENS names were doing exactly this.
+
+On mobile the detail pairs use `flex justify-between` rather than `grid-cols-4`: equal columns
+leave dead space on the right when content widths differ ("Base" vs "43.75% off"), whereas flex
+sizes each column to its content and distributes the remainder.
+
 ## Mobile: tables become cards
 
 Following Etherscan's pattern, the live feed and activity table drop their grid below `md` and

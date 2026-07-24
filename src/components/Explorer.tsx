@@ -114,7 +114,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 						>
 							{/* Mobile: name + headline result on one line */}
 							<div className="flex items-baseline justify-between gap-3 md:contents">
-								<span className="text-[15px] md:text-[14.5px] text-[rgba(30,50,90,0.95)] truncate">
+								<span className="min-w-0 text-[15px] md:text-[14.5px] text-[rgba(30,50,90,0.95)] truncate">
 									{r.name}
 								</span>
 
@@ -140,7 +140,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 							</div>
 
 							{/* Mobile: labelled detail pairs */}
-							<dl className="md:hidden mt-2.5 grid grid-cols-4 gap-3">
+							<dl className="md:hidden mt-2.5 flex justify-between gap-3">
 								<div>
 									<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
 										From
@@ -348,7 +348,7 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 									</p>
 								)}
 								{profile?.addr && (
-									<div className="mt-1.5 text-[12px] text-[rgba(30,50,90,0.55)] font-mono truncate">
+									<div className="mt-1.5 min-w-0 text-[12px] text-[rgba(30,50,90,0.55)] font-mono truncate">
 										{truncAddress(profile.addr)}
 									</div>
 								)}
@@ -411,7 +411,7 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 				</div>
 
 				<div className="border border-[rgba(30,50,90,0.1)] rounded-2xl overflow-hidden">
-					<div className="hidden md:grid grid-cols-[0.8fr_1fr_0.8fr_0.7fr_0.8fr_0.8fr_1fr] gap-4 px-5 py-3 bg-[rgba(30,50,90,0.03)] border-b border-[rgba(30,50,90,0.1)] text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
+					<div className="hidden md:grid grid-cols-[0.8fr_1.2fr_0.8fr_0.8fr_0.9fr_0.8fr] gap-4 px-5 py-3 bg-[rgba(30,50,90,0.03)] border-b border-[rgba(30,50,90,0.1)] text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
 						<span>Date</span>
 						<span>Event</span>
 						<span>Chain</span>
@@ -432,7 +432,7 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 										{fmtDate(e.at)}
 									</span>
 
-									<span className="text-[15px] md:text-[14.5px] text-[rgba(30,50,90,0.95)] truncate">
+									<span className="min-w-0 text-[15px] md:text-[14.5px] text-[rgba(30,50,90,0.95)] truncate">
 										{e.kind === "activated"
 											? "Namepass activated"
 											: `Renewal · ${e.funder}`}
@@ -466,7 +466,7 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 
 								{/* Mobile detail pairs */}
 								{e.kind === "renewal" && (
-									<dl className="md:hidden mt-2.5 grid grid-cols-4 gap-3">
+									<dl className="md:hidden mt-2.5 flex justify-between gap-3">
 										<div>
 											<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
 												From
