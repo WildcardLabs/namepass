@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Activity, Search, Calculator } from "lucide-react";
 
 interface Props {
 	onClaim: () => void;
@@ -10,9 +10,9 @@ interface Props {
 
 export default function Navbar({ onClaim, onExplore, onSimulate, onSearch }: Props) {
 	const items = [
-		{ label: "Explorer", action: onExplore },
-		{ label: "Search", action: onSearch },
-		{ label: "Cost simulator", action: onSimulate },
+		{ label: "Explorer", action: onExplore, Icon: Activity },
+		{ label: "Search", action: onSearch, Icon: Search },
+		{ label: "Cost simulator", action: onSimulate, Icon: Calculator },
 	];
 
 	return (
@@ -24,8 +24,9 @@ export default function Navbar({ onClaim, onExplore, onSimulate, onSearch }: Pro
 					<li
 						key={item.label}
 						onClick={item.action}
-						className="cursor-pointer hover:opacity-70 transition-opacity"
+						className="cursor-pointer hover:opacity-70 transition-opacity flex items-center gap-2"
 					>
+						<item.Icon className="w-4 h-4 opacity-60" />
 						{item.label}
 					</li>
 				))}

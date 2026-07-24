@@ -1,6 +1,17 @@
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
-import { Search, ArrowLeft, Clock } from "lucide-react";
+import {
+	Search,
+	ArrowLeft,
+	Clock,
+	Globe,
+	Link as LinkIcon,
+	AtSign,
+	Github,
+	Send,
+	MapPin,
+	Mail,
+} from "lucide-react";
 import {
 	allNames,
 	findName,
@@ -15,14 +26,6 @@ import {
 } from "../lib/registry";
 import { fmtAgo, fmtDate, fmtDuration, fmtUsdc, truncAddress } from "../lib/format";
 import PassCard from "./PassCard";
-
-const RECORD_LABELS: Record<string, string> = {
-	avatar: "Avatar",
-	description: "Description",
-	url: "Website",
-	"com.twitter": "Twitter",
-	"com.github": "GitHub",
-};
 
 const CHAIN_DOT: Record<string, string> = {
 	Base: "#0052FF",
@@ -148,9 +151,17 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 		4,
 		Math.min(96, ((record.expiryAtActivation - record.activatedAt) / span) * 100),
 	);
-	const textEntries = Object.entries(record.records.text).filter(
-		([, v]) => Boolean(v),
-	) as Array<[string, string]>;
+	const t = record.records.text;
+	const links = (
+		[
+			{ key: "url", value: t.url, Icon: LinkIcon },
+			{ key: "com.twitter", value: t["com.twitter"] && `@${t["com.twitter"]}`, Icon: AtSign },
+			{ key: "com.github", value: t["com.github"], Icon: Github },
+			{ key: "org.telegram", value: t["org.telegram"] && `@${t["org.telegram"]}`, Icon: Send },
+			{ key: "location", value: t.location, Icon: MapPin },
+			{ key: "email", value: t.email, Icon: Mail },
+		] as const
+	).filter((l): l is typeof l & { value: string } => Boolean(l.value));
 
 	return (
 		<motion.div
@@ -218,53 +229,66 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 						</div>
 					</div>
 
-					{/* ENS records — what the name actually resolves to */}
+					{/* ENS records — identity, not payment history */}
 					<div className="mt-5 pt-5 border-t border-[rgba(30,50,90,0.08)] flex-1">
 						<div className="flex items-center justify-between">
 							<span className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
-								Records
+								Profile
 							</span>
-							<span className="text-[11px] text-[rgba(30,50,90,0.4)]">
-								Public Resolver
-							</span>
+							{record.records.contenthash && (
+								<span className="inline-flex items-center gap-1.5 text-[11px] text-[rgba(30,50,90,0.55)]">
+									<Globe className="w-3 h-3" />
+									Serves a site
+								</span>
+							)}
 						</div>
 
-						<dl className="mt-3 space-y-2.5">
-							<div className="flex items-baseline justify-between gap-4">
-								<dt className="text-[12.5px] text-[rgba(30,50,90,0.5)] shrink-0">
-									Resolves to
-								</dt>
-								<dd className="text-[13px] text-[rgba(30,50,90,0.9)] font-mono truncate">
+						{/* Avatar + description */}
+						<div className="mt-3 flex items-start gap-3">
+							<div className="w-11 h-11 shrink-0 rounded-full bg-[rgba(30,50,90,0.07)] border border-[rgba(30,50,90,0.1)] overflow-hidden flex items-center justify-center">
+								{record.records.text.avatar ? (
+									<img
+										src={record.records.text.avatar}
+										alt=""
+										className="w-full h-full object-cover"
+										onError={(e) => {
+											(e.currentTarget as HTMLImageElement).style.display = "none";
+										}}
+									/>
+								) : (
+									<span className="text-[13px] text-[rgba(30,50,90,0.45)]">
+										{record.name.slice(0, 2)}
+									</span>
+								)}
+							</div>
+							<div className="min-w-0 flex-1">
+								{record.records.text.description ? (
+									<p className="text-[13px] text-[rgba(30,50,90,0.8)] leading-snug">
+										{record.records.text.description}
+									</p>
+								) : (
+									<p className="text-[13px] text-[rgba(30,50,90,0.45)]">
+										No description set.
+									</p>
+								)}
+								<div className="mt-1.5 text-[12px] text-[rgba(30,50,90,0.55)] font-mono truncate">
 									{truncAddress(record.records.addr)}
-								</dd>
-							</div>
-							<div className="flex items-baseline justify-between gap-4">
-								<dt className="text-[12.5px] text-[rgba(30,50,90,0.5)] shrink-0">
-									Owner
-								</dt>
-								<dd className="text-[13px] text-[rgba(30,50,90,0.9)] font-mono truncate">
-									{truncAddress(record.records.owner)}
-								</dd>
-							</div>
-
-							{textEntries.map(([key, value]) => (
-								<div
-									key={key}
-									className="flex items-baseline justify-between gap-4"
-								>
-									<dt className="text-[12.5px] text-[rgba(30,50,90,0.5)] shrink-0">
-										{RECORD_LABELS[key] ?? key}
-									</dt>
-									<dd className="text-[13px] text-[rgba(30,50,90,0.85)] truncate text-right">
-										{value}
-									</dd>
 								</div>
-							))}
-						</dl>
+							</div>
+						</div>
 
-						{textEntries.length === 0 && (
-							<div className="mt-2 text-[12.5px] text-[rgba(30,50,90,0.45)]">
-								No text records set.
+						{/* Links */}
+						{links.length > 0 && (
+							<div className="mt-4 flex flex-wrap gap-x-4 gap-y-2">
+								{links.map((l) => (
+									<span
+										key={l.key}
+										className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(30,50,90,0.7)] min-w-0"
+									>
+										<l.Icon className="w-3.5 h-3.5 shrink-0 text-[rgba(30,50,90,0.45)]" />
+										<span className="truncate">{l.value}</span>
+									</span>
+								))}
 							</div>
 						)}
 					</div>

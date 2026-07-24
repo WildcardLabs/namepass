@@ -24,9 +24,13 @@ demonstration of the product, not a marketing number.
 ## Explorer name detail — two panels, no overlap
 
 - **Left · The ENS name.** Expiry date, days remaining, a runway bar splitting the expiry that
-  existed at activation from the time Namepass has added since, and the name's **resolver
-  records** — resolved address, owner, and text records (avatar, description, url, twitter,
-  github). This is name identity, not payment history.
+  existed at activation from the time Namepass has added since, and the name's **profile** —
+  avatar, description, resolved address, and icon-labelled links (website, Twitter, GitHub,
+  Telegram, location, email), plus a "Serves a site" marker when a contenthash is set.
+
+  Record shape follows the resolver API (`api.resolvio.xyz/ens/v2/profile/<name>`). The
+  `addresses` array is deliberately **not** surfaced — it is mostly `exists: false`, and
+  per-chain coin types are noise for someone who just wants to know whose name this is.
 - **Right · The Namepass.** QR, accepted token, supported chains, and the two copy targets.
 
 The activity table below carries the full payment history. The left panel deliberately does not

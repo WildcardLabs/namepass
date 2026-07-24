@@ -34,19 +34,30 @@ export interface ActivityEvent {
 	tx: string;
 }
 
+/**
+ * Shaped after the resolver API, e.g.
+ *   https://api.resolvio.xyz/ens/v2/profile/brantly.eth
+ *
+ * We deliberately surface only the records a human reads. The `addresses`
+ * array is dropped: it is mostly `exists: false`, and per-chain coin types
+ * are noise for anyone who just wants to know whose name this is.
+ */
 export interface EnsRecords {
-	/** Address the name resolves to. */
+	/** ETH address the name resolves to (coin 60). */
 	addr: string;
-	/** Text records, as stored on the resolver. */
+	/** Human-facing text records, in display order. Absent keys are omitted. */
 	text: Partial<{
 		avatar: string;
 		description: string;
 		url: string;
+		location: string;
+		email: string;
 		"com.twitter": string;
 		"com.github": string;
+		"org.telegram": string;
 	}>;
-	/** Owner of the name in the registry. */
-	owner: string;
+	/** Contenthash, if the name serves a site. */
+	contenthash?: string;
 	/** Resolver contract in use. */
 	resolver: string;
 }
@@ -102,21 +113,34 @@ const DAY = 86_400_000;
 
 const PUBLIC_RESOLVER = "0x231b0Ee14048e9dCcD1d247744d114a4EB5E8E63";
 
+const BIOS = [
+	"Building public goods on Ethereum.",
+	"Onchain since 2017. Occasionally writes things.",
+	"Protocol engineer. Opinions are my own.",
+	"Making the internet a little more permanent.",
+	"DAO delegate · governance nerd",
+];
+const PLACES = ["Berlin", "Lisbon", "USA", "Singapore", "London"];
+
 function buildRecords(label: string, rand: () => number): EnsRecords {
 	const handle = label.replace(/[^a-z0-9]/g, "");
 	const has = (p: number) => rand() < p;
+	const contenthash = has(0.35)
+		? `ipfs://bafybei${hex(rand, 20)}`
+		: undefined;
 	return {
 		addr: `0x${hex(rand, 40)}`,
-		owner: `0x${hex(rand, 40)}`,
 		resolver: PUBLIC_RESOLVER,
+		contenthash,
 		text: {
-			...(has(0.85) ? { avatar: `https://euc.li/${label}.eth` } : {}),
-			...(has(0.7)
-				? { description: "Onchain since 2017. Building public goods." }
-				: {}),
+			...(has(0.9) ? { avatar: `https://euc.li/${label}.eth` } : {}),
+			...(has(0.75) ? { description: BIOS[Math.floor(rand() * BIOS.length)] } : {}),
 			...(has(0.6) ? { url: `https://${handle}.xyz` } : {}),
-			...(has(0.75) ? { "com.twitter": handle } : {}),
-			...(has(0.5) ? { "com.github": handle } : {}),
+			...(has(0.45) ? { location: PLACES[Math.floor(rand() * PLACES.length)] } : {}),
+			...(has(0.4) ? { email: `hello@${handle}.xyz` } : {}),
+			...(has(0.8) ? { "com.twitter": handle } : {}),
+			...(has(0.55) ? { "com.github": handle } : {}),
+			...(has(0.3) ? { "org.telegram": handle } : {}),
 		},
 	};
 }

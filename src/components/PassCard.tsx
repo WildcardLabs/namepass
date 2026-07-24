@@ -22,6 +22,8 @@ interface Props {
 	animate?: boolean;
 	/** Visual weight — "glass" over video/blur, "solid" on white. */
 	surface?: "glass" | "solid";
+	/** "stack" keeps QR above details; "split" places them side by side on sm+. */
+	layout?: "stack" | "split";
 }
 
 /* Staggered reveal: modules light up in a diagonal wave, finished in ~560ms.
@@ -35,6 +37,7 @@ export default function PassCard({
 	address,
 	animate = false,
 	surface = "solid",
+	layout = "stack",
 }: Props) {
 	const [copied, setCopied] = useState<"pass" | "address" | null>(null);
 	const [showRaw, setShowRaw] = useState(false);
@@ -67,8 +70,12 @@ export default function PassCard({
 	const size = matrix?.length ?? 0;
 	/* Draw at unit scale in a 0..size viewBox — crisp at any rendered size. */
 
+	const split = layout === "split";
+
 	return (
 		<div className={`rounded-[1.4rem] border ${cardBg} p-5 md:p-6`}>
+			<div className={split ? "sm:flex sm:items-start sm:gap-6" : ""}>
+			<div className={split ? "sm:w-[200px] sm:shrink-0" : ""}>
 			{/* QR */}
 			<div className="flex justify-center">
 				<div className="relative">
@@ -126,49 +133,13 @@ export default function PassCard({
 				Scan to send from any wallet
 			</p>
 
-			{/* What this address accepts — the question every sender has. */}
-			<div
-				className={`mt-4 rounded-2xl border px-4 py-3.5 ${
-					glass ? "bg-white/35 border-white/50" : "bg-[rgba(30,50,90,0.025)] border-[rgba(30,50,90,0.08)]"
-				}`}
-			>
-				<div className="flex items-center justify-center gap-2">
-					<img
-						src={`${import.meta.env.BASE_URL}logos/usdc.svg`}
-						alt=""
-						className="w-[18px] h-[18px]"
-					/>
-					<span className="text-[13.5px] text-[rgba(30,50,90,0.9)]">
-						USDC accepted
-					</span>
-				</div>
-
-				<div className="mt-3 pt-3 border-t border-[rgba(30,50,90,0.08)]">
-					<div className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.45)] text-center">
-						On any of these chains
-					</div>
-					<div className="mt-2.5 flex items-center justify-center gap-x-4 gap-y-2 flex-wrap">
-						{CHAINS.map((c) => (
-							<span
-								key={c.name}
-								className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(30,50,90,0.7)]"
-							>
-								<img
-									src={`${import.meta.env.BASE_URL}logos/${c.file}`}
-									alt=""
-									className="w-4 h-4 shrink-0"
-								/>
-								{c.name}
-							</span>
-						))}
-					</div>
-				</div>
 			</div>
 
+			<div className={split ? "sm:flex-1 sm:min-w-0" : ""}>
 			{/* Primary: the human-readable name */}
 			<button
 				onClick={() => copy(pass, "pass")}
-				className={`mt-5 w-full text-left rounded-2xl border px-4 py-3 transition-colors group ${fieldBg}`}
+				className={`${split ? "mt-5 sm:mt-0" : "mt-5"} w-full text-left rounded-2xl border px-4 py-3 transition-colors group ${fieldBg}`}
 			>
 				<div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
 					<InfinityIcon className="w-3 h-3" />
@@ -228,6 +199,48 @@ export default function PassCard({
 				Every payment extends{" "}
 				<span className="text-[rgba(30,50,90,0.8)]">{name}</span>
 			</p>
+			</div>
+			</div>
+
+			{/* What this address accepts — the question every sender has. */}
+			<div
+				className={`mt-5 rounded-2xl border px-4 py-3.5 ${
+					glass ? "bg-white/35 border-white/50" : "bg-[rgba(30,50,90,0.025)] border-[rgba(30,50,90,0.08)]"
+				}`}
+			>
+				<div className="flex items-center justify-center gap-2">
+					<img
+						src={`${import.meta.env.BASE_URL}logos/usdc.svg`}
+						alt=""
+						className="w-[18px] h-[18px]"
+					/>
+					<span className="text-[13.5px] text-[rgba(30,50,90,0.9)]">
+						USDC accepted
+					</span>
+				</div>
+
+				<div className="mt-3 pt-3 border-t border-[rgba(30,50,90,0.08)]">
+					<div className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.45)] text-center">
+						On any of these chains
+					</div>
+					<div className="mt-2.5 flex items-center justify-center gap-x-5 gap-y-2 flex-wrap">
+						{CHAINS.map((c) => (
+							<span
+								key={c.name}
+								className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(30,50,90,0.7)]"
+							>
+								<img
+									src={`${import.meta.env.BASE_URL}logos/${c.file}`}
+									alt=""
+									className="w-4 h-4 shrink-0"
+								/>
+								{c.name}
+							</span>
+						))}
+					</div>
+				</div>
+			</div>
+
 		</div>
 	);
 }

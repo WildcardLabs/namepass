@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useState } from "react";
 import { X, ArrowUpRight, Check, Loader2 } from "lucide-react";
 import { claimName, type NameRecord } from "../lib/registry";
-import { fmtDate } from "../lib/format";
+
 import PassCard from "./PassCard";
 
 interface Props {
@@ -55,7 +55,7 @@ export default function ClaimModal({ open, onClose, onView }: Props) {
 					animate={{ opacity: 1 }}
 					exit={{ opacity: 0 }}
 					transition={{ duration: 0.25 }}
-					className="fixed inset-0 z-50 flex items-center justify-center p-4"
+					className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-4 py-8 sm:py-12"
 				>
 					<div
 						className="absolute inset-0 bg-[rgba(20,28,45,0.35)]"
@@ -68,7 +68,8 @@ export default function ClaimModal({ open, onClose, onView }: Props) {
 						animate={{ opacity: 1, y: 0, scale: 1 }}
 						exit={{ opacity: 0, y: 12, scale: 0.98 }}
 						transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-						className="relative w-full max-w-[440px] bg-white/30 backdrop-blur-xl rounded-[1.5rem] md:rounded-[2.2rem] p-6 md:p-8 shadow-[0_24px_80px_-24px_rgba(20,28,45,0.45)] border border-white/40"
+						data-wide={phase === "done"}
+						className="relative w-full max-w-[440px] data-[wide=true]:max-w-[560px] my-auto bg-white/30 backdrop-blur-xl rounded-[1.5rem] md:rounded-[2.2rem] p-6 md:p-7 shadow-[0_24px_80px_-24px_rgba(20,28,45,0.45)] border border-white/40"
 					>
 						<button
 							onClick={onClose}
@@ -154,8 +155,7 @@ export default function ClaimModal({ open, onClose, onView }: Props) {
 										Namepass is live
 									</h2>
 									<p className="mt-2 text-[14px] text-[rgba(30,50,90,0.65)] leading-relaxed">
-										Share this with anyone. It never changes, and it works on
-										every chain.
+										Share this with anyone. It never changes.
 									</p>
 
 									<div className="mt-5">
@@ -165,16 +165,8 @@ export default function ClaimModal({ open, onClose, onView }: Props) {
 											address={record.address}
 											animate
 											surface="glass"
+											layout="split"
 										/>
-									</div>
-
-									<div className="mt-4 flex items-center justify-between text-[13px] px-1">
-										<span className="text-[rgba(30,50,90,0.6)]">
-											{record.name} expires
-										</span>
-										<span className="text-[rgba(30,50,90,0.9)]">
-											{fmtDate(record.expiryAtActivation)}
-										</span>
 									</div>
 
 									<motion.button
