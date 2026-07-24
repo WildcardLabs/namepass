@@ -1,54 +1,89 @@
 /**
- * Exact ENS v2 StandardRentPriceOracle pricing for 5+ character names.
+ * Exact ENS v2 StandardRentPriceOracle pricing.
  *
  * Values are taken from the deployed contract's constructor arguments.
  * All arithmetic is BigInt; `divCeil` mirrors the contract's
  * `Math.Rounding.Ceil` in `_toAmount`, so results match on-chain to the
  * micro-unit.
  *
- * Verified thresholds (minimum spend to reach each bulk rate):
- *   1 year  → $8.000010   (no discount)
- *   2 years → $14.000017  (12.5% off)
- *   3 years → $16.500020  (31.25% off)
- *   6 years → $27.000032  (43.75% off)
+ * Base rates are per-second, indexed by character count:
+ *   1–2 chars  unavailable
+ *   3 chars    20_280_377
+ *   4 chars     5_070_095
+ *   5+ chars       253_505
  */
 
 export const DENOM = 100000000000000000000000000000000000000n; // 1e38
 export const YEAR_SECONDS = 31557600n;
-export const RATE_PER_SECOND = 253505n;
+
+/** Per-second base rate by label length. Index 0/1 are invalid. */
+export const BASE_RATE_PER_CP = [0n, 0n, 20280377n, 5070095n, 253505n];
+
+export function rateFor(labelLength: number): bigint {
+	if (labelLength < 3) return 0n;
+	if (labelLength === 3) return BASE_RATE_PER_CP[2];
+	if (labelLength === 4) return BASE_RATE_PER_CP[3];
+	return BASE_RATE_PER_CP[4];
+}
 
 export interface Tier {
 	/** Minimum duration in seconds at which this rate applies. */
 	start: bigint;
 	/** Discount numerator over DENOM. */
 	numer: bigint;
-	/** Human-facing discount label. */
+	/** Human-facing discount label, e.g. "43.75%". */
 	off: string;
+	/** Whole years this tier corresponds to. */
+	years: number;
 }
 
 export const TIERS: Tier[] = [
-	{ start: 189345600n, numer: 56250000000000000000000000000000000000n, off: "43.75% off" },
-	{ start: 94672800n, numer: 68750000000000000000000000000000000000n, off: "31.25% off" },
-	{ start: 63115200n, numer: 87500000000000000000000000000000000000n, off: "12.5% off" },
-	{ start: 0n, numer: DENOM, off: "" },
+	{ start: 189345600n, numer: 56250000000000000000000000000000000000n, off: "43.75%", years: 6 },
+	{ start: 94672800n, numer: 68750000000000000000000000000000000000n, off: "31.25%", years: 3 },
+	{ start: 63115200n, numer: 87500000000000000000000000000000000000n, off: "12.5%", years: 2 },
+	{ start: 0n, numer: DENOM, off: "", years: 0 },
 ];
 
 export const divCeil = (a: bigint, b: bigint): bigint => (a + b - 1n) / b;
 
-/** Minimum USDC (6dp micro-units) required to reach a given tier. */
-export function tierCost(tier: Tier): bigint {
-	return divCeil((RATE_PER_SECOND * tier.start * tier.numer) / DENOM, 1000000n);
+/** Minimum USDC (6dp micro-units) to reach a tier, for a given label length. */
+export function tierCost(tier: Tier, labelLength: number): bigint {
+	const rate = rateFor(labelLength);
+	if (rate === 0n) return 0n;
+	return divCeil((rate * tier.start * tier.numer) / DENOM, 1000000n);
 }
 
-/** Longest renewal a budget can buy, and the rate it lands on. */
-export function solve(budgetMicro: bigint): { seconds: bigint; off: string } {
+/** Cost of an arbitrary duration at full price. */
+export function costOf(seconds: bigint, labelLength: number): bigint {
+	const rate = rateFor(labelLength);
+	return divCeil((rate * seconds * DENOM) / DENOM, 1000000n);
+}
+
+/** Longest renewal a budget buys, and the rate it lands on. */
+export function solve(
+	budgetMicro: bigint,
+	labelLength = 5,
+): { seconds: bigint; off: string; tierYears: number } {
+	const rate = rateFor(labelLength);
+	if (rate === 0n) return { seconds: 0n, off: "", tierYears: 0 };
 	for (const tier of TIERS) {
-		if (budgetMicro >= tierCost(tier)) {
+		if (budgetMicro >= tierCost(tier, labelLength)) {
 			const seconds =
-				((budgetMicro * 1000000n + 1n) * DENOM - 1n) /
-				(RATE_PER_SECOND * tier.numer);
-			return { seconds, off: tier.off };
+				((budgetMicro * 1000000n + 1n) * DENOM - 1n) / (rate * tier.numer);
+			return { seconds, off: tier.off, tierYears: tier.years };
 		}
 	}
-	return { seconds: 0n, off: "" };
+	return { seconds: 0n, off: "", tierYears: 0 };
+}
+
+/** The three discount thresholds for a label length, cheapest first. */
+export function thresholds(labelLength: number) {
+	return TIERS.slice(0, 3)
+		.map((t) => ({ tier: t, cost: tierCost(t, labelLength) }))
+		.reverse();
+}
+
+/** One year at full price, for a label length. */
+export function oneYearCost(labelLength: number): bigint {
+	return costOf(YEAR_SECONDS, labelLength);
 }

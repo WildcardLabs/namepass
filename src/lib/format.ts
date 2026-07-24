@@ -46,3 +46,7 @@ export function fmtDuration(seconds: bigint): string {
 export function truncAddress(addr: string): string {
 	return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
+
+export function truncTx(tx: string): string {
+	return `${tx.slice(0, 10)}…${tx.slice(-6)}`;
+}

@@ -1,40 +1,32 @@
 import { motion } from "motion/react";
-import { ArrowUpRight, ChevronRight } from "lucide-react";
-
-interface MenuItem {
-	label: string;
-	hasDropdown?: boolean;
-	action?: "explore";
-}
-
-const MENU_ITEMS: MenuItem[] = [
-	{ label: "Protocol" },
-	{ label: "Pricing", hasDropdown: true },
-	{ label: "Explorer", action: "explore" },
-	{ label: "Treasury", hasDropdown: true },
-];
+import { ArrowUpRight } from "lucide-react";
 
 interface Props {
 	onClaim: () => void;
 	onExplore: () => void;
+	onSimulate: () => void;
+	onSearch: () => void;
 }
 
-export default function Navbar({ onClaim, onExplore }: Props) {
+export default function Navbar({ onClaim, onExplore, onSimulate, onSearch }: Props) {
+	const items = [
+		{ label: "Explorer", action: onExplore },
+		{ label: "Search", action: onSearch },
+		{ label: "Pricing", action: onSimulate },
+	];
+
 	return (
 		<nav className="flex items-center justify-between py-6 px-6 md:px-10 w-full relative z-10">
 			<div className="flex-1 hidden md:block" />
 
 			<ul className="hidden md:flex items-center gap-8 text-[rgb(45,45,45)] font-normal text-sm">
-				{MENU_ITEMS.map((item) => (
+				{items.map((item) => (
 					<li
 						key={item.label}
-						onClick={item.action === "explore" ? onExplore : undefined}
-						className="cursor-pointer hover:opacity-70 transition-opacity flex items-center gap-1 group"
+						onClick={item.action}
+						className="cursor-pointer hover:opacity-70 transition-opacity"
 					>
 						{item.label}
-						{item.hasDropdown && (
-							<ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
-						)}
 					</li>
 				))}
 			</ul>

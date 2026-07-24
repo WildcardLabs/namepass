@@ -1,5 +1,16 @@
 import { solve, YEAR_SECONDS } from "./pricing";
 
+/**
+ * MODEL
+ *
+ *   A Namepass is permanent. It never expires. It is a routing address.
+ *   The ENS NAME behind it has an expiry, and that is what payments extend.
+ *
+ *   Namepass  ── permanent ──>  receives USDC from any chain
+ *        │
+ *        └── extends ──> ENS name's expiry
+ */
+
 export type EventKind = "activated" | "renewal";
 
 export interface ActivityEvent {
@@ -9,53 +20,48 @@ export interface ActivityEvent {
 	at: number;
 	/** Origin chain of the inbound payment. */
 	chain: string;
-	/** Exact USDC charged, 6dp micro-units. Zero for activation. */
+	/** Exact USDC received, 6dp micro-units. Zero for activation. */
 	amount: bigint;
 	/** Seconds of renewal time bought. Zero for activation. */
 	seconds: bigint;
-	/** Discount label, e.g. "43.75% off". Empty at full price. */
+	/** Discount label, e.g. "43.75%". Empty at full price. */
 	off: string;
-	/** Expiry after this event was applied. */
-	expiryAfter: number;
-	/** Funder label — owner, a community handle, a treasury, an agent. */
+	/** The ENS NAME's expiry after this event was applied. */
+	nameExpiryAfter: number;
+	/** Who funded it — owner, community, treasury, agent. */
 	funder: string;
+	/** Fake tx hash for the explorer. */
+	tx: string;
 }
 
 export interface NameRecord {
-	/** ENS name, e.g. "vitalik.eth" */
+	/** ENS name, e.g. "vitalik.eth" — this is the thing that expires. */
 	name: string;
-	/** Namepass subdomain, e.g. "vitalik.namepass.eth" */
+	/** Character count, drives which price tier applies. */
+	labelLength: number;
+	/** Namepass subdomain — permanent. */
 	pass: string;
-	/** Deterministic deposit address. */
+	/** Namepass deposit address — permanent, receives on every chain. */
 	address: string;
-	/** Unix ms of Namepass activation. */
+	/** Unix ms the Namepass was activated. Permanent from here on. */
 	activatedAt: number;
-	/** Expiry before any Namepass renewals. */
-	baseExpiry: number;
+	/** The ENS name's expiry at the moment the Namepass was activated. */
+	expiryAtActivation: number;
 	events: ActivityEvent[];
 }
 
 const CHAINS = ["Base", "Arbitrum", "Optimism", "Ethereum", "Polygon"];
-const FUNDERS = [
-	"owner",
-	"community",
-	"treasury",
-	"agent",
-	"anon",
-	"contributor",
-];
+const FUNDERS = ["owner", "community", "treasury", "agent", "anon", "contributor"];
 
-/** Amounts that land exactly on real tier boundaries, plus some in between. */
 const AMOUNTS = [
-	8_000010n, // 1y, full price
-	14_000017n, // 2y, 12.5% off
-	16_500020n, // 3y, 31.25% off
-	27_000032n, // 6y, 43.75% off
-	5_000000n, // partial, full price
-	40_000000n, // 6y+ change, 43.75% off
+	8_000010n,
+	14_000017n,
+	16_500020n,
+	27_000032n,
+	5_000000n,
+	40_000000n,
 ];
 
-/* Deterministic pseudo-random so the seeded registry is stable across reloads. */
 function mulberry32(seed: number) {
 	return () => {
 		seed |= 0;
@@ -66,10 +72,10 @@ function mulberry32(seed: number) {
 	};
 }
 
-function fakeAddress(rand: () => number) {
-	const hex = "0123456789abcdef";
-	let out = "0x";
-	for (let i = 0; i < 40; i++) out += hex[Math.floor(rand() * 16)];
+function hex(rand: () => number, len: number) {
+	const H = "0123456789abcdef";
+	let out = "";
+	for (let i = 0; i < len; i++) out += H[Math.floor(rand() * 16)];
 	return out;
 }
 
@@ -82,8 +88,9 @@ function buildName(
 	now: number,
 ): NameRecord {
 	const rand = mulberry32(seed);
+	const label = name.replace(/\.eth$/, "");
 	const activatedAt = now - Math.floor(180 + rand() * 500) * DAY;
-	const baseExpiry = now + Math.floor(60 + rand() * 300) * DAY;
+	const expiryAtActivation = now + Math.floor(60 + rand() * 300) * DAY;
 
 	const events: ActivityEvent[] = [
 		{
@@ -94,18 +101,19 @@ function buildName(
 			amount: 0n,
 			seconds: 0n,
 			off: "",
-			expiryAfter: baseExpiry,
+			nameExpiryAfter: expiryAtActivation,
 			funder: "owner",
+			tx: `0x${hex(rand, 62)}`,
 		},
 	];
 
-	let expiry = baseExpiry;
+	let expiry = expiryAtActivation;
 	let at = activatedAt;
 	for (let i = 1; i <= eventCount; i++) {
 		at += Math.floor(10 + rand() * 90) * DAY;
 		if (at > now) break;
 		const amount = AMOUNTS[Math.floor(rand() * AMOUNTS.length)];
-		const { seconds, off } = solve(amount);
+		const { seconds, off } = solve(amount, label.length);
 		expiry += Number(seconds) * 1000;
 		events.push({
 			id: `${name}-${i}`,
@@ -115,21 +123,24 @@ function buildName(
 			amount,
 			seconds,
 			off,
-			expiryAfter: expiry,
+			nameExpiryAfter: expiry,
 			funder: FUNDERS[Math.floor(rand() * FUNDERS.length)],
+			tx: `0x${hex(rand, 62)}`,
 		});
 	}
 
 	return {
 		name,
-		pass: `${name.replace(/\.eth$/, "")}.namepass.eth`,
-		address: fakeAddress(rand),
+		labelLength: label.length,
+		pass: `${label}.namepass.eth`,
+		address: `0x${hex(rand, 40)}`,
 		activatedAt,
-		baseExpiry,
+		expiryAtActivation,
 		events,
 	};
 }
 
+/* Mix of 3, 4 and 5+ character names so tier differences are visible. */
 const SEED_NAMES: Array<[string, number, number]> = [
 	["vitalik.eth", 101, 7],
 	["nick.eth", 202, 5],
@@ -137,19 +148,16 @@ const SEED_NAMES: Array<[string, number, number]> = [
 	["brantly.eth", 404, 4],
 	["coinbase.eth", 505, 6],
 	["uniswap.eth", 606, 5],
-	["optimism.eth", 707, 4],
+	["op.eth", 707, 4],
 	["base.eth", 808, 6],
-	["arbitrum.eth", 909, 3],
+	["defi.eth", 909, 3],
 	["lens.eth", 111, 5],
 	["farcaster.eth", 222, 6],
-	["gitcoin.eth", 333, 4],
+	["dao.eth", 333, 4],
 ];
 
 const NOW = Date.now();
-
-const registry: NameRecord[] = SEED_NAMES.map(([n, s, c]) =>
-	buildName(n, s, c, NOW),
-);
+const registry: NameRecord[] = SEED_NAMES.map(([n, s, c]) => buildName(n, s, c, NOW));
 
 export function allNames(): NameRecord[] {
 	return registry;
@@ -161,24 +169,28 @@ export function findName(query: string): NameRecord | undefined {
 	return registry.find((r) => r.name === withTld);
 }
 
-/** Current expiry = the expiry recorded on the most recent event. */
-export function currentExpiry(rec: NameRecord): number {
-	return rec.events[rec.events.length - 1].expiryAfter;
+/** The ENS name's current expiry — from the most recent event. */
+export function nameExpiry(rec: NameRecord): number {
+	return rec.events[rec.events.length - 1].nameExpiryAfter;
 }
 
-/** Total renewal time ever dispensed to a name, in years. */
-export function totalYears(rec: NameRecord): number {
+/** Renewal time this Namepass has delivered, in years. */
+export function timeDelivered(rec: NameRecord): number {
 	const secs = rec.events.reduce((sum, e) => sum + e.seconds, 0n);
 	return Number(secs) / Number(YEAR_SECONDS);
 }
 
-/** Total USDC ever received by a name, in whole-dollar float. */
-export function totalFunded(rec: NameRecord): number {
+/** Total USDC this Namepass has received, whole dollars. */
+export function totalReceived(rec: NameRecord): number {
 	const micro = rec.events.reduce((sum, e) => sum + e.amount, 0n);
 	return Number(micro) / 1e6;
 }
 
-/** Every renewal across every name, newest first — the Explorer's live feed. */
+export function renewalCount(rec: NameRecord): number {
+	return rec.events.filter((e) => e.kind === "renewal").length;
+}
+
+/** Every renewal across every name, newest first. */
 export function recentActivity(limit = 40): Array<ActivityEvent & { name: string }> {
 	const rows: Array<ActivityEvent & { name: string }> = [];
 	for (const rec of registry) {
@@ -190,22 +202,23 @@ export function recentActivity(limit = 40): Array<ActivityEvent & { name: string
 	return rows.slice(0, limit);
 }
 
-/** Activate a Namepass for a new name. Returns the created record. */
+/** Activate a Namepass for a name. Idempotent. */
 export function claimName(input: string): NameRecord {
-	const raw = input.trim().toLowerCase().replace(/\.eth$/, "");
-	const name = `${raw}.eth`;
+	const label = input.trim().toLowerCase().replace(/\.eth$/, "");
+	const name = `${label}.eth`;
 	const existing = registry.find((r) => r.name === name);
 	if (existing) return existing;
 
-	const rand = mulberry32(raw.length * 7919 + raw.charCodeAt(0) * 31);
+	const rand = mulberry32(label.length * 7919 + label.charCodeAt(0) * 31);
 	const now = Date.now();
-	const baseExpiry = now + Math.floor(120 + rand() * 240) * DAY;
+	const expiryAtActivation = now + Math.floor(120 + rand() * 240) * DAY;
 	const rec: NameRecord = {
 		name,
-		pass: `${raw}.namepass.eth`,
-		address: fakeAddress(rand),
+		labelLength: label.length,
+		pass: `${label}.namepass.eth`,
+		address: `0x${hex(rand, 40)}`,
 		activatedAt: now,
-		baseExpiry,
+		expiryAtActivation,
 		events: [
 			{
 				id: `${name}-0`,
@@ -215,8 +228,9 @@ export function claimName(input: string): NameRecord {
 				amount: 0n,
 				seconds: 0n,
 				off: "",
-				expiryAfter: baseExpiry,
+				nameExpiryAfter: expiryAtActivation,
 				funder: "owner",
+				tx: `0x${hex(rand, 62)}`,
 			},
 		],
 	};
@@ -224,12 +238,12 @@ export function claimName(input: string): NameRecord {
 	return rec;
 }
 
-/** Append a live renewal to a random name — drives the Explorer's ticker. */
+/** Append a live renewal to a random name. */
 export function simulateRenewal(): ActivityEvent & { name: string } {
 	const rec = registry[Math.floor(Math.random() * registry.length)];
 	const amount = AMOUNTS[Math.floor(Math.random() * AMOUNTS.length)];
-	const { seconds, off } = solve(amount);
-	const prev = currentExpiry(rec);
+	const { seconds, off } = solve(amount, rec.labelLength);
+	const rand = mulberry32(Date.now() % 100000);
 	const event: ActivityEvent = {
 		id: `${rec.name}-live-${Date.now()}`,
 		kind: "renewal",
@@ -238,8 +252,9 @@ export function simulateRenewal(): ActivityEvent & { name: string } {
 		amount,
 		seconds,
 		off,
-		expiryAfter: prev + Number(seconds) * 1000,
+		nameExpiryAfter: nameExpiry(rec) + Number(seconds) * 1000,
 		funder: FUNDERS[Math.floor(Math.random() * FUNDERS.length)],
+		tx: `0x${hex(rand, 62)}`,
 	};
 	rec.events.push(event);
 	return { ...event, name: rec.name };
