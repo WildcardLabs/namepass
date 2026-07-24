@@ -12,7 +12,7 @@ export default function Navbar({ onClaim, onExplore, onSimulate, onSearch }: Pro
 	const items = [
 		{ label: "Explorer", action: onExplore },
 		{ label: "Search", action: onSearch },
-		{ label: "Pricing", action: onSimulate },
+		{ label: "Cost simulator", action: onSimulate },
 	];
 
 	return (

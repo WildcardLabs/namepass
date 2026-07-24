@@ -13,8 +13,16 @@ import {
 	type ActivityEvent,
 	type NameRecord,
 } from "../lib/registry";
-import { fmtAgo, fmtDate, fmtDuration, fmtUsdc } from "../lib/format";
+import { fmtAgo, fmtDate, fmtDuration, fmtUsdc, truncAddress } from "../lib/format";
 import PassCard from "./PassCard";
+
+const RECORD_LABELS: Record<string, string> = {
+	avatar: "Avatar",
+	description: "Description",
+	url: "Website",
+	"com.twitter": "Twitter",
+	"com.github": "GitHub",
+};
 
 const CHAIN_DOT: Record<string, string> = {
 	Base: "#0052FF",
@@ -134,6 +142,15 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 	const events = [...record.events].reverse();
 	const expiry = nameExpiry(record);
 	const daysLeft = Math.round((expiry - Date.now()) / 86_400_000);
+	/* Share of total runway that existed before Namepass was activated. */
+	const span = expiry - record.activatedAt;
+	const basePct = Math.max(
+		4,
+		Math.min(96, ((record.expiryAtActivation - record.activatedAt) / span) * 100),
+	);
+	const textEntries = Object.entries(record.records.text).filter(
+		([, v]) => Boolean(v),
+	) as Array<[string, string]>;
 
 	return (
 		<motion.div
@@ -155,11 +172,12 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 
 			{/* The two-panel model: what expires vs. what is permanent */}
 			<div className="mt-8 grid md:grid-cols-2 gap-4">
-				<div className="rounded-2xl border border-[rgba(30,50,90,0.12)] bg-white p-5">
+				<div className="rounded-2xl border border-[rgba(30,50,90,0.12)] bg-white p-5 flex flex-col">
 					<div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
 						<Clock className="w-3.5 h-3.5" />
 						The ENS name · expires
 					</div>
+
 					<div className="mt-3 text-[26px] md:text-[30px] text-[rgba(30,50,90,0.95)] tracking-tight leading-none">
 						{fmtDate(expiry)}
 					</div>
@@ -168,13 +186,87 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 							? `${daysLeft.toLocaleString("en-US")} days of registration remaining`
 							: "Expired — needs renewal"}
 					</div>
-					<div className="mt-4 pt-4 border-t border-[rgba(30,50,90,0.08)] flex justify-between text-[13px]">
-						<span className="text-[rgba(30,50,90,0.55)]">
-							Expiry when Namepass was activated
-						</span>
-						<span className="text-[rgba(30,50,90,0.8)]">
-							{fmtDate(record.expiryAtActivation)}
-						</span>
+
+					{/* Runway: how far Namepass has pushed the expiry out */}
+					<div className="mt-5">
+						<div className="flex justify-between text-[11px] text-[rgba(30,50,90,0.5)] mb-2">
+							<span>At activation</span>
+							<span>Now</span>
+						</div>
+						<div className="relative h-1.5 rounded-full bg-[rgba(30,50,90,0.08)] overflow-hidden">
+							<motion.div
+								initial={{ width: 0 }}
+								animate={{ width: `${basePct}%` }}
+								transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+								className="absolute inset-y-0 left-0 bg-[rgba(30,50,90,0.25)]"
+							/>
+							<motion.div
+								initial={{ width: 0 }}
+								animate={{ width: `${100 - basePct}%` }}
+								transition={{ duration: 0.7, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+								className="absolute inset-y-0 bg-[rgba(30,50,90,0.75)]"
+								style={{ left: `${basePct}%` }}
+							/>
+						</div>
+						<div className="mt-2 flex justify-between text-[12px]">
+							<span className="text-[rgba(30,50,90,0.55)]">
+								{fmtDate(record.expiryAtActivation)}
+							</span>
+							<span className="text-[rgba(30,50,90,0.9)]">
+								+{timeDelivered(record).toFixed(1)} years added
+							</span>
+						</div>
+					</div>
+
+					{/* ENS records — what the name actually resolves to */}
+					<div className="mt-5 pt-5 border-t border-[rgba(30,50,90,0.08)] flex-1">
+						<div className="flex items-center justify-between">
+							<span className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
+								Records
+							</span>
+							<span className="text-[11px] text-[rgba(30,50,90,0.4)]">
+								Public Resolver
+							</span>
+						</div>
+
+						<dl className="mt-3 space-y-2.5">
+							<div className="flex items-baseline justify-between gap-4">
+								<dt className="text-[12.5px] text-[rgba(30,50,90,0.5)] shrink-0">
+									Resolves to
+								</dt>
+								<dd className="text-[13px] text-[rgba(30,50,90,0.9)] font-mono truncate">
+									{truncAddress(record.records.addr)}
+								</dd>
+							</div>
+							<div className="flex items-baseline justify-between gap-4">
+								<dt className="text-[12.5px] text-[rgba(30,50,90,0.5)] shrink-0">
+									Owner
+								</dt>
+								<dd className="text-[13px] text-[rgba(30,50,90,0.9)] font-mono truncate">
+									{truncAddress(record.records.owner)}
+								</dd>
+							</div>
+
+							{textEntries.map(([key, value]) => (
+								<div
+									key={key}
+									className="flex items-baseline justify-between gap-4"
+								>
+									<dt className="text-[12.5px] text-[rgba(30,50,90,0.5)] shrink-0">
+										{RECORD_LABELS[key] ?? key}
+									</dt>
+									<dd className="text-[13px] text-[rgba(30,50,90,0.85)] truncate text-right">
+										{value}
+									</dd>
+								</div>
+							))}
+						</dl>
+
+						{textEntries.length === 0 && (
+							<div className="mt-2 text-[12.5px] text-[rgba(30,50,90,0.45)]">
+								No text records set.
+							</div>
+						)}
 					</div>
 				</div>
 

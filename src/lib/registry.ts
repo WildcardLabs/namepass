@@ -34,6 +34,23 @@ export interface ActivityEvent {
 	tx: string;
 }
 
+export interface EnsRecords {
+	/** Address the name resolves to. */
+	addr: string;
+	/** Text records, as stored on the resolver. */
+	text: Partial<{
+		avatar: string;
+		description: string;
+		url: string;
+		"com.twitter": string;
+		"com.github": string;
+	}>;
+	/** Owner of the name in the registry. */
+	owner: string;
+	/** Resolver contract in use. */
+	resolver: string;
+}
+
 export interface NameRecord {
 	/** ENS name, e.g. "vitalik.eth" — this is the thing that expires. */
 	name: string;
@@ -43,6 +60,8 @@ export interface NameRecord {
 	pass: string;
 	/** Namepass deposit address — permanent, receives on every chain. */
 	address: string;
+	/** Resolver state for the ENS name itself. */
+	records: EnsRecords;
 	/** Unix ms the Namepass was activated. Permanent from here on. */
 	activatedAt: number;
 	/** The ENS name's expiry at the moment the Namepass was activated. */
@@ -80,6 +99,27 @@ function hex(rand: () => number, len: number) {
 }
 
 const DAY = 86_400_000;
+
+const PUBLIC_RESOLVER = "0x231b0Ee14048e9dCcD1d247744d114a4EB5E8E63";
+
+function buildRecords(label: string, rand: () => number): EnsRecords {
+	const handle = label.replace(/[^a-z0-9]/g, "");
+	const has = (p: number) => rand() < p;
+	return {
+		addr: `0x${hex(rand, 40)}`,
+		owner: `0x${hex(rand, 40)}`,
+		resolver: PUBLIC_RESOLVER,
+		text: {
+			...(has(0.85) ? { avatar: `https://euc.li/${label}.eth` } : {}),
+			...(has(0.7)
+				? { description: "Onchain since 2017. Building public goods." }
+				: {}),
+			...(has(0.6) ? { url: `https://${handle}.xyz` } : {}),
+			...(has(0.75) ? { "com.twitter": handle } : {}),
+			...(has(0.5) ? { "com.github": handle } : {}),
+		},
+	};
+}
 
 function buildName(
 	name: string,
@@ -134,6 +174,7 @@ function buildName(
 		labelLength: label.length,
 		pass: `${label}.namepass.eth`,
 		address: `0x${hex(rand, 40)}`,
+		records: buildRecords(label, rand),
 		activatedAt,
 		expiryAtActivation,
 		events,
@@ -217,6 +258,7 @@ export function claimName(input: string): NameRecord {
 		labelLength: label.length,
 		pass: `${label}.namepass.eth`,
 		address: `0x${hex(rand, 40)}`,
+		records: buildRecords(label, rand),
 		activatedAt: now,
 		expiryAtActivation,
 		events: [

@@ -87,3 +87,51 @@ export function thresholds(labelLength: number) {
 export function oneYearCost(labelLength: number): bigint {
 	return costOf(YEAR_SECONDS, labelLength);
 }
+
+/** Round micro-USDC up to the next whole cent — payable, and always clears the tier. */
+export function ceilToCent(micro: bigint): bigint {
+	return ((micro + 9999n) / 10000n) * 10000n;
+}
+
+/** Payable button amounts for each threshold: exact cost rounded up to a cent. */
+export function payableThresholds(labelLength: number) {
+	return thresholds(labelLength).map((t) => ({
+		years: t.tier.years,
+		off: t.tier.off,
+		exact: t.cost,
+		payable: ceilToCent(t.cost),
+	}));
+}
+
+export interface NextTierHint {
+	years: number;
+	off: string;
+	payable: bigint;
+	/** Extra USDC needed to reach it. */
+	delta: bigint;
+	/** Seconds gained by topping up. */
+	gain: bigint;
+}
+
+/**
+ * If a small top-up would cross into a much better rate, describe it.
+ * Returns null when already at the best rate, or when the jump isn't close.
+ */
+export function nextTierHint(
+	budgetMicro: bigint,
+	labelLength: number,
+	proximity = 0.35,
+): NextTierHint | null {
+	const current = solve(budgetMicro, labelLength);
+	for (const t of payableThresholds(labelLength)) {
+		if (budgetMicro >= t.payable) continue;
+		const delta = t.payable - budgetMicro;
+		/* Only surface it if the top-up is small relative to what they've already put in. */
+		if (budgetMicro > 0n && Number(delta) > Number(budgetMicro) * proximity) return null;
+		const after = solve(t.payable, labelLength);
+		const gain = after.seconds - current.seconds;
+		if (gain <= 0n) return null;
+		return { years: t.years, off: t.off, payable: t.payable, delta, gain };
+	}
+	return null;
+}

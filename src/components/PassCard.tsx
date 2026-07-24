@@ -4,6 +4,13 @@ import { Check, Copy, Infinity as InfinityIcon } from "lucide-react";
 import { encodeQR } from "../lib/qr";
 import { truncAddress } from "../lib/format";
 
+const CHAINS = [
+	{ name: "Base", file: "base.svg" },
+	{ name: "Arbitrum", file: "arbitrum.svg" },
+	{ name: "Polygon", file: "polygon.svg" },
+	{ name: "Ethereum", file: "ethereum.svg" },
+];
+
 interface Props {
 	/** ENS name being funded, e.g. "vitalik.eth" */
 	name: string;
@@ -118,6 +125,45 @@ export default function PassCard({
 			<p className="mt-3 text-center text-[12px] text-[rgba(30,50,90,0.5)]">
 				Scan to send from any wallet
 			</p>
+
+			{/* What this address accepts — the question every sender has. */}
+			<div
+				className={`mt-4 rounded-2xl border px-4 py-3.5 ${
+					glass ? "bg-white/35 border-white/50" : "bg-[rgba(30,50,90,0.025)] border-[rgba(30,50,90,0.08)]"
+				}`}
+			>
+				<div className="flex items-center justify-center gap-2">
+					<img
+						src={`${import.meta.env.BASE_URL}logos/usdc.svg`}
+						alt=""
+						className="w-[18px] h-[18px]"
+					/>
+					<span className="text-[13.5px] text-[rgba(30,50,90,0.9)]">
+						USDC accepted
+					</span>
+				</div>
+
+				<div className="mt-3 pt-3 border-t border-[rgba(30,50,90,0.08)]">
+					<div className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.45)] text-center">
+						On any of these chains
+					</div>
+					<div className="mt-2.5 flex items-center justify-center gap-x-4 gap-y-2 flex-wrap">
+						{CHAINS.map((c) => (
+							<span
+								key={c.name}
+								className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(30,50,90,0.7)]"
+							>
+								<img
+									src={`${import.meta.env.BASE_URL}logos/${c.file}`}
+									alt=""
+									className="w-4 h-4 shrink-0"
+								/>
+								{c.name}
+							</span>
+						))}
+					</div>
+				</div>
+			</div>
 
 			{/* Primary: the human-readable name */}
 			<button
