@@ -4,7 +4,7 @@ import HeroBadge from "./HeroBadge";
 import BottomLeftCard from "./BottomLeftCard";
 import BottomRightCorner from "./BottomRightCorner";
 
-const VIDEO_URL = `${import.meta.env.BASE_URL}assets/cinematic4.mp4`;
+const VIDEO_URL = `${import.meta.env.BASE_URL}assets/cinematic2.mp4`;
 
 interface Props {
 	onClaim: () => void;
