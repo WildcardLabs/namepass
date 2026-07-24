@@ -27,8 +27,8 @@ export default function Navbar({ onClaim, onExplore, onSimulate, onSearch }: Pro
 					alt=""
 					className="h-7 md:h-8 w-auto shrink-0"
 				/>
-				<span className="hidden lg:block text-[17px] tracking-tight text-[rgba(30,50,90,0.9)]">
-					Namepass
+				<span className="hidden lg:block font-wordmark text-[21px] font-black tracking-tight text-[rgba(30,50,90,0.9)]">
+					namepass
 				</span>
 			</a>
 

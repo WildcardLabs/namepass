@@ -144,7 +144,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 							</div>
 
 							{/* Mobile: labelled detail pairs */}
-							<dl className="md:hidden mt-2.5 grid grid-cols-[5.5rem_4.5rem_5rem_1fr] gap-x-2 gap-y-1 items-baseline">
+							<dl className="md:hidden mt-2.5 grid grid-cols-[minmax(5.25rem,auto)_minmax(4rem,auto)_minmax(4.75rem,auto)_auto] justify-between gap-x-2 gap-y-1 items-baseline">
 								<div>
 									<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
 										From
@@ -169,7 +169,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 										{r.off ? `${r.off} off` : "Standard"}
 									</dd>
 								</div>
-								<div>
+								<div className="text-right">
 									<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
 										Time
 									</dt>
@@ -468,7 +468,7 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 
 								{/* Mobile detail pairs */}
 								{e.kind === "renewal" && (
-									<dl className="md:hidden mt-2.5 grid grid-cols-[5.5rem_4.5rem_5rem_1fr] gap-x-2 gap-y-1 items-baseline">
+									<dl className="md:hidden mt-2.5 grid grid-cols-[minmax(5.25rem,auto)_minmax(4rem,auto)_minmax(4.75rem,auto)_auto] justify-between gap-x-2 gap-y-1 items-baseline">
 										<div>
 											<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
 												From
@@ -493,7 +493,7 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 												{e.off ? `${e.off} off` : "Standard"}
 											</dd>
 										</div>
-										<div>
+										<div className="text-right">
 											<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
 												Time
 											</dt>

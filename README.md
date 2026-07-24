@@ -34,6 +34,17 @@ avatar and contenthash. Two things are deliberately dropped:
   reader. The one exception is coin 60 (ETH), lifted out as `addr`.
 - **`header`, `name`, `com.discord`, `com.youtube`** — rarely set, and not identity-defining.
 
+## Wordmark
+
+The bundled Helvetica webfont is a single static face — `usWeightClass: 400`, no `fvar` axis,
+bold bit unset. Setting `font-weight: 900` on it produces **synthetic bold**: the browser
+algorithmically thickens Regular glyphs rather than loading a drawn heavy face. It looks bolder,
+but strokes smear at the joins and the result differs between Chrome, Safari and Firefox.
+
+The wordmark therefore uses `--font-wordmark`, the platform UI stack (SF Pro on Apple, Segoe UI
+on Windows, Roboto on Android). Every one of those ships a genuine heavy weight, and it costs no
+network request.
+
 ## Layout invariants
 
 Two rules that broke in earlier revisions and are worth preserving:
@@ -53,7 +64,13 @@ avoid:
 - `flex justify-between` sizes each column to its content, so a longer chain name ("Arbitrum"
   vs "Base") shifts every column after it — rows stop lining up with each other.
 
-Fixed rem widths sized to worst-case content keep every row's columns in the same place.
+A third failure mode: fixed widths plus a trailing `1fr` column. The Time value needs ~41px but
+`1fr` hands it 64–118px depending on viewport, and all of it becomes dead space on the right.
+
+The working combination is `minmax(<floor>, auto)` on the first three columns with
+`justify-between` on the grid, and `text-right` on the trailing cell. Minimum widths stop chain
+names from shifting later columns; `auto` keeps each column at its content size; and
+`justify-between` distributes the leftover into the gaps so the row ends flush at both edges.
 `ChainTag` uses `items-baseline` with a `self-center` dot so it sits level with plain-text
 siblings; `items-center` would raise it above their baseline.
 
