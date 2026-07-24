@@ -89,8 +89,7 @@ export default function Simulator() {
 					</h2>
 					<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(30,50,90,0.6)] leading-relaxed">
 						ENS charges by name length and discounts longer renewals. Namepass always
-						converts a payment into the longest duration it can buy. Every figure
-						below is the exact on-chain price — Namepass takes nothing.
+						converts a payment into the longest duration it can buy.
 					</p>
 				</div>
 

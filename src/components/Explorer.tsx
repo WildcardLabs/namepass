@@ -6,15 +6,17 @@ import {
 	Clock,
 	Globe,
 	Link as LinkIcon,
-	AtSign,
 	Github,
 	Send,
 	MapPin,
 	Mail,
 	Zap,
+	Loader2,
+	ExternalLink,
 } from "lucide-react";
 import {
 	allNames,
+	claimName,
 	findName,
 	nameExpiry,
 	recentActivity,
@@ -28,6 +30,15 @@ import {
 import { fmtAgo, fmtDate, fmtDuration, fmtUsdc, truncAddress } from "../lib/format";
 import PassCard from "./PassCard";
 import { fetchProfile, type EnsProfile } from "../lib/ens";
+
+/** X (formerly Twitter) wordmark — lucide ships the old bird, not this. */
+function XIcon({ className }: { className?: string }) {
+	return (
+		<svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+			<path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+		</svg>
+	);
+}
 
 const CHAIN_DOT: Record<string, string> = {
 	Base: "#0052FF",
@@ -119,7 +130,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 									<DiscountTag off={r.off} />
 								</span>
 
-								<span className="text-[15px] md:text-[14px] text-[rgba(30,50,90,0.95)] md:text-right tabular-nums shrink-0">
+								<span className="hidden md:block text-[13.5px] text-[rgba(30,50,90,0.95)] text-right tabular-nums">
 									{fmtDuration(r.seconds)}
 								</span>
 
@@ -129,7 +140,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 							</div>
 
 							{/* Mobile: labelled detail pairs */}
-							<dl className="md:hidden mt-2.5 grid grid-cols-3 gap-3">
+							<dl className="md:hidden mt-2.5 grid grid-cols-4 gap-3">
 								<div>
 									<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
 										From
@@ -150,12 +161,16 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 									<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
 										Rate
 									</dt>
-									<dd className="mt-0.5 text-[12.5px]">
-										{r.off ? (
-											<span className="text-[rgba(30,50,90,0.75)]">{r.off} off</span>
-										) : (
-											<span className="text-[rgba(30,50,90,0.4)]">Standard</span>
-										)}
+									<dd className="mt-0.5 text-[12.5px] text-[rgba(30,50,90,0.75)]">
+										{r.off ? `${r.off} off` : "Standard"}
+									</dd>
+								</div>
+								<div>
+									<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
+										Time
+									</dt>
+									<dd className="mt-0.5 text-[12.5px] text-[rgba(30,50,90,0.95)] tabular-nums">
+										{fmtDuration(r.seconds)}
 									</dd>
 								</div>
 							</dl>
@@ -205,7 +220,7 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 	const links = (
 		[
 			{ key: "url", value: t.url, Icon: LinkIcon },
-			{ key: "com.twitter", value: t["com.twitter"] && `@${t["com.twitter"]}`, Icon: AtSign },
+			{ key: "com.twitter", value: t["com.twitter"] && `@${t["com.twitter"]}`, Icon: XIcon },
 			{ key: "com.github", value: t["com.github"], Icon: Github },
 			{ key: "org.telegram", value: t["org.telegram"] && `@${t["org.telegram"]}`, Icon: Send },
 			{ key: "location", value: t.location, Icon: MapPin },
@@ -286,10 +301,16 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 								Profile
 							</span>
 							{profile?.contenthash && (
-								<span className="inline-flex items-center gap-1.5 text-[11px] text-[rgba(30,50,90,0.55)]">
+								<a
+									href={`https://${record.name}.limo`}
+									target="_blank"
+									rel="noopener noreferrer"
+									className="inline-flex items-center gap-1.5 text-[11px] text-[rgba(30,50,90,0.55)] hover:text-[rgba(30,50,90,0.9)] transition-colors"
+								>
 									<Globe className="w-3 h-3" />
 									Serves a site
-								</span>
+									<ExternalLink className="w-2.5 h-2.5" />
+								</a>
 							)}
 						</div>
 
@@ -397,14 +418,13 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 						<span className="text-right">Amount</span>
 						<span className="text-center">Discount</span>
 						<span className="text-right">Time added</span>
-						<span className="text-right">Name expires</span>
 					</div>
 
 					<div className="divide-y divide-[rgba(30,50,90,0.07)]">
 						{events.map((e) => (
 							<div
 								key={e.id}
-								className="px-4 md:px-5 py-4 md:py-3.5 block md:grid md:grid-cols-[0.8fr_1fr_0.8fr_0.7fr_0.8fr_0.8fr_1fr] md:gap-4 md:items-center"
+								className="px-4 md:px-5 py-4 md:py-3.5 block md:grid md:grid-cols-[0.8fr_1.2fr_0.8fr_0.8fr_0.9fr_0.8fr] md:gap-4 md:items-center"
 							>
 								{/* Headline row */}
 								<div className="flex items-baseline justify-between gap-3 md:contents">
@@ -412,7 +432,7 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 										{fmtDate(e.at)}
 									</span>
 
-									<span className="text-[15px] md:text-[14px] text-[rgba(30,50,90,0.95)] truncate">
+									<span className="text-[15px] md:text-[14.5px] text-[rgba(30,50,90,0.95)] truncate">
 										{e.kind === "activated"
 											? "Namepass activated"
 											: `Renewal · ${e.funder}`}
@@ -438,18 +458,15 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 										)}
 									</span>
 
-									<span className="text-[15px] md:text-[14px] text-[rgba(30,50,90,0.95)] md:text-right tabular-nums shrink-0">
+									<span className="hidden md:block text-[13.5px] text-[rgba(30,50,90,0.95)] text-right tabular-nums">
 										{e.kind === "renewal" ? fmtDuration(e.seconds) : "—"}
 									</span>
 
-									<span className="hidden md:block text-[13px] text-[rgba(30,50,90,0.7)] text-right tabular-nums">
-										{fmtDate(e.nameExpiryAfter)}
-									</span>
 								</div>
 
 								{/* Mobile detail pairs */}
 								{e.kind === "renewal" && (
-									<dl className="md:hidden mt-2.5 grid grid-cols-3 gap-3">
+									<dl className="md:hidden mt-2.5 grid grid-cols-4 gap-3">
 										<div>
 											<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
 												From
@@ -470,22 +487,23 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 											<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
 												Rate
 											</dt>
-											<dd className="mt-0.5 text-[12.5px]">
-												{e.off ? (
-													<span className="text-[rgba(30,50,90,0.75)]">
-														{e.off} off
-													</span>
-												) : (
-													<span className="text-[rgba(30,50,90,0.4)]">Standard</span>
-												)}
+											<dd className="mt-0.5 text-[12.5px] text-[rgba(30,50,90,0.75)]">
+												{e.off ? `${e.off} off` : "Standard"}
+											</dd>
+										</div>
+										<div>
+											<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
+												Time
+											</dt>
+											<dd className="mt-0.5 text-[12.5px] text-[rgba(30,50,90,0.95)] tabular-nums">
+												{fmtDuration(e.seconds)}
 											</dd>
 										</div>
 									</dl>
 								)}
 
-								<div className="md:hidden mt-2 flex items-center justify-between text-[11.5px] text-[rgba(30,50,90,0.45)]">
-									<span>{fmtDate(e.at)}</span>
-									<span>expires {fmtDate(e.nameExpiryAfter)}</span>
+								<div className="md:hidden mt-2 text-[11.5px] text-[rgba(30,50,90,0.45)]">
+									{fmtDate(e.at)}
 								</div>
 							</div>
 						))}
@@ -501,12 +519,14 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 interface Props {
 	selected: string | null;
 	onSelect: (name: string | null) => void;
-	onActivate: (name: string) => void;
+	/** Fired once a Namepass exists, so the page can reveal its profile. */
+	onActivated: (name: string) => void;
 }
 
-export default function Explorer({ selected, onSelect, onActivate }: Props) {
+export default function Explorer({ selected, onSelect, onActivated }: Props) {
 	const [query, setQuery] = useState("");
 	const [notFound, setNotFound] = useState<string | null>(null);
+	const [activating, setActivating] = useState(false);
 
 	const record = useMemo(
 		() => (selected ? findName(selected) : undefined),
@@ -617,14 +637,31 @@ export default function Explorer({ selected, onSelect, onActivate }: Props) {
 								</p>
 								<button
 									onClick={() => {
-										onActivate(notFound);
-										setQuery("");
-										setNotFound(null);
+										if (activating) return;
+										setActivating(true);
+										const target = notFound;
+										setTimeout(() => {
+											const created = claimName(target);
+											setActivating(false);
+											setQuery("");
+											setNotFound(null);
+											onActivated(created.name);
+										}, 1100);
 									}}
-									className="mt-3 w-full flex items-center justify-center gap-2 bg-[rgba(30,50,90,0.9)] text-white rounded-full py-2.5 hover:bg-[rgba(30,50,90,1)] transition-colors"
+									disabled={activating}
+									className="mt-3 w-full flex items-center justify-center gap-2 bg-[rgba(30,50,90,0.9)] text-white rounded-full py-2.5 hover:bg-[rgba(30,50,90,1)] transition-colors disabled:opacity-70"
 								>
-									<Zap className="w-3.5 h-3.5" />
-									<span className="text-[13.5px]">Activate now</span>
+									{activating ? (
+										<>
+											<Loader2 className="w-3.5 h-3.5 animate-spin" />
+											<span className="text-[13.5px]">Activating…</span>
+										</>
+									) : (
+										<>
+											<Zap className="w-3.5 h-3.5" />
+											<span className="text-[13.5px]">Activate now</span>
+										</>
+									)}
 								</button>
 							</motion.div>
 						)}

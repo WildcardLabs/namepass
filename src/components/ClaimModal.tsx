@@ -9,13 +9,11 @@ interface Props {
 	onClose: () => void;
 	/** Fired once the Namepass exists — the page scrolls to its Explorer entry. */
 	onActivated: (name: string) => void;
-	/** Pre-fill the field, e.g. when activating from a failed search. */
-	initialName?: string;
 }
 
 type Phase = "input" | "activating";
 
-export default function ClaimModal({ open, onClose, onActivated, initialName }: Props) {
+export default function ClaimModal({ open, onClose, onActivated }: Props) {
 	const [value, setValue] = useState("");
 	const [phase, setPhase] = useState<Phase>("input");
 
@@ -27,10 +25,6 @@ export default function ClaimModal({ open, onClose, onActivated, initialName }: 
 		}, 300);
 		return () => clearTimeout(t);
 	}, [open]);
-
-	useEffect(() => {
-		if (open && initialName) setValue(initialName.replace(/\.eth$/i, ""));
-	}, [open, initialName]);
 
 	useEffect(() => {
 		if (!open) return;
@@ -87,9 +81,8 @@ export default function ClaimModal({ open, onClose, onActivated, initialName }: 
 									Claim your address
 								</h2>
 								<p className="mt-2 text-[14px] text-[rgba(30,50,90,0.65)] leading-relaxed">
-									Activate a Namepass for your ENS name. You get a permanent
-									address that anyone can fund, from any chain — and every payment
-									extends your name.
+									Activate a Namepass for your ENS name. Every USDC payment
+									received on any supported chain extends your name.
 								</p>
 
 								<div className="mt-6">
@@ -137,7 +130,7 @@ export default function ClaimModal({ open, onClose, onActivated, initialName }: 
 								</motion.button>
 
 								<p className="mt-4 text-[12px] text-center text-[rgba(30,50,90,0.5)]">
-									Free to activate. You only pay when you renew.
+									Free to activate.
 								</p>
 					</motion.div>
 				</motion.div>

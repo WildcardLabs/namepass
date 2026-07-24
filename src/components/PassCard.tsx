@@ -2,7 +2,6 @@ import { motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { Check, Copy, Infinity as InfinityIcon } from "lucide-react";
 import { encodeQR } from "../lib/qr";
-import { truncAddress } from "../lib/format";
 
 const CHAINS = [
 	{ name: "Base", file: "base.svg" },
@@ -179,9 +178,9 @@ export default function PassCard({
 					<div className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
 						Deposit address · any chain
 					</div>
-					<div className="mt-1 flex items-center justify-between gap-3">
-						<span className="text-[14px] text-[rgba(30,50,90,0.95)] font-mono">
-							{truncAddress(address)}
+					<div className="mt-1 flex items-start justify-between gap-3">
+						<span className="text-[12.5px] leading-snug text-[rgba(30,50,90,0.95)] font-mono break-all">
+							{address}
 						</span>
 						{copied === "address" ? (
 							<span className="flex items-center gap-1.5 shrink-0 text-[12px] text-[rgba(30,50,90,0.8)]">

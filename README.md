@@ -57,8 +57,16 @@ table directly beneath it.
 
 Typing a complete `.eth` name auto-searches after a 350ms debounce — no Enter required.
 Partial input waits. If the name has no Namepass, the result is not a dead end: an
-**Activate now** prompt appears, pre-filling the claim modal. Anyone can activate any name;
-ownership is not required, and the copy says so.
+**Activate now** button appears and activates inline, showing the same spinner state as the
+modal before revealing the new profile. Anyone can activate any name; ownership is not
+required, and the copy says so.
+
+## Address display
+
+The Namepass deposit address is shown **in full**, never truncated. Truncation hides the middle
+of an address — exactly where an address-swap attack would land — so a sender cannot verify what
+they are about to pay. The ENS profile's *resolved* address is still truncated, since it is
+informational rather than a payment target.
 
 ## Threshold rounding — important
 
