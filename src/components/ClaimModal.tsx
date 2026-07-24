@@ -81,8 +81,8 @@ export default function ClaimModal({ open, onClose, onActivated }: Props) {
 									Claim your address
 								</h2>
 								<p className="mt-2 text-[14px] text-[rgba(30,50,90,0.65)] leading-relaxed">
-									Activate a Namepass for your ENS name. Every USDC payment
-									received on any supported chain extends your name.
+									Activate your Namepass. Every USDC payment
+									received on any supported chain extends your ENS name.
 								</p>
 
 								<div className="mt-6">
