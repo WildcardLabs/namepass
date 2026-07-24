@@ -6,6 +6,7 @@ import ClaimModal from "./components/ClaimModal";
 
 export default function App() {
 	const [claimOpen, setClaimOpen] = useState(false);
+	const [claimPrefill, setClaimPrefill] = useState<string>("");
 	const [selected, setSelected] = useState<string | null>(null);
 
 	const scrollTo = useCallback((id: string) => {
@@ -16,17 +17,22 @@ export default function App() {
 		setSelected(null);
 		scrollTo("explorer");
 		setTimeout(() => {
-			const input = document.querySelector<HTMLInputElement>(
-				"#explorer input[type='text'], #explorer input:not([type])",
-			);
-			input?.focus();
+			document
+				.querySelector<HTMLInputElement>("#explorer input")
+				?.focus();
 		}, 600);
 	}, [scrollTo]);
 
-	const viewName = useCallback(
+	const openClaim = useCallback((prefill = "") => {
+		setClaimPrefill(prefill);
+		setClaimOpen(true);
+	}, []);
+
+	/* After activation: no success modal — land the user on the live profile. */
+	const handleActivated = useCallback(
 		(name: string) => {
 			setSelected(name);
-			setTimeout(() => scrollTo("explorer"), 320);
+			setTimeout(() => scrollTo("explorer"), 260);
 		},
 		[scrollTo],
 	);
@@ -34,17 +40,22 @@ export default function App() {
 	return (
 		<main className="min-h-screen bg-[#f0f0f0]">
 			<Hero
-				onClaim={() => setClaimOpen(true)}
+				onClaim={() => openClaim()}
 				onExplore={() => scrollTo("explorer")}
 				onSimulate={() => scrollTo("simulator")}
 				onSearch={focusSearch}
 			/>
 			<Simulator />
-			<Explorer selected={selected} onSelect={setSelected} />
+			<Explorer
+				selected={selected}
+				onSelect={setSelected}
+				onActivate={(name) => openClaim(name)}
+			/>
 			<ClaimModal
 				open={claimOpen}
 				onClose={() => setClaimOpen(false)}
-				onView={viewName}
+				onActivated={handleActivated}
+				initialName={claimPrefill}
 			/>
 		</main>
 	);

@@ -21,21 +21,44 @@ payments and shows the name's expiry moving out in response:
 Each figure is computed at render time from the deployed pricing oracle — the card is a
 demonstration of the product, not a marketing number.
 
+## ENS profiles are live (`src/lib/ens.ts`)
+
+Profiles are fetched from `https://api.resolvio.xyz/ens/v2/profile/<name>` — in-memory cached,
+request-deduplicated, and aborted on unmount.
+
+The API returns every slot it knows about, most with `exists: false`. We keep only what a person
+reads: **description, url, com.twitter, com.github, org.telegram, location, email**, plus the
+avatar and contenthash. Two things are deliberately dropped:
+
+- **`addresses`** — mostly `exists: false`, and coin types like `2147492101` mean nothing to a
+  reader. The one exception is coin 60 (ETH), lifted out as `addr`.
+- **`header`, `name`, `com.discord`, `com.youtube`** — rarely set, and not identity-defining.
+
+## Mobile: tables become cards
+
+Following Etherscan's pattern, the live feed and activity table drop their grid below `md` and
+render each row as a card: name and time-added on the headline row, then labelled
+From / Received / Rate pairs beneath, with the timestamp last. Column headers hide entirely —
+they carry no meaning once the grid is gone.
+
 ## Explorer name detail — two panels, no overlap
 
 - **Left · The ENS name.** Expiry date, days remaining, a runway bar splitting the expiry that
-  existed at activation from the time Namepass has added since, and the name's **profile** —
-  avatar, description, resolved address, and icon-labelled links (website, Twitter, GitHub,
-  Telegram, location, email), plus a "Serves a site" marker when a contenthash is set.
-
-  Record shape follows the resolver API (`api.resolvio.xyz/ens/v2/profile/<name>`). The
-  `addresses` array is deliberately **not** surfaced — it is mostly `exists: false`, and
-  per-chain coin types are noise for someone who just wants to know whose name this is.
+  existed at activation from the time Namepass has added since, and the name's live **profile**
+  fetched from the resolver API — avatar, description, resolved address, and icon-labelled links,
+  plus a "Serves a site" marker when a contenthash is set. Skeleton-loads while fetching.
 - **Right · The Namepass.** QR, accepted token, supported chains, and the two copy targets.
 
 The activity table below carries the full payment history. The left panel deliberately does not
 repeat it — an earlier version listed recent renewals there, which was a strict subset of the
 table directly beneath it.
+
+## Search behaviour
+
+Typing a complete `.eth` name auto-searches after a 350ms debounce — no Enter required.
+Partial input waits. If the name has no Namepass, the result is not a dead end: an
+**Activate now** prompt appears, pre-filling the claim modal. Anyone can activate any name;
+ownership is not required, and the copy says so.
 
 ## Threshold rounding — important
 

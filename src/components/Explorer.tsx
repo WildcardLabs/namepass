@@ -11,6 +11,7 @@ import {
 	Send,
 	MapPin,
 	Mail,
+	Zap,
 } from "lucide-react";
 import {
 	allNames,
@@ -26,6 +27,7 @@ import {
 } from "../lib/registry";
 import { fmtAgo, fmtDate, fmtDuration, fmtUsdc, truncAddress } from "../lib/format";
 import PassCard from "./PassCard";
+import { fetchProfile, type EnsProfile } from "../lib/ens";
 
 const CHAIN_DOT: Record<string, string> = {
 	Base: "#0052FF",
@@ -77,6 +79,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 
 	return (
 		<div className="border border-[rgba(30,50,90,0.1)] rounded-2xl overflow-hidden">
+			{/* Desktop column headers — hidden on mobile, where rows become cards */}
 			<div className="hidden md:grid grid-cols-[1.3fr_0.9fr_0.8fr_0.9fr_0.9fr_0.8fr] gap-4 px-5 py-3 bg-[rgba(30,50,90,0.03)] border-b border-[rgba(30,50,90,0.1)] text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
 				<span>ENS name</span>
 				<span>Chain</span>
@@ -96,39 +99,69 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 							animate={{ opacity: 1, backgroundColor: "rgba(30,50,90,0)" }}
 							transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
 							onClick={() => onSelect(r.name)}
-							className="w-full text-left px-5 py-3.5 grid grid-cols-2 md:grid-cols-[1.3fr_0.9fr_0.8fr_0.9fr_0.9fr_0.8fr] gap-x-4 gap-y-1.5 items-center hover:bg-[rgba(30,50,90,0.025)] transition-colors"
+							className="w-full text-left px-4 md:px-5 py-4 md:py-3.5 hover:bg-[rgba(30,50,90,0.025)] transition-colors block md:grid md:grid-cols-[1.3fr_0.9fr_0.8fr_0.9fr_0.9fr_0.8fr] md:gap-4 md:items-center"
 						>
-							<span className="text-[14.5px] text-[rgba(30,50,90,0.95)] truncate">
-								{r.name}
-							</span>
+							{/* Mobile: name + headline result on one line */}
+							<div className="flex items-baseline justify-between gap-3 md:contents">
+								<span className="text-[15px] md:text-[14.5px] text-[rgba(30,50,90,0.95)] truncate">
+									{r.name}
+								</span>
 
-							<span className="hidden md:block text-[13.5px]">
-								<ChainTag chain={r.chain} />
-							</span>
+								<span className="hidden md:block text-[13.5px]">
+									<ChainTag chain={r.chain} />
+								</span>
 
-							<span className="hidden md:block text-[13.5px] text-[rgba(30,50,90,0.75)] text-right tabular-nums">
-								{fmtUsdc(r.amount)}
-							</span>
+								<span className="hidden md:block text-[13.5px] text-[rgba(30,50,90,0.75)] text-right tabular-nums">
+									{fmtUsdc(r.amount)}
+								</span>
 
-							<span className="hidden md:flex justify-center text-[13px]">
-								<DiscountTag off={r.off} />
-							</span>
+								<span className="hidden md:flex justify-center text-[13px]">
+									<DiscountTag off={r.off} />
+								</span>
 
-							<span className="text-[14px] text-[rgba(30,50,90,0.95)] text-right tabular-nums">
-								{fmtDuration(r.seconds)}
-							</span>
+								<span className="text-[15px] md:text-[14px] text-[rgba(30,50,90,0.95)] md:text-right tabular-nums shrink-0">
+									{fmtDuration(r.seconds)}
+								</span>
 
-							<span className="hidden md:block text-[12.5px] text-[rgba(30,50,90,0.45)] text-right tabular-nums">
+								<span className="hidden md:block text-[12.5px] text-[rgba(30,50,90,0.45)] text-right tabular-nums">
+									{fmtAgo(r.at)}
+								</span>
+							</div>
+
+							{/* Mobile: labelled detail pairs */}
+							<dl className="md:hidden mt-2.5 grid grid-cols-3 gap-3">
+								<div>
+									<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
+										From
+									</dt>
+									<dd className="mt-0.5 text-[12.5px]">
+										<ChainTag chain={r.chain} />
+									</dd>
+								</div>
+								<div>
+									<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
+										Received
+									</dt>
+									<dd className="mt-0.5 text-[12.5px] text-[rgba(30,50,90,0.75)] tabular-nums">
+										{fmtUsdc(r.amount)}
+									</dd>
+								</div>
+								<div>
+									<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
+										Rate
+									</dt>
+									<dd className="mt-0.5 text-[12.5px]">
+										{r.off ? (
+											<span className="text-[rgba(30,50,90,0.75)]">{r.off} off</span>
+										) : (
+											<span className="text-[rgba(30,50,90,0.4)]">Standard</span>
+										)}
+									</dd>
+								</div>
+							</dl>
+							<div className="md:hidden mt-2 text-[11.5px] text-[rgba(30,50,90,0.4)]">
 								{fmtAgo(r.at)}
-							</span>
-
-							{/* mobile secondary row */}
-							<span className="md:hidden col-span-2 flex items-center gap-3 text-[12.5px] text-[rgba(30,50,90,0.5)]">
-								<ChainTag chain={r.chain} />
-								<span className="tabular-nums">{fmtUsdc(r.amount)}</span>
-								{r.off && <DiscountTag off={r.off} />}
-								<span className="ml-auto">{fmtAgo(r.at)}</span>
-							</span>
+							</div>
 						</motion.button>
 					))}
 				</AnimatePresence>
@@ -151,7 +184,24 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 		4,
 		Math.min(96, ((record.expiryAtActivation - record.activatedAt) / span) * 100),
 	);
-	const t = record.records.text;
+	const [profile, setProfile] = useState<EnsProfile | null>(null);
+	const [profileLoading, setProfileLoading] = useState(true);
+
+	useEffect(() => {
+		const controller = new AbortController();
+		setProfileLoading(true);
+		setProfile(null);
+		fetchProfile(record.name, controller.signal)
+			.then((p) => {
+				if (!controller.signal.aborted) setProfile(p);
+			})
+			.finally(() => {
+				if (!controller.signal.aborted) setProfileLoading(false);
+			});
+		return () => controller.abort();
+	}, [record.name]);
+
+	const t = profile?.text ?? {};
 	const links = (
 		[
 			{ key: "url", value: t.url, Icon: LinkIcon },
@@ -235,7 +285,7 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 							<span className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
 								Profile
 							</span>
-							{record.records.contenthash && (
+							{profile?.contenthash && (
 								<span className="inline-flex items-center gap-1.5 text-[11px] text-[rgba(30,50,90,0.55)]">
 									<Globe className="w-3 h-3" />
 									Serves a site
@@ -246,9 +296,9 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 						{/* Avatar + description */}
 						<div className="mt-3 flex items-start gap-3">
 							<div className="w-11 h-11 shrink-0 rounded-full bg-[rgba(30,50,90,0.07)] border border-[rgba(30,50,90,0.1)] overflow-hidden flex items-center justify-center">
-								{record.records.text.avatar ? (
+								{profile?.avatar ? (
 									<img
-										src={record.records.text.avatar}
+										src={profile.avatar}
 										alt=""
 										className="w-full h-full object-cover"
 										onError={(e) => {
@@ -262,18 +312,25 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 								)}
 							</div>
 							<div className="min-w-0 flex-1">
-								{record.records.text.description ? (
+								{profileLoading ? (
+									<div className="space-y-1.5 pt-1">
+										<div className="h-3 w-3/4 rounded bg-[rgba(30,50,90,0.08)] animate-pulse" />
+										<div className="h-3 w-1/2 rounded bg-[rgba(30,50,90,0.06)] animate-pulse" />
+									</div>
+								) : profile?.text.description ? (
 									<p className="text-[13px] text-[rgba(30,50,90,0.8)] leading-snug">
-										{record.records.text.description}
+										{profile.text.description}
 									</p>
 								) : (
 									<p className="text-[13px] text-[rgba(30,50,90,0.45)]">
 										No description set.
 									</p>
 								)}
-								<div className="mt-1.5 text-[12px] text-[rgba(30,50,90,0.55)] font-mono truncate">
-									{truncAddress(record.records.addr)}
-								</div>
+								{profile?.addr && (
+									<div className="mt-1.5 text-[12px] text-[rgba(30,50,90,0.55)] font-mono truncate">
+										{truncAddress(profile.addr)}
+									</div>
+								)}
 							</div>
 						</div>
 
@@ -321,8 +378,15 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 
 			{/* Activity table */}
 			<div className="mt-10">
-				<div className="text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)] mb-4">
-					Activity
+				<div className="flex items-baseline justify-between mb-4">
+					<span className="text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
+						Activity
+					</span>
+					{renewalCount(record) === 0 && (
+						<span className="text-[12px] text-[rgba(30,50,90,0.5)]">
+							Waiting for the first payment
+						</span>
+					)}
 				</div>
 
 				<div className="border border-[rgba(30,50,90,0.1)] rounded-2xl overflow-hidden">
@@ -340,59 +404,89 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 						{events.map((e) => (
 							<div
 								key={e.id}
-								className="px-5 py-3.5 grid grid-cols-2 md:grid-cols-[0.8fr_1fr_0.8fr_0.7fr_0.8fr_0.8fr_1fr] gap-x-4 gap-y-1.5 items-center"
+								className="px-4 md:px-5 py-4 md:py-3.5 block md:grid md:grid-cols-[0.8fr_1fr_0.8fr_0.7fr_0.8fr_0.8fr_1fr] md:gap-4 md:items-center"
 							>
-								<span className="text-[13px] text-[rgba(30,50,90,0.6)] tabular-nums">
-									{fmtDate(e.at)}
-								</span>
-
-								<span className="text-[14px] text-[rgba(30,50,90,0.95)] truncate">
-									{e.kind === "activated"
-										? "Namepass activated"
-										: `Renewal · ${e.funder}`}
-								</span>
-
-								<span className="hidden md:block text-[13.5px]">
-									{e.kind === "renewal" ? (
-										<ChainTag chain={e.chain} />
-									) : (
-										<span className="text-[rgba(30,50,90,0.35)]">—</span>
-									)}
-								</span>
-
-								<span className="hidden md:block text-[13.5px] text-[rgba(30,50,90,0.75)] text-right tabular-nums">
-									{e.kind === "renewal" ? fmtUsdc(e.amount) : "—"}
-								</span>
-
-								<span className="hidden md:flex justify-center">
-									{e.kind === "renewal" ? (
-										<DiscountTag off={e.off} />
-									) : (
-										<span className="text-[rgba(30,50,90,0.35)]">—</span>
-									)}
-								</span>
-
-								<span className="text-[14px] text-[rgba(30,50,90,0.95)] text-right tabular-nums">
-									{e.kind === "renewal" ? fmtDuration(e.seconds) : "—"}
-								</span>
-
-								<span className="hidden md:block text-[13px] text-[rgba(30,50,90,0.7)] text-right tabular-nums">
-									{fmtDate(e.nameExpiryAfter)}
-								</span>
-
-								{/* mobile secondary */}
-								<span className="md:hidden col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-[rgba(30,50,90,0.5)]">
-									{e.kind === "renewal" && (
-										<>
-											<ChainTag chain={e.chain} />
-											<span className="tabular-nums">{fmtUsdc(e.amount)}</span>
-											{e.off && <DiscountTag off={e.off} />}
-										</>
-									)}
-									<span className="ml-auto">
-										expires {fmtDate(e.nameExpiryAfter)}
+								{/* Headline row */}
+								<div className="flex items-baseline justify-between gap-3 md:contents">
+									<span className="hidden md:block text-[13px] text-[rgba(30,50,90,0.6)] tabular-nums">
+										{fmtDate(e.at)}
 									</span>
-								</span>
+
+									<span className="text-[15px] md:text-[14px] text-[rgba(30,50,90,0.95)] truncate">
+										{e.kind === "activated"
+											? "Namepass activated"
+											: `Renewal · ${e.funder}`}
+									</span>
+
+									<span className="hidden md:block text-[13.5px]">
+										{e.kind === "renewal" ? (
+											<ChainTag chain={e.chain} />
+										) : (
+											<span className="text-[rgba(30,50,90,0.35)]">—</span>
+										)}
+									</span>
+
+									<span className="hidden md:block text-[13.5px] text-[rgba(30,50,90,0.75)] text-right tabular-nums">
+										{e.kind === "renewal" ? fmtUsdc(e.amount) : "—"}
+									</span>
+
+									<span className="hidden md:flex justify-center">
+										{e.kind === "renewal" ? (
+											<DiscountTag off={e.off} />
+										) : (
+											<span className="text-[rgba(30,50,90,0.35)]">—</span>
+										)}
+									</span>
+
+									<span className="text-[15px] md:text-[14px] text-[rgba(30,50,90,0.95)] md:text-right tabular-nums shrink-0">
+										{e.kind === "renewal" ? fmtDuration(e.seconds) : "—"}
+									</span>
+
+									<span className="hidden md:block text-[13px] text-[rgba(30,50,90,0.7)] text-right tabular-nums">
+										{fmtDate(e.nameExpiryAfter)}
+									</span>
+								</div>
+
+								{/* Mobile detail pairs */}
+								{e.kind === "renewal" && (
+									<dl className="md:hidden mt-2.5 grid grid-cols-3 gap-3">
+										<div>
+											<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
+												From
+											</dt>
+											<dd className="mt-0.5 text-[12.5px]">
+												<ChainTag chain={e.chain} />
+											</dd>
+										</div>
+										<div>
+											<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
+												Amount
+											</dt>
+											<dd className="mt-0.5 text-[12.5px] text-[rgba(30,50,90,0.75)] tabular-nums">
+												{fmtUsdc(e.amount)}
+											</dd>
+										</div>
+										<div>
+											<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
+												Rate
+											</dt>
+											<dd className="mt-0.5 text-[12.5px]">
+												{e.off ? (
+													<span className="text-[rgba(30,50,90,0.75)]">
+														{e.off} off
+													</span>
+												) : (
+													<span className="text-[rgba(30,50,90,0.4)]">Standard</span>
+												)}
+											</dd>
+										</div>
+									</dl>
+								)}
+
+								<div className="md:hidden mt-2 flex items-center justify-between text-[11.5px] text-[rgba(30,50,90,0.45)]">
+									<span>{fmtDate(e.at)}</span>
+									<span>expires {fmtDate(e.nameExpiryAfter)}</span>
+								</div>
 							</div>
 						))}
 					</div>
@@ -407,11 +501,12 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 interface Props {
 	selected: string | null;
 	onSelect: (name: string | null) => void;
+	onActivate: (name: string) => void;
 }
 
-export default function Explorer({ selected, onSelect }: Props) {
+export default function Explorer({ selected, onSelect, onActivate }: Props) {
 	const [query, setQuery] = useState("");
-	const [notFound, setNotFound] = useState(false);
+	const [notFound, setNotFound] = useState<string | null>(null);
 
 	const record = useMemo(
 		() => (selected ? findName(selected) : undefined),
@@ -426,16 +521,27 @@ export default function Explorer({ selected, onSelect }: Props) {
 			.slice(0, 6);
 	}, [query]);
 
-	function submit() {
-		const hit = findName(query);
+	function submit(raw = query) {
+		const value = raw.trim().toLowerCase();
+		if (!value) return;
+		const hit = findName(value);
 		if (hit) {
 			onSelect(hit.name);
 			setQuery("");
-			setNotFound(false);
+			setNotFound(null);
 		} else {
-			setNotFound(true);
+			setNotFound(value.endsWith(".eth") ? value : `${value}.eth`);
 		}
 	}
+
+	/* Auto-search once a complete .eth name has been typed — no Enter needed. */
+	useEffect(() => {
+		const value = query.trim().toLowerCase();
+		if (!/^[a-z0-9-]{3,}\.eth$/.test(value)) return;
+		const timer = setTimeout(() => submit(value), 350);
+		return () => clearTimeout(timer);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [query]);
 
 	return (
 		<section id="explorer" className="bg-white px-5 md:px-10 py-20 md:py-28">
@@ -467,7 +573,7 @@ export default function Explorer({ selected, onSelect }: Props) {
 								value={query}
 								onChange={(e) => {
 									setQuery(e.target.value);
-									setNotFound(false);
+									setNotFound(null);
 								}}
 								onKeyDown={(e) => e.key === "Enter" && submit()}
 								placeholder="Search an ENS name…"
@@ -496,9 +602,31 @@ export default function Explorer({ selected, onSelect }: Props) {
 						)}
 
 						{notFound && (
-							<p className="mt-2 text-[13px] text-[rgba(30,50,90,0.5)] px-1">
-								No Namepass activated for that name yet.
-							</p>
+							<motion.div
+								initial={{ opacity: 0, y: -4 }}
+								animate={{ opacity: 1, y: 0 }}
+								transition={{ duration: 0.25 }}
+								className="mt-2 rounded-2xl border border-[rgba(30,50,90,0.15)] bg-[rgba(30,50,90,0.03)] p-4"
+							>
+								<div className="text-[13.5px] text-[rgba(30,50,90,0.9)]">
+									<span className="font-medium">{notFound}</span> has no Namepass
+									yet.
+								</div>
+								<p className="mt-1 text-[12.5px] text-[rgba(30,50,90,0.55)] leading-relaxed">
+									Anyone can activate one — you don't have to own the name.
+								</p>
+								<button
+									onClick={() => {
+										onActivate(notFound);
+										setQuery("");
+										setNotFound(null);
+									}}
+									className="mt-3 w-full flex items-center justify-center gap-2 bg-[rgba(30,50,90,0.9)] text-white rounded-full py-2.5 hover:bg-[rgba(30,50,90,1)] transition-colors"
+								>
+									<Zap className="w-3.5 h-3.5" />
+									<span className="text-[13.5px]">Activate now</span>
+								</button>
+							</motion.div>
 						)}
 					</div>
 				</div>
