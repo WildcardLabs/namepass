@@ -43,7 +43,7 @@ export default function Hero({ onClaim, onExplore, onSimulate, onSearch }: Props
 							transition={{ duration: 0.8, delay: 0.2 }}
 							className="text-4xl sm:text-5xl md:text-6xl lg:text-[80px] font-normal text-[#5E6470] mb-2 tracking-tight leading-[1.05]"
 						>
-							Renewal Infrastructure
+							Keep your name alive
 						</motion.h1>
 
 						<motion.p
@@ -52,8 +52,7 @@ export default function Hero({ onClaim, onExplore, onSimulate, onSearch }: Props
 							transition={{ duration: 0.8, delay: 0.4 }}
 							className="text-sm sm:text-base md:text-lg text-[#5E6470] opacity-80 leading-relaxed max-w-xl font-normal"
 						>
-							A permanent address for every ENS name. Stablecoins in from any
-							chain, renewal time out, always at the best available rate.
+							Your name gets its own address. Any USDC that arrives automatically extends your registration for as long as the funds will cover.
 						</motion.p>
 					</div>
 
