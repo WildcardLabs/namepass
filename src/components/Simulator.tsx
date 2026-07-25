@@ -88,8 +88,7 @@ export default function Simulator() {
 						See what any amount buys.
 					</h2>
 					<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(30,50,90,0.6)] leading-relaxed">
-						ENS charges by name length and discounts longer renewals. Namepass always
-						converts a payment into the longest duration it can buy.
+						ENS offers better rates for longer renewals. Namepass always locks in the longest period your payment qualifies for, so you never leave a discount on the table.
 					</p>
 				</div>
 
