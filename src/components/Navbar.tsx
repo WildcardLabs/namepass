@@ -27,9 +27,7 @@ export default function Navbar({ onClaim, onExplore, onSimulate, onSearch }: Pro
 					alt=""
 					className="h-7 md:h-8 w-auto shrink-0"
 				/>
-				<span className="hidden lg:block text-[21px] tracking-tight text-[rgba(30,50,90,0.9)]">
-					namepass
-				</span>
+				
 			</a>
 
 			<ul className="hidden md:flex items-center gap-8 text-[rgb(45,45,45)] font-normal text-sm">
@@ -55,7 +53,7 @@ export default function Navbar({ onClaim, onExplore, onSimulate, onSearch }: Pro
 					<div className="bg-white/20 p-1 md:p-1.5 rounded-full flex items-center justify-center">
 						<ArrowUpRight className="w-4 h-4 md:w-5 md:h-5 text-white" />
 					</div>
-					<span className="text-xs md:text-sm font-normal">Claim address</span>
+					<span className="text-xs md:text-sm font-normal">Activate address</span>
 				</motion.button>
 			</div>
 		</nav>
