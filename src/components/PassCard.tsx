@@ -142,7 +142,7 @@ export default function PassCard({
 			>
 				<div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
 					<InfinityIcon className="w-3 h-3" />
-					Send here · permanent
+					Send here · auto renewal address
 				</div>
 				<div className="mt-1 flex items-center justify-between gap-3">
 					<span className="min-w-0 text-[15px] md:text-[16px] text-[rgba(30,50,90,0.95)] truncate">
@@ -163,7 +163,7 @@ export default function PassCard({
 			{!showRaw ? (
 				<button
 					onClick={() => setShowRaw(true)}
-					className="mt-2.5 w-full text-center text-[12.5px] text-[rgba(30,50,90,0.5)] hover:text-[rgba(30,50,90,0.8)] transition-colors py-1"
+					className="mt-2.5 w-full text-center text-[12px] text-[rgba(30,50,90,0.5)] hover:text-[rgba(30,50,90,0.8)] transition-colors py-1"
 				>
 					or use the raw address
 				</button>

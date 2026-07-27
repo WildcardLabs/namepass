@@ -6,9 +6,18 @@ interface Props {
 	onExplore: () => void;
 	onSimulate: () => void;
 	onSearch: () => void;
+	onHome: () => void;
+	showMenu?: boolean;
 }
 
-export default function Navbar({ onClaim, onExplore, onSimulate, onSearch }: Props) {
+export default function Navbar({
+	onClaim,
+	onExplore,
+	onSimulate,
+	onSearch,
+	onHome,
+	showMenu = true,
+}: Props) {
 	const items = [
 		{ label: "Explorer", action: onExplore, Icon: Activity },
 		{ label: "Search", action: onSearch, Icon: Search },
@@ -18,8 +27,12 @@ export default function Navbar({ onClaim, onExplore, onSimulate, onSearch }: Pro
 	return (
 		<nav className="flex items-center justify-between py-6 px-6 md:px-10 w-full relative z-10">
 			<a
-				href="#"
+				href={import.meta.env.BASE_URL}
 				aria-label="Namepass — home"
+				onClick={(e) => {
+					e.preventDefault();
+					onHome();
+				}}
 				className="flex-1 flex items-center gap-2.5 min-w-0"
 			>
 				<img
@@ -27,21 +40,20 @@ export default function Navbar({ onClaim, onExplore, onSimulate, onSearch }: Pro
 					alt=""
 					className="h-7 md:h-8 w-auto shrink-0"
 				/>
-				
 			</a>
 
-			<ul className="hidden md:flex items-center gap-8 text-[rgb(45,45,45)] font-normal text-sm">
-				{items.map((item) => (
-					<li
-						key={item.label}
-						onClick={item.action}
-						className="cursor-pointer hover:opacity-70 transition-opacity flex items-center gap-2"
-					>
-						<item.Icon className="w-4 h-4 opacity-60" />
-						{item.label}
-					</li>
-				))}
-			</ul>
+			{showMenu && (
+				<ul className="hidden md:flex items-center text-[rgb(45,45,45)] font-normal text-sm bg-white/50 backdrop-blur-xl border border-white/50 rounded-full px-2 py-1.5 shadow-[0_4px_20px_-8px_rgba(30,50,90,0.25)]">
+					{items.map((item) => (
+						<li key={item.label} onClick={item.action}>
+							<button className="flex items-center gap-1.5 px-3 py-2 rounded-full cursor-pointer text-[rgba(30,50,90,0.75)] hover:text-[rgba(30,50,90,0.95)] hover:bg-white/70 transition-colors">
+								<item.Icon className="w-4 h-4 opacity-60" />
+								{item.label}
+							</button>
+						</li>
+					))}
+				</ul>
+			)}
 
 			<div className="flex-1 flex justify-end">
 				<motion.button
@@ -53,7 +65,7 @@ export default function Navbar({ onClaim, onExplore, onSimulate, onSearch }: Pro
 					<div className="bg-white/20 p-1 md:p-1.5 rounded-full flex items-center justify-center">
 						<ArrowUpRight className="w-4 h-4 md:w-5 md:h-5 text-white" />
 					</div>
-					<span className="text-xs md:text-sm font-normal">Activate address</span>
+					<span className="text-[14px] font-normal">Claim address</span>
 				</motion.button>
 			</div>
 		</nav>

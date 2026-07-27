@@ -50,7 +50,7 @@ export interface NameRecord {
 	events: ActivityEvent[];
 }
 
-const CHAINS = ["Base", "Arbitrum", "Optimism", "Ethereum", "Polygon"];
+const CHAINS = ["Base", "Arbitrum", "Ethereum", "Polygon"];
 const FUNDERS = ["owner", "community", "treasury", "agent", "anon", "contributor"];
 
 const AMOUNTS = [

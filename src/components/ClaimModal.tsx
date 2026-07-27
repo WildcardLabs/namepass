@@ -115,14 +115,14 @@ export default function ClaimModal({ open, onClose, onActivated }: Props) {
 									{phase === "activating" ? (
 										<>
 											<Loader2 className="w-4 h-4 animate-spin" />
-											<span className="text-[15px] font-normal">Activating…</span>
+											<span className="text-[14px] font-normal">Activating…</span>
 										</>
 									) : (
 										<>
 											<div className="bg-white/20 p-1 rounded-full flex items-center justify-center">
 												<ArrowUpRight className="w-4 h-4 text-white" />
 											</div>
-											<span className="text-[15px] font-normal">
+											<span className="text-[14px] font-normal">
 												Activate Namepass
 											</span>
 										</>

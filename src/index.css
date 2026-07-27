@@ -26,3 +26,30 @@ body {
 	overflow-x: hidden;
 	background-color: #f0f0f0;
 }
+
+@keyframes shine-rotate {
+	to {
+		--shine-angle: 360deg;
+	}
+}
+
+@property --shine-angle {
+	syntax: "<angle>";
+	initial-value: 0deg;
+	inherits: false;
+}
+
+@keyframes shine-text {
+	from {
+		background-position: 150% 0;
+	}
+	to {
+		background-position: -150% 0;
+	}
+}
+
+.animate-shine-text {
+	animation-name: shine-text;
+	animation-timing-function: linear;
+	animation-iteration-count: infinite;
+}

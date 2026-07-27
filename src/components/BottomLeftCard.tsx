@@ -1,21 +1,56 @@
 import { motion, AnimatePresence } from "motion/react";
-import { useEffect, useState } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { memo, useEffect, useState } from "react";
+import { Trophy } from "lucide-react";
 import { solve, YEAR_SECONDS } from "../lib/pricing";
 import { fmtMonthYear } from "../lib/format";
+import ShineBorder from "./magicui/ShineBorder";
+import AnimatedShinyText from "./magicui/AnimatedShinyText";
 
 /* Inbound payments, cycled to show money resolving into renewal time.
    `label` is the display string; `amount` is the exact USDC charged (6dp). */
 const INBOUND = [
 	{ chain: "Base", label: "$8", amount: 8_000010n },
 	{ chain: "Arbitrum", label: "$27", amount: 27_000032n },
-	{ chain: "Optimism", label: "$14", amount: 14_000017n },
+	{ chain: "Polygon", label: "$14", amount: 14_000017n },
 ];
 
 const START_EXPIRY = Date.UTC(2029, 2, 18);
 const CYCLE_MS = 3600;
 
-export default function BottomLeftCard({ onClaim }: { onClaim: () => void }) {
+/* Isolated from BottomLeftCard's own 3.6s ticker — without this, the parent's
+   frequent re-renders were retriggering ShineBorder's CSS animation before it
+   ever completed a visible sweep. Styled identically to HeroBadge: ShineBorder
+   ring + AnimatedShinyText, nothing extra. */
+const LeaderboardButton = memo(function LeaderboardButton({
+	onLeaderboard,
+}: {
+	onLeaderboard: () => void;
+}) {
+	return (
+		<ShineBorder
+			borderRadius={999}
+			borderWidth={2}
+			duration={7}
+			className="w-fit self-start"
+		>
+			<motion.button
+				whileHover={{ scale: 1.02 }}
+				whileTap={{ scale: 0.98 }}
+				onClick={onLeaderboard}
+				className="flex items-center bg-white rounded-full pl-1.5 pr-5 py-1.5 gap-2 hover:bg-white/90 transition-colors group"
+			>
+				<div className="bg-[rgba(30,50,90,0.1)] p-1 rounded-full flex items-center justify-center">
+					<Trophy className="w-4 h-4 text-[rgba(30,50,90,0.9)]" />
+				</div>
+				<AnimatedShinyText className="text-[14px] font-normal">
+					Leaderboard
+				</AnimatedShinyText>
+			</motion.button>
+		</ShineBorder>
+	);
+});
+
+export default function BottomLeftCard({ onLeaderboard }: { onLeaderboard: () => void }) {
 	const [index, setIndex] = useState(0);
 	const [expiry, setExpiry] = useState(() => {
 		const { seconds } = solve(INBOUND[0].amount);
@@ -87,19 +122,7 @@ export default function BottomLeftCard({ onClaim }: { onClaim: () => void }) {
 				</motion.div>
 			</AnimatePresence>
 
-			<motion.button
-				whileHover={{ scale: 1.02 }}
-				whileTap={{ scale: 0.98 }}
-				onClick={onClaim}
-				className="flex items-center bg-white rounded-full pl-1.5 pr-5 py-1.5 gap-2 hover:bg-white/90 transition-colors self-start group"
-			>
-				<div className="bg-[rgba(30,50,90,0.1)] p-1 rounded-full flex items-center justify-center">
-					<ArrowUpRight className="w-4 h-4 text-[rgba(30,50,90,0.9)]" />
-				</div>
-				<span className="text-[14px] font-normal text-[rgba(30,50,90,0.9)]">
-					Claim address
-				</span>
-			</motion.button>
+			<LeaderboardButton onLeaderboard={onLeaderboard} />
 		</motion.div>
 	);
 }

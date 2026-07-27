@@ -30,20 +30,12 @@ import {
 import { fmtAgo, fmtDate, fmtDuration, fmtUsdc, truncAddress } from "../lib/format";
 import PassCard from "./PassCard";
 import { fetchProfile, type EnsProfile } from "../lib/ens";
-
-/** X (formerly Twitter) wordmark — lucide ships the old bird, not this. */
-function XIcon({ className }: { className?: string }) {
-	return (
-		<svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
-			<path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-		</svg>
-	);
-}
+import { XIcon } from "./icons";
+import NumberTicker from "./magicui/NumberTicker";
 
 const CHAIN_DOT: Record<string, string> = {
 	Base: "#0052FF",
 	Arbitrum: "#12AAFF",
-	Optimism: "#FF0420",
 	Ethereum: "#627EEA",
 	Polygon: "#8247E5",
 };
@@ -51,7 +43,6 @@ const CHAIN_DOT: Record<string, string> = {
 const PING_DELAY: Record<string, string> = {
 	Base: "0ms",
 	Arbitrum: "300ms",
-	Optimism: "600ms",
 	Ethereum: "900ms",
 	Polygon: "1200ms",
 };
@@ -119,12 +110,11 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 				<span className="text-right">Age</span>
 			</div>
 
-			<div className="divide-y divide-[rgba(30,50,90,0.07)]">
+			<div className="divide-y divide-[rgba(30,50,90,0.07)]" style={{ overflowAnchor: "none" }}>
 				<AnimatePresence initial={false}>
 					{rows.map((r) => (
 						<motion.button
 							key={r.id}
-							layout
 							initial={{ opacity: 0, backgroundColor: "rgba(30,50,90,0.05)" }}
 							animate={{ opacity: 1, backgroundColor: "rgba(30,50,90,0)" }}
 							transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -401,17 +391,26 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 			{/* Aggregates */}
 			<div className="mt-4 grid grid-cols-3 gap-px bg-[rgba(30,50,90,0.1)] border border-[rgba(30,50,90,0.1)] rounded-2xl overflow-hidden">
 				{[
-					{ k: "Time delivered", v: `${timeDelivered(record).toFixed(1)} years` },
-					{ k: "Total received", v: fmtUsdc(BigInt(Math.round(totalReceived(record) * 1e6))) },
-					{ k: "Renewals", v: String(renewalCount(record)) },
+					{ k: "Time delivered", value: timeDelivered(record), decimals: 1, suffix: " years" },
+					{
+						k: "Total received",
+						value: totalReceived(record),
+						decimals: Number.isInteger(totalReceived(record)) ? 0 : 2,
+						prefix: "$",
+					},
+					{ k: "Renewals", value: renewalCount(record), decimals: 0 },
 				].map((s) => (
 					<div key={s.k} className="bg-white px-4 py-4">
 						<div className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
 							{s.k}
 						</div>
-						<div className="mt-1.5 text-[19px] text-[rgba(30,50,90,0.95)] tracking-tight tabular-nums">
-							{s.v}
-						</div>
+						<NumberTicker
+							value={s.value}
+							decimals={s.decimals}
+							prefix={s.prefix}
+							suffix={s.suffix}
+							className="mt-1.5 block text-[19px] text-[rgba(30,50,90,0.95)] tracking-tight tabular-nums"
+						/>
 					</div>
 				))}
 			</div>
@@ -671,12 +670,12 @@ export default function Explorer({ selected, onSelect, onActivated }: Props) {
 									{activating ? (
 										<>
 											<Loader2 className="w-3.5 h-3.5 animate-spin" />
-											<span className="text-[13.5px]">Activating…</span>
+											<span className="text-[14px]">Activating…</span>
 										</>
 									) : (
 										<>
 											<Zap className="w-3.5 h-3.5" />
-											<span className="text-[13.5px]">Activate now</span>
+											<span className="text-[14px]">Activate now</span>
 										</>
 									)}
 								</button>
