@@ -1,167 +1,193 @@
-# Namepass — Renewal Infrastructure Hero
+<div align="center">
 
-A single full-screen hero for **Namepass**: a permanent renewal address for every ENS name.
-Stablecoins in from any chain, renewal time out, always at the best available rate.
+<img src="public/favicon.svg" width="56" height="56" alt="Namepass" />
 
-Adapted from the RIVR DeFi hero. The layout, glassmorphism, corner cutout, type scale, and
-motion timings are preserved exactly — only the content and the bottom-left card's behaviour
-have changed.
+# Namepass
 
-## The live renewal ticker
+**Every ENS name gets its own renewal address.**
+Send USDC from any chain, the name gets more time — automatically, at the best rate available.
 
-The bottom-left card (previously a static "5.2K Active Yielders" metric) now cycles inbound
-payments and shows the name's expiry moving out in response:
+[![React](https://img.shields.io/badge/React-18-149ECA?logo=react&logoColor=white)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)](https://vite.dev)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![Motion](https://img.shields.io/badge/Motion-12-0055FF?logo=framer&logoColor=white)](https://motion.dev)
+[![ENS](https://img.shields.io/badge/ENS-v2_pricing-5298FF?logo=ethereum&logoColor=white)](https://ens.domains)
+[![Status](https://img.shields.io/badge/status-prototype-orange)](#-a-note-on-what-this-is)
+
+<img src=".github/assets/hero.png" width="100%" alt="Namepass hero — Keep your name alive" />
+
+</div>
+
+<br />
+
+<details>
+<summary><strong>📋 Table of contents</strong></summary>
+
+- [What it does](#-what-it-does)
+- [A note on what this is](#-a-note-on-what-this-is)
+- [Feature tour](#-feature-tour)
+- [Tech stack](#-tech-stack)
+- [Getting started](#-getting-started)
+- [Project structure](#-project-structure)
+- [Under the hood](#-under-the-hood)
+- [CI — Claude Code Action](#-ci--claude-code-action)
+- [License](#license)
+
+</details>
+
+## 🪪 What it does
+
+Every ENS name expires. Namepass gives it a **permanent, chain-agnostic deposit address** —
+anyone can send USDC to it, from Base, Arbitrum, Polygon, or Ethereum, and it's converted into
+renewal time at the exact on-chain rate, no middleman markup. Ownership isn't required to fund
+one: a name's biggest supporter can keep it alive without ever holding the keys.
+
+Under the hood, [Coinbase CDP Agentic Wallets](https://www.coinbase.com/developer-platform)
+watch each deposit address, detect inbound payments, calculate the maximum renewal time the
+funds can buy, bridge if needed, and submit the on-chain renewal — no manual intervention.
+
+## 🎬 A note on what this is
+
+This repo is a **frontend prototype** — a fully interactive design exploration of the Namepass
+product surface, built to demo the experience end to end. The UI, pricing math, and interaction
+model are real and exact (see [Under the hood](#-under-the-hood)); the on-chain activity,
+balances, and ENS ecosystem stats you'll see are **seeded/simulated client-side** for
+demonstration, not pulled from a live indexer or contract. Treat it as a high-fidelity prototype,
+not a production financial product.
+
+## ✨ Feature tour
+
+| | |
+|---|---|
+| 🏠 **Hero + live renewal ticker** | The bottom-left card cycles real inbound-payment math — chain, amount, discount tier, and the resulting expiry — computed from the actual pricing oracle, not hardcoded copy. |
+| 🧮 **Cost simulator** | Drag a slider or type any amount and watch it resolve into exact renewal time, live, for 3/4/5+ character names — including the "you're 1 dollar from a better rate" nudge. |
+| 📡 **Explorer** | A public, Etherscan-style live feed of every renewal across every name, plus a full per-name detail view: expiry runway, ENS profile (avatar, links, socials), and complete payment history. |
+| 🏆 **Leaderboard** | Every Namepass ranked by renewals or time delivered, with inline-expandable rows (no page navigation) showing the QR code and deposit address on the spot. |
+| 🖼️ **ENS avatars everywhere** | Real ENS avatars via the [resolvio](https://api.resolvio.xyz) profile API, gracefully falling back to a deterministic [Dicebear](https://dicebear.com) avatar seeded by name. |
+| 🔎 **Instant search** | Type a complete `.eth` name and it auto-searches after a debounce — no Enter required. No Namepass yet? Activate it inline, right there in the empty state. |
+| 💎 **Shine & shimmer UI** | Hand-ported [Magic UI](https://magicui.design)–style primitives (`ShineBorder`, `AnimatedShinyText`, `NumberTicker`, `DotPattern`) restyled to a single navy accent — restrained, not confetti. |
+| 🪟 **One consistent shell** | Every page — home, leaderboard, terms, privacy — renders inside the same rounded card with the same header, so navigating between them never feels like leaving the app. |
+
+<div align="center">
+<table>
+<tr>
+<td width="50%"><img src=".github/assets/leaderboard.png" width="100%" alt="Leaderboard" /></td>
+<td width="50%"><img src=".github/assets/leaderboard-expand.png" width="100%" alt="Leaderboard row expanded with QR code" /></td>
+</tr>
+<tr>
+<td width="50%"><img src=".github/assets/simulator.png" width="100%" alt="Cost simulator" /></td>
+<td width="50%"><img src=".github/assets/explorer.png" width="100%" alt="Explorer live feed" /></td>
+</tr>
+</table>
+</div>
+
+## 🧱 Tech stack
+
+| Layer | Choice |
+|---|---|
+| Framework | React 18 + TypeScript, bundled with Vite 6 |
+| Styling | Tailwind CSS v4 (`@theme`, no config file) |
+| Motion | [`motion`](https://motion.dev) (Framer Motion's successor) for every transition, layout animation, and gesture |
+| Icons | [lucide-react](https://lucide.dev) |
+| ENS data | [resolvio](https://api.resolvio.xyz) profile API — cached, deduplicated, abort-on-unmount |
+| Automation (product, not this demo) | Coinbase CDP Agentic Wallets |
+| Routing | ~40 lines of hand-rolled `history.pushState` — no router dependency for four pages |
+
+## 🚀 Getting started
+
+```bash
+git clone git@github.com:stevegachau/demo.git namepass
+cd namepass
+npm install
+npm run dev
+```
+
+```bash
+npm run build     # tsc --noEmit && vite build
+npm run preview   # serve the production build locally
+```
+
+## 📁 Project structure
 
 ```
-+$8  Base       →  +1.0y  (full price)    Renewed Until  Mar 2030
-+$27 Arbitrum   →  +6.0y  (43.75% off)    Renewed Until  Mar 2036
-+$14 Optimism   →  +2.0y  (12.5% off)     Renewed Until  Mar 2038
+src/
+├── components/
+│   ├── magicui/          ShineBorder, AnimatedShinyText, NumberTicker, DotPattern
+│   ├── Hero.tsx           Home hero content (badge, headline, CTA cards)
+│   ├── Navbar.tsx         Shared header — logo, glass menu, CTA
+│   ├── PageShell.tsx      The rounded card every page renders inside
+│   ├── Explorer.tsx       Live feed + per-name detail view
+│   ├── Leaderboard.tsx    Ranked list with inline-expandable rows
+│   ├── Simulator.tsx      Cost simulator
+│   ├── PassCard.tsx       QR + deposit address + supported chains
+│   └── Footer.tsx / Terms.tsx / Privacy.tsx
+├── lib/
+│   ├── pricing.ts         Exact ENS v2 StandardRentPriceOracle math, BigInt end to end
+│   ├── registry.ts        Seeded mock activity data (see note above)
+│   ├── ens.ts              resolvio profile client
+│   ├── qr.ts               QR matrix encoder
+│   └── format.ts           Date/currency/duration formatting
+└── App.tsx                 ~150 lines of state + routing tying it together
 ```
 
-Each figure is computed at render time from the deployed pricing oracle — the card is a
-demonstration of the product, not a marketing number.
+## 🔬 Under the hood
 
-## ENS profiles are live (`src/lib/ens.ts`)
+A few decisions worth knowing about before you touch the code:
 
-Profiles are fetched from `https://api.resolvio.xyz/ens/v2/profile/<name>` — in-memory cached,
-request-deduplicated, and aborted on unmount.
+<details>
+<summary><strong>Pricing math is exact, not approximate</strong></summary>
 
-The API returns every slot it knows about, most with `exists: false`. We keep only what a person
-reads: **description, url, com.twitter, com.github, org.telegram, location, email**, plus the
-avatar and contenthash. Two things are deliberately dropped:
+<br />
 
-- **`addresses`** — mostly `exists: false`, and coin types like `2147492101` mean nothing to a
-  reader. The one exception is coin 60 (ETH), lifted out as `addr`.
-- **`header`, `name`, `com.discord`, `com.youtube`** — rarely set, and not identity-defining.
-
-## Layout invariants
-
-Two rules that broke in earlier revisions and are worth preserving:
-
-- **A grid header and its rows must declare the same `grid-cols-[…]` string.** Editing one
-  without the other silently misaligns every column. Both tables in `Explorer.tsx` now share
-  their definition between header and row.
-- **`truncate` inside a flex row needs `min-w-0` on the same element.** Without it the element
-  refuses to shrink and pushes its siblings out — long ENS names were doing exactly this.
-
-On mobile the detail pairs use a **fixed** column template
-(`grid-cols-[5.5rem_4.5rem_5rem_1fr]`), not equal fractions and not flex. Two failure modes to
-avoid:
-
-- `grid-cols-4` gives equal columns, which leaves dead space on the right because content widths
-  differ ("Base" vs "43.75% off").
-- `flex justify-between` sizes each column to its content, so a longer chain name ("Arbitrum"
-  vs "Base") shifts every column after it — rows stop lining up with each other.
-
-A third failure mode: fixed widths plus a trailing `1fr` column. The Time value needs ~41px but
-`1fr` hands it 64–118px depending on viewport, and all of it becomes dead space on the right.
-
-The working combination is `minmax(<floor>, auto)` on the first three columns with
-`justify-between` on the grid, and `text-right` on the trailing cell. Minimum widths stop chain
-names from shifting later columns; `auto` keeps each column at its content size; and
-`justify-between` distributes the leftover into the gaps so the row ends flush at both edges.
-`ChainTag` uses `items-baseline` with a `self-center` dot so it sits level with plain-text
-siblings; `items-center` would raise it above their baseline.
-
-## Mobile: tables become cards
-
-Following Etherscan's pattern, the live feed and activity table drop their grid below `md` and
-render each row as a card: name and time-added on the headline row, then labelled
-From / Received / Rate pairs beneath, with the timestamp last. Column headers hide entirely —
-they carry no meaning once the grid is gone.
-
-## Explorer name detail — two panels, no overlap
-
-- **Left · The ENS name.** Expiry date, days remaining, a runway bar splitting the expiry that
-  existed at activation from the time Namepass has added since, and the name's live **profile**
-  fetched from the resolver API — avatar, description, resolved address, and icon-labelled links,
-  plus a "Serves a site" marker when a contenthash is set. Skeleton-loads while fetching.
-- **Right · The Namepass.** QR, accepted token, supported chains, and the two copy targets.
-
-The activity table below carries the full payment history. The left panel deliberately does not
-repeat it — an earlier version listed recent renewals there, which was a strict subset of the
-table directly beneath it.
-
-## Search behaviour
-
-Typing a complete `.eth` name auto-searches after a 350ms debounce — no Enter required.
-Partial input waits. If the name has no Namepass, the result is not a dead end: an
-**Activate now** button appears and activates inline, showing the same spinner state as the
-modal before revealing the new profile. Anyone can activate any name; ownership is not
-required, and the copy says so.
-
-## Address display
-
-The Namepass deposit address is shown **in full**, never truncated. Truncation hides the middle
-of an address — exactly where an address-swap attack would land — so a sender cannot verify what
-they are about to pay. The ENS profile's *resolved* address is still truncated, since it is
-informational rather than a payment target.
-
-## Threshold rounding — important
-
-Tier thresholds are not round numbers. The 3-year rate for a 5+ char name starts at exactly
-`$16.500020`, so a payment of `$16.50` falls **20 micro-units short** and silently drops to the
-previous tier (buying 2y 4mo instead of 3y).
-
-`ceilToCent()` rounds a threshold up to the next payable cent, and `payableThresholds()` returns
-those values. All quick-select buttons use them, at every name length:
-
-| Tier | Exact threshold | Button shows | Result |
-| --- | --- | --- | --- |
-| 2 years | `$14.000017` | `$14.01` | 2y, 1d · 12.5% off |
-| 3 years | `$16.500020` | `$16.51` | 3y, 1d · 31.25% off |
-| 6 years | `$27.000032` | `$27.01` | 6y, 2d · 43.75% off |
-
-The same applies to 3-char (`$1120.01` / `$1320.01` / `$2160.01`) and 4-char (`$280.01` /
-`$330.01` / `$540.01`) names — `payableThresholds(labelLength)` derives them from the rate for
-that length, so nothing is hardcoded per tier.
-
-`nextTierHint()` surfaces a top-up prompt when a small addition crosses into a much better rate
-— e.g. at `$26.00` it offers "Add $1.01 to get 1.3 more years". It stays silent once the best
-rate is reached, or when the gap is large relative to the amount already entered.
-
-## Pricing math (`src/lib/pricing.ts`)
-
-Exact ENS v2 `StandardRentPriceOracle` pricing for 5+ character names, BigInt end to end.
-`divCeil` mirrors the contract's `Math.Rounding.Ceil`, so results match on-chain to the
-micro-unit.
+`src/lib/pricing.ts` mirrors ENS v2's `StandardRentPriceOracle` for 5+ character names, in
+`BigInt` end to end. `divCeil` matches the contract's `Math.Rounding.Ceil`, so every number
+shown matches on-chain to the micro-unit.
 
 | Duration | Threshold | Discount |
-| --- | --- | --- |
+|---|---|---|
 | 1 year | `$8.000010` | — |
 | 2 years | `$14.000017` | 12.5% off |
 | 3 years | `$16.500020` | 31.25% off |
 | 6 years | `$27.000032` | 43.75% off |
 
-In `BottomLeftCard`, `INBOUND[].label` is the display string (`$27`) and `INBOUND[].amount`
-is the exact charge (`27_000032n`). Keep the pair in sync if you edit either.
+Thresholds aren't round numbers — the 3-year rate starts at exactly `$16.500020`, so a payment
+of `$16.50` falls **20 micro-units short** and silently drops to the previous tier.
+`ceilToCent()` rounds every threshold up to the next payable cent so the UI's quick-select
+buttons never suggest an amount that under-shoots.
 
-## What changed from the reference
+</details>
 
-| | RIVR | Namepass |
-| --- | --- | --- |
-| Headline | Fluid Asset Streams | Renewal Infrastructure |
-| Badge | Sparkles · Fluid Staking | ShieldCheck · Live at ENS v2 launch |
-| Nav | Ecosystem · Economics · Developers · Governance | Protocol · Pricing · Developers · Treasury |
-| Nav CTA | Book Demo | Talk to us |
-| Bottom-left | 5.2K Active Yielders · Join Discord | Live renewal ticker · Claim address |
-| Bottom-right | Documentation · Library | Documentation · Integrate |
+<details>
+<summary><strong>Deposit addresses are never truncated</strong></summary>
 
-Unchanged: `#f0f0f0` page, `#5E6470` headline, `rgba(30,50,90,*)` accent, the rounded card
-shell, video treatment, glass surfaces, both SVG corner masks, and every motion delay
-(0.2s / 0.4s / 0.6s).
+<br />
 
-## Run
+The Namepass deposit address is always shown **in full**. Truncation hides the middle of an
+address — exactly where an address-swap attack would land — so a sender can't verify what
+they're actually paying. The ENS profile's *resolved* address is still truncated, since it's
+informational rather than a payment target.
 
-```sh
-npm install
-npm run dev
-npm run build
-npm run preview
-```
+</details>
 
-## Note on the video
+<details>
+<summary><strong>The header lives inside the page, not above it</strong></summary>
 
-`public/assets/hf_20260428_193507_*.mp4` is carried over from the reference. Replacing it is
-the single highest-impact change you can make — the footage is what sells the "billion dollar
-company" register. Anything slow, abstract, and desaturated will work with this palette.
+<br />
+
+`PageShell` renders the same rounded card (video background on Home, white elsewhere) with
+`Navbar` as its first child on every route. That's what makes switching between Home,
+Leaderboard, Terms, and Privacy feel like one app instead of four stitched-together pages.
+
+</details>
+
+## 🤖 CI — Claude Code Action
+
+Pull requests and issues on this repo can be reviewed by Claude directly — mention `@claude` in
+a comment, review, or issue and [`.github/workflows/claude.yml`](.github/workflows/claude.yml)
+picks it up.
+
+## License
+
+No license file yet — all rights reserved by default. Ask before reusing.
+
