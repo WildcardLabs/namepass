@@ -97,7 +97,7 @@ not a production financial product.
 ## 🚀 Getting started
 
 ```bash
-git clone git@github.com:stevegachau/demo.git namepass
+git clone git@github.com:stevegachau/namepass-v2.git namepass
 cd namepass
 npm install
 npm run dev
