@@ -2,6 +2,33 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Read these too
+
+- **`README.md`** — the product pitch, feature tour, and tech stack, written for a human visiting
+  the repo.
+- **`PRODUCT.md`** — the detailed "what and why": the problem being solved, the core mechanic,
+  positioning/tone decisions made through design iteration, and what's explicitly *not* decided
+  yet. Read this before making product-facing decisions (copy, new features, framing) that aren't
+  already covered below.
+
+## Keeping these docs current
+
+`README.md`, `PRODUCT.md`, and this file drift out of date unless updated deliberately. **After
+any substantial change** — a new feature or page, a meaningful architecture change, a new
+dependency/service integration, or a shift in product goals/positioning discussed with the user —
+update whichever of the three docs actually covers that change:
+
+- New feature/page/user-facing behavior → `README.md` (feature tour) and, if it changes the
+  product's scope or story, `PRODUCT.md`.
+- New architectural pattern, convention, or constraint another session would need to know →
+  this file, under Architecture.
+- New product decision (positioning, tone, business/goal clarification, something moved from
+  "not yet defined" to defined) → `PRODUCT.md`.
+
+Don't do this reflexively for every small fix — only when the change is substantial enough that a
+future session (or the user, months later) would otherwise be working from a stale picture of the
+app.
+
 ## What this is
 
 Namepass: every ENS name gets a permanent, chain-agnostic USDC deposit address. Anyone can send
