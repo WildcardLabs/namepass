@@ -32,7 +32,8 @@ part of the current chain set); don't reintroduce it without an explicit decisio
 
 ## Positioning and tone
 
-Established through direct design iteration, not written up elsewhere before now:
+Current-state summary — see `docs/DECISIONS.md` for the full dated history of *why* each of these
+was decided, including alternatives that were tried and rejected:
 
 - **Trust / financial-infrastructure aesthetic — not a playful startup.** Navy-on-white, minimal
   motion, restrained use of "shine"/shimmer effects (present, but subtle — reused consistently

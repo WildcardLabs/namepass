@@ -10,20 +10,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   positioning/tone decisions made through design iteration, and what's explicitly *not* decided
   yet. Read this before making product-facing decisions (copy, new features, framing) that aren't
   already covered below.
+- **`docs/DECISIONS.md`** — a dated log of non-obvious architecture/product calls and why they
+  were made, e.g. why routing has no library, why certain copy avoids certain words. Check here
+  before re-litigating something that looks like it could've been done differently — it might
+  already have been tried and rejected for a reason.
 
 ## Keeping these docs current
 
-`README.md`, `PRODUCT.md`, and this file drift out of date unless updated deliberately. **After
-any substantial change** — a new feature or page, a meaningful architecture change, a new
-dependency/service integration, or a shift in product goals/positioning discussed with the user —
-update whichever of the three docs actually covers that change:
+`README.md`, `PRODUCT.md`, this file, and `docs/DECISIONS.md` drift out of date unless updated
+deliberately. **After any substantial change** — a new feature or page, a meaningful architecture
+change, a new dependency/service integration, or a shift in product goals/positioning discussed
+with the user — update whichever doc actually covers that change:
 
 - New feature/page/user-facing behavior → `README.md` (feature tour) and, if it changes the
   product's scope or story, `PRODUCT.md`.
 - New architectural pattern, convention, or constraint another session would need to know →
   this file, under Architecture.
 - New product decision (positioning, tone, business/goal clarification, something moved from
-  "not yet defined" to defined) → `PRODUCT.md`.
+  "not yet defined" to defined) → `PRODUCT.md`'s current-state summary.
+- **Any non-obvious call that could reasonably have gone differently** — a rejected alternative,
+  a tradeoff knowingly accepted, a "we tried X, it looked wrong, went with Y instead" — append a
+  dated entry to `docs/DECISIONS.md`. This is the one most likely to be forgotten because it's
+  easy to just make the change and move on; it's also the one most valuable to a future session
+  trying to understand *why* something is the way it is instead of re-litigating it.
 
 Don't do this reflexively for every small fix — only when the change is substantial enough that a
 future session (or the user, months later) would otherwise be working from a stale picture of the
