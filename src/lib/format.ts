@@ -36,6 +36,42 @@ export function fmtUsdc(micro: bigint): string {
 	return `$${Math.abs(v - Math.round(v)) < 0.005 ? Math.round(v) : v.toFixed(2)}`;
 }
 
+/**
+ * Every micro-unit, for the places where the exact amount decides something.
+ *
+ * Tier thresholds are not round numbers: $27.000032 buys six years at 43.75%
+ * off, and $27.00 buys four years and eleven months at 31.25%. `fmtUsdc`
+ * renders both as "$27", which is fine in a dense row and actively misleading
+ * in a panel where someone is checking the arithmetic.
+ */
+export function fmtUsdcExact(micro: bigint): string {
+	const whole = micro / 1000000n;
+	const frac = (micro % 1000000n).toString().padStart(6, "0").replace(/0+$/, "");
+	return `$${whole}.${frac.padEnd(2, "0")}`;
+}
+
+/**
+ * Renewal time delivered, in words. Adaptive because neither unit works alone:
+ * most names sit under a year, where "0.4 years" reads as nothing, and the
+ * heavily-funded ones reach decades, where "264 months" is arithmetic homework.
+ *
+ * "9 days" · "8 months" · "1 year 3 months" · "22 years"
+ */
+export function fmtDelivered(years: number): string {
+	const months = Math.round(years * 12);
+	/* A three-character name's renewals are measured in days, and rounding those
+	   to months just prints "0 months delivered". */
+	if (months < 1) {
+		const days = Math.round(years * 365);
+		return `${days} day${days === 1 ? "" : "s"}`;
+	}
+	if (months < 12) return `${months} month${months === 1 ? "" : "s"}`;
+	const y = Math.floor(months / 12);
+	const m = months % 12;
+	const yPart = `${y} year${y === 1 ? "" : "s"}`;
+	return m > 0 ? `${yPart} ${m} month${m === 1 ? "" : "s"}` : yPart;
+}
+
 /** "+6.0y" or "+228d" for sub-year durations. */
 export function fmtDuration(seconds: bigint): string {
 	const years = Number(seconds) / Number(YEAR_SECONDS);
@@ -49,4 +85,17 @@ export function truncAddress(addr: string): string {
 
 export function truncTx(tx: string): string {
 	return `${tx.slice(0, 10)}…${tx.slice(-6)}`;
+}
+
+const EXPLORER: Record<string, string> = {
+	Ethereum: "https://etherscan.io/tx/",
+	Base: "https://basescan.org/tx/",
+	Arbitrum: "https://arbiscan.io/tx/",
+	Polygon: "https://polygonscan.com/tx/",
+};
+
+/** Block explorer link for a transaction. Empty when the chain is unknown. */
+export function explorerUrl(chain: string, tx: string): string {
+	const base = EXPLORER[chain];
+	return base ? `${base}${tx}` : "";
 }

@@ -18,7 +18,7 @@ export default function Privacy({ onBack }: { onBack: () => void }) {
 				},
 				{
 					heading: "Third-party infrastructure",
-					body: "Namepass uses Coinbase CDP-managed agentic wallets to detect incoming payments, calculate renewal time, and trigger bridging and registry renewals. These providers process transaction data solely to execute that automation.",
+					body: "Namepass uses third-party services to watch for incoming payments and to move USDC to Ethereum, including Circle's Cross-Chain Transfer Protocol. Deposit addresses are derived on-chain rather than issued by a custodian, so no provider holds funds on your behalf. These services process transaction data solely to execute that automation.",
 				},
 				{
 					heading: "Contact",

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import {
 	Search,
 	ArrowLeft,
@@ -13,60 +13,64 @@ import {
 	Zap,
 	Loader2,
 	ExternalLink,
+	ChevronDown,
 } from "lucide-react";
 import {
+	activeFlows,
 	allNames,
 	claimName,
 	findName,
 	nameExpiry,
 	recentActivity,
 	renewalCount,
-	simulateRenewal,
+	tickSimulation,
 	timeDelivered,
 	totalReceived,
+	type ActiveFlow,
 	type ActivityEvent,
+	type FlowStatus,
+	type FlowStep,
 	type NameRecord,
 } from "../lib/registry";
-import { fmtAgo, fmtDate, fmtDuration, fmtUsdc, truncAddress } from "../lib/format";
+import {
+	explorerUrl,
+	fmtAgo,
+	fmtDate,
+	fmtDuration,
+	fmtUsdc,
+	fmtUsdcExact,
+	truncAddress,
+	truncTx,
+} from "../lib/format";
 import PassCard from "./PassCard";
+import PendingBalance from "./PendingBalance";
+import ChainTag from "./ChainTag";
+import { YEAR_SECONDS } from "../lib/pricing";
 import { fetchProfile, type EnsProfile } from "../lib/ens";
 import { XIcon } from "./icons";
 import NumberTicker from "./magicui/NumberTicker";
 
-const CHAIN_DOT: Record<string, string> = {
-	Base: "#0052FF",
-	Arbitrum: "#12AAFF",
-	Ethereum: "#627EEA",
-	Polygon: "#8247E5",
-};
-
-const PING_DELAY: Record<string, string> = {
-	Base: "0ms",
-	Arbitrum: "300ms",
-	Ethereum: "900ms",
-	Polygon: "1200ms",
-};
-
-function ChainTag({ chain }: { chain: string }) {
-	const color = CHAIN_DOT[chain] ?? "#8899aa";
+/**
+ * "Received" is what the funder sent; the rate and time next to it were bought
+ * with what was left after the gas allowance. Showing only the first makes the
+ * other two look like bad arithmetic — $16.60 at 31.25% off reads as +3.0y
+ * only once you know a dime came off — so the applied amount rides along
+ * whenever an allowance was taken.
+ */
+function AmountCell({ event, dense }: { event: ActivityEvent; dense?: boolean }) {
 	return (
-		<span className="inline-flex items-baseline gap-1.5 text-[rgba(30,50,90,0.7)] whitespace-nowrap">
-			<span className="relative flex w-1.5 h-1.5 shrink-0 self-center">
-				<span
-					className="absolute inline-flex w-full h-full rounded-full opacity-70 animate-ping"
-					style={{
-						background: color,
-						animationDelay: PING_DELAY[chain] ?? "0ms",
-						animationDuration: "2.4s",
-					}}
-				/>
-				<span
-					className="relative inline-flex w-1.5 h-1.5 rounded-full"
-					style={{ background: color }}
-				/>
+		<>
+			<span
+				className={`block ${dense ? "text-[12.5px]" : "text-[13.5px]"} text-[rgba(30,50,90,0.75)] tabular-nums`}
+			>
+				{fmtUsdc(event.amountDeposited)}
 			</span>
-			{chain}
-		</span>
+			{event.gasAllowance > 0n && (
+				<span className="block text-[11px] text-[rgba(30,50,90,0.4)] tabular-nums">
+					{fmtUsdc(event.amountApplied)} applied
+				</span>
+			)}
+		</>
 	);
 }
 
@@ -85,32 +89,109 @@ function DiscountTag({ off }: { off: string }) {
 /* Live feed — Etherscan-style table                                   */
 /* ------------------------------------------------------------------ */
 
-function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
-	const [rows, setRows] = useState<Array<ActivityEvent & { name: string }>>(() =>
-		recentActivity(14),
+/* One word each. The feed is a dense table and a long phrase widens its column
+   at the expense of every other one; the name's own card carries the full
+   "Waiting for Circle attestation" where there's room for it. */
+const FLOW_STAGE: Record<FlowStatus, string> = {
+	signing: "Preparing",
+	burning: "Burning",
+	attesting: "Attesting",
+	claiming: "Renewing",
+};
+
+/**
+ * A renewal still on its way. These sit above the settled rows because a CCTP
+ * transfer takes a quarter of an hour — a feed that only showed finished
+ * renewals called itself live while showing nothing but the past.
+ */
+function InFlightRow({ flow, onSelect }: { flow: ActiveFlow; onSelect: (n: string) => void }) {
+	return (
+		<motion.button
+			layout
+			initial={{ opacity: 0, backgroundColor: "rgba(30,50,90,0.05)" }}
+			animate={{ opacity: 1, backgroundColor: "rgba(30,50,90,0.02)" }}
+			exit={{ opacity: 0 }}
+			transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+			onClick={() => onSelect(flow.name)}
+			className="w-full text-left px-4 md:px-5 py-4 md:py-3.5 hover:bg-[rgba(30,50,90,0.04)] transition-colors block md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)] md:gap-4 md:items-center"
+		>
+			<div className="flex items-baseline justify-between gap-3 md:contents">
+				<span className="min-w-0 text-[15px] md:text-[14.5px] text-[rgba(30,50,90,0.95)] truncate">
+					{flow.name}
+				</span>
+
+				<span className="hidden md:block text-[13.5px]">
+					<ChainTag chain={flow.chain} />
+				</span>
+
+				<span className="hidden md:block text-[13.5px] text-[rgba(30,50,90,0.75)] text-right tabular-nums">
+					{fmtUsdc(flow.amount)}
+				</span>
+
+				<span className="hidden md:flex justify-center text-[13px]">
+					<DiscountTag off={flow.off} />
+				</span>
+
+				{/* "~6.0y", not "+6.0y" — nothing has been added yet, and if the claim
+				    reverts nothing will be. Same width as a settled row, different
+				    enough to not be misread as banked. */}
+				<span className="hidden md:block text-[13.5px] text-[rgba(30,50,90,0.5)] text-right tabular-nums">
+					{fmtDuration(flow.seconds).replace("+", "~")}
+				</span>
+
+				<span className="hidden md:flex min-w-0 items-center justify-end gap-1.5 text-[12px] text-[rgba(30,50,90,0.55)]">
+					<Loader2 className="w-3 h-3 animate-spin shrink-0" />
+					<span className="truncate">{FLOW_STAGE[flow.status]}</span>
+				</span>
+			</div>
+
+			<div className="md:hidden mt-2 flex items-center justify-between gap-3 text-[12.5px]">
+				<ChainTag chain={flow.chain} />
+				<span className="text-[rgba(30,50,90,0.75)] tabular-nums">
+					{fmtUsdc(flow.amount)}
+				</span>
+				<span className="inline-flex items-center gap-1.5 text-[rgba(30,50,90,0.55)]">
+					<Loader2 className="w-3 h-3 animate-spin shrink-0" />
+					{FLOW_STAGE[flow.status]}
+				</span>
+			</div>
+		</motion.button>
 	);
+}
+
+function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
+	const [, tick] = useReducer((n: number) => n + 1, 0);
 
 	useEffect(() => {
 		const id = setInterval(() => {
-			const ev = simulateRenewal();
-			setRows((prev) => [ev, ...prev].slice(0, 14));
-		}, 4200);
+			tickSimulation();
+			tick();
+		}, 2600);
 		return () => clearInterval(id);
 	}, []);
+
+	const inFlight = activeFlows();
+	const rows = recentActivity(14 - Math.min(inFlight.length, 6));
 
 	return (
 		<div className="border border-[rgba(30,50,90,0.1)] rounded-2xl overflow-hidden">
 			{/* Desktop column headers — hidden on mobile, where rows become cards */}
-			<div className="hidden md:grid grid-cols-[1.3fr_0.9fr_0.8fr_0.9fr_0.9fr_0.8fr] gap-4 px-5 py-3 bg-[rgba(30,50,90,0.03)] border-b border-[rgba(30,50,90,0.1)] text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
+			<div className="hidden md:grid grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)] gap-4 px-5 py-3 bg-[rgba(30,50,90,0.03)] border-b border-[rgba(30,50,90,0.1)] text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
 				<span>ENS name</span>
 				<span>Chain</span>
 				<span className="text-right">Received</span>
 				<span className="text-center">Discount</span>
 				<span className="text-right">Time added</span>
-				<span className="text-right">Age</span>
+				<span className="text-right">Status</span>
 			</div>
 
 			<div className="divide-y divide-[rgba(30,50,90,0.07)]" style={{ overflowAnchor: "none" }}>
+				<AnimatePresence initial={false}>
+					{inFlight.map((f) => (
+						<InFlightRow key={f.id} flow={f} onSelect={onSelect} />
+					))}
+				</AnimatePresence>
+
 				<AnimatePresence initial={false}>
 					{rows.map((r) => (
 						<motion.button
@@ -119,7 +200,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 							animate={{ opacity: 1, backgroundColor: "rgba(30,50,90,0)" }}
 							transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
 							onClick={() => onSelect(r.name)}
-							className="w-full text-left px-4 md:px-5 py-4 md:py-3.5 hover:bg-[rgba(30,50,90,0.025)] transition-colors block md:grid md:grid-cols-[1.3fr_0.9fr_0.8fr_0.9fr_0.9fr_0.8fr] md:gap-4 md:items-center"
+							className="w-full text-left px-4 md:px-5 py-4 md:py-3.5 hover:bg-[rgba(30,50,90,0.025)] transition-colors block md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)] md:gap-4 md:items-center"
 						>
 							{/* Mobile: name + headline result on one line */}
 							<div className="flex items-baseline justify-between gap-3 md:contents">
@@ -131,8 +212,8 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 									<ChainTag chain={r.chain} />
 								</span>
 
-								<span className="hidden md:block text-[13.5px] text-[rgba(30,50,90,0.75)] text-right tabular-nums">
-									{fmtUsdc(r.amount)}
+								<span className="hidden md:block text-right">
+									<AmountCell event={r} />
 								</span>
 
 								<span className="hidden md:flex justify-center text-[13px]">
@@ -162,8 +243,8 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 									<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
 										Received
 									</dt>
-									<dd className="mt-0.5 text-[12.5px] text-[rgba(30,50,90,0.75)] tabular-nums">
-										{fmtUsdc(r.amount)}
+									<dd className="mt-0.5">
+										<AmountCell event={r} dense />
 									</dd>
 								</div>
 								<div>
@@ -194,11 +275,116 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 	);
 }
 
+/**
+ * The final mainnet step mints only when something was burned to get there.
+ * A payment that was already on Ethereum just renews, so calling it a mint
+ * would describe a transfer that never happened.
+ */
+function stepLabel(step: FlowStep, bridged: boolean): string {
+	if (step.kind === "deposit") return "Payment received";
+	if (step.kind === "burn") return "Burned for transfer";
+	return bridged ? "Minted and renewed" : "Renewed";
+}
+
+/**
+ * What one renewal actually cost and which transactions carried it. The three
+ * amounts are separate because the gas allowance comes off on mainnet, so what
+ * bought renewal time is less than what the funder sent. One allowance per
+ * renewal, however many deposits accumulated into it.
+ */
+function RenewalBreakdown({ event }: { event: ActivityEvent }) {
+	const bridged = event.steps.some((s) => s.kind === "burn");
+	const years = Number(event.seconds) / Number(YEAR_SECONDS);
+	return (
+		<div className="px-4 md:px-5 py-5 bg-[rgba(30,50,90,0.015)] border-t border-[rgba(30,50,90,0.06)] grid gap-6 md:grid-cols-2">
+			<div>
+				<div className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
+					Amount
+				</div>
+				{/* Exact amounts here, not rounded ones. This is the panel someone opens
+			    to check the arithmetic, and a tier threshold can turn on a
+			    micro-unit — "$27" would be true of both $27.000032 (six years at
+			    43.75% off) and $27.00 (four years eleven months at 31.25%). */}
+				<dl className="mt-2.5 space-y-1.5 text-[13px]">
+					<div className="flex justify-between gap-4">
+						<dt className="text-[rgba(30,50,90,0.6)]">Received</dt>
+						<dd className="text-[rgba(30,50,90,0.9)] tabular-nums">
+							{fmtUsdcExact(event.amountDeposited)}
+						</dd>
+					</div>
+					{event.gasAllowance > 0n && (
+						<div className="flex justify-between gap-4">
+							<dt className="text-[rgba(30,50,90,0.6)]">Gas allowance</dt>
+							<dd className="text-[rgba(30,50,90,0.55)] tabular-nums">
+								−{fmtUsdcExact(event.gasAllowance)}
+							</dd>
+						</div>
+					)}
+					<div className="flex justify-between gap-4 pt-1.5 border-t border-[rgba(30,50,90,0.08)]">
+						<dt className="text-[rgba(30,50,90,0.6)]">Applied to renewal</dt>
+						<dd className="text-[rgba(30,50,90,0.95)] tabular-nums">
+							{fmtUsdcExact(event.amountApplied)}
+						</dd>
+					</div>
+					{/* Without this the panel says where the money went but not what it
+					    bought it at, so "$27 · 6 years" looks like bad arithmetic until
+					    you notice the bulk rate is $4.50, not the headline $8. */}
+					{years > 0.01 && (
+						<div className="flex justify-between gap-4">
+							<dt className="text-[rgba(30,50,90,0.6)]">Effective rate</dt>
+							<dd className="text-[rgba(30,50,90,0.7)] tabular-nums">
+								{fmtUsdc(BigInt(Math.round(Number(event.amountApplied) / years)))}/year
+							</dd>
+						</div>
+					)}
+				</dl>
+				</div>
+
+			<div>
+				<div className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
+					Transactions
+				</div>
+				<ol className="mt-2.5 space-y-2.5">
+					{event.steps.map((s, i) => (
+						<li key={s.tx} className="flex items-baseline gap-2.5">
+							<span className="shrink-0 w-3 text-[11px] text-[rgba(30,50,90,0.35)] tabular-nums">
+								{i + 1}
+							</span>
+							<div className="min-w-0 flex-1">
+								<div className="text-[12.5px] text-[rgba(30,50,90,0.8)]">
+									{stepLabel(s, bridged)}
+								</div>
+								<a
+									href={explorerUrl(s.chain, s.tx)}
+									target="_blank"
+									rel="noopener noreferrer"
+									className="mt-0.5 inline-flex items-center gap-1.5 font-mono text-[12px] text-[rgba(30,50,90,0.5)] hover:text-[rgba(30,50,90,0.9)] transition-colors"
+								>
+									{truncTx(s.tx)}
+									<ExternalLink className="w-2.5 h-2.5 shrink-0" />
+								</a>
+							</div>
+							<span className="shrink-0 text-[11.5px] text-[rgba(30,50,90,0.45)]">
+								{s.chain}
+							</span>
+						</li>
+					))}
+				</ol>
+			</div>
+		</div>
+	);
+}
+
 /* ------------------------------------------------------------------ */
 /* Name detail                                                         */
 /* ------------------------------------------------------------------ */
 
 function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void }) {
+	/* A settling flow appends a renewal to the record in place, so the expiry,
+	   aggregates and activity table all need a nudge to re-read it. */
+	const [, refresh] = useReducer((n: number) => n + 1, 0);
+	/* Which renewal has its transaction breakdown open. One at a time. */
+	const [openEvent, setOpenEvent] = useState<string | null>(null);
 	const events = [...record.events].reverse();
 	const expiry = nameExpiry(record);
 	const daysLeft = Math.round((expiry - Date.now()) / 86_400_000);
@@ -272,7 +458,10 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 							: "Expired — needs renewal"}
 					</div>
 
-					{/* Runway: how far Namepass has pushed the expiry out */}
+					{/* Runway: how far Namepass has pushed the expiry out.
+					    Attributed explicitly — the expiry above is the name's real one
+					    and the owner may well have renewed elsewhere too, so an
+					    unqualified "+27 years added" would claim credit for it. */}
 					<div className="mt-5">
 						<div className="flex justify-between text-[11px] text-[rgba(30,50,90,0.5)] mb-2">
 							<span>At activation</span>
@@ -298,10 +487,16 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 								{fmtDate(record.expiryAtActivation)}
 							</span>
 							<span className="text-[rgba(30,50,90,0.9)]">
-								+{timeDelivered(record).toFixed(1)} years added
+								+{timeDelivered(record).toFixed(1)} years via Namepass
 							</span>
 						</div>
 					</div>
+
+					{/* Money that has arrived but isn't renewal time yet — sits above
+					    the profile because it's the actionable half of the card. */}
+					{/* Keyed so switching names resets the card — otherwise an open
+					    tooltip and a running flow timer carry over to the next one. */}
+					<PendingBalance key={record.name} record={record} onSettled={refresh} />
 
 					{/* ENS records — identity, not payment history */}
 					<div className="mt-5 pt-5 border-t border-[rgba(30,50,90,0.08)] flex-1">
@@ -391,7 +586,9 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 			{/* Aggregates */}
 			<div className="mt-4 grid grid-cols-3 gap-px bg-[rgba(30,50,90,0.1)] border border-[rgba(30,50,90,0.1)] rounded-2xl overflow-hidden">
 				{[
-					{ k: "Time delivered", value: timeDelivered(record), decimals: 1, suffix: " years" },
+					/* "y" not " years" — at three-up on a phone the long form wraps and
+					   drops this value below the other two. Matches fmtDuration anyway. */
+					{ k: "Time delivered", value: timeDelivered(record), decimals: 1, suffix: "y" },
 					{
 						k: "Total received",
 						value: totalReceived(record),
@@ -400,8 +597,10 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 					},
 					{ k: "Renewals", value: renewalCount(record), decimals: 0 },
 				].map((s) => (
-					<div key={s.k} className="bg-white px-4 py-4">
-						<div className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
+					/* Labels wrap to two lines at narrow widths ("Renewals" doesn't), so
+					   the label absorbs the slack and the values stay on one line. */
+					<div key={s.k} className="bg-white px-3 md:px-4 py-4 flex flex-col">
+						<div className="flex-1 text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
 							{s.k}
 						</div>
 						<NumberTicker
@@ -409,7 +608,7 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 							decimals={s.decimals}
 							prefix={s.prefix}
 							suffix={s.suffix}
-							className="mt-1.5 block text-[19px] text-[rgba(30,50,90,0.95)] tracking-tight tabular-nums"
+							className="mt-1.5 block text-[19px] text-[rgba(30,50,90,0.95)] tracking-tight tabular-nums whitespace-nowrap"
 						/>
 					</div>
 				))}
@@ -429,20 +628,32 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 				</div>
 
 				<div className="border border-[rgba(30,50,90,0.1)] rounded-2xl overflow-hidden">
-					<div className="hidden md:grid grid-cols-[0.8fr_1.2fr_0.8fr_0.8fr_0.9fr_0.8fr] gap-4 px-5 py-3 bg-[rgba(30,50,90,0.03)] border-b border-[rgba(30,50,90,0.1)] text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
+					<div className="hidden md:grid grid-cols-[0.8fr_1.2fr_0.8fr_0.8fr_0.9fr_0.8fr_auto] gap-4 px-5 py-3 bg-[rgba(30,50,90,0.03)] border-b border-[rgba(30,50,90,0.1)] text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
 						<span>Date</span>
 						<span>Event</span>
 						<span>Chain</span>
-						<span className="text-right">Amount</span>
+						<span className="text-right">Received</span>
 						<span className="text-center">Discount</span>
 						<span className="text-right">Time added</span>
+						<span className="w-4" />
 					</div>
 
 					<div className="divide-y divide-[rgba(30,50,90,0.07)]">
-						{events.map((e) => (
-							<div
-								key={e.id}
-								className="px-4 md:px-5 py-4 md:py-3.5 block md:grid md:grid-cols-[0.8fr_1.2fr_0.8fr_0.8fr_0.9fr_0.8fr] md:gap-4 md:items-center"
+						{events.map((e) => {
+							/* Activation has no transactions behind it, so nothing to open. */
+							const expandable = e.steps.length > 0;
+							const isOpen = openEvent === e.id;
+							return (
+							<div key={e.id}>
+							<button
+								type="button"
+								disabled={!expandable}
+								onClick={() => setOpenEvent(isOpen ? null : e.id)}
+								className={`w-full text-left px-4 md:px-5 py-4 md:py-3.5 block md:grid md:grid-cols-[0.8fr_1.2fr_0.8fr_0.8fr_0.9fr_0.8fr_auto] md:gap-4 md:items-center ${
+									expandable
+										? "hover:bg-[rgba(30,50,90,0.025)] transition-colors"
+										: "cursor-default"
+								}`}
 							>
 								{/* Headline row */}
 								<div className="flex items-baseline justify-between gap-3 md:contents">
@@ -463,7 +674,7 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 									</span>
 
 									<span className="hidden md:block text-[13.5px] text-[rgba(30,50,90,0.75)] text-right tabular-nums">
-										{e.kind === "renewal" ? fmtUsdc(e.amount) : "—"}
+										{e.kind === "renewal" ? <AmountCell event={e} /> : "—"}
 									</span>
 
 									<span className="hidden md:flex justify-center">
@@ -476,6 +687,14 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 
 									<span className="hidden md:block text-[13.5px] text-[rgba(30,50,90,0.95)] text-right tabular-nums">
 										{e.kind === "renewal" ? fmtDuration(e.seconds) : "—"}
+									</span>
+
+									<span className="hidden md:flex justify-end">
+										{expandable && (
+											<ChevronDown
+												className={`w-4 h-4 text-[rgba(30,50,90,0.35)] transition-transform ${isOpen ? "rotate-180" : ""}`}
+											/>
+										)}
 									</span>
 
 								</div>
@@ -493,10 +712,10 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 										</div>
 										<div>
 											<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
-												Amount
+												Received
 											</dt>
-											<dd className="mt-0.5 text-[12.5px] text-[rgba(30,50,90,0.75)] tabular-nums">
-												{fmtUsdc(e.amount)}
+											<dd className="mt-0.5">
+												<AmountCell event={e} dense />
 											</dd>
 										</div>
 										<div>
@@ -518,11 +737,32 @@ function NameDetail({ record, onBack }: { record: NameRecord; onBack: () => void
 									</dl>
 								)}
 
-								<div className="md:hidden mt-2 text-[11.5px] text-[rgba(30,50,90,0.45)]">
-									{fmtDate(e.at)}
+								<div className="md:hidden mt-2 flex items-center justify-between gap-3 text-[11.5px] text-[rgba(30,50,90,0.45)]">
+									<span>{fmtDate(e.at)}</span>
+									{expandable && (
+										<ChevronDown
+											className={`w-4 h-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
+										/>
+									)}
 								</div>
+							</button>
+
+							<AnimatePresence initial={false}>
+								{isOpen && (
+									<motion.div
+										initial={{ height: 0, opacity: 0 }}
+										animate={{ height: "auto", opacity: 1 }}
+										exit={{ height: 0, opacity: 0 }}
+										transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+										className="overflow-hidden"
+									>
+										<RenewalBreakdown event={e} />
+									</motion.div>
+								)}
+							</AnimatePresence>
 							</div>
-						))}
+							);
+						})}
 					</div>
 				</div>
 			</div>
@@ -543,6 +783,9 @@ export default function Explorer({ selected, onSelect, onActivated }: Props) {
 	const [query, setQuery] = useState("");
 	const [notFound, setNotFound] = useState<string | null>(null);
 	const [activating, setActivating] = useState(false);
+
+	/** ENS v2 prices nothing below three characters, so it can't be renewed. */
+	const tooShort = notFound !== null && notFound.replace(/\.eth$/, "").length < 3;
 
 	const record = useMemo(
 		() => (selected ? findName(selected) : undefined),
@@ -637,7 +880,26 @@ export default function Explorer({ selected, onSelect, onActivated }: Props) {
 							</div>
 						)}
 
-						{notFound && (
+						{notFound && tooShort && (
+							<motion.div
+								initial={{ opacity: 0, y: -4 }}
+								animate={{ opacity: 1, y: 0 }}
+								transition={{ duration: 0.25 }}
+								className="mt-2 rounded-[0.9rem] border border-[rgba(30,50,90,0.15)] bg-[rgba(30,50,90,0.03)] p-4"
+							>
+								<div className="text-[13.5px] text-[rgba(30,50,90,0.9)]">
+									<span className="font-medium">{notFound}</span> can't be registered.
+								</div>
+								{/* ENS v2 has no rate below three characters, so a Namepass for one
+								    could never buy any time — better to say so than to let someone
+								    activate an address that can never work. */}
+								<p className="mt-1 text-[12.5px] text-[rgba(30,50,90,0.55)] leading-relaxed">
+									ENS names need at least three characters.
+								</p>
+							</motion.div>
+						)}
+
+						{notFound && !tooShort && (
 							<motion.div
 								initial={{ opacity: 0, y: -4 }}
 								animate={{ opacity: 1, y: 0 }}

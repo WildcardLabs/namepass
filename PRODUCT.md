@@ -7,23 +7,36 @@ codebase) and the `README.md` (which pitches the repo to a visitor).
 ## The problem
 
 ENS names expire. Renewal is a manual, easy-to-forget action — miss it, and a name you've built
-identity/reputation/a project around can be re-registered by someone else. There's no built-in
-mechanism for a name's community, fans, or supporters to help keep it alive; only the owner can
-renew it, and only if they remember to.
+identity/reputation/a project around can be re-registered by someone else.
+
+Renewal itself is *permissionless* — anyone can call `renew()` and pay for any name, no ownership
+required. So the problem isn't permission, it's friction and coordination: to help a name today you
+need ETH on mainnet, you need to go find the name, you need to do it manually, and someone has to
+remember. There's no durable, shareable thing a name's community can point at to keep it alive.
 
 ## The core mechanic
 
 Every ENS name gets its own **permanent, chain-agnostic USDC deposit address** — a "Namepass."
 Anyone can send USDC to that address, from any supported chain, and it's automatically converted
-into renewal time at the exact on-chain rate (no markup). Ownership of the underlying ENS name is
+into renewal time at the exact on-chain rate. Ownership of the underlying ENS name is
 **not** required to fund its Namepass — a name's biggest supporter, its community, or a project's
 treasury can keep it alive without ever holding the keys. The Namepass address itself never
 changes, so it can be shared once, publicly, permanently.
 
-**Automation (the real product, not this prototype):** Coinbase CDP Agentic Wallets watch each
-deposit address, detect inbound payments via webhook, calculate the maximum renewal time the funds
-can buy, bridge cross-chain if needed, and submit the on-chain renewal — end to end, no manual
-intervention.
+**One deduction, and it isn't a markup on the rate:** a flat **$0.10 gas allowance** comes off each
+flow, taken by the mainnet contract in the transaction that renews. It's a partial rebate on gas
+Namepass fronts — a mainnet renewal costs dollars, not cents — so the ENS price itself is never
+marked up. Avoid claiming "no fees" in copy; "no markup on the ENS rate" is the accurate version.
+
+**Balances are per chain and never merge.** The address is identical on every chain, but $5 on Base
+and $8 on Arbitrum are two separate pots that each have to clear the minimum (~$0.67) on their own.
+This surprises people and the UI has to say it out loud.
+
+**Automation (the real product, not this prototype):** each name's address is derived
+deterministically with CREATE2, so it exists and is verifiable before anyone claims it. A webhook
+detects inbound payments, the funds move to Ethereum over Circle's CCTP, and the renewal executes
+in the same transaction that completes the transfer — end to end, no manual intervention. See
+`docs/ARCHITECTURE.md`.
 
 ## Supported chains
 
@@ -59,10 +72,12 @@ decided and shouldn't be assumed or invented in copy, code, or future planning:
 - Business model / monetization (is Namepass free to activate, does it take a fee on renewals,
   who funds the automation infra?)
 - Target launch timeline or rollout plan
-- Whether/how this connects to real ENS v2 contracts and a real CDP Agentic Wallet backend
-  (current repo is frontend-only, see `CLAUDE.md`)
-- Governance, custody, or legal structure questions beyond "non-custodial, ownership not required
-  to fund"
+- Whether/how this connects to real ENS v2 contracts and a live backend — the CREATE2 factory and
+  the CCTP integration are designed but unbuilt (current repo is frontend-only, see `CLAUDE.md`)
+- Governance and legal structure. **Custody is now settled, not open:** moving to CREATE2-derived
+  addresses removed the custodial step. No third party holds keys on Namepass's behalf, and each
+  address is computable and verifiable from the name alone. This reversed an earlier CDP
+  server-wallet design that was custodial — see `docs/DECISIONS.md` for both entries.
 
 If you want these captured, the next step is talking through them and I'll add a section here —
 better to leave this doc honest about gaps than to fill them with guesses.

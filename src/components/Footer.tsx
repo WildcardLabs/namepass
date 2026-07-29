@@ -88,7 +88,7 @@ export default function Footer({ onExplore, onSimulate, onLeaderboard, onTerms, 
 						© {new Date().getFullYear()} Namepass. All rights reserved.
 					</span>
 					<span className="text-[12px] text-[rgba(30,50,90,0.4)]">
-						Built on ENS · Facilitated by CDP Agentic Wallets
+						Built on ENS · Transfers via Circle CCTP
 					</span>
 				</div>
 			</div>

@@ -84,8 +84,12 @@ export default function App() {
 		}, 600);
 	}, [goToSection]);
 
-	/* After activation: no success modal — land the user on the live profile. */
-	const handleActivated = useCallback(
+	/**
+	 * Open a name's Explorer profile from anywhere. Used after activation (no
+	 * success modal — land the user on the live profile) and from the
+	 * Leaderboard, which shows an address but no history.
+	 */
+	const goToName = useCallback(
 		(name: string) => {
 			setSelected(name);
 			if (page !== "home") {
@@ -118,7 +122,7 @@ export default function App() {
 						<Explorer
 							selected={selected}
 							onSelect={setSelected}
-							onActivated={handleActivated}
+							onActivated={goToName}
 						/>
 					</>
 				)}
@@ -126,7 +130,7 @@ export default function App() {
 				{page === "leaderboard" && (
 					<PageShell cardClassName="min-h-[70vh]">
 						<Navbar {...navProps} showMenu={false} />
-						<Leaderboard onBack={goHome} />
+						<Leaderboard onBack={goHome} onViewName={goToName} />
 					</PageShell>
 				)}
 
@@ -156,7 +160,7 @@ export default function App() {
 			<ClaimModal
 				open={claimOpen}
 				onClose={() => setClaimOpen(false)}
-				onActivated={handleActivated}
+				onActivated={goToName}
 			/>
 		</main>
 	);
