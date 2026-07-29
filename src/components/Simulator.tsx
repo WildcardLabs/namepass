@@ -2,13 +2,16 @@ import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { TrendingUp } from "lucide-react";
 import {
+	ceilToCent,
 	nextTierHint,
 	oneYearCost,
 	payableThresholds,
 	solve,
 	YEAR_SECONDS,
 } from "../lib/pricing";
+import { GAS_ALLOWANCE } from "../lib/fees";
 import { fmtUsdc } from "../lib/format";
+import Tooltip from "./Tooltip";
 
 const LENGTHS = [
 	{ len: 3, label: "3 characters", example: "ens.eth" },
@@ -16,9 +19,17 @@ const LENGTHS = [
 	{ len: 5, label: "5+ characters", example: "vitalik.eth" },
 ];
 
+/**
+ * Every amount here is a *send* amount carrying the gas allowance, so the
+ * figure on a button clears its discount tier from any supported chain.
+ * Quoting the bare ENS threshold would land the payment a tier low once the
+ * allowance came off, which is the failure this exists to prevent.
+ */
+const ALLOWANCE = GAS_ALLOWANCE;
+
 /** Slider spans 0 → 1.6× the 6-year threshold, so every tier is reachable. */
 function maxFor(len: number): bigint {
-	return (payableThresholds(len)[2].payable * 8n) / 5n;
+	return ((payableThresholds(len)[2].payable + ALLOWANCE) * 8n) / 5n;
 }
 
 function budgetFor(len: number, t: number): bigint {
@@ -51,13 +62,28 @@ function humanDuration(seconds: bigint): string {
 
 export default function Simulator() {
 	const [len, setLen] = useState(5);
-	const [budget, setBudget] = useState<bigint>(() => payableThresholds(5)[2].payable);
+	const [budget, setBudget] = useState<bigint>(
+		() => ceilToCent(payableThresholds(5)[2].exact + ALLOWANCE),
+	);
 	const [draft, setDraft] = useState("");
 	const [editing, setEditing] = useState(false);
 
-	const marks = useMemo(() => payableThresholds(len), [len]);
-	const result = useMemo(() => solve(budget, len), [budget, len]);
-	const hint = useMemo(() => nextTierHint(budget, len), [budget, len]);
+	/* `budget` is what the sender puts in; `applied` is what survives the bridge
+	   and reaches the registry. Every result below is solved from `applied` —
+	   quoting a send amount against the time its pre-fee value would have bought
+	   is the whole bug this guards against. */
+	const applied = budget > ALLOWANCE ? budget - ALLOWANCE : 0n;
+
+	const marks = useMemo(
+		() =>
+			payableThresholds(len).map((m) => ({
+				...m,
+				send: ceilToCent(m.exact + ALLOWANCE),
+			})),
+		[len],
+	);
+	const result = useMemo(() => solve(applied, len), [applied, len]);
+	const hint = useMemo(() => nextTierHint(applied, len), [applied, len]);
 	const years = Number(result.seconds) / Number(YEAR_SECONDS);
 
 	/* Keep the amount sensible when switching name length. */
@@ -173,22 +199,23 @@ export default function Simulator() {
 
 							<div className="mt-5 flex flex-wrap gap-2">
 								{marks.map((m) => {
-									const reached = budget >= m.payable;
+									const reached = budget >= m.send;
 									return (
 										<button
 											key={m.years}
-											onClick={() => setBudget(m.payable)}
+											onClick={() => setBudget(m.send)}
 											className={`px-3 py-1.5 rounded-full text-[12.5px] border transition-colors tabular-nums ${
 												reached
 													? "border-[rgba(30,50,90,0.35)] text-[rgba(30,50,90,0.9)] bg-[rgba(30,50,90,0.05)]"
 													: "border-[rgba(30,50,90,0.12)] text-[rgba(30,50,90,0.5)] hover:border-[rgba(30,50,90,0.3)]"
 											}`}
 										>
-											{fmtUsdc(m.payable)} → {m.years}y
+											{fmtUsdc(m.send)} → {m.years}y
 										</button>
 									);
 								})}
 							</div>
+
 						</div>
 
 						{/* result */}
@@ -219,7 +246,7 @@ export default function Simulator() {
 										className="overflow-hidden"
 									>
 										<button
-											onClick={() => setBudget(hint.payable)}
+											onClick={() => setBudget(ceilToCent(hint.payable + ALLOWANCE))}
 											className="mt-4 w-full text-left rounded-2xl border border-[rgba(30,50,90,0.2)] bg-[rgba(30,50,90,0.04)] px-4 py-3 hover:bg-[rgba(30,50,90,0.07)] transition-colors group"
 										>
 											<div className="flex items-start gap-2.5">
@@ -242,6 +269,20 @@ export default function Simulator() {
 							</AnimatePresence>
 
 							<dl className="mt-6 space-y-3 text-[14px]">
+								{/* Same shape as a settled renewal in the Explorer: what went in,
+								    what the bridge takes, what the registry actually sees. */}
+								<div className="flex justify-between gap-4">
+									<dt className="text-[rgba(30,50,90,0.55)]">Gas allowance</dt>
+									<dd className="text-[rgba(30,50,90,0.55)] text-right tabular-nums">
+										−{fmtUsdc(ALLOWANCE)}
+									</dd>
+								</div>
+								<div className="flex justify-between gap-4 pb-3 border-b border-[rgba(30,50,90,0.08)]">
+									<dt className="text-[rgba(30,50,90,0.55)]">Reaches renewal</dt>
+									<dd className="text-[rgba(30,50,90,0.95)] text-right tabular-nums">
+										{fmtUsdc(applied)}
+									</dd>
+								</div>
 								<div className="flex justify-between gap-4">
 									<dt className="text-[rgba(30,50,90,0.55)]">Rate applied</dt>
 									<dd className="text-[rgba(30,50,90,0.95)] text-right">
@@ -271,6 +312,16 @@ export default function Simulator() {
 									</dd>
 								</div>
 							</dl>
+
+							{/* The ENS math here is exact; the amount reaching it is a dime
+							    less. Say so, but keep it to one line. */}
+							<div className="mt-6 flex items-center gap-1.5 text-[12px] text-[rgba(30,50,90,0.45)]">
+								<span>Amounts include a {fmtUsdc(ALLOWANCE)} gas allowance.</span>
+								<Tooltip
+									label="What the gas allowance covers"
+									text={`Namepass pays the network fees to move your USDC and submit the renewal on Ethereum. ${fmtUsdc(ALLOWANCE)} of each payment goes toward that, taken in the same transaction that renews — so what's shown as reaching the renewal is what the registry actually sees. It's the same on every chain, and it's a contribution rather than the full cost.`}
+								/>
+							</div>
 						</div>
 					</div>
 				</div>

@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, ChevronDown } from "lucide-react";
 import { allNames, renewalCount, timeDelivered } from "../lib/registry";
+import { fmtDelivered } from "../lib/format";
 import NumberTicker from "./magicui/NumberTicker";
 import DotPattern from "./magicui/DotPattern";
 import ShineBorder from "./magicui/ShineBorder";
@@ -51,11 +52,17 @@ function Toggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void })
 	);
 }
 
-interface Props {
-	onBack: () => void;
+function monthsDelivered(rec: Parameters<typeof timeDelivered>[0]): number {
+	return timeDelivered(rec) * 12;
 }
 
-export default function Leaderboard({ onBack }: Props) {
+interface Props {
+	onBack: () => void;
+	/** Open this name on the home Explorer, so its activity can be read. */
+	onViewName: (name: string) => void;
+}
+
+export default function Leaderboard({ onBack, onViewName }: Props) {
 	const [mode, setMode] = useState<Mode>("renewals");
 	const [expanded, setExpanded] = useState<string | null>(null);
 	const [pageIndex, setPageIndex] = useState(0);
@@ -118,9 +125,16 @@ export default function Leaderboard({ onBack }: Props) {
 					{page.map((r, i) => {
 						const rank = pageIndex * PAGE_SIZE + i + 1;
 						const isOpen = expanded === r.name;
-						const primary = mode === "renewals" ? renewalCount(r) : timeDelivered(r);
-						const primaryDecimals = mode === "renewals" ? 0 : 1;
-						const primarySuffix = mode === "renewals" ? "" : "y";
+						/* The ranked figure switches unit where the subtitle beneath it
+						   does: days, then months, then years — so a 3-character name
+						   measured in days doesn't rank as a flat zero. */
+						const months = monthsDelivered(r);
+						const unit = months < 1 ? "d" : months < 12 ? "mo" : "y";
+						const timeValue =
+							unit === "d" ? Math.round(months * 30.4) : unit === "mo" ? months : months / 12;
+						const primary = mode === "renewals" ? renewalCount(r) : timeValue;
+						const primaryDecimals = mode === "renewals" || unit !== "y" ? 0 : 1;
+						const primarySuffix = mode === "renewals" ? "" : unit;
 
 						return (
 							<div key={r.name}>
@@ -148,7 +162,8 @@ export default function Leaderboard({ onBack }: Props) {
 											{r.name}
 										</div>
 										<div className="mt-0.5 text-[12.5px] text-[rgba(30,50,90,0.5)] tabular-nums">
-											{renewalCount(r)} renewals · {timeDelivered(r).toFixed(1)}y delivered
+											{renewalCount(r)} renewals · {fmtDelivered(timeDelivered(r))}{" "}
+											delivered
 										</div>
 									</div>
 
@@ -181,6 +196,17 @@ export default function Leaderboard({ onBack }: Props) {
 										>
 											<div className="px-4 md:px-5 py-5 bg-[rgba(30,50,90,0.015)] border-t border-[rgba(30,50,90,0.06)]">
 												<PassCard name={r.name} pass={r.pass} address={r.address} />
+												{/* The address is here; the history isn't. Radius, border
+												    and white surface match PassCard's own fields so this
+												    reads as part of the card rather than sitting on the
+												    grey panel behind it. */}
+												<button
+													onClick={() => onViewName(r.name)}
+													className="mt-4 w-full flex items-center justify-center gap-2 rounded-[1.4rem] border border-[rgba(30,50,90,0.1)] bg-white py-3 text-[13.5px] text-[rgba(30,50,90,0.8)] hover:border-[rgba(30,50,90,0.25)] transition-colors"
+												>
+													View {r.name} activity
+													<ArrowRight className="w-3.5 h-3.5" />
+												</button>
 											</div>
 										</motion.div>
 									)}

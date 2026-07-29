@@ -40,12 +40,14 @@ Send USDC from any chain, the name gets more time — automatically, at the best
 
 Every ENS name expires. Namepass gives it a **permanent, chain-agnostic deposit address** —
 anyone can send USDC to it, from Base, Arbitrum, Polygon, or Ethereum, and it's converted into
-renewal time at the exact on-chain rate, no middleman markup. Ownership isn't required to fund
+renewal time at the exact on-chain rate — no markup on the ENS price, just a flat $0.10 gas
+allowance per renewal toward the mainnet fees Namepass fronts. Ownership isn't required to fund
 one: a name's biggest supporter can keep it alive without ever holding the keys.
 
-Under the hood, [Coinbase CDP Agentic Wallets](https://www.coinbase.com/developer-platform)
-watch each deposit address, detect inbound payments, calculate the maximum renewal time the
-funds can buy, bridge if needed, and submit the on-chain renewal — no manual intervention.
+Each address is derived deterministically with CREATE2 — it exists before anyone claims it, anyone
+can verify it offline, and no custodian holds keys. Under the hood, a webhook detects inbound
+payments, [Circle's CCTP](https://developers.circle.com/cctp) moves the USDC to Ethereum, and the
+renewal executes in the same transaction that completes the transfer — no manual intervention.
 
 ## 🎬 A note on what this is
 
@@ -61,11 +63,14 @@ not a production financial product.
 | | |
 |---|---|
 | 🏠 **Hero + live renewal ticker** | The bottom-left card cycles real inbound-payment math — chain, amount, discount tier, and the resulting expiry — computed from the actual pricing oracle, not hardcoded copy. |
-| 🧮 **Cost simulator** | Drag a slider or type any amount and watch it resolve into exact renewal time, live, for 3/4/5+ character names — including the "you're 1 dollar from a better rate" nudge. |
+| 🧮 **Cost simulator** | Drag a slider or type any amount and watch it resolve into exact renewal time, live, for 3/4/5+ character names — including the "you're 1 dollar from a better rate" nudge. Every amount is a *send* amount carrying a bridging allowance, so the figure on the button clears its discount tier from any supported chain. |
 | 📡 **Explorer** | A public, Etherscan-style live feed of every renewal across every name, plus a full per-name detail view: expiry runway, ENS profile (avatar, links, socials), and complete payment history. |
-| 🏆 **Leaderboard** | Every Namepass ranked by renewals or time delivered, with inline-expandable rows (no page navigation) showing the QR code and deposit address on the spot. |
+| 🏆 **Leaderboard** | Every Namepass ranked by renewals or time delivered, with inline-expandable rows (no page navigation) showing the QR code and deposit address on the spot, plus a jump straight to that name's activity. Time reads adaptively — days, months, then years and months — since names range from a week of runway to decades. |
 | 🖼️ **ENS avatars everywhere** | Real ENS avatars via the [resolvio](https://api.resolvio.xyz) profile API, gracefully falling back to a deterministic [Dicebear](https://dicebear.com) avatar seeded by name. |
 | 🔎 **Instant search** | Type a complete `.eth` name and it auto-searches after a debounce — no Enter required. No Namepass yet? Activate it inline, right there in the empty state. |
+| 💰 **Pending balance** | Funds that have arrived but aren't renewal time yet, broken down **per chain** — because a CREATE2 address is the same everywhere but the balances are separate pots that can't be combined. Each chain carries its own reason for waiting, and its own retry for when a transfer got stuck. |
+| 📡 **In-flight renewals** | A CCTP transfer takes 13–19 minutes, so the feed shows renewals *while* they happen — burning, awaiting attestation, renewing — with projected time shown as `~6.0y` until it lands. |
+| 🧾 **Renewal breakdown** | Expand any renewal to see where the money went — received, gas allowance, applied — and the two or three transactions behind it, each linked to the right block explorer for its chain. |
 | 💎 **Shine & shimmer UI** | Hand-ported [Magic UI](https://magicui.design)–style primitives (`ShineBorder`, `AnimatedShinyText`, `NumberTicker`, `DotPattern`) restyled to a single navy accent — restrained, not confetti. |
 | 🪟 **One consistent shell** | Every page — home, leaderboard, terms, privacy — renders inside the same rounded card with the same header, so navigating between them never feels like leaving the app. |
 
@@ -91,7 +96,7 @@ not a production financial product.
 | Motion | [`motion`](https://motion.dev) (Framer Motion's successor) for every transition, layout animation, and gesture |
 | Icons | [lucide-react](https://lucide.dev) |
 | ENS data | [resolvio](https://api.resolvio.xyz) profile API — cached, deduplicated, abort-on-unmount |
-| Automation (product, not this demo) | Coinbase CDP Agentic Wallets |
+| Automation (product, not this demo) | CREATE2 addresses · Circle CCTP · Moralis webhooks · Vercel Workflow |
 | Routing | ~40 lines of hand-rolled `history.pushState` — no router dependency for four pages |
 
 ## 🚀 Getting started
@@ -113,27 +118,39 @@ npm run preview   # serve the production build locally
 ```
 src/
 ├── components/
-│   ├── magicui/          ShineBorder, AnimatedShinyText, NumberTicker, DotPattern
-│   ├── Hero.tsx           Home hero content (badge, headline, CTA cards)
-│   ├── Navbar.tsx         Shared header — logo, glass menu, CTA
-│   ├── PageShell.tsx      The rounded card every page renders inside
-│   ├── Explorer.tsx       Live feed + per-name detail view
-│   ├── Leaderboard.tsx    Ranked list with inline-expandable rows
-│   ├── Simulator.tsx      Cost simulator
-│   ├── PassCard.tsx       QR + deposit address + supported chains
+│   ├── magicui/            ShineBorder, AnimatedShinyText, NumberTicker, DotPattern
+│   ├── Hero.tsx            Home hero content (badge, headline, CTA cards)
+│   ├── Navbar.tsx          Shared header — logo, glass menu, CTA
+│   ├── PageShell.tsx       The rounded card every page renders inside
+│   ├── Explorer.tsx        Live feed (settled + in-flight) + per-name detail view
+│   ├── Leaderboard.tsx     Ranked list with inline-expandable rows
+│   ├── Simulator.tsx       Cost simulator
+│   ├── PassCard.tsx        QR + deposit address + supported chains
+│   ├── PendingBalance.tsx  Per-chain funds waiting, with why and a manual retry
+│   ├── Tooltip.tsx         Shared info bubble — portaled, so accordions can't clip it
+│   ├── ChainTag.tsx        Chain name + brand-coloured live dot
 │   └── Footer.tsx / Terms.tsx / Privacy.tsx
 ├── lib/
-│   ├── pricing.ts         Exact ENS v2 StandardRentPriceOracle math, BigInt end to end
-│   ├── registry.ts        Seeded mock activity data (see note above)
+│   ├── pricing.ts          Exact ENS v2 StandardRentPriceOracle math, BigInt end to end
+│   ├── registry.ts         Seeded mock names + the flow simulation (see note above)
+│   ├── fees.ts             The flat $0.10 gas allowance taken per flow
 │   ├── ens.ts              resolvio profile client
 │   ├── qr.ts               QR matrix encoder
 │   └── format.ts           Date/currency/duration formatting
-└── App.tsx                 ~150 lines of state + routing tying it together
+└── App.tsx                 ~165 lines of state + routing tying it together
 ```
 
 ## 🔬 Under the hood
 
-A few decisions worth knowing about before you touch the code:
+A few decisions worth knowing about before you touch the code. For the full picture there are four
+docs, each with a distinct job:
+
+| Doc | Covers |
+|---|---|
+| [`CLAUDE.md`](CLAUDE.md) | Working conventions and the load-bearing constraints, in brief |
+| [`docs/FRONTEND.md`](docs/FRONTEND.md) | **How the app that exists works** — data layer, domain model, simulation, state, invariants |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The planned backend — CREATE2 addresses, CCTP, Postgres schema |
+| [`PRODUCT.md`](PRODUCT.md) · [`docs/DECISIONS.md`](docs/DECISIONS.md) | What/why, and a dated log of non-obvious calls |
 
 <details>
 <summary><strong>Pricing math is exact, not approximate</strong></summary>
