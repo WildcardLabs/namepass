@@ -75,7 +75,7 @@ lint` or `npm test` invocations.
 ## Architecture
 
 **Routing is hand-rolled, not a library.** `App.tsx` holds a `page` state
-(`"home" | "leaderboard" | "terms" | "privacy"`), synced to `window.location` via
+(`"home" | "leaderboard" | "supported" | "terms" | "privacy"`), synced to `window.location` via
 `history.pushState`/`popstate` — see `pathToPage`/`pageToPath`. There's no router dependency.
 Vite's dev server falls back to `index.html` for unknown paths automatically; the production
 Vercel deployment needs `vercel.json`'s catch-all rewrite for the same behavior, or direct
@@ -83,7 +83,8 @@ navigation/reload to `/leaderboard` etc. 404s.
 
 **Every page renders inside `PageShell`, with `Navbar` as its first child.** `PageShell` is the
 rounded card (video background on Home, white elsewhere) that every route shares — this is what
-makes Home/Leaderboard/Terms/Privacy feel like one app instead of four stitched-together pages.
+makes Home/Leaderboard/Supported/Terms/Privacy feel like one app instead of five
+stitched-together pages.
 When adding a new page, wrap it in `PageShell` + `Navbar` the same way `App.tsx` does for the
 existing ones, rather than giving it its own top-level layout. `Navbar` takes `showMenu={false}`
 on non-Home pages (only Home shows the Explorer/Search/Cost simulator menu).
@@ -97,8 +98,13 @@ on non-Home pages (only Home shows the Explorer/Search/Cost simulator menu).
   `$27.00` (four years eleven months, 31.25%) as "$27", so anywhere a reader might check the
   arithmetic use `fmtUsdcExact`.
 - `registry.ts` — seeded mock activity/name data for the demo (see prototype note above). Chain
-  pool is `["Base", "Arbitrum", "Ethereum", "Polygon"]` — **do not add Optimism**, there's no logo
+  pool is `["Base", "Arbitrum", "Ethereum", "Arc"]` — **do not add Optimism**, there's no logo
   asset for it (`public/logos/`) and it's been deliberately removed from every mock data source.
+  Polygon was replaced by Circle's **Arc** on 2026-08-05; if anything still says Polygon, it's
+  stale. A chain lives in more places than it looks — `registry.ts`, `fees.ts`, `format.ts`'s
+  explorer map, `tokens.ts`, `ChainTag`, `PassCard`, `BottomLeftCard`, and a logo in
+  `public/logos/`. **The app currently points at testnets** (`IS_TESTNET` in `lib/tokens.ts`);
+  `tokens.ts` and `format.ts`'s explorer map have to move together with it.
   Also models `PendingState` — funds that have arrived but aren't renewal time yet. **Balances are
   per chain and never merge**: the CREATE2 address is the same everywhere, but $5 on Base plus $8
   on Arbitrum is two pots that each have to clear the threshold alone, not $13. Hence
@@ -128,7 +134,39 @@ on non-Home pages (only Home shows the Explorer/Search/Cost simulator menu).
   quoting a send amount against what its pre-allowance value would buy silently drops a discount
   tier, which is the bug this arrangement exists to prevent. One allowance **per flow**, not per
   deposit.
-- `ens.ts` — real network calls to the resolvio profile API (cached, deduplicated, abort-on-unmount).
+- `ens.ts` — real network calls to the resolvio profile API (cached, deduplicated). **`fetchProfile`
+  takes no `AbortSignal` on purpose** — requests are shared between callers, so cancelling on one
+  component's unmount blanks the profile for every other one waiting on the same name. Callers
+  ignore late results instead. Don't reintroduce the signal to "clean up properly".
+
+**`contracts/` is Solidity, and nothing in the npm scripts touches it.** `npm run build` type-checks
+and builds the frontend only. `contracts/NamepassFactory.sol` is a draft for mainnet deployment,
+reviewed once and not yet audited or tested — there is no Foundry install in this repo yet, only
+`foundry.toml`. Three constraints that are easy to break by accident:
+
+- **Everything in `foundry.toml` is pinned on purpose.** `solc_version`, `evm_version`,
+  `optimizer_runs` and `bytecode_hash = "none"` all feed the creation-code hash, and the factory
+  must land on the *same address on all four chains* for the "one address, any chain" promise to
+  hold. Changing any of them moves every deposit address the product has ever published. The
+  pragma is pinned exactly (`pragma solidity 0.8.24;`) for the same reason — never float it.
+- **On-chain, the key is the ENS *label*: `vitalik`, not `vitalik.eth`.** The contract rejects dots.
+  The frontend and all user-facing copy still say *name*, which is correct — users have names. Don't
+  "fix" one to match the other; the distinction is load-bearing and documented in
+  `docs/ARCHITECTURE.md`.
+- **The deposit wallet is an ERC-1167 proxy that delegatecalls the factory itself.** Every external
+  factory function therefore carries `onlyFactoryContext` or `onlyWalletContext` — a new one added
+  without either is reachable through every deposit wallet against the wallet's own storage. The
+  assembly in `MinimalProxy` has been verified byte for byte against an independent CREATE2
+  implementation; treat it as settled and don't rewrite it to "clean it up."
+- **There is no sweep, and adding one back is a custody decision, not a convenience.** Tokens that
+  aren't the configured USDC are permanently lost. A rescue path was written and removed after an
+  audit — any function that moves a deposit wallet's tokens to an owner-chosen address has to
+  exclude the payment asset by comparing against something, and the moment that something is
+  mutable the guard is theatre. Relatedly, `usdc`/`tokenMessenger`/`l1Helper` are set once in
+  `initialize` and frozen; only `setFinality`/`setMaxBurnAmount` stay mutable, and the CCTP fee
+  ceiling is a per-call argument rather than state — so no owner setting can price or block a
+  transfer. Don't add an owner-settable address that
+  a wallet transfers or approves to.
 
 **`src/components/magicui/`** holds hand-ported Magic UI–style primitives (`ShineBorder`,
 `AnimatedShinyText`, `NumberTicker`, `DotPattern`), restyled to the single navy brand accent
@@ -150,6 +188,6 @@ payment target) is still truncated elsewhere.
 
 ## CI
 
-`.github/workflows/claude.yml` runs this same Claude Code Action on every PR (open + push) and on
-`@claude` mentions in comments/reviews/issues, authenticated via `CLAUDE_CODE_OAUTH_TOKEN` (bills
-against the repo owner's Claude subscription, not a separate Anthropic API key).
+**There is none.** The repo has no workflows at all — `.github/` holds only README screenshots. The
+Claude Code Action that used to review every PR was removed on 2026-08-05, so nothing runs on push
+or on a pull request, and nothing checks that `npm run build` passes before a merge. Verify locally.

@@ -2,7 +2,10 @@ const CHAIN_DOT: Record<string, string> = {
 	Base: "#0052FF",
 	Arbitrum: "#12AAFF",
 	Ethereum: "#627EEA",
-	Polygon: "#8247E5",
+	/* Arc's own navy, taken from its logo mark. Close to the Namepass accent,
+	   which is fine — it still reads as distinct from Base's and Arbitrum's
+	   blues, and inventing a brighter Arc colour would be inventing a brand. */
+	Arc: "#1B3158",
 };
 
 /* Staggered so the row reads as several independent live signals rather than
@@ -11,7 +14,7 @@ const PING_DELAY: Record<string, string> = {
 	Base: "0ms",
 	Arbitrum: "300ms",
 	Ethereum: "900ms",
-	Polygon: "1200ms",
+	Arc: "1200ms",
 };
 
 /** A chain name with its brand-coloured live dot. */

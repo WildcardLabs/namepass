@@ -22,4 +22,4 @@
 export const GAS_ALLOWANCE = 100000n;
 
 /** Chains a payment can arrive on, in the order the UI lists them. */
-export const FEE_CHAINS = ["Base", "Arbitrum", "Polygon", "Ethereum"];
+export const FEE_CHAINS = ["Base", "Arbitrum", "Arc", "Ethereum"];

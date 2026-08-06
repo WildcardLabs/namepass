@@ -31,7 +31,6 @@ Send USDC from any chain, the name gets more time — automatically, at the best
 - [Getting started](#-getting-started)
 - [Project structure](#-project-structure)
 - [Under the hood](#-under-the-hood)
-- [CI — Claude Code Action](#-ci--claude-code-action)
 - [License](#license)
 
 </details>
@@ -39,7 +38,7 @@ Send USDC from any chain, the name gets more time — automatically, at the best
 ## 🪪 What it does
 
 Every ENS name expires. Namepass gives it a **permanent, chain-agnostic deposit address** —
-anyone can send USDC to it, from Base, Arbitrum, Polygon, or Ethereum, and it's converted into
+anyone can send USDC to it, from Base, Arbitrum, Arc, or Ethereum, and it's converted into
 renewal time at the exact on-chain rate — no markup on the ENS price, just a flat $0.10 gas
 allowance per renewal toward the mainnet fees Namepass fronts. Ownership isn't required to fund
 one: a name's biggest supporter can keep it alive without ever holding the keys.
@@ -51,8 +50,8 @@ renewal executes in the same transaction that completes the transfer — no manu
 
 ## 🎬 A note on what this is
 
-This repo is a **frontend prototype** — a fully interactive design exploration of the Namepass
-product surface, built to demo the experience end to end. The UI, pricing math, and interaction
+This repo is a **frontend prototype**, and it points at **test networks** — a fully interactive
+design exploration of the Namepass product surface, built to demo the experience end to end. The UI, pricing math, and interaction
 model are real and exact (see [Under the hood](#-under-the-hood)); the on-chain activity,
 balances, and ENS ecosystem stats you'll see are **seeded/simulated client-side** for
 demonstration, not pulled from a live indexer or contract. Treat it as a high-fidelity prototype,
@@ -71,8 +70,10 @@ not a production financial product.
 | 💰 **Pending balance** | Funds that have arrived but aren't renewal time yet, broken down **per chain** — because a CREATE2 address is the same everywhere but the balances are separate pots that can't be combined. Each chain carries its own reason for waiting, and its own retry for when a transfer got stuck. |
 | 📡 **In-flight renewals** | A CCTP transfer takes 13–19 minutes, so the feed shows renewals *while* they happen — burning, awaiting attestation, renewing — with projected time shown as `~6.0y` until it lands. |
 | 🧾 **Renewal breakdown** | Expand any renewal to see where the money went — received, gas allowance, applied — and the two or three transactions behind it, each linked to the right block explorer for its chain. |
+| 🛡️ **Supported tokens** | The exact USDC contract on each of the four networks, shown in full and linked to its block explorer, because "check the ticker" is how people lose money to bridged `USDC.e`. Deliberately a whitelist — match one of these four exactly or don't send — and honest that anything else sent to a deposit address can't be recovered. |
+| 🧪 **Testnet strip** | A slim marquee above every page saying which networks this deployment actually watches. Not dismissible: "this is a testnet" isn't a notice someone should be able to close and then forget while looking at a deposit address. Pauses under `prefers-reduced-motion`. |
 | 💎 **Shine & shimmer UI** | Hand-ported [Magic UI](https://magicui.design)–style primitives (`ShineBorder`, `AnimatedShinyText`, `NumberTicker`, `DotPattern`) restyled to a single navy accent — restrained, not confetti. |
-| 🪟 **One consistent shell** | Every page — home, leaderboard, terms, privacy — renders inside the same rounded card with the same header, so navigating between them never feels like leaving the app. |
+| 🪟 **One consistent shell** | Every page — home, leaderboard, supported tokens, terms, privacy — renders inside the same rounded card with the same header, so navigating between them never feels like leaving the app. |
 
 <div align="center">
 <table>
@@ -95,9 +96,9 @@ not a production financial product.
 | Styling | Tailwind CSS v4 (`@theme`, no config file) |
 | Motion | [`motion`](https://motion.dev) (Framer Motion's successor) for every transition, layout animation, and gesture |
 | Icons | [lucide-react](https://lucide.dev) |
-| ENS data | [resolvio](https://api.resolvio.xyz) profile API — cached, deduplicated, abort-on-unmount |
+| ENS data | [resolvio](https://api.resolvio.xyz) profile API — cached and deduplicated across components |
 | Automation (product, not this demo) | CREATE2 addresses · Circle CCTP · Moralis webhooks · Vercel Workflow |
-| Routing | ~40 lines of hand-rolled `history.pushState` — no router dependency for four pages |
+| Routing | ~40 lines of hand-rolled `history.pushState` — no router dependency for five pages |
 
 ## 🚀 Getting started
 
@@ -125,14 +126,16 @@ src/
 │   ├── Explorer.tsx        Live feed (settled + in-flight) + per-name detail view
 │   ├── Leaderboard.tsx     Ranked list with inline-expandable rows
 │   ├── Simulator.tsx       Cost simulator
-│   ├── PassCard.tsx        QR + deposit address + supported chains
+│   ├── PassCard.tsx        QR + deposit address + supported chains + contract check
 │   ├── PendingBalance.tsx  Per-chain funds waiting, with why and a manual retry
 │   ├── Tooltip.tsx         Shared info bubble — portaled, so accordions can't clip it
 │   ├── ChainTag.tsx        Chain name + brand-coloured live dot
+│   ├── SupportedTokens.tsx Native USDC contract per chain, in full, with explorer links
 │   └── Footer.tsx / Terms.tsx / Privacy.tsx
 ├── lib/
 │   ├── pricing.ts          Exact ENS v2 StandardRentPriceOracle math, BigInt end to end
 │   ├── registry.ts         Seeded mock names + the flow simulation (see note above)
+│   ├── tokens.ts           Real mainnet USDC addresses — the one lib file that isn't mock
 │   ├── fees.ts             The flat $0.10 gas allowance taken per flow
 │   ├── ens.ts              resolvio profile client
 │   ├── qr.ts               QR matrix encoder
@@ -197,12 +200,6 @@ informational rather than a payment target.
 Leaderboard, Terms, and Privacy feel like one app instead of four stitched-together pages.
 
 </details>
-
-## 🤖 CI — Claude Code Action
-
-Pull requests and issues on this repo can be reviewed by Claude directly — mention `@claude` in
-a comment, review, or issue and [`.github/workflows/claude.yml`](.github/workflows/claude.yml)
-picks it up.
 
 ## License
 

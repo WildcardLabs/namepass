@@ -1,12 +1,12 @@
 import { motion } from "motion/react";
 import { useMemo, useState } from "react";
-import { Check, Copy, Infinity as InfinityIcon } from "lucide-react";
+import { ArrowUpRight, Check, Copy, Infinity as InfinityIcon } from "lucide-react";
 import { encodeQR } from "../lib/qr";
 
 const CHAINS = [
 	{ name: "Base", file: "base.svg" },
 	{ name: "Arbitrum", file: "arbitrum.svg" },
-	{ name: "Polygon", file: "polygon.svg" },
+	{ name: "Arc", file: "arc.svg" },
 	{ name: "Ethereum", file: "ethereum.svg" },
 ];
 
@@ -17,6 +17,14 @@ interface Props {
 	pass: string;
 	/** Permanent deposit address. */
 	address: string;
+	/**
+	 * Navigate to the supported-tokens page.
+	 *
+	 * Required rather than optional on purpose: this link is the mitigation for
+	 * sending the wrong token to an address with no rescue path, so a new usage
+	 * of `PassCard` should fail to compile rather than quietly ship without it.
+	 */
+	onSupportedTokens: () => void;
 	/** Animate the QR in. Off for returning users so the card is instantly usable. */
 	animate?: boolean;
 	/** Visual weight — "glass" over video/blur, "solid" on white. */
@@ -34,6 +42,7 @@ export default function PassCard({
 	name,
 	pass,
 	address,
+	onSupportedTokens,
 	animate = false,
 	surface = "solid",
 	layout = "stack",
@@ -237,6 +246,17 @@ export default function PassCard({
 							</span>
 						))}
 					</div>
+
+					{/* Bridged USDC.e is a different contract that displays the same
+					    name, and a deposit address has no way to return it. Naming
+					    the token isn't enough — point at the exact contracts. */}
+					<button
+						onClick={onSupportedTokens}
+						className="mt-3 w-full inline-flex items-center justify-center gap-1 text-[12px] text-[rgba(30,50,90,0.5)] hover:text-[rgba(30,50,90,0.85)] transition-colors"
+					>
+						Check contract addresses
+						<ArrowUpRight className="w-3.5 h-3.5" />
+					</button>
 				</div>
 			</div>
 

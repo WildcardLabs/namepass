@@ -1,0 +1,25 @@
+[profile.default]
+src = "contracts"
+out = "out"
+test = "test"
+libs = ["lib"]
+
+# The deposit-address scheme requires the factory to land on the same
+# address on Ethereum, Base, Arbitrum and Polygon, which requires
+# byte-identical creation code from every build. Everything below is
+# pinned for that reason — changing any of it moves every deposit
+# address the product has ever published.
+solc_version = "0.8.24"
+
+# Shanghai, not Cancun: it is the newest EVM version all four target
+# chains support. PUSH0 (0.8.20+) is fine on all of them.
+evm_version = "shanghai"
+
+optimizer = true
+optimizer_runs = 200
+
+# No metadata hash in the bytecode. Without this, a changed source
+# path, a comment edit, or a different absolute directory produces
+# different creation code and therefore a different factory address.
+bytecode_hash = "none"
+cbor_metadata = false

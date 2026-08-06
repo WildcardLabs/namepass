@@ -69,8 +69,10 @@ mainnet renewal.
 
 **`registry.ts` — the domain model and the simulation.** Section 4 and 5.
 
-**`ens.ts` — real network calls** to the resolvio profile API. Cached, deduplicated,
-abort-on-unmount.
+**`ens.ts` — real network calls** to the resolvio profile API. Cached and deduplicated, and
+deliberately **not** abortable — see the note in the file. Because requests are shared between
+callers, one component's unmount must not cancel a request another is still waiting on; callers
+ignore late results instead.
 
 **`format.ts` — display only.** Note two pairs that exist because rounding lies:
 
@@ -175,7 +177,10 @@ from `applied`, appends an `ActivityEvent`, removes the flow, then **immediately
 from any balance queued on that chain** — the backend wouldn't leave money resting once the chain is
 free, and doing otherwise would need a null `holdReason`.
 
-**`activeFlows()`** flattens every in-flight flow across every name for the live feed, with the
+**`activeFlows()`** returns in-flight flows **newest first** (`startedAt` descending). Registry
+order is seed order, so without the sort a payment that started seconds ago rendered below one that
+had been bridging for a quarter of an hour. It flattens every in-flight flow across every name for
+the live feed, with the
 duration each will buy once it lands.
 
 ---
@@ -244,7 +249,7 @@ sits inside `overflow-hidden` accordions), `ChainTag` (chain name + brand-colour
 5. `seconds` and `off` always solved from `amountApplied`, never the deposited amount.
 6. Amounts in the breakdown panel use `fmtUsdcExact`; a tier can turn on a micro-unit.
 7. `SEED_NAMES` labels are 3+ characters.
-8. Chains are Base, Arbitrum, Polygon, Ethereum. **No Optimism** — no logo asset, deliberately
+8. Chains are Base, Arbitrum, Arc, Ethereum. **No Optimism** — no logo asset, deliberately
    removed everywhere.
 9. UI enablement derives from `canTrigger()`.
 10. Aggregate tiles mix bases on purpose: `total received` is lifetime USDC at the address,

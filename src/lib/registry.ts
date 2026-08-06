@@ -78,6 +78,13 @@ export interface ChainFlow {
 	/** USDC this flow claimed when it started, 6dp micro-units. */
 	amount: bigint;
 	status: FlowStatus;
+	/**
+	 * Unix ms the flow began. Only reason it exists: the live feed orders
+	 * in-flight rows newest first, and without it they came out in registry
+	 * order, so a payment that had just started could appear below one that
+	 * had been bridging for a quarter of an hour.
+	 */
+	startedAt: number;
 }
 
 /**
@@ -101,7 +108,7 @@ export interface PendingState {
 /**
  * Auto-trigger only fires when the gas allowance is at most this share of the
  * balance, which with a flat $0.10 allowance puts the floor around $0.67 —
- * **per chain**, since the pots don't merge. 50c on Base and 50c on Polygon
+ * **per chain**, since the pots don't merge. 50c on Base and 50c on Arc
  * means neither goes anywhere.
  *
  * Kept as a ratio rather than swapped for a hard minimum because no minimum
@@ -198,6 +205,15 @@ export interface ActivityEvent {
 	funder: string;
 	/** The transactions behind this renewal. Empty for activation. */
 	steps: FlowStep[];
+	/**
+	 * The in-flight row this renewal used to be, when it came from one.
+	 *
+	 * Exists so the live feed can keep one DOM element across settlement
+	 * instead of destroying the pending row and building a settled one. Same
+	 * key in, same element out, so finishing is a content change rather than a
+	 * remount. Absent on seeded history, which was never in flight.
+	 */
+	flowKey?: string;
 }
 
 export interface NameRecord {
@@ -218,7 +234,7 @@ export interface NameRecord {
 	pending: PendingState;
 }
 
-const CHAINS = ["Base", "Arbitrum", "Ethereum", "Polygon"];
+const CHAINS = ["Base", "Arbitrum", "Ethereum", "Arc"];
 const FUNDERS = ["owner", "community", "treasury", "agent", "anon", "contributor"];
 
 /**
@@ -491,7 +507,7 @@ export function triggerRenewal(rec: NameRecord, chain: string): boolean {
 	const p = rec.pending;
 	const balance = p.balances.find((b) => b.chain === chain);
 	if (!balance || !canTrigger(p, balance)) return false;
-	p.flows.push({ chain, amount: balance.amount, status: "signing" });
+	p.flows.push({ chain, amount: balance.amount, status: "signing", startedAt: Date.now() });
 	p.balances = p.balances.filter((b) => b.chain !== chain);
 	return true;
 }
@@ -546,6 +562,7 @@ export function settleRenewal(rec: NameRecord, chain: string): ActivityEvent | n
 		nameExpiryAfter: nameExpiry(rec) + Number(seconds) * 1000,
 		funder: FUNDERS[Math.floor(Math.random() * FUNDERS.length)],
 		steps: buildSteps(mulberry32(Date.now() % 100000), chain),
+		flowKey: flowKeyOf(rec.name, chain, flow.startedAt),
 	};
 	rec.events.push(event);
 	p.flows = p.flows.filter((f) => f.chain !== chain);
@@ -558,7 +575,7 @@ export function settleRenewal(rec: NameRecord, chain: string): ActivityEvent | n
 	if (queued) {
 		p.balances = p.balances.filter((b) => b.chain !== chain);
 		if (p.renewable && clearsFloor(queued.amount, p.gasAllowance)) {
-			p.flows.push({ chain, amount: queued.amount, status: "signing" });
+			p.flows.push({ chain, amount: queued.amount, status: "signing", startedAt: Date.now() });
 		} else {
 			park(p, chain, queued.amount, p.renewable ? "below_threshold" : "name_inactive");
 		}
@@ -575,9 +592,21 @@ export interface ActiveFlow {
 	status: FlowStatus;
 	seconds: bigint;
 	off: string;
+	/** Unix ms the flow began. The feed sorts on this. */
+	startedAt: number;
 }
 
 /** Every renewal currently in flight, across every name. */
+/**
+ * Identity of one payment as it moves from in-flight to settled.
+ *
+ * `startedAt` is in it so a later payment on the same name and chain cannot
+ * collide with a settled row still on screen.
+ */
+export function flowKeyOf(name: string, chain: string, startedAt: number): string {
+	return `${name}-${chain}-${startedAt}`;
+}
+
 export function activeFlows(): ActiveFlow[] {
 	const out: ActiveFlow[] = [];
 	for (const rec of registry) {
@@ -586,16 +615,21 @@ export function activeFlows(): ActiveFlow[] {
 				f.amount > rec.pending.gasAllowance ? f.amount - rec.pending.gasAllowance : 0n;
 			const { seconds, off } = solve(applied, rec.labelLength);
 			out.push({
-				id: `${rec.name}-${f.chain}`,
+				id: flowKeyOf(rec.name, f.chain, f.startedAt),
 				name: rec.name,
 				chain: f.chain,
 				amount: f.amount,
 				status: f.status,
 				seconds,
 				off,
+				startedAt: f.startedAt,
 			});
 		}
 	}
+	/* Newest first. Registry order is seed order, so without this a payment
+	   that started seconds ago could render below one that had been bridging
+	   for a quarter of an hour. */
+	out.sort((a, b) => b.startedAt - a.startedAt);
 	return out;
 }
 
@@ -682,7 +716,7 @@ function applyPayment(rec: NameRecord, chain: string, amount: bigint): void {
 	   this chain with it. This is the ordinary path, and why a healthy address
 	   shows no balance at all. */
 	p.balances = p.balances.filter((b) => b.chain !== chain);
-	p.flows.push({ chain, amount: total, status: "signing" });
+	p.flows.push({ chain, amount: total, status: "signing", startedAt: Date.now() });
 }
 
 /** A burn that didn't go out. The money never left, so it's recoverable. */

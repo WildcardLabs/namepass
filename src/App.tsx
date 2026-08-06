@@ -7,12 +7,14 @@ import Explorer from "./components/Explorer";
 import Leaderboard from "./components/Leaderboard";
 import Terms from "./components/Terms";
 import Privacy from "./components/Privacy";
+import SupportedTokens from "./components/SupportedTokens";
+import TestnetBanner, { VIEWPORT_BELOW_BANNER } from "./components/TestnetBanner";
 import Footer from "./components/Footer";
 import ClaimModal from "./components/ClaimModal";
 
 const VIDEO_URL = `${import.meta.env.BASE_URL}assets/cinematic2.mp4`;
 
-type Page = "home" | "leaderboard" | "terms" | "privacy";
+type Page = "home" | "leaderboard" | "supported" | "terms" | "privacy";
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -21,6 +23,7 @@ function pathToPage(pathname: string): Page {
 		? pathname.slice(BASE.length)
 		: pathname.replace(/^\//, "");
 	if (rel.startsWith("leaderboard")) return "leaderboard";
+	if (rel.startsWith("supported")) return "supported";
 	if (rel.startsWith("terms")) return "terms";
 	if (rel.startsWith("privacy")) return "privacy";
 	return "home";
@@ -73,6 +76,7 @@ export default function App() {
 	const goExplorer = useCallback(() => goToSection("explorer"), [goToSection]);
 	const goSimulate = useCallback(() => goToSection("simulator"), [goToSection]);
 	const goLeaderboard = useCallback(() => navigate("leaderboard"), [navigate]);
+	const goSupported = useCallback(() => navigate("supported"), [navigate]);
 	const goTerms = useCallback(() => navigate("terms"), [navigate]);
 	const goPrivacy = useCallback(() => navigate("privacy"), [navigate]);
 
@@ -111,10 +115,15 @@ export default function App() {
 
 	return (
 		<main className="min-h-screen bg-[#f0f0f0] flex flex-col">
+			<TestnetBanner />
 			<div className="flex-1">
 				{page === "home" && (
 					<>
-						<PageShell video={VIDEO_URL} outerClassName="h-screen" cardClassName="h-full">
+						<PageShell
+							video={VIDEO_URL}
+							outerClassName={VIEWPORT_BELOW_BANNER}
+							cardClassName="h-full"
+						>
 							<Navbar {...navProps} />
 							<Hero onExplore={() => scrollTo("explorer")} onLeaderboard={goLeaderboard} />
 						</PageShell>
@@ -123,6 +132,7 @@ export default function App() {
 							selected={selected}
 							onSelect={setSelected}
 							onActivated={goToName}
+							onSupportedTokens={goSupported}
 						/>
 					</>
 				)}
@@ -130,7 +140,18 @@ export default function App() {
 				{page === "leaderboard" && (
 					<PageShell cardClassName="min-h-[70vh]">
 						<Navbar {...navProps} showMenu={false} />
-						<Leaderboard onBack={goHome} onViewName={goToName} />
+						<Leaderboard
+							onBack={goHome}
+							onViewName={goToName}
+							onSupportedTokens={goSupported}
+						/>
+					</PageShell>
+				)}
+
+				{page === "supported" && (
+					<PageShell cardClassName="min-h-[70vh]">
+						<Navbar {...navProps} showMenu={false} />
+						<SupportedTokens onBack={goHome} />
 					</PageShell>
 				)}
 
@@ -153,6 +174,7 @@ export default function App() {
 				onExplore={goExplorer}
 				onSimulate={goSimulate}
 				onLeaderboard={goLeaderboard}
+				onSupported={goSupported}
 				onTerms={goTerms}
 				onPrivacy={goPrivacy}
 			/>

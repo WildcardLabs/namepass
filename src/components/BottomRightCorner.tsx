@@ -1,12 +1,22 @@
-import { motion } from "motion/react";
 import { Activity, ChevronRight } from "lucide-react";
 
+/**
+ * Rendered immediately, with no entrance animation.
+ *
+ * It used to slide up after a 0.4s delay, which meant the first second of the
+ * page showed the video running straight through this corner before the panel
+ * dropped in. The card reads as one shape, so a piece of it arriving late looks
+ * like a load glitch rather than a flourish.
+ *
+ * The `y` transform it animated on was also a problem in its own right: a
+ * transform makes this panel its own compositing layer for the duration, so its
+ * edges antialias against the video instead of being painted with it, and a
+ * line appeared along the top edge that vanished the moment the transform was
+ * released. Nothing here transforms now.
+ */
 export default function BottomRightCorner({ onOpen }: { onOpen: () => void }) {
 	return (
-		<motion.div
-			initial={{ y: 20, opacity: 0 }}
-			animate={{ y: 0, opacity: 1 }}
-			transition={{ duration: 0.8, delay: 0.4 }}
+		<div
 			className="absolute bottom-0 right-0 p-3 pt-5 pl-8 sm:p-4 sm:pt-6 sm:pl-10 md:p-6 md:pt-8 md:pl-14 bg-[#f0f0f0] rounded-tl-[1.5rem] sm:rounded-tl-[2rem] md:rounded-tl-[3.5rem] flex items-center gap-3 sm:gap-4 md:gap-6"
 		>
 			{/* Top intersection mask */}
@@ -57,6 +67,6 @@ export default function BottomRightCorner({ onOpen }: { onOpen: () => void }) {
 					<ChevronRight className="w-3 h-3 md:w-4 md:h-4" />
 				</button>
 			</div>
-		</motion.div>
+		</div>
 	);
 }

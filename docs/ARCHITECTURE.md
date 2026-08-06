@@ -18,9 +18,21 @@ API. No third party holds keys — this is what makes the platform non-custodial
 infrastructure asking people to send money to an address, that is the product, not a detail.
 
 ```
-salt    = namehash(ensip15_normalize(name))
-address = CREATE2(factory, salt, keccak256(initcode))
+labelKey = keccak256(utf8(ensip15_normalize(label)))
+salt     = keccak256(NAMESPACE ‖ labelKey)
+address  = CREATE2(factory, salt, keccak256(initcode))
 ```
+
+**The key is the label, not the name** — `vitalik`, never `vitalik.eth`. It is a labelhash, not a
+namehash: `.eth` is the only TLD in play, so carrying it through the derivation adds bytes to every
+call and a second way to get the same address wrong. `NamepassFactory` rejects any label containing
+a dot, so a caller that passes a full name fails loudly at prediction time instead of quietly
+deriving an address nobody can ever renew against — and which, being USDC, could not be swept back
+out either. The frontend still says *name* to users, because that is what users have; *label* is the
+on-chain key, and the two should not be conflated in backend code.
+
+`NAMESPACE` is `keccak256("NAMEPASS_DEPOSIT_WALLET_V1")`. It costs one hash and means a future
+derivation scheme can coexist with this one instead of colliding with it.
 
 Three properties this buys, each load-bearing:
 
@@ -34,8 +46,82 @@ Three properties this buys, each load-bearing:
 3. **The DB becomes an index, not a source of truth.** The address is a pure function of the name, so
    a lost row is recoverable by recomputation and a wrong row is detectable.
 
-The deployed contract needs a deliberately tiny surface: hold USDC, and let an authorized caller
-approve and burn it to CCTP. Nothing else — every capability added here is custody surface.
+The deployed contract needs a deliberately tiny surface: hold USDC, and let **any** caller approve
+and burn it to CCTP. Nothing else — every capability added here is custody surface.
+
+Three consequences of that, all decided in `contracts/NamepassFactory.sol`:
+
+- **`renew(label)` is permissionless.** The destination is fixed by a frozen helper address and by
+  config, so a caller chooses nothing except to spend their own gas pushing a deposit along the one
+  path it can take. This removes the backend as a liveness dependency — a funder can always complete
+  their own payment — and it gives the manual escape hatch below an on-chain equivalent that works
+  when Namepass is down.
+- **The helper address is write-once.** It is the address every dollar routes through, so an owner
+  who can change it is an owner who can redirect all funds, and the non-custodial claim would be
+  false. `setL1Helper` reverts once set; the single `L1HelperSet` log is the public proof it was
+  never moved. It cannot be a constructor immutable because the helper is deployed *second* — it
+  hardcodes the factory address to derive deposit addresses itself. Order is factory → helper →
+  `setL1Helper`.
+- **Everything that can move money is frozen at `initialize`, and there is no sweep.** `usdc`, the
+  CCTP `tokenMessenger` a wallet approves, and the Ethereum helper it ultimately pays are all
+  set-once. Two settings remain — the CCTP finality tier and the per-burn maximum — and neither
+  changes *where* anything goes, only how long it waits and how much travels per transaction. After
+  initialization the owner cannot move a single deposited dollar.
+
+  **Be precise about what that does and doesn't buy.** "Cannot steal" is not "cannot interfere."
+  The burn cap is the setting that could be turned into a pause switch — set one micro-unit per burn
+  and an L2 stalls while the owner touches nothing — so it has a floor (`MIN_MAX_BURN`, 100,000
+  USDC) and no payment at or below that can be affected at all.
+
+  **The fee ceiling is not a setting at all** — it is a per-call argument, which is what closes the
+  other half. `renew(label)` authorizes zero, the right default while Standard is free.
+  `renewWithFee(label, maxFeeBps)` lets any caller name their own ceiling. So if Circle ever prices
+  the tier this chain is set to, every zero-fee burn starts reverting and *anyone* can immediately
+  push their own payment through without waiting for Namepass to notice or act. No owner setting can
+  price a transfer, and none can stop one.
+
+  `maxFeeBps` is what Circle is *authorized* to take, not an amount paid: Circle collects its actual
+  fee and mints the remainder, which is why the helper reads `feeExecuted`. What the per-call design
+  trades is that anyone can authorize a fee on someone else's deposit. They cannot receive it,
+  redirect anything, or make Circle take the full ceiling — so the worst case is a funder paying the
+  going rate for speed they didn't ask for, and only on a chain set to Fast at all.
+
+  The residual is `setFinality`. Circle documents nothing for thresholds between 1001 and 1999, so
+  an owner setting one is an unquantified risk, and unlike the fee there is no per-call override.
+
+  The Ethereum path is immune to all of it — `_executeEthereum` reads only the two frozen addresses,
+  and `renew` skips the cap on mainnet. Ethereum-origin deposits cannot be stalled by any owner
+  action.
+
+  These are **set-once storage, not `immutable`**. That looks like the weaker choice and isn't:
+  constructor arguments are part of the creation code, and these values differ per chain, so an
+  `immutable` version would give the factory a different address on every chain and break the
+  one-address promise outright.
+
+  A sweep for wrongly-sent tokens was built and then removed. Every version of it is a function
+  that moves a deposit wallet's tokens to an owner-chosen address, and the USDC exclusion has to be
+  checked against *something* — which was `config.usdc`, which was mutable, which made the whole
+  guard a formality: point `usdc` at any other token, then sweep the real one. Freezing `usdc`
+  would have closed that, but the remaining shape was still a withdrawal path guarding itself with
+  a comparison. **Non-USDC tokens sent to a deposit address are permanently lost**, and the UI is
+  responsible for saying so plainly rather than the contract for absorbing it.
+
+### Permanent assumptions
+
+Everything below is baked into deposit addresses. None of it can be changed for an address that has
+already been published — a different value means a different factory and a different address set —
+so these are worth being explicit about rather than discovering later. Verify each one before the
+first address goes out.
+
+| Assumption | Status |
+|---|---|
+| Circle's `TokenMessengerV2` keeps its address | **Safe** — it sits behind an upgradeable proxy, so implementation changes don't move it. Residual: CCTP V1 → V2 shipped as a *new* deployment rather than an upgrade, so a future major version could do the same. |
+| ENS renewal happens on the hub chain | **Safe** for mainnet: ENS v2 stays on Ethereum. The hub is a constructor argument (`hubChainId`), so a testnet set uses 11155111 and a mainnet set uses 1. `HUB_CCTP_DOMAIN = 0` holds for both, since Sepolia is also domain 0. |
+| ENS pricing can change | **Handled, and not here** — the L1 helper reads pricing from an external contract it can repoint, so a rent or discount change needs no factory change. |
+| Labels never contain a dot | **Safe by domain** — subnames don't pay renewal fees, so there is nothing for a subname deposit address to buy. The rejection in `_labelKey` is correct, not merely in-scope. |
+| Circle's per-burn limit stays above 100,000 USDC | `MIN_MAX_BURN` cannot be set below that, so a limit under it would leave L2 burns unable to comply. Accepted as the cost of closing the pause vector. |
+| Native USDC keeps its address per chain | Frozen at `initialize`. A Circle token migration would strand deposits in the new token, with no sweep. |
+| Ownership is never renounced | `transferOwnership` rejects `address(0)`, so the fee and burn-cap powers cannot be permanently frozen. Transfer itself is two-step, so it can't be lost to a typo. |
 
 **ENSIP-15 normalization before hashing is a security requirement, not a formatting nicety.** Skip it
 and a homoglyph of a well-known name derives a different address while rendering identically in the
@@ -53,7 +139,7 @@ Contract and factory work is out of scope until this goes live.
                                 Vercel Workflow
 ```
 
-1. USDC lands at a name's CREATE2 address on Base, Arbitrum, Polygon or Ethereum.
+1. USDC lands at a name's CREATE2 address on Base, Arbitrum, Arc or Ethereum.
 2. A **Moralis webhook** hits a Vercel serverless function. It records the deposit and, if the
    trigger conditions are met, starts a flow.
 3. The function performs the CCTP **burn with a hook** on the origin chain.
@@ -85,7 +171,8 @@ Consequences that shape everything else:
 
 Standard (not Fast) transfers: no Circle fee, ~13–19 minutes for attestation. Fast Transfer is
 near-instant but charges a fee, which would reintroduce the per-chain quoting problem the flat
-allowance exists to remove — rejected, see `docs/DECISIONS.md`.
+allowance exists to remove — rejected as the default, see `docs/DECISIONS.md`. Kept reachable
+through config rather than compiled out, in case Circle's fee policy changes.
 
 | Step | Contract | Call |
 |---|---|---|
@@ -93,14 +180,83 @@ allowance exists to remove — rejected, see `docs/DECISIONS.md`.
 | Attest | — | off-chain, Circle's Iris API |
 | Mint + renew on mainnet | `MessageTransmitter` | `receiveMessage(message, attestation)` |
 
-The renewal rides the **hook payload** in the burn message, so it executes inside
-`receiveMessage` — one transaction that mints, renews and takes the allowance. Atomic by
-construction: a reverting renewal reverts the mint, leaving the message attested and replayable.
+CCTP does **not** execute hooks for you. The hook payload is emitted in the message and it is the
+integrator's job to act on it. The helper is therefore the `destinationCaller` as well as the
+`mintRecipient`, and its `completeCCTP(message, attestation)` calls `receiveMessage` and the renewal
+in one transaction — that is what makes it atomic, not anything Circle does. A reverting renewal
+reverts the mint, leaving the message attested and replayable.
 
-Two things to pin down against Circle's current docs before building — treat the details here as
-directional, not verified: the exact v2 method name and hook-payload encoding, and the **domain IDs**
-(Ethereum 0, Arbitrum 3, Base 6, Polygon 7 to the best of current knowledge — confirm, because
-getting one wrong sends funds to the right address on the wrong chain).
+**The helper never holds a funder's pending balance.** This is the invariant worth stating plainly,
+because it is what makes the pending-balance card honest. The Ethereum path transfers and renews in
+one transaction; the CCTP path mints and renews in one transaction, spending exactly the amount
+carried by the authenticated message rather than the helper's balance. So a payment in flight is
+only ever in one of two places:
+
+| Where | How it got there | Recovery |
+|---|---|---|
+| The deposit address | Renewal reverted on Ethereum, or the flow failed before the burn | `renew(label)` again, by anyone |
+| An unclaimed CCTP message | Renewal reverted after the burn | `completeCCTP` again, forever |
+
+Never the helper, and never nowhere.
+
+**The helper does accumulate dust, and that is a different thing.** Renewals buy whole seconds, so
+the sub-second remainder of every payment stays behind — a few micro-units at a time, across every
+renewal the platform ever does. It is not a funder's money waiting to be delivered and it should
+never appear in a pending balance; it's rounding residue with no owner. Two consequences: the helper
+needs a withdrawal path or the pile is stuck permanently, and any "is the helper empty?" monitoring
+check has to be written against a threshold rather than zero, or it alerts forever.
+
+The hook payload is the **raw UTF-8 label bytes** — `bytes(label)`, read back as
+`string(hookData)`. Not `abi.encode`, which would prepend an offset and a length for a value whose
+length the message already carries.
+
+Details to pin down against Circle's current docs — treat as directional, not verified:
+
+- **`depositForBurnWithHook` returns nothing in V2.** The `uint64 nonce` return is the V1 signature.
+  Declaring a return value makes Solidity enforce a returndata size and revert on *every* burn, so
+  the interface declares it `void`; extra returndata, if a future version emits any, is ignored.
+  This one is cheap to get wrong and total when you do.
+- **Domain IDs** — Ethereum 0, Arbitrum 3, Base 6, **Arc 26**. Confirm each before deploying,
+  because getting one wrong sends funds to the right address on the wrong chain.
+- **Finality thresholds** — Circle currently documents values **at or below 1000 as Fast** and **at
+  or above 2000 as Standard**. The range between them is not documented; don't assume it means
+  either. The factory passes the value through **unvalidated** on an L2, because pinning today's
+  tiers would mean a new one could never be used and there is no redeploy that repairs a published
+  deposit address — so the owner has to choose it carefully. Note a threshold of 0 means *Fast*, not
+  "unset". Switching is a `setFinality` call and moves no deposit address, so the Fast Transfer
+  rejection below is a default, not a lock-in.
+- **When the burn reverts** — when `maxFee` is under the *applicable* on-chain minimum fee. A
+  ceiling too low for Fast need not be fatal: Circle may degrade the transfer to Standard, which
+  changes which minimum applies. So the cost of too low a ceiling is usually a silent downgrade
+  rather than a failure, but "usually" is doing work — treat a revert as reachable.
+- **A single burn is capped at 10,000,000 USDC by Circle.** Above it the burn reverts — and since
+  the retry is the same oversized burn, an over-limit balance would sit at the deposit address
+  indefinitely rather than fail once and recover. `renew` therefore processes at most
+  `maxBurnAmount` per call and repeated calls drain the rest, with `DepositProcessed.remaining`
+  carrying what is still there so the backend knows to call again rather than wait for a new
+  deposit. The cap is owner-adjustable because it is Circle's number, not ours, and a redeploy
+  cannot fix a wrong one — wallets delegate to this factory permanently. Ethereum is uncapped;
+  nothing is burned there.
+
+  In principle this means **a flow is no longer one-to-one with a deposit** — a single payment can
+  produce several, each with its own CCTP message and its own $0.10 allowance on mainnet, which is
+  the argument against setting the cap far below Circle's limit.
+
+  **The UI does not model this, on purpose — don't add it.** 10,000,000 USDC buys around 1.2
+  million years on a normal name and ~16,000 years on the most expensive tier there is, so no
+  deposit will ever reach the cap. The contract carries it anyway because it is eight lines, packs
+  into a spare slot for free, and guards a door that cannot be reopened: wallets delegate to this
+  factory permanently, so a cap missing at launch can never be added for an address that has
+  already been published. That asymmetry justifies the contract code and does not justify a sixth
+  `holdReason`, simulation support, and copy for a state nobody will see. If a remainder ever did
+  occur, `flow_in_progress` already describes it accurately. See `docs/DECISIONS.md`.
+
+
+- **Standard transfers being free is current pricing, not a guarantee.** Circle exposes
+  `getMinFeeAmount(amount)` for standard transfers specifically. Nothing in the contract depends on
+  the fee being zero — `maxFeeBps` is a per-call argument — but `src/lib/fees.ts` and the flat $0.10
+  allowance were built on the assumption, and "no fee quoting" below is a bet on Circle's pricing
+  rather than a property of the protocol.
 
 ## Services
 
@@ -277,7 +433,7 @@ held[c]      = Σ confirmed deposits on chain c − Σ allocations on chain c
 every chain, which makes a single global balance figure look natural — and it's wrong. The balances
 are separate pots that can never be combined, so:
 
-- **The trigger threshold applies per chain.** 50¢ on Base plus 50¢ on Polygon means *neither*
+- **The trigger threshold applies per chain.** 50¢ on Base plus 50¢ on Arc means *neither*
   goes anywhere, despite $1 sitting at the address. The UI has to say this or it reads as broken.
 - **Dust strands permanently.** 30¢ on a chain nobody else funds will sit there forever; under a
   global-balance model it would eventually combine with something. No sweep mechanism is designed.
@@ -407,6 +563,11 @@ The trigger endpoint is open to anyone. That's deliberate and safe: it can only 
 already committed to that name, every precondition is checked server-side, and the unique index
 above makes concurrent calls a constraint violation rather than a double spend.
 
+`renew(label)` on the factory is open to anyone for the same reasons, minus the server-side checks —
+so the endpoint is a convenience and a bookkeeping hook, not the gate. Anything the endpoint refuses
+can still be done directly against the contract by whoever wants to pay the gas. That is the
+intended property, not a hole: it means the money is not hostage to Namepass being up.
+
 Auto-trigger fires when the $0.10 gas allowance is at most ~15% of the balance, which puts the floor
 around **$0.67**. ENS imposes no minimum renewal duration (the 28-day minimum applies to
 registration only), so nothing forces a floor from the protocol side.
@@ -458,7 +619,18 @@ Ordered by how expensive each is to get wrong, not by how visible it is.
 
 1. **Factory + deposit contract, on one testnet.** The addresses are advertised as never changing, so
    the derivation scheme is the one decision that can't be revised after launch. Deploy the factory
-   through a deterministic deployer so the addresses match across chains.
+   through a deterministic deployer so the addresses match across chains, then the helper, then
+   `setL1Helper` once per chain.
+
+   `contracts/NamepassFactory.sol` is the draft. The hub chain is a **constructor argument**
+   (`hubChainId`): 11155111 for the Sepolia-based testnet set that ships first, 1 for mainnet. One
+   source file serves both, rather than an edit between deployments that has to be remembered. It
+   is part of the creation code, so it must be identical across every chain in a set, and the two
+   sets land on different factory addresses, which is what separate deployments should do. And
+   `foundry.toml` pins `solc_version`, `evm_version`, optimizer runs and
+   `bytecode_hash = "none"` because identical creation code across four chains is the whole
+   premise; a floating pragma or an embedded metadata hash moves every deposit address the product
+   has ever published.
 2. **Schema + read models.** Validate by writing the six queries above against seeded rows; if
    the leaderboard or explorer query is awkward, the schema is wrong and it's cheap to fix now.
 3. **One full flow, end to end, on testnet.** Base → burn → Iris → mainnet mint + renew. This is
@@ -479,10 +651,18 @@ Ordered by how expensive each is to get wrong, not by how visible it is.
   addresses/ENS names or the concept goes away.
 - **`bigint` across JSON.** Amounts and durations need to serialize as strings and parse back, or
   the precision `pricing.ts` is careful about dies at the API boundary.
+
+- **Who owns the helper's dust, and how does it get out.** Renewals buy whole seconds, so a
+  sub-second remainder is left behind on every single flow. It needs a withdrawal path or it is
+  stuck forever, and "whose money is it" is a real question — it is nobody's individually, but it
+  is made of many funders' change. Sweeping it to the treasury is the obvious answer and probably
+  the right one; it should be a deliberate decision rather than a default.
 - **The `unclaimed` recovery path has no UI.** A flow whose claim reverted holds funds that are not
   at the deposit address, so the pending-balance card can't see them. Gating the burn on
   renewability makes this rare, but "rare" is not "never" — a name can stop being renewable between
-  burn and attestation.
+  burn and attestation. Note this is now the *only* resting place a funder can't see; atomicity in
+  the helper means the funds are never in the helper, and everything pre-burn stays at the deposit
+  address where the card already shows it.
 
 Settled, noted here so they don't get reopened as bugs:
 
