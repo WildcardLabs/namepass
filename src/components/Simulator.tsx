@@ -46,7 +46,7 @@ function tFor(len: number, budget: bigint): number {
  */
 function humanDuration(seconds: bigint): string {
 	const totalDays = Math.floor(Number(seconds) / 86400);
-	if (totalDays <= 0) return "—";
+	if (totalDays <= 0) return "-";
 
 	const years = Math.floor(totalDays / 365);
 	const afterYears = totalDays - years * 365;
@@ -302,7 +302,7 @@ export default function Simulator() {
 									<dd className="text-[rgba(30,50,90,0.95)] text-right tabular-nums">
 										{years > 0.01
 											? `${fmtUsdc(BigInt(Math.round(Number(budget) / years)))}/year`
-											: "—"}
+											: "-"}
 									</dd>
 								</div>
 								<div className="flex justify-between gap-4 pt-3 border-t border-[rgba(30,50,90,0.08)]">
@@ -319,7 +319,7 @@ export default function Simulator() {
 								<span>Amounts include a {fmtUsdc(ALLOWANCE)} gas allowance.</span>
 								<Tooltip
 									label="What the gas allowance covers"
-									text={`Namepass pays the network fees to move your USDC and submit the renewal on Ethereum. ${fmtUsdc(ALLOWANCE)} of each payment goes toward that, taken in the same transaction that renews — so what's shown as reaching the renewal is what the registry actually sees. It's the same on every chain, and it's a contribution rather than the full cost.`}
+									text={`Namepass pays the network fees to move your USDC and submit the renewal on Ethereum. ${fmtUsdc(ALLOWANCE)} of each payment goes toward that, taken in the same transaction that renews, so what's shown as reaching the renewal is what the registry actually sees. It's the same on every chain, and it's a contribution rather than the full cost.`}
 								/>
 							</div>
 						</div>

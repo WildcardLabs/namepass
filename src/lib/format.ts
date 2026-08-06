@@ -88,10 +88,12 @@ export function truncTx(tx: string): string {
 }
 
 const EXPLORER: Record<string, string> = {
-	Ethereum: "https://etherscan.io/tx/",
-	Base: "https://basescan.org/tx/",
-	Arbitrum: "https://arbiscan.io/tx/",
-	Polygon: "https://polygonscan.com/tx/",
+	/* Testnet explorers — the app is a testnet deployment. Swap these and
+	   `lib/tokens.ts` together if it ever goes to mainnet. */
+	Ethereum: "https://sepolia.etherscan.io/tx/",
+	Base: "https://sepolia.basescan.org/tx/",
+	Arbitrum: "https://sepolia.arbiscan.io/tx/",
+	Arc: "https://testnet.arcscan.app/tx/",
 };
 
 /** Block explorer link for a transaction. Empty when the chain is unknown. */

@@ -28,7 +28,7 @@ export default function Navbar({
 		<nav className="flex items-center justify-between py-6 px-6 md:px-10 w-full relative z-10">
 			<a
 				href={import.meta.env.BASE_URL}
-				aria-label="Namepass — home"
+				aria-label="Namepass home"
 				onClick={(e) => {
 					e.preventDefault();
 					onHome();

@@ -11,7 +11,7 @@ import AnimatedShinyText from "./magicui/AnimatedShinyText";
 const INBOUND = [
 	{ chain: "Base", label: "$8", amount: 8_000010n },
 	{ chain: "Arbitrum", label: "$27", amount: 27_000032n },
-	{ chain: "Polygon", label: "$14", amount: 14_000017n },
+	{ chain: "Arc", label: "$14", amount: 14_000017n },
 ];
 
 const START_EXPIRY = Date.UTC(2029, 2, 18);

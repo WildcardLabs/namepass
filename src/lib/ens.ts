@@ -86,11 +86,21 @@ function shape(raw: ApiProfile): EnsProfile {
 /**
  * Fetch a profile. Returns null when the name has no resolver data or the
  * request fails — callers should treat null as "nothing to show", not an error.
+ *
+ * **Takes no AbortSignal, on purpose.** Requests are deduplicated, so the
+ * promise one caller gets back is shared with every other caller waiting on
+ * the same name — `NameAvatar` and `NameDetail` routinely want the same one at
+ * the same moment. Binding the underlying `fetch` to a single caller's signal
+ * means that caller's unmount cancels the request for all of them, which
+ * surfaces as a profile that renders blank forever: the abort resolves `null`,
+ * nothing is cached, and nothing re-fetches because the shared promise was
+ * already consumed. Under StrictMode's double-invoked effects that is close to
+ * a certainty rather than a race.
+ *
+ * A caller that stops caring should ignore the result rather than cancel it —
+ * letting an abandoned request finish also warms the cache for the next mount.
  */
-export async function fetchProfile(
-	name: string,
-	signal?: AbortSignal,
-): Promise<EnsProfile | null> {
+export async function fetchProfile(name: string): Promise<EnsProfile | null> {
 	const key = name.toLowerCase();
 	if (cache.has(key)) return cache.get(key)!;
 
@@ -99,7 +109,7 @@ export async function fetchProfile(
 
 	const request = (async () => {
 		try {
-			const res = await fetch(`${BASE}/${encodeURIComponent(key)}`, { signal });
+			const res = await fetch(`${BASE}/${encodeURIComponent(key)}`);
 			if (!res.ok) {
 				cache.set(key, null);
 				return null;
@@ -109,7 +119,7 @@ export async function fetchProfile(
 			cache.set(key, profile);
 			return profile;
 		} catch {
-			/* Aborted or offline — don't poison the cache. */
+			/* Offline or DNS failure — don't cache, so the next mount retries. */
 			return null;
 		} finally {
 			inflight.delete(key);

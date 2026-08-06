@@ -53,3 +53,27 @@ body {
 	animation-timing-function: linear;
 	animation-iteration-count: infinite;
 }
+
+/* Testnet strip marquee — see components/TestnetBanner.tsx. The track holds two
+   identical copies of the message list, so translating by exactly -50% lands
+   the second copy where the first started and the loop is seamless. */
+@keyframes marquee-scroll {
+	from {
+		transform: translateX(0);
+	}
+	to {
+		transform: translateX(-50%);
+	}
+}
+
+.marquee-track {
+	width: max-content;
+	animation: marquee-scroll 42s linear infinite;
+}
+
+/* A permanently moving element is precisely what this setting exists to stop. */
+@media (prefers-reduced-motion: reduce) {
+	.marquee-track {
+		animation: none;
+	}
+}

@@ -10,7 +10,7 @@ export default function Privacy({ onBack }: { onBack: () => void }) {
 			sections={[
 				{
 					heading: "On-chain activity is public",
-					body: "ENS names, Namepass addresses, and renewal payments are recorded on public blockchains and are visible to anyone via the Explorer — this is by design, not a data collection practice.",
+					body: "ENS names, Namepass addresses, and renewal payments are recorded on public blockchains and are visible to anyone via the Explorer. This is by design, not a data collection practice.",
 				},
 				{
 					heading: "What we don't collect",

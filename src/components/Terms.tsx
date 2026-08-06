@@ -18,7 +18,7 @@ export default function Terms({ onBack }: { onBack: () => void }) {
 				},
 				{
 					heading: "Payments are final",
-					body: "USDC sent to a Namepass address is applied to renewal immediately and cannot be reversed or refunded. Anyone may fund any Namepass — funding does not transfer ownership.",
+					body: "USDC sent to a Namepass address is applied to renewal immediately and cannot be reversed or refunded. Anyone may fund any Namepass. Funding does not transfer ownership.",
 				},
 				{
 					heading: "No guarantees",

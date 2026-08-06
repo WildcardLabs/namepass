@@ -60,9 +60,11 @@ interface Props {
 	onBack: () => void;
 	/** Open this name on the home Explorer, so its activity can be read. */
 	onViewName: (name: string) => void;
+	/** Navigate to the supported-tokens page. */
+	onSupportedTokens: () => void;
 }
 
-export default function Leaderboard({ onBack, onViewName }: Props) {
+export default function Leaderboard({ onBack, onViewName, onSupportedTokens }: Props) {
 	const [mode, setMode] = useState<Mode>("renewals");
 	const [expanded, setExpanded] = useState<string | null>(null);
 	const [pageIndex, setPageIndex] = useState(0);
@@ -195,7 +197,12 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 											className="overflow-hidden"
 										>
 											<div className="px-4 md:px-5 py-5 bg-[rgba(30,50,90,0.015)] border-t border-[rgba(30,50,90,0.06)]">
-												<PassCard name={r.name} pass={r.pass} address={r.address} />
+												<PassCard
+													name={r.name}
+													pass={r.pass}
+													address={r.address}
+													onSupportedTokens={onSupportedTokens}
+												/>
 												{/* The address is here; the history isn't. Radius, border
 												    and white surface match PassCard's own fields so this
 												    reads as part of the card rather than sitting on the

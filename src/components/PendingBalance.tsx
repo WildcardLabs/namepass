@@ -25,10 +25,10 @@ const HOLD_COPY: Record<HoldReason, string> = {
 	flow_in_progress:
 		"A renewal is already running on this chain. These funds are queued and go out with the next one.",
 	name_inactive:
-		"This name isn't currently registered — it may have expired, be in its premium auction, or never have been registered. The funds stay here until it can be renewed again.",
+		"This name isn't currently registered. It may have expired, be in its premium auction, or never have been registered. The funds stay here until it can be renewed again.",
 	below_threshold: `A renewal needs at least ${fmtUsdc(minTrigger())} on one chain. Balances on different chains can't be combined, so this one goes out as soon as more arrives on the same chain.`,
 	not_detected:
-		"This payment wasn't picked up automatically, which shouldn't happen — normally a renewal starts the moment funds arrive. Anyone can push it through.",
+		"This payment wasn't picked up automatically, which shouldn't happen. Normally a renewal starts the moment funds arrive. Anyone can push it through.",
 	flow_failed:
 		"A renewal was started for these funds and the transfer didn't go out. The money never left this address. Anyone can retry it.",
 };
@@ -183,7 +183,7 @@ export default function PendingBalance({ record, onSettled }: Props) {
 						{/* The thing a single balance figure hides. */}
 						{chains.length > 1 && (
 							<p className="mt-4 text-[11.5px] text-[rgba(30,50,90,0.4)] leading-relaxed">
-								Balances on different chains can't be combined — each one renews on
+								Balances on different chains can't be combined. Each one renews on
 								its own.
 							</p>
 						)}
