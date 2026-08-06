@@ -7,6 +7,81 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-06 — Pricing constants read from the oracle, not derived from a headline price
+
+Every rate in `pricing.ts` was wrong, and had been from the start. The cost simulator quoted
+31,557,562 seconds for $8 on a 5-character name where the oracle gives 31,535,917 — about six
+hours of renewal time per year that we promised and the contract would never have delivered.
+
+The cause was a plausible-looking derivation. ENS v2 prices 5+ character names at $8/year, so the
+per-second rate was computed as `8e12 / YEAR_SECONDS` with `YEAR_SECONDS = 31_557_600` — a Julian
+year, 365.25 days, which is what "a year in seconds" usually means and what ENS v1's registrar
+controller happened to use. The v2 oracle uses a flat **365 days, 31_536_000**. The rates come out
+0.07% low, which is small enough that nothing looked broken and large enough to matter on money.
+
+The same constant defined `TIERS[].start` as `6/3/2 × YEAR_SECONDS`, so the discount thresholds
+were wrong too, and it is *also* the seconds→years divisor for display — meaning a half-fix that
+corrected only the rates would have rendered a genuine three-year renewal as "2 years 11 months".
+All of it moves together or none of it does.
+
+Now taken verbatim from the deployed testnet oracle:
+
+| | `getBaseRates()` | was |
+|---|---|---|
+| 3 chars | `20_294_267` | `20_280_377` |
+| 4 chars | `5_073_567` | `5_070_095` |
+| 5+ chars | `253_679` | `253_505` |
+
+with `getDiscountPoints()` durations `63_072_000` / `94_608_000` / `189_216_000` (the numerators
+were already right). Thresholds move accordingly: the 3-year tier starts at `$16.500044`, not
+`$16.500020`, and the six-year at `$27.000071`.
+
+**The algorithm was never wrong** — checked line by line against a reference `quote()` contract
+running against the live oracle, and then differentially tested over 77,886 amount/label-length
+pairs, including every threshold ±3 micro-units, with zero mismatches. Two things that look like
+discrepancies and aren't: the oracle returns only three discount points, with no `{0, 1e38}`
+sentinel, so the contract's post-loop `duration = budget / rate` is the live full-price path rather
+than dead code — our synthetic `{start: 0, numer: DENOM}` tier reduces to exactly that same floor
+divide. And our tier test (`budgetMicro >= tierCost(tier)`) is not the contract's test
+(`candidate >= point.duration`), but the two are provably equivalent: both reduce to
+`floor(start·rate·numer / 1e38) <= budget`. Neither is worth "fixing" into the other.
+
+The rule that follows: **never re-derive a constant the oracle will hand you.** A headline price
+like "$8/year" is not a specification — it doesn't say which year. `YEAR_SECONDS` is now documented
+as the oracle's year with the tier durations as its witnesses (they are exact multiples of it), so
+a future change to it has to explain why all three thresholds moved.
+
+**Follow-on: no one-year quick-select, and the near-miss label stays honest.** With the rates
+corrected, $8.10 renders as "11 months, 30 days" — accurate, but awkward next to a tab header
+reading `vitalik.eth · $8/year`. The gap is 83 seconds: a year costs `$8.000021`, so a round `$8`
+falls 21 micro-units short. Every length has the same shape (3-char is 1 second short, 4-char 2).
+
+Rejected: rounding the label up to "1 year" within some epsilon. That is precisely the `fmtUsdc`
+trap recorded below, moved into the largest text on the panel, and false for a purchase the user
+could still fix with a cent. Also rejected: switching to days-only under a year ("364 days") — it
+reads cleaner but is no more accurate, still understates by a day, and costs resolution in the
+middle of the range, where "7 months" becomes "213 days".
+
+**Built, then removed: a fourth quick-select at `$8.11` → `$8.01` applied → "1 year".** It was
+mechanically correct — `ceilToCent()` exists so a quick-select never undershoots a boundary, and it
+was applied to all three discount tiers but not to the one duration ENS advertises. It was pulled
+anyway, on positioning. `$8/year` is an anchored number in the ENS community; a button reading
+`$8.11 → 1y` sitting under a header reading `$8/year` puts a Namepass-specific surcharge on screen
+next to ENS's own price, and reads as skimming no matter how the cent is explained. The cent is not
+ours — it is ENS's rounding plus the disclosed $0.10 allowance — but a button is the wrong place to
+have to explain that.
+
+So the shortfall is left where a visitor only meets it if they go looking: type `$8.00` and you get
+"11 months, 30 days" with the exact second count beside it, which reads as a units artifact and is
+understood as one. Nothing is rounded and nothing is hidden; it simply isn't advertised.
+
+If a future session finds this and thinks the missing one-year mark is an oversight: it isn't, and
+`payableThresholds()` is intentionally discount-tiers-only. It also feeds `nextTierHint()`, so a
+one-year entry there would additionally generate a top-up prompt to "unlock" a discount that does
+not exist.
+
+---
+
 ### 2026-08-05 — CI removed entirely
 
 `.github/workflows/claude.yml` is gone, and with it the repo's only workflow. Nothing runs on push
@@ -675,7 +750,7 @@ and if the claim reverts nothing will be.
 
 Two display bugs caught in review, both worth recording because they're the same underlying trap:
 
-- **`fmtUsdc` rounds away the digits that decide a tier.** It renders `$27.000032` (six years at
+- **`fmtUsdc` rounds away the digits that decide a tier.** It renders `$27.000071` (six years at
   43.75% off) and `$27.00` (four years eleven months at 31.25%) identically as "$27" — so the
   breakdown panel showed an amount that, taken at face value, doesn't buy what's beside it. Added
   `fmtUsdcExact` for anywhere a reader checks arithmetic. This is exactly the trap `ceilToCent()`

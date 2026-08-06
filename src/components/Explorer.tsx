@@ -502,7 +502,7 @@ function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 				</div>
 				{/* Exact amounts here, not rounded ones. This is the panel someone opens
 			    to check the arithmetic, and a tier threshold can turn on a
-			    micro-unit — "$27" would be true of both $27.000032 (six years at
+			    micro-unit — "$27" would be true of both $27.000071 (six years at
 			    43.75% off) and $27.00 (four years eleven months at 31.25%). */}
 				<dl className="mt-2.5 space-y-1.5 text-[13px]">
 					<div className="flex justify-between gap-4">

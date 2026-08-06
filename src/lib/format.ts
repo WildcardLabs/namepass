@@ -39,7 +39,7 @@ export function fmtUsdc(micro: bigint): string {
 /**
  * Every micro-unit, for the places where the exact amount decides something.
  *
- * Tier thresholds are not round numbers: $27.000032 buys six years at 43.75%
+ * Tier thresholds are not round numbers: $27.000071 buys six years at 43.75%
  * off, and $27.00 buys four years and eleven months at 31.25%. `fmtUsdc`
  * renders both as "$27", which is fine in a dense row and actively misleading
  * in a panel where someone is checking the arithmetic.
