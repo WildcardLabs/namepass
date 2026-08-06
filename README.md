@@ -31,7 +31,6 @@ Send USDC from any chain, the name gets more time — automatically, at the best
 - [Getting started](#-getting-started)
 - [Project structure](#-project-structure)
 - [Under the hood](#-under-the-hood)
-- [CI — Claude Code Action](#-ci--claude-code-action)
 - [License](#license)
 
 </details>
@@ -201,12 +200,6 @@ informational rather than a payment target.
 Leaderboard, Terms, and Privacy feel like one app instead of four stitched-together pages.
 
 </details>
-
-## 🤖 CI — Claude Code Action
-
-Pull requests and issues on this repo can be reviewed by Claude directly — mention `@claude` in
-a comment, review, or issue and [`.github/workflows/claude.yml`](.github/workflows/claude.yml)
-picks it up.
 
 ## License
 

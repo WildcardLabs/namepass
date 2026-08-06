@@ -7,6 +7,26 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-05 — CI removed entirely
+
+`.github/workflows/claude.yml` is gone, and with it the repo's only workflow. Nothing runs on push
+or on a pull request now.
+
+It was the Claude Code Action, expanded on 2026-07-27 from `@claude` mentions to *every* PR open and
+push. That expansion is what made it expensive: it billed the owner's Claude subscription on every
+synchronize, whether or not a review was wanted, and this session's branch alone would have
+triggered a full review of a very large diff.
+
+Worth being explicit about what leaves with it, since the two earlier entries below describe a CI
+that no longer exists: nothing now checks that `npm run build` passes before a merge, and the repo
+has no type-check gate of any kind. There is also no test suite, so the entire verification story is
+"run it locally". Anyone adding CI back should start with the build rather than a reviewer.
+
+The `CLAUDE_CODE_OAUTH_TOKEN` secret still exists in the repo settings and is now unused. It should
+be deleted there; removing the workflow does not revoke it.
+
+---
+
 ### 2026-08-05 — Two hairlines on the hero, and neither was CSS
 
 **The line down the right edge of the video is in the asset.** Sampling `cinematic2.mp4`'s own

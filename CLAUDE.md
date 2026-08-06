@@ -188,6 +188,6 @@ payment target) is still truncated elsewhere.
 
 ## CI
 
-`.github/workflows/claude.yml` runs this same Claude Code Action on every PR (open + push) and on
-`@claude` mentions in comments/reviews/issues, authenticated via `CLAUDE_CODE_OAUTH_TOKEN` (bills
-against the repo owner's Claude subscription, not a separate Anthropic API key).
+**There is none.** The repo has no workflows at all — `.github/` holds only README screenshots. The
+Claude Code Action that used to review every PR was removed on 2026-08-05, so nothing runs on push
+or on a pull request, and nothing checks that `npm run build` passes before a merge. Verify locally.
