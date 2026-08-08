@@ -45,9 +45,24 @@ export default function PageShell({ children, video, outerClassName = "", cardCl
 				    seam was a single arc at that corner and nowhere else, and
 				    only the bottom of this video is dark enough to show it.
 				    More coverage cannot fix that; removing the video from
-				    behind the curve can. The radius here is larger than the
-				    card's, so the pull-back sits entirely under the opaque
-				    panel and nothing changes visually. */}
+				    behind the curve can.
+
+				    **These radii are not free to shrink, and "bigger than the
+				    card's radius" is not the test.** `-inset-1` puts the video's
+				    corner 4px outside the card's, so its arc centre sits 4px
+				    diagonally out from the card's — the two arcs are not
+				    concentric and not similar figures. Clearance is therefore
+				    tightest at the *ends* of the card's arc (0deg and 90deg),
+				    not the 45deg midpoint that the eye checks. With card radius
+				    r and overhang 4, the pull-back must satisfy
+				    `(R-4)^2 + (R-r-4)^2 > R^2`: r=24 needs R > 46.97 and r=48
+				    needs R > 76.40. The old 2.5rem/5rem pair cleared the
+				    midpoint but left the base breakpoint 2.05px short at the
+				    ends, which is why the seam survived at narrow widths and
+				    vanished at md — where 5rem happened to clear, by 0.99px.
+				    4rem/6rem clear by ~6px at every angle. Both still land well
+				    inside the panel (37.7px and 64.6px of reach against a panel
+				    72px and 112px tall), so nothing changes visually. */}
 				{video && (
 					<video
 						autoPlay
@@ -55,7 +70,7 @@ export default function PageShell({ children, video, outerClassName = "", cardCl
 						loop
 						playsInline
 						src={video}
-						className="absolute -inset-1 max-w-none w-[calc(100%_+_0.5rem)] h-[calc(100%_+_0.5rem)] object-cover object-[65%] lg:object-center rounded-br-[2.5rem] md:rounded-br-[5rem] z-0"
+						className="absolute -inset-1 max-w-none w-[calc(100%_+_0.5rem)] h-[calc(100%_+_0.5rem)] object-cover object-[65%] lg:object-center rounded-br-[4rem] md:rounded-br-[6rem] z-0"
 					/>
 				)}
 				<div className="relative z-10 w-full h-full flex flex-col items-center">{children}</div>

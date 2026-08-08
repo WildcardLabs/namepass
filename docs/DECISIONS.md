@@ -7,6 +7,52 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-08 — The hero corner seam was the video pull-back radius, not the masks
+
+The hairline at the Explorer panel's corner survived an earlier attempt at it and was reported
+again, now with the clue that fixed it: **it only shows below `md`.**
+
+That clue points at `BottomLeftCard`, which flips from `right-4` to `md:left-6` at exactly that
+breakpoint — the leaderboard card visibly jumps from right to left, so it looks like the cause. It
+isn't. The same `md` boundary also switches `PageShell`'s video pull-back from `2.5rem` to `5rem`,
+and *that* is the change that matters. Two unrelated things changing at one breakpoint is what made
+this hard to place.
+
+The pull-back exists to keep video out from behind the card's rounded clip, where the clip is
+applied to both the video and the panel and `a - a^2` leaks up to a quarter of the video through
+whatever is painted over it. The test for "is the pull-back big enough" was assumed to be
+*is its radius larger than the card's*. That is the wrong test. `-inset-1` puts the video's corner
+4px outside the card's, so the two arcs are neither concentric nor similar, and the overhang does
+not scale with the breakpoint. Clearance is tightest at the **ends** of the card's arc, 0deg and
+90deg — not the 45deg midpoint, which is where the eye goes and where the old values did pass.
+
+Measured off the live DOM, with card radius r and overhang 4, the pull-back must satisfy
+`(R-4)^2 + (R-r-4)^2 > R^2`:
+
+| | card radius | pull-back | min clearance | at |
+|---|---|---|---|---|
+| below `md`, before | 24px | 40px | **−2.05px** | 0deg |
+| `md`+, before | 48px | 80px | +0.99px | 0deg |
+| below `md`, after | 24px | 64px | +5.97px | 0deg |
+| `md`+, after | 48px | 96px | +5.98px | 0deg |
+
+So the narrow breakpoint was 2px short and the wide one passed by under a pixel — luck, not
+design, which is why `md`+ was bumped too rather than left alone. `4rem`/`6rem` clear by ~6px at
+every angle. Both still sit entirely under the opaque panel (37.7px and 64.6px of reach against a
+panel 72px and 112px tall at the narrowest supported widths), so nothing changes visually.
+
+**The 1px mask overlap in `BottomRightCorner` was not this bug.** It addresses a different seam,
+where the intersection masks meet the panel, and the panel's left edge lands on a fractional device
+pixel at *both* breakpoints — 0.703 below `md` and 0.484 above, the worse of the two — so it cannot
+explain a symptom that only appears when narrow. Edge geometry there was already correct.
+
+Verification note for whoever picks this up next: a 1–2 device-pixel seam is **not visible in a
+downscaled screenshot**, so do not try to confirm this one by eye through tooling. Compute the
+clearance from `getBoundingClientRect()` and the computed `border-*-radius` instead; that is what
+localised it after looking at pictures failed.
+
+---
+
 ### 2026-08-06 — Pricing constants read from the oracle, not derived from a headline price
 
 Every rate in `pricing.ts` was wrong, and had been from the start. The cost simulator quoted
@@ -118,12 +164,29 @@ width on a laptop and not in a tall window, and why it is easy to look for in th
 it discards 19 source columns a side, against the 2 that are bad. Worth deleting if the asset is
 ever re-encoded clean, which is why the comment says so.
 
+> **Update 2026-08-08.** The crop survives but `scale-[1.02]` does not — it is now `-inset-1` with
+> matching `w-`/`h-` calcs. A transform makes the video its own compositing layer, whose rounded
+> clip is computed and *then* scaled, so its corner arc stops landing on the painted content's and
+> the difference shows as a hairline. Sizing the box does the same crop without the layer. The
+> 4px overhang that leaves is not free: see the 2026-08-08 corner-seam entry, where it turned out
+> to be what made the pull-back geometry fail at narrow widths.
+
 **The curved line on the Explorer corner is antialiasing arithmetic.** That corner is three shapes
 meeting: a panel with a rounded top-left, and two SVG masks filling the concave transitions either
 side. Where two antialiased edges of the same colour butt together their coverage does not sum to
 full opacity, so a fraction of the video shows through along the joint and reads as a faint curve.
 The masks now lap one pixel over the panel instead of meeting it exactly. The overlap is inward
 only, so the silhouette against the video is unchanged.
+
+> **Update 2026-08-08. This half of the entry is wrong, and the overlap it describes was never in
+> the committed code.** The curved line was not the mask joints; it was `PageShell`'s video
+> pull-back radius being too small at the base breakpoint, so video sat behind the *card's* clip
+> arc. The mask overlap was written, left uncommitted, and has now been reverted — it addressed a
+> seam that measurement does not support: the panel's left edge lands on a fractional device pixel
+> at **both** breakpoints (0.703 below `md`, 0.484 above), so mask geometry cannot explain a
+> symptom that only appeared when narrow. The diagnosis in the paragraph above — that abutting
+> antialiased edges leak `a - a^2` — is sound arithmetic; it was simply applied to the wrong pair
+> of edges. See the 2026-08-08 entry at the top.
 
 Both were diagnosed by measurement rather than inspection, and both had to be reproduced at the
 right viewport first: a screenshot of a 1920px viewport is downscaled to 800px, which erases
@@ -1062,3 +1125,4 @@ the address, not the headline noun.
 > **Update 2026-07-29.** Under CREATE2-derived addresses the original wording is now accurate.
 > The framing was not retrofitted to the architecture — the architecture moved and the claim
 > became true. See the CREATE2/CCTP entry at the top.
+
