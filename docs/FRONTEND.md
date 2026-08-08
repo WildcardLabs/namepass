@@ -46,21 +46,28 @@ worse.
 
 **`pricing.ts` — exact contract math.** Mirrors ENS v2's `StandardRentPriceOracle` in `BigInt` end
 to end. `divCeil` matches the contract's `Math.Rounding.Ceil`. Per-second rates by label length:
-3 chars `20_280_377`, 4 chars `5_070_095`, 5+ chars `253_505` — nothing below 3 characters, which is
-why a 2-character name can never be renewed.
+3 chars `20_294_267`, 4 chars `5_073_567`, 5+ chars `253_679` — nothing below 3 characters, which is
+why a 2-character name can never be renewed. These come from the oracle's `getBaseRates()`; they
+are `$640`/`$160`/`$8` per **365-day** year, and `YEAR_SECONDS` is `31_536_000` to match. Deriving
+them from a Julian year instead is a real bug this file has already had once — see
+`docs/DECISIONS.md`.
 
 Tier thresholds are **not round numbers**, and this is load-bearing:
 
 | Duration | Exact threshold | Payable (`ceilToCent`) | Discount |
 |---|---|---|---|
-| 1 year | `$8.000010` | — | — |
-| 2 years | `$14.000017` | `$14.01` | 12.5% |
-| 3 years | `$16.500020` | `$16.51` | 31.25% |
-| 6 years | `$27.000032` | `$27.01` | 43.75% |
+| 1 year | `$8.000021` | — | — |
+| 2 years | `$14.000037` | `$14.01` | 12.5% |
+| 3 years | `$16.500044` | `$16.51` | 31.25% |
+| 6 years | `$27.000071` | `$27.01` | 43.75% |
 
 `solve(budget, labelLength)` returns the longest duration a budget buys plus the tier it landed on.
 Overshooting is always safe — it buys more time. Undershooting by one micro-unit costs a whole
 tier. Every quoting decision in the app follows from that asymmetry.
+
+The one-year row has no payable amount because **there is deliberately no one-year quick-select** —
+`payableThresholds()` returns the three discount tiers only. See `docs/DECISIONS.md` (2026-08-06)
+before adding one; it was built and removed for positioning reasons, not oversight.
 
 **`fees.ts` — the flat `GAS_ALLOWANCE` ($0.10).** Standard CCTP has no Circle fee, so there is
 nothing per-chain to quote. One allowance **per flow**, not per deposit, taken on mainnet in the
@@ -76,8 +83,8 @@ ignore late results instead.
 
 **`format.ts` — display only.** Note two pairs that exist because rounding lies:
 
-- `fmtUsdc` → `$27` (dense rows) vs `fmtUsdcExact` → `$27.000032` (anywhere someone checks the
-  arithmetic). `fmtUsdc` renders `$27.000032` and `$27.00` identically, and those buy 6 years and
+- `fmtUsdc` → `$27` (dense rows) vs `fmtUsdcExact` → `$27.000071` (anywhere someone checks the
+  arithmetic). `fmtUsdc` renders `$27.000071` and `$27.00` identically, and those buy 6 years and
   4y11m respectively.
 - `fmtDuration` → `+6.0y` (table cells) vs `fmtDelivered` → `9 days` / `8 months` /
   `1 year 3 months` / `22 years` (adaptive, for the Leaderboard).

@@ -40,23 +40,30 @@ function tFor(len: number, budget: bigint): number {
 	return Math.min(1, Math.max(0, Number(budget) / Number(maxFor(len))));
 }
 
+/* A twelfth of the oracle's year, exactly. Months have to be defined against
+   YEAR_SECONDS rather than as a flat 30 days: 12 × 30 is 360, not 365, so a
+   30-day month leaves a five-day seam at the top of every year and a duration
+   just under a year renders as "12 months, 4 days" — a unit that should have
+   rolled over. Here `months` cannot exceed 11 by construction. */
+const MONTH_SECONDS = YEAR_SECONDS / 12n;
+
 /**
  * Day-accurate duration. Days are shown at every scale, because "2 years"
- * and "2 years, 11 months, 20 days" are very different purchases.
+ * and "2 years, 11 months, 20 days" are very different purchases — and a
+ * payment a few seconds short of a whole year must not round up to one.
  */
 function humanDuration(seconds: bigint): string {
-	const totalDays = Math.floor(Number(seconds) / 86400);
-	if (totalDays <= 0) return "-";
+	if (seconds < 86400n) return "-";
 
-	const years = Math.floor(totalDays / 365);
-	const afterYears = totalDays - years * 365;
-	const months = Math.floor(afterYears / 30);
-	const days = afterYears - months * 30;
+	const years = seconds / YEAR_SECONDS;
+	const afterYears = seconds % YEAR_SECONDS;
+	const months = afterYears / MONTH_SECONDS;
+	const days = (afterYears % MONTH_SECONDS) / 86400n;
 
 	const parts: string[] = [];
-	if (years) parts.push(`${years} year${years === 1 ? "" : "s"}`);
-	if (months) parts.push(`${months} month${months === 1 ? "" : "s"}`);
-	if (days) parts.push(`${days} day${days === 1 ? "" : "s"}`);
+	if (years) parts.push(`${years} year${years === 1n ? "" : "s"}`);
+	if (months) parts.push(`${months} month${months === 1n ? "" : "s"}`);
+	if (days) parts.push(`${days} day${days === 1n ? "" : "s"}`);
 	return parts.join(", ");
 }
 
@@ -319,7 +326,7 @@ export default function Simulator() {
 								<span>Amounts include a {fmtUsdc(ALLOWANCE)} gas allowance.</span>
 								<Tooltip
 									label="What the gas allowance covers"
-									text={`Namepass pays the network fees to move your USDC and submit the renewal on Ethereum. ${fmtUsdc(ALLOWANCE)} of each payment goes toward that, taken in the same transaction that renews, so what's shown as reaching the renewal is what the registry actually sees. It's the same on every chain, and it's a contribution rather than the full cost.`}
+									text="Goes toward network fees for moving the USDC and renewing on Ethereum. Same on every chain."
 								/>
 							</div>
 						</div>

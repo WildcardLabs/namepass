@@ -166,13 +166,13 @@ shown matches on-chain to the micro-unit.
 
 | Duration | Threshold | Discount |
 |---|---|---|
-| 1 year | `$8.000010` | — |
-| 2 years | `$14.000017` | 12.5% off |
-| 3 years | `$16.500020` | 31.25% off |
-| 6 years | `$27.000032` | 43.75% off |
+| 1 year | `$8.000021` | — |
+| 2 years | `$14.000037` | 12.5% off |
+| 3 years | `$16.500044` | 31.25% off |
+| 6 years | `$27.000071` | 43.75% off |
 
-Thresholds aren't round numbers — the 3-year rate starts at exactly `$16.500020`, so a payment
-of `$16.50` falls **20 micro-units short** and silently drops to the previous tier.
+Thresholds aren't round numbers — the 3-year rate starts at exactly `$16.500044`, so a payment
+of `$16.50` falls **44 micro-units short** and silently drops to the previous tier.
 `ceilToCent()` rounds every threshold up to the next payable cent so the UI's quick-select
 buttons never suggest an amount that under-shoots.
 

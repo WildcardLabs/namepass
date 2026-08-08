@@ -8,16 +8,27 @@
  *
  * Base rates are per-second, indexed by character count:
  *   1–2 chars  unavailable
- *   3 chars    20_280_377
- *   4 chars     5_070_095
- *   5+ chars       253_505
+ *   3 chars    20_294_267
+ *   4 chars     5_073_567
+ *   5+ chars       253_679
+ *
+ * These are read from the deployed oracle, not derived. They correspond to
+ * $640/$160/$8 per year over a 365-day year — do NOT re-derive them from a
+ * Julian year (365.25 days, 31_557_600s). That mistake understated every rate
+ * by ~0.07%, which reads as roughly six free hours per year purchased.
  */
 
 export const DENOM = 100000000000000000000000000000000000000n; // 1e38
-export const YEAR_SECONDS = 31557600n;
+
+/**
+ * 365 days. This is the oracle's year: `TIERS[].start` are exact multiples of
+ * it, so it doubles as the seconds→years divisor for display. Changing it
+ * silently moves every threshold and every "N years" label.
+ */
+export const YEAR_SECONDS = 31536000n;
 
 /** Per-second base rate by label length. Index 0/1 are invalid. */
-export const BASE_RATE_PER_CP = [0n, 0n, 20280377n, 5070095n, 253505n];
+export const BASE_RATE_PER_CP = [0n, 0n, 20294267n, 5073567n, 253679n];
 
 export function rateFor(labelLength: number): bigint {
 	if (labelLength < 3) return 0n;
@@ -38,9 +49,13 @@ export interface Tier {
 }
 
 export const TIERS: Tier[] = [
-	{ start: 189345600n, numer: 56250000000000000000000000000000000000n, off: "43.75%", years: 6 },
-	{ start: 94672800n, numer: 68750000000000000000000000000000000000n, off: "31.25%", years: 3 },
-	{ start: 63115200n, numer: 87500000000000000000000000000000000000n, off: "12.5%", years: 2 },
+	{ start: 189216000n, numer: 56250000000000000000000000000000000000n, off: "43.75%", years: 6 },
+	{ start: 94608000n, numer: 68750000000000000000000000000000000000n, off: "31.25%", years: 3 },
+	{ start: 63072000n, numer: 87500000000000000000000000000000000000n, off: "12.5%", years: 2 },
+	/* The oracle's `getDiscountPoints()` returns only the three above. This
+	   full-price entry is ours, standing in for the contract's post-loop
+	   `duration = budget / rate` fallback — `start: 0` always matches, and at
+	   `numer == DENOM` the tier formula reduces to exactly that floor divide. */
 	{ start: 0n, numer: DENOM, off: "", years: 0 },
 ];
 

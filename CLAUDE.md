@@ -91,10 +91,20 @@ on non-Home pages (only Home shows the Explorer/Search/Cost simulator menu).
 
 **`src/lib/` separates three different kinds of "data" — don't blur them:**
 - `pricing.ts` — exact ENS v2 `StandardRentPriceOracle` math, `BigInt` end to end. `divCeil`
-  mirrors the contract's `Math.Rounding.Ceil`. Thresholds are not round numbers (e.g. the 3-year
-  rate is exactly `$16.500020`), which is why `ceilToCent()`/`payableThresholds()` exist — UI
-  quick-select buttons must never suggest an amount that silently under-shoots a tier. The same
-  trap applies to *display*: `fmtUsdc` renders both `$27.000032` (six years, 43.75% off) and
+  mirrors the contract's `Math.Rounding.Ceil`. **The base rates and discount points are read off
+  the deployed oracle (`getBaseRates()`/`getDiscountPoints()`) — never re-derive them from a
+  headline annual price.** They are `$640`/`$160`/`$8` over a **365-day** year, so `YEAR_SECONDS`
+  is `31_536_000`; deriving them from a Julian year shipped a real mispricing once (see
+  `docs/DECISIONS.md`, 2026-08-06). `YEAR_SECONDS` is also the seconds→years divisor for display,
+  so it must stay equal to the oracle's year or the tier durations stop landing on whole years.
+  Thresholds are not round numbers (e.g. the 3-year
+  rate is exactly `$16.500044`), which is why `ceilToCent()`/`payableThresholds()` exist — UI
+  quick-select buttons must never suggest an amount that silently under-shoots a tier. **The
+  quick-selects cover the three discount tiers only — do not add a one-year button.** One year
+  costs `$8.000021`, so a payable mark would read `$8.11`, and putting that beside the `$8/year`
+  ENS itself advertises reads as skimming however the cent is explained; the 83-second shortfall is
+  left to show as `11 months, 30 days` instead. Removed once already — see `docs/DECISIONS.md`. The same
+  trap applies to *display*: `fmtUsdc` renders both `$27.000071` (six years, 43.75% off) and
   `$27.00` (four years eleven months, 31.25%) as "$27", so anywhere a reader might check the
   arithmetic use `fmtUsdcExact`.
 - `registry.ts` — seeded mock activity/name data for the demo (see prototype note above). Chain

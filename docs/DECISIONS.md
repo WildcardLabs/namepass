@@ -7,6 +7,127 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-08 — The hero corner seam was the video pull-back radius, not the masks
+
+The hairline at the Explorer panel's corner survived an earlier attempt at it and was reported
+again, now with the clue that fixed it: **it only shows below `md`.**
+
+That clue points at `BottomLeftCard`, which flips from `right-4` to `md:left-6` at exactly that
+breakpoint — the leaderboard card visibly jumps from right to left, so it looks like the cause. It
+isn't. The same `md` boundary also switches `PageShell`'s video pull-back from `2.5rem` to `5rem`,
+and *that* is the change that matters. Two unrelated things changing at one breakpoint is what made
+this hard to place.
+
+The pull-back exists to keep video out from behind the card's rounded clip, where the clip is
+applied to both the video and the panel and `a - a^2` leaks up to a quarter of the video through
+whatever is painted over it. The test for "is the pull-back big enough" was assumed to be
+*is its radius larger than the card's*. That is the wrong test. `-inset-1` puts the video's corner
+4px outside the card's, so the two arcs are neither concentric nor similar, and the overhang does
+not scale with the breakpoint. Clearance is tightest at the **ends** of the card's arc, 0deg and
+90deg — not the 45deg midpoint, which is where the eye goes and where the old values did pass.
+
+Measured off the live DOM, with card radius r and overhang 4, the pull-back must satisfy
+`(R-4)^2 + (R-r-4)^2 > R^2`:
+
+| | card radius | pull-back | min clearance | at |
+|---|---|---|---|---|
+| below `md`, before | 24px | 40px | **−2.05px** | 0deg |
+| `md`+, before | 48px | 80px | +0.99px | 0deg |
+| below `md`, after | 24px | 64px | +5.97px | 0deg |
+| `md`+, after | 48px | 96px | +5.98px | 0deg |
+
+So the narrow breakpoint was 2px short and the wide one passed by under a pixel — luck, not
+design, which is why `md`+ was bumped too rather than left alone. `4rem`/`6rem` clear by ~6px at
+every angle. Both still sit entirely under the opaque panel (37.7px and 64.6px of reach against a
+panel 72px and 112px tall at the narrowest supported widths), so nothing changes visually.
+
+**The 1px mask overlap in `BottomRightCorner` was not this bug.** It addresses a different seam,
+where the intersection masks meet the panel, and the panel's left edge lands on a fractional device
+pixel at *both* breakpoints — 0.703 below `md` and 0.484 above, the worse of the two — so it cannot
+explain a symptom that only appears when narrow. Edge geometry there was already correct.
+
+Verification note for whoever picks this up next: a 1–2 device-pixel seam is **not visible in a
+downscaled screenshot**, so do not try to confirm this one by eye through tooling. Compute the
+clearance from `getBoundingClientRect()` and the computed `border-*-radius` instead; that is what
+localised it after looking at pictures failed.
+
+---
+
+### 2026-08-06 — Pricing constants read from the oracle, not derived from a headline price
+
+Every rate in `pricing.ts` was wrong, and had been from the start. The cost simulator quoted
+31,557,562 seconds for $8 on a 5-character name where the oracle gives 31,535,917 — about six
+hours of renewal time per year that we promised and the contract would never have delivered.
+
+The cause was a plausible-looking derivation. ENS v2 prices 5+ character names at $8/year, so the
+per-second rate was computed as `8e12 / YEAR_SECONDS` with `YEAR_SECONDS = 31_557_600` — a Julian
+year, 365.25 days, which is what "a year in seconds" usually means and what ENS v1's registrar
+controller happened to use. The v2 oracle uses a flat **365 days, 31_536_000**. The rates come out
+0.07% low, which is small enough that nothing looked broken and large enough to matter on money.
+
+The same constant defined `TIERS[].start` as `6/3/2 × YEAR_SECONDS`, so the discount thresholds
+were wrong too, and it is *also* the seconds→years divisor for display — meaning a half-fix that
+corrected only the rates would have rendered a genuine three-year renewal as "2 years 11 months".
+All of it moves together or none of it does.
+
+Now taken verbatim from the deployed testnet oracle:
+
+| | `getBaseRates()` | was |
+|---|---|---|
+| 3 chars | `20_294_267` | `20_280_377` |
+| 4 chars | `5_073_567` | `5_070_095` |
+| 5+ chars | `253_679` | `253_505` |
+
+with `getDiscountPoints()` durations `63_072_000` / `94_608_000` / `189_216_000` (the numerators
+were already right). Thresholds move accordingly: the 3-year tier starts at `$16.500044`, not
+`$16.500020`, and the six-year at `$27.000071`.
+
+**The algorithm was never wrong** — checked line by line against a reference `quote()` contract
+running against the live oracle, and then differentially tested over 77,886 amount/label-length
+pairs, including every threshold ±3 micro-units, with zero mismatches. Two things that look like
+discrepancies and aren't: the oracle returns only three discount points, with no `{0, 1e38}`
+sentinel, so the contract's post-loop `duration = budget / rate` is the live full-price path rather
+than dead code — our synthetic `{start: 0, numer: DENOM}` tier reduces to exactly that same floor
+divide. And our tier test (`budgetMicro >= tierCost(tier)`) is not the contract's test
+(`candidate >= point.duration`), but the two are provably equivalent: both reduce to
+`floor(start·rate·numer / 1e38) <= budget`. Neither is worth "fixing" into the other.
+
+The rule that follows: **never re-derive a constant the oracle will hand you.** A headline price
+like "$8/year" is not a specification — it doesn't say which year. `YEAR_SECONDS` is now documented
+as the oracle's year with the tier durations as its witnesses (they are exact multiples of it), so
+a future change to it has to explain why all three thresholds moved.
+
+**Follow-on: no one-year quick-select, and the near-miss label stays honest.** With the rates
+corrected, $8.10 renders as "11 months, 30 days" — accurate, but awkward next to a tab header
+reading `vitalik.eth · $8/year`. The gap is 83 seconds: a year costs `$8.000021`, so a round `$8`
+falls 21 micro-units short. Every length has the same shape (3-char is 1 second short, 4-char 2).
+
+Rejected: rounding the label up to "1 year" within some epsilon. That is precisely the `fmtUsdc`
+trap recorded below, moved into the largest text on the panel, and false for a purchase the user
+could still fix with a cent. Also rejected: switching to days-only under a year ("364 days") — it
+reads cleaner but is no more accurate, still understates by a day, and costs resolution in the
+middle of the range, where "7 months" becomes "213 days".
+
+**Built, then removed: a fourth quick-select at `$8.11` → `$8.01` applied → "1 year".** It was
+mechanically correct — `ceilToCent()` exists so a quick-select never undershoots a boundary, and it
+was applied to all three discount tiers but not to the one duration ENS advertises. It was pulled
+anyway, on positioning. `$8/year` is an anchored number in the ENS community; a button reading
+`$8.11 → 1y` sitting under a header reading `$8/year` puts a Namepass-specific surcharge on screen
+next to ENS's own price, and reads as skimming no matter how the cent is explained. The cent is not
+ours — it is ENS's rounding plus the disclosed $0.10 allowance — but a button is the wrong place to
+have to explain that.
+
+So the shortfall is left where a visitor only meets it if they go looking: type `$8.00` and you get
+"11 months, 30 days" with the exact second count beside it, which reads as a units artifact and is
+understood as one. Nothing is rounded and nothing is hidden; it simply isn't advertised.
+
+If a future session finds this and thinks the missing one-year mark is an oversight: it isn't, and
+`payableThresholds()` is intentionally discount-tiers-only. It also feeds `nextTierHint()`, so a
+one-year entry there would additionally generate a top-up prompt to "unlock" a discount that does
+not exist.
+
+---
+
 ### 2026-08-05 — CI removed entirely
 
 `.github/workflows/claude.yml` is gone, and with it the repo's only workflow. Nothing runs on push
@@ -43,12 +164,29 @@ width on a laptop and not in a tall window, and why it is easy to look for in th
 it discards 19 source columns a side, against the 2 that are bad. Worth deleting if the asset is
 ever re-encoded clean, which is why the comment says so.
 
+> **Update 2026-08-08.** The crop survives but `scale-[1.02]` does not — it is now `-inset-1` with
+> matching `w-`/`h-` calcs. A transform makes the video its own compositing layer, whose rounded
+> clip is computed and *then* scaled, so its corner arc stops landing on the painted content's and
+> the difference shows as a hairline. Sizing the box does the same crop without the layer. The
+> 4px overhang that leaves is not free: see the 2026-08-08 corner-seam entry, where it turned out
+> to be what made the pull-back geometry fail at narrow widths.
+
 **The curved line on the Explorer corner is antialiasing arithmetic.** That corner is three shapes
 meeting: a panel with a rounded top-left, and two SVG masks filling the concave transitions either
 side. Where two antialiased edges of the same colour butt together their coverage does not sum to
 full opacity, so a fraction of the video shows through along the joint and reads as a faint curve.
 The masks now lap one pixel over the panel instead of meeting it exactly. The overlap is inward
 only, so the silhouette against the video is unchanged.
+
+> **Update 2026-08-08. This half of the entry is wrong, and the overlap it describes was never in
+> the committed code.** The curved line was not the mask joints; it was `PageShell`'s video
+> pull-back radius being too small at the base breakpoint, so video sat behind the *card's* clip
+> arc. The mask overlap was written, left uncommitted, and has now been reverted — it addressed a
+> seam that measurement does not support: the panel's left edge lands on a fractional device pixel
+> at **both** breakpoints (0.703 below `md`, 0.484 above), so mask geometry cannot explain a
+> symptom that only appeared when narrow. The diagnosis in the paragraph above — that abutting
+> antialiased edges leak `a - a^2` — is sound arithmetic; it was simply applied to the wrong pair
+> of edges. See the 2026-08-08 entry at the top.
 
 Both were diagnosed by measurement rather than inspection, and both had to be reproduced at the
 right viewport first: a screenshot of a 1920px viewport is downscaled to 800px, which erases
@@ -675,7 +813,7 @@ and if the claim reverts nothing will be.
 
 Two display bugs caught in review, both worth recording because they're the same underlying trap:
 
-- **`fmtUsdc` rounds away the digits that decide a tier.** It renders `$27.000032` (six years at
+- **`fmtUsdc` rounds away the digits that decide a tier.** It renders `$27.000071` (six years at
   43.75% off) and `$27.00` (four years eleven months at 31.25%) identically as "$27" — so the
   breakdown panel showed an amount that, taken at face value, doesn't buy what's beside it. Added
   `fmtUsdcExact` for anywhere a reader checks arithmetic. This is exactly the trap `ceilToCent()`
@@ -987,3 +1125,4 @@ the address, not the headline noun.
 > **Update 2026-07-29.** Under CREATE2-derived addresses the original wording is now accurate.
 > The framing was not retrofitted to the architecture — the architecture moved and the claim
 > became true. See the CREATE2/CCTP entry at the top.
+
