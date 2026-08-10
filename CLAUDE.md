@@ -19,6 +19,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   hook that renews on the mint, the Postgres schema, and the trigger/retry policy. Nothing in it is
   built — this repo is still frontend-only — but the UI is being shaped against it, so read it
   before changing anything that models deposits, flows, or pending balances.
+- **`docs/DEPLOYMENTS.md`** — live contract addresses, the salt and creation-code hashes behind
+  them, per-chain configuration, and what has actually been proven on chain. Read it before
+  touching anything deployment-shaped; the addresses are not recoverable from the source alone.
 - **`docs/DECISIONS.md`** — a dated log of non-obvious architecture/product calls and why they
   were made, e.g. why routing has no library, why certain copy avoids certain words. Check here
   before re-litigating something that looks like it could've been done differently — it might

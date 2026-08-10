@@ -226,6 +226,7 @@ reading the source:
 
 `0x442df555ce134d4af1bd8faf37e7763ceb9f07411cc4316c07276fbbf187dbc2` and
 `0x81df99f918f088b24121e3cfc007a479c920868322562cf6e54438c734d88735`.
+Addresses for the deployment these ran against are in `docs/DEPLOYMENTS.md`.
 
 The ~30k gas difference is `ETHRenewerV1._onRenew` calling `BASE_REGISTRAR.renew` to keep v1 in
 step, which `ETHRegistrar` does not override. Same 7-character label, same price, same duration in
