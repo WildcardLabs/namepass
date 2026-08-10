@@ -3,3 +3,16 @@ dist/
 .DS_Store
 *.local
 .claude/
+
+# Foundry
+out/
+cache/
+broadcast/
+
+# forge-std is a git checkout, not an npm package — the only Solidity
+# dependency that isn't in package.json. Reinstall with:
+#   forge install foundry-rs/forge-std --no-git
+#
+# Leading slash matters: a bare `lib/` also matches `src/lib/`, which is
+# most of the frontend.
+/lib/
