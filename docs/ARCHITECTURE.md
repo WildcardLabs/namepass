@@ -145,7 +145,8 @@ Contract and factory work is out of scope until this goes live.
    trigger conditions are met, starts a flow.
 3. The function performs the CCTP **burn with a hook** on the origin chain.
 4. A **Vercel Workflow** polls Circle's **Iris API** for the attestation — the slow step, roughly
-   13–19 minutes on standard transfers.
+   half a minute to half an hour depending on the origin chain — see the measured spread under
+   "CCTP at contract level".
 5. Once attested, one atomic mainnet transaction **mints and renews together** via the CCTP hook,
    and takes the gas allowance in the same transaction.
 
@@ -243,7 +244,29 @@ retire it by setting it to zero.
 
 ## CCTP at contract level
 
-Standard (not Fast) transfers: no Circle fee, ~13–19 minutes for attestation. Fast Transfer is
+Standard (not Fast) transfers: no Circle fee — `feeExecuted` came back zero on every claim, so the
+mint equals the burn.
+
+**Attestation time varies by an order of magnitude across chains**, measured on 2026-08-10 by
+burning the same label on all three L2s within two minutes of each other:
+
+| origin | observed |
+|---|---|
+| Arc Testnet | ~30 seconds |
+| Arbitrum Sepolia | ~18 minutes |
+| Base Sepolia | ~26 minutes |
+
+Detected inside a 60-second polling window, so treat these as upper bounds rather than precise
+figures. Two consequences for the worker, both easy to get wrong:
+
+- **Settlement is not FIFO.** The Arc burn started last and settled first — its $30 landed before
+  an $8.11 that had been burning for five minutes already. Anything that assumes ordering, or
+  reuses one chain's timing as a global timeout, will mis-handle the other chains.
+- **A per-chain backoff beats a global one.** Polling Arc on a Base-shaped schedule wastes twenty
+  minutes of latency; polling Base on an Arc-shaped one burns requests for nothing.
+
+The old "13–19 minutes" figure in this document came from Circle's general guidance. It is roughly
+right for Arbitrum, pessimistic for Arc and optimistic for Base. Fast Transfer is
 near-instant but charges a fee, which would reintroduce the per-chain quoting problem the flat
 allowance exists to remove — rejected as the default, see `docs/DECISIONS.md`. Kept reachable
 through config rather than compiled out, in case Circle's fee policy changes.
@@ -351,7 +374,7 @@ verify signature  →  store raw payload (webhook_deliveries)
 ```
 
 It must **not** run the flow. Even with settlement and renewal collapsed into one transaction,
-waiting on the attestation is 13–19 minutes — far outside any serverless limit.
+waiting on the attestation runs from seconds to half an hour depending on origin chain — far outside any serverless limit.
 
 ### `POST /api/names/:name/claim` — activation
 
@@ -372,7 +395,7 @@ this isn't a request handler:
 | Step | Does | On failure |
 |---|---|---|
 | `burn` | Sign + send `depositForBurn` on origin | Retry with backoff; funds never left, so safe |
-| `awaitAttestation` | Poll Iris until complete | Sleep + retry; this is the 13–19 min wait |
+| `awaitAttestation` | Poll Iris until complete | Sleep + retry; back off per origin chain, not globally |
 | `claim` | `receiveMessage` on mainnet — mints, renews, takes allowance | Message stays attested + unclaimed → retryable forever |
 | `record` | Write `renewals` + `flow_steps`, bump aggregates | Retry; reconciler catches drift |
 
@@ -600,7 +623,7 @@ from renewals r join names n on n.id = r.name_id
 order by r.block_time desc limit 20;
 ```
 
-Subscribe the in-flight set via **Supabase Realtime** rather than polling — a 13–19 minute window is
+Subscribe the in-flight set via **Supabase Realtime** rather than polling — a window of minutes to half an hour is
 exactly what makes live progress worth showing.
 
 ### Name detail — `findName()` / `nameExpiry()` / activity table
@@ -706,7 +729,7 @@ helps here: the address set is computable, so an indexer can derive it rather th
 
 **Hosting** — the webhook receiver is a **Vercel serverless function** alongside the app (same repo,
 same env, atomic deploys): verify the signature, write the deposit row, start the flow, return.
-Waiting on the attestation is a **Vercel Workflow**, not the request handler — a 13–19 minute poll
+Waiting on the attestation is a **Vercel Workflow**, not the request handler — a poll of up to half an hour
 is far outside serverless limits.
 
 ## Build order

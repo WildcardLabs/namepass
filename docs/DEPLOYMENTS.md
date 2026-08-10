@@ -123,6 +123,27 @@ cast call $HELPER 'quote(string,uint256)(uint64,uint256)' vitalik 8000000 --rpc-
 Both settled at $8.01 for 31,575,337 seconds with the accounting balancing exactly and no residue
 left in the helper.
 
-**The CCTP path has not been exercised.** Nothing has burned on an L2 and claimed on Ethereum, so
-the message offsets, the mint assertion and the claim-side executor payment are still unproven
-against a real Circle message.
+### CCTP, all three L2s
+
+Burned on each L2 and claimed on Ethereum. Claim transactions:
+
+| origin | domain | burned | Circle fee | duration bought | charged | claim tx |
+|---|---|---|---|---|---|---|
+| Arc Testnet | 26 | $30.00 | $0.00 | 209,538,651 s | $29.90 | `0xd456158bf99f9dddd3dbefb5560e703e227ee652e751214d91390850f5a81645` |
+| Arbitrum Sepolia | 3 | $25.00 | $0.00 | 142,771,698 s | $24.90 | `0xd3e5903b0b97276602e146605fb4433d45a5b428c2334daa40c6945f1c5dd40a` |
+| Base Sepolia | 6 | $8.11 | $0.00 | 31,575,337 s | $8.01 | `0x5bc835210cf587117f7f0fe0cefe2d984b6add7485468b9bf3837dcc28de2b28` |
+
+`fromCCTP` true on all three, `$0.10` to the claimer each time, accounting balancing exactly, and
+ENS's own `getRenewPrice` agreeing with what was charged to the base unit. Claims cost ~345–347k
+gas. Standard transfers really do carry no Circle fee — `feeExecuted` was zero every time, so
+`mintedAmount` equalled the burn.
+
+This is what exercises the nine hand-derived CCTP offsets: `sourceDomain` decoded as 26, 3 and 6
+respectively, and `amount`, `feeExecuted` and `messageSender` all landed on the right fields
+against real Circle messages. It also puts the mint assertion into production — the authenticated
+`burn - feeExecuted` matched the observed balance delta on every claim.
+
+Helper dust after all four renewals: **zero**.
+
+Everything the contracts do is now proven on chain. What remains untested is the governance path,
+which testnet cannot exercise — see the note on `ensGovernanceExecutor` above.

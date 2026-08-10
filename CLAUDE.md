@@ -58,10 +58,19 @@ rate. Addresses are derived deterministically with CREATE2 — no custodian hold
 product a webhook detects payments, Circle's CCTP moves the USDC to Ethereum, and the renewal
 executes in the same transaction that completes the transfer.
 
-**This repo is a frontend prototype, not the production product.** The UI, routing, and pricing
-math are real and exact; on-chain activity, balances, and ENS ecosystem stats shown in the app are
-seeded/simulated client-side (`src/lib/registry.ts`), not pulled from a live indexer or contract.
-Don't write copy or code comments that imply this repo talks to real chain state.
+**The contracts are real and deployed; the app in front of them is not wired up yet.** Hold both
+halves of that at once:
+
+- `contracts/` is live on four testnets, tested, and verified against ENS's and Circle's deployed
+  contracts. Addresses and what has been proven on chain are in `docs/DEPLOYMENTS.md`.
+- **The frontend is still a prototype.** The UI, routing, and pricing math are real and exact, but
+  on-chain activity, balances, and ENS ecosystem stats shown in the app are seeded/simulated
+  client-side (`src/lib/registry.ts`) — not read from the deployed contracts, not from an indexer.
+  There is no backend at all; `docs/ARCHITECTURE.md` describes one that does not exist.
+
+So don't write copy or code comments implying the *app* talks to chain state, and don't write them
+implying the *contracts* are hypothetical either. `src/lib/pricing.ts` in particular hardcodes rates
+that the contracts read live from the oracle — the two agree today and nothing keeps them in step.
 
 ## Commands
 
@@ -170,8 +179,8 @@ on non-Home pages (only Home shows the Explorer/Search/Cost simulator menu).
 
 **`contracts/` is Solidity, and nothing in the npm scripts touches it.** `npm run build` type-checks
 and builds the frontend only. `contracts/NamepassFactory.sol` is a draft for mainnet deployment,
-reviewed once and not yet audited or tested — there is no Foundry install in this repo yet, only
-`foundry.toml`. Three constraints that are easy to break by accident:
+reviewed across several passes and covered by 61 Foundry tests, but **not audited**. It is deployed
+to testnet only. Three constraints that are easy to break by accident:
 
 - **Everything in `foundry.toml` is pinned on purpose.** `solc_version`, `evm_version`,
   `optimizer_runs` and `bytecode_hash = "none"` all feed the creation-code hash, and the factory
