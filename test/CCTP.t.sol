@@ -32,7 +32,7 @@ contract CCTPTest is Test {
     MockMessageTransmitter internal transmitter;
 
     address constant GOVERNANCE = address(0xE45);
-    address constant REFERRER = address(0x1208);
+    bytes32 constant REFERRER = bytes32(uint256(0x1208));
     address constant EXECUTOR = address(0xEE);
     address constant WALLET = address(0xA11E7);
     address constant TOKEN_MESSENGER = address(0xC1C1E);

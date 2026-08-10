@@ -179,7 +179,7 @@ contract ConstantAgreementTest is Test {
         address d = address(new Dummy());
 
         return new ENSV2RenewalHelper(
-            d, d, d, d, d, address(0), address(0xE45), address(0x1208)
+            d, d, d, d, d, address(0), address(0xE45), bytes32(uint256(0x1208))
         ).GAS_ALLOWANCE();
     }
 
