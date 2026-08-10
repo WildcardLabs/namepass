@@ -43,7 +43,7 @@ contract PricingTest is Test {
     MockFactory internal factory;
 
     address constant GOVERNANCE = address(0xE45);
-    address constant REFERRER = address(0x1208);
+    bytes32 constant REFERRER = bytes32(uint256(0x1208));
 
     function setUp() public {
         usdc = new MockUSDC();
@@ -299,6 +299,82 @@ contract PricingTest is Test {
     /*//////////////////////////////////////////////////////////////
                            ORACLE ROBUSTNESS
     //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @dev ENS moving its thresholds must not need a Namepass change.
+     *
+     * Points are read from the oracle on every quote rather than
+     * stored, so a governance decision to reshape the tiers — a
+     * one-year tier where there was none, a ten-year tier past the
+     * old top — is followed automatically. Nothing here encodes 2/3/6
+     * years.
+     */
+    function test_followsChangedDiscountThresholds() public {
+        uint256[] memory rates = new uint256[](5);
+        rates[2] = RATE_3;
+        rates[3] = RATE_4;
+        rates[4] = RATE_5;
+
+        /* A completely different shape: 1, 4 and 10 years. */
+        DiscountPoint[] memory points = new DiscountPoint[](3);
+        points[0] = DiscountPoint({duration: 31_536_000, numer: 9e37});
+        points[1] = DiscountPoint({duration: 126_144_000, numer: 6e37});
+        points[2] = DiscountPoint({duration: 315_360_000, numer: 4e37});
+
+        PaymentRatio[] memory ratios = new PaymentRatio[](1);
+        ratios[0] = PaymentRatio({
+            paymentToken: IERC20(address(usdc)),
+            numer: 1,
+            denom: 1e6
+        });
+
+        StandardRentPriceOracle reshaped = new StandardRentPriceOracle(
+            address(this), rates, points, DISCOUNT_DENOMINATOR, 0, 1, 1, ratios
+        );
+
+        renewer.setOracle(IRentPriceOracle(address(reshaped)));
+
+        /* The invariant still holds against the new shape. */
+        _assertQuoteAgreesWithENS(reshaped, _label(5), 27_000_071);
+        _assertQuoteAgreesWithENS(reshaped, _label(5), 8_000_000);
+        _assertQuoteAgreesWithENS(reshaped, _label(3), 1_000_000_000);
+
+        /* And the new bottom tier is reachable where the old one was not. */
+        (uint64 duration,) = helper.quote(_label(5), 8_000_000);
+        assertGe(duration, 31_536_000, "the new one-year tier was not applied");
+    }
+
+    /**
+     * @dev More tiers than ENS ships today, to prove nothing assumes
+     * three.
+     */
+    function test_followsAdditionalDiscountTiers() public {
+        uint256[] memory rates = new uint256[](5);
+        rates[4] = RATE_5;
+
+        DiscountPoint[] memory points = new DiscountPoint[](5);
+        points[0] = DiscountPoint({duration: 31_536_000, numer: 95e36});
+        points[1] = DiscountPoint({duration: 63_072_000, numer: 875e35});
+        points[2] = DiscountPoint({duration: 94_608_000, numer: 6875e34});
+        points[3] = DiscountPoint({duration: 189_216_000, numer: 5625e34});
+        points[4] = DiscountPoint({duration: 315_360_000, numer: 4e37});
+
+        PaymentRatio[] memory ratios = new PaymentRatio[](1);
+        ratios[0] = PaymentRatio({
+            paymentToken: IERC20(address(usdc)),
+            numer: 1,
+            denom: 1e6
+        });
+
+        StandardRentPriceOracle deeper = new StandardRentPriceOracle(
+            address(this), rates, points, DISCOUNT_DENOMINATOR, 0, 1, 1, ratios
+        );
+
+        renewer.setOracle(IRentPriceOracle(address(deeper)));
+
+        _assertQuoteAgreesWithENS(deeper, _label(5), 40_000_000);
+        _assertQuoteAgreesWithENS(deeper, _label(5), 100_000_000);
+    }
 
     /**
      * @dev ENS permits an empty discount array and leaves

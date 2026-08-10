@@ -28,7 +28,7 @@ contract RenewalTest is Test {
     MockFactory internal factory;
 
     address constant GOVERNANCE = address(0xE45);
-    address constant REFERRER = address(0x1208);
+    bytes32 constant REFERRER = bytes32(uint256(0x1208));
     address constant EXECUTOR = address(0xEE);
     address constant WALLET = address(0xA11E7);
 
@@ -187,6 +187,58 @@ contract RenewalTest is Test {
             0,
             "a standing allowance survived the renewal"
         );
+    }
+
+    function test_ownerMaySetReferrer() public {
+        bytes32 updated = bytes32(uint256(0xFEED));
+
+        helper.setReferrer(updated);
+        assertEq(helper.referrer(), updated, "referrer did not update");
+
+        _fundWallet(27_110_000);
+        vm.prank(WALLET);
+        helper.renewFromWallet(LABEL, 27_110_000, EXECUTOR);
+
+        assertEq(ethRegistrar.lastReferrer(), updated, "the new referrer was not used");
+    }
+
+    function test_onlyOwnerMaySetReferrer() public {
+        vm.prank(address(0xBAD));
+        vm.expectRevert(ENSV2RenewalHelper.NotOwner.selector);
+        helper.setReferrer(bytes32(uint256(0xFEED)));
+    }
+
+    /// @dev Zero is a legitimate value: unattributed.
+    function test_referrerMayBeCleared() public {
+        helper.setReferrer(bytes32(0));
+        assertEq(helper.referrer(), bytes32(0), "referrer could not be cleared");
+    }
+
+    /**
+     * @dev Attribution only. Changing it must not move a single unit
+     * of anyone's money — that is what makes an owner setter here
+     * different from one on `GAS_ALLOWANCE`.
+     */
+    function test_referrerDoesNotAffectPricing() public {
+        _fundWallet(27_110_000);
+        vm.prank(WALLET);
+        helper.renewFromWallet(LABEL, 27_110_000, EXECUTOR);
+
+        uint256 chargedBefore = usdc.balanceOf(ethRegistrar.beneficiary());
+        uint64 durationBefore = ethRegistrar.lastDuration();
+
+        helper.setReferrer(bytes32(uint256(0xFEED)));
+
+        _fundWallet(27_110_000);
+        vm.prank(WALLET);
+        helper.renewFromWallet(LABEL, 27_110_000, EXECUTOR);
+
+        assertEq(
+            usdc.balanceOf(ethRegistrar.beneficiary()) - chargedBefore,
+            chargedBefore,
+            "changing the referrer changed what ENS charged"
+        );
+        assertEq(ethRegistrar.lastDuration(), durationBefore, "duration changed");
     }
 
     function test_referrerIsPassedThrough() public {

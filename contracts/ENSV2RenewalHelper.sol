@@ -271,23 +271,29 @@ contract ENSV2RenewalHelper {
     address public ensGovernanceExecutor;
 
     /**
-     * @notice Address credited on every renewal under ENS's referrer
-     * programme, as bytes32.
+     * @notice Tag credited on every renewal under ENS's referrer
+     * programme.
      *
-     * @dev A constructor argument rather than a literal. It was
-     * hardcoded, which is the wrong shape for the one value here
-     * that is a payout destination: it plausibly differs between a
-     * testnet and a mainnet deployment, nothing validated it, and a
-     * transposed character would have sent Namepass's referral
-     * revenue to a stranger permanently — this contract cannot be
-     * replaced without moving every deposit address.
+     * @dev Owner-settable, and safely so. On the renewal path this
+     * value reaches exactly one place — the `referrer` field of ENS's
+     * `NameRenewed` event. It does not enter the price, the
+     * beneficiary, or the duration, all of which the registrar
+     * decides from its own oracle and immutables. Changing it can
+     * therefore move attribution and nothing else, which is a
+     * different kind of thing from `GAS_ALLOWANCE`, where a setter
+     * would be an owner dial on money taken from every payment.
      *
-     * Immutable, so it is still not an owner dial. Unlike the
-     * factory, this contract's own address does not have to be
-     * reproducible across chains, so a constructor argument costs
-     * nothing here.
+     * `bytes32` rather than an address because that is ENS's type and
+     * the field is opaque to the renewal path. Constraining it to
+     * address shape would have been a typo guard, and mutability is a
+     * better one: a wrong value here is now a transaction to fix
+     * rather than a redeployment of a contract that cannot be
+     * replaced. An address goes in as
+     * `bytes32(uint256(uint160(addr)))`.
+     *
+     * Zero is allowed and means unattributed.
      */
-    bytes32 public immutable referrer;
+    bytes32 public referrer;
 
     /**
      * @notice ENS's `ETHRegistrar` — migrated and native v2 names.
@@ -358,6 +364,10 @@ contract ENSV2RenewalHelper {
     /*//////////////////////////////////////////////////////////////
                                 EVENTS
     //////////////////////////////////////////////////////////////*/
+
+    event ReferrerUpdated(
+        bytes32 indexed referrer
+    );
 
     event GovernanceExecutorUpdated(
         address indexed previousExecutor,
@@ -467,7 +477,7 @@ contract ENSV2RenewalHelper {
         address ethRegistrar_,
         address ethRenewerV1_,
         address ensGovernanceExecutor_,
-        address referrer_
+        bytes32 referrer_
     ) {
         if (
             factory_ == address(0) ||
@@ -475,8 +485,7 @@ contract ENSV2RenewalHelper {
             messageTransmitter_ == address(0) ||
             tokenMessenger_ == address(0) ||
             ethRegistrar_ == address(0) ||
-            ensGovernanceExecutor_ == address(0) ||
-            referrer_ == address(0)
+            ensGovernanceExecutor_ == address(0)
         ) {
             revert InvalidAddress();
         }
@@ -536,10 +545,9 @@ contract ENSV2RenewalHelper {
             ensGovernanceExecutor_
         );
 
-        referrer =
-            _addressToBytes32(
-                referrer_
-            );
+        referrer = referrer_;
+
+        emit ReferrerUpdated(referrer_);
 
         emit RenewersUpdated(
             ethRegistrar_,
@@ -708,6 +716,25 @@ contract ENSV2RenewalHelper {
             ethRegistrar_,
             ethRenewerV1_
         );
+    }
+
+    /**
+     * @notice Sets the tag credited under ENS's referrer programme.
+     *
+     * @dev Owner rather than ENS governance: this is a Namepass
+     * attribution, not an ENS contract pointer. It cannot affect what
+     * anyone is charged or where a payment goes — see the note on
+     * `referrer`.
+     */
+    function setReferrer(
+        bytes32 referrer_
+    )
+        external
+        onlyOwner
+    {
+        referrer = referrer_;
+
+        emit ReferrerUpdated(referrer_);
     }
 
     /**

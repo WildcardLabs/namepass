@@ -16,3 +16,10 @@ broadcast/
 # Leading slash matters: a bare `lib/` also matches `src/lib/`, which is
 # most of the frontend.
 /lib/
+
+# Throwaway browser tooling for the testnet rollout — deploy pages, the
+# label test harness, and the bytecode they embed. Hardcodes one specific
+# deployment's addresses, so it is stale the moment anything is redeployed.
+#
+# Anchored with a leading slash, same reason as /lib/ above.
+/deploy-ui/

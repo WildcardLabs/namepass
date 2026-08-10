@@ -7,6 +7,34 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-10 — Testnet deployed; the frontend's pricing constants are now a duplicate
+
+The contracts are live on Sepolia, Base Sepolia, Arbitrum Sepolia and Arc, and every path has run
+on chain: both ENS renewers, all three CCTP origins, the executor payment, the accounting.
+`docs/DEPLOYMENTS.md` has the addresses and the evidence.
+
+That changes the status of something that was previously harmless. `src/lib/pricing.ts` hardcodes
+the base rates and discount points; the helper reads them from the registrar's own oracle on every
+quote. Both were derived from the same source and agree exactly today — verified against the live
+oracle — but only one of them tracks ENS. If ENS reshapes the tiers, the chain follows and the UI
+does not, and the UI is the half that makes promises to a funder.
+
+Left as a duplicate rather than fixed, deliberately: reading the oracle at runtime means the
+Simulator cannot price anything until a network round-trip lands, on a page whose whole point is
+that dragging a slider updates instantly. The honest options are a build-time fetch that fails
+loudly on drift, or a monitoring check comparing the two. Neither is built.
+
+**What would catch it:** `getBaseRates()` and `getDiscountPoints()` on the oracle in
+`docs/DEPLOYMENTS.md` versus `BASE_RATE_PER_CP` and `TIERS`. If they ever disagree, the frontend is
+wrong and the contracts are right.
+
+A related note recorded while it is fresh: **CCTP attestation time is not uniform**. Arc attested
+in ~30 seconds where Base took ~26 minutes, measured minutes apart on the same label. Settlement is
+therefore not FIFO, and a worker that assumes one chain's timing will mis-handle the others. Full
+figures in `docs/ARCHITECTURE.md`.
+
+---
+
 ### 2026-08-08 — The hero corner seam was the video pull-back radius, not the masks
 
 The hairline at the Explorer panel's corner survived an earlier attempt at it and was reported
