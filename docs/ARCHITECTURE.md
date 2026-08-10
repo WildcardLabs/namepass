@@ -216,6 +216,25 @@ as an immutable registrar, one level up. With it, a governance-migration proposa
 authority and then migrates, and Namepass is not involved either way. The handover is one-way and
 immediate, so it must name an executor that is already live.
 
+**Both branches are confirmed on Sepolia**, against the deployed contracts rather than from
+reading the source:
+
+| label | registry state | renewer used | ENS v1 registry | gas |
+|---|---|---|---|---|
+| `vitalik` | premigrated (`RESERVED`) | `ETHRenewerV1` | **touched** — synced | 297,176 |
+| `test123` | native v2 (`REGISTERED`) | `ETHRegistrar` | not touched | 266,889 |
+
+`0x442df555ce134d4af1bd8faf37e7763ceb9f07411cc4316c07276fbbf187dbc2` and
+`0x81df99f918f088b24121e3cfc007a479c920868322562cf6e54438c734d88735`.
+
+The ~30k gas difference is `ETHRenewerV1._onRenew` calling `BASE_REGISTRAR.renew` to keep v1 in
+step, which `ETHRegistrar` does not override. Same 7-character label, same price, same duration in
+both — the pricing does not depend on which contract executes it.
+
+Worth stating plainly because the two names were picked arbitrarily: a helper holding a single
+renewer address would have worked for one of them and reverted on the other, and which one would
+have depended on nothing but which name was tried first.
+
 The upshot for a funder is that none of this is visible. They send USDC to the same permanent
 address whether or not their name has migrated, and the helper picks the right ENS path on chain.
 When migration completes, `ETHRenewerV1` simply stops matching anything, and ENS governance can
