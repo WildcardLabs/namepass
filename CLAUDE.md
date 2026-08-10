@@ -69,8 +69,24 @@ npm run build     # tsc --noEmit && vite build — this IS the type-check step, 
 npm run preview   # serve the production build locally
 ```
 
-There is no lint script and no test framework configured in this repo — don't invent `npm run
-lint` or `npm test` invocations.
+There is no lint script and no JS test framework — don't invent `npm run lint` or `npm test`.
+
+**The contracts do have tests**, in Foundry:
+
+```bash
+forge build           # contracts only; `npm run build` does not touch them
+forge test
+forge test -vvv       # traces, for a failure worth reading
+```
+
+Foundry is not vendored — install it with `curl -L https://foundry.paradigm.xyz | bash && foundryup`.
+Solidity dependencies come from **npm**, not git submodules (`remappings` in `foundry.toml`), so
+`npm install` is a prerequisite for `forge build`. `forge-std` is the exception and lives in `lib/`.
+
+`test/ens/` is ENS v2 source, copied verbatim — see the README there. The pricing tests run the
+helper's inverse against **ENS's own `StandardRentPriceOracle`**, which is the point: both pricing
+bugs this repo has shipped would have passed against a mocked oracle. If you change anything in
+`_quote`, `_settle`, or the CCTP offsets, run `forge test` before believing it.
 
 ## Architecture
 
@@ -173,9 +189,14 @@ reviewed once and not yet audited or tested — there is no Foundry install in t
   audit — any function that moves a deposit wallet's tokens to an owner-chosen address has to
   exclude the payment asset by comparing against something, and the moment that something is
   mutable the guard is theatre. Relatedly, `usdc`/`tokenMessenger`/`l1Helper` are set once in
-  `initialize` and frozen; only `setFinality`/`setMaxBurnAmount` stay mutable, and the CCTP fee
-  ceiling is a per-call argument rather than state — so no owner setting can price or block a
-  transfer. Don't add an owner-settable address that
+  `initialize` and frozen; **only `setFinality` stays mutable**, the CCTP per-burn cap is read live
+  from Circle's TokenMinter rather than stored, and the CCTP fee ceiling is a per-call argument
+  rather than state — so no owner setting can price or block a transfer. The helper's renewer
+  pointers are movable only by ENS's own governance executor (the DAO **Timelock**, not the
+  Governor), never by a Namepass key. **The helper holds two ENS renewers, not one** —
+  `ETHRegistrar` for migrated names and `ETHRenewerV1` for premigrated v1 reservations — and picks
+  per label via `isRenewable`, because both populations coexist during the migration. Its oracle
+  must be read from whichever renewer was selected; see `docs/ARCHITECTURE.md`. Don't add an owner-settable address that
   a wallet transfers or approves to.
 
 **`src/components/magicui/`** holds hand-ported Magic UI–style primitives (`ShineBorder`,

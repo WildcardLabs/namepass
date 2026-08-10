@@ -5,7 +5,7 @@ test = "test"
 libs = ["lib"]
 
 # The deposit-address scheme requires the factory to land on the same
-# address on Ethereum, Base, Arbitrum and Polygon, which requires
+# address on Ethereum, Base, Arbitrum and Arc, which requires
 # byte-identical creation code from every build. Everything below is
 # pinned for that reason — changing any of it moves every deposit
 # address the product has ever published.
@@ -23,3 +23,14 @@ optimizer_runs = 200
 # different creation code and therefore a different factory address.
 bytecode_hash = "none"
 cbor_metadata = false
+
+# Solidity dependencies come from npm rather than git submodules — the repo
+# already has a package.json, and this keeps `forge` and `npm install` from
+# owning two different dependency stores.
+remappings = [
+    "@openzeppelin/=node_modules/@openzeppelin/",
+    "@ens/contracts/=node_modules/@ensdomains/ens-contracts/contracts/",
+]
+
+# Tests only. `src = "contracts"` above is what ships, and nothing under
+# `test/` is deployed — including the vendored ENS source it compiles against.

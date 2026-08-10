@@ -8,11 +8,6 @@ pragma solidity 0.8.24;
 interface IERC20 {
     function balanceOf(address account) external view returns (uint256);
 
-    function transfer(
-        address recipient,
-        uint256 amount
-    ) external returns (bool);
-
     function approve(
         address spender,
         uint256 amount
@@ -37,12 +32,40 @@ interface ITokenMessengerV2 {
         uint32 minFinalityThreshold,
         bytes calldata hookData
     ) external;
+
+    /**
+     * @dev Circle's TokenMinter for this chain, which is where the
+     * per-message burn limit actually lives.
+     */
+    function localMinter()
+        external
+        view
+        returns (ITokenMinterV2);
+}
+
+interface ITokenMinterV2 {
+    function burnLimitsPerMessage(
+        address token
+    ) external view returns (uint256);
 }
 
 interface INamepassL1Helper {
+    /**
+     * @dev The helper *pulls* `amount` with transferFrom, so this
+     * must be preceded by an approval rather than a transfer. That
+     * way the figure it prices against is one it can verify instead
+     * of one its caller asserts, matching the CCTP path where the
+     * amount is authenticated by Circle.
+     *
+     * `executor` is paid the helper's flat gas allowance. It is
+     * threaded through from whoever called `renew`, because
+     * msg.sender at the helper is the wallet — paying that would
+     * hand the deposit address its own money back.
+     */
     function renewFromWallet(
         string calldata label,
-        uint256 amount
+        uint256 amount,
+        address executor
     ) external;
 
     /**
@@ -57,7 +80,8 @@ interface INamepassWallet {
     function execute(
         string calldata label,
         uint256 amount,
-        uint16 maxFeeBps
+        uint16 maxFeeBps,
+        address executor
     ) external;
 }
 
@@ -227,8 +251,10 @@ library MinimalProxy {
  * After `initialize`, the owner cannot move a single deposited
  * dollar. Every address that can receive USDC — the local token, the
  * CCTP messenger it is approved to, and the Ethereum helper it is
- * ultimately paid to — is frozen. Two settings remain: the CCTP
- * finality tier and the per-burn maximum. Neither changes where
+ * ultimately paid to — is frozen. One setting remains: the CCTP
+ * finality tier. The per-burn maximum used to be the second, and is
+ * now read live from Circle's own TokenMinter rather than stored, so
+ * no Namepass key decides how much travels. It does not change where
  * anything goes, only how long it waits and how much travels per
  * transaction.
  *
@@ -262,11 +288,12 @@ contract NamepassFactory {
     /**
      * @dev Standard transfers — what an L2 starts on.
      *
-     * Circle currently documents values at or below 1000 as Fast and
-     * values at or above 2000 as Standard. Anything between the two
-     * is not documented. The value is passed through unvalidated for
-     * forward compatibility, so the owner must select it carefully —
-     * a threshold of 0 means *Fast*, not "unset".
+     * Circle documents <= 1000 as Fast/Confirmed and > 1000 as
+     * Standard/Finalized; 1000 and 2000 are the two defined values.
+     * There is no undocumented middle band -- 1500 is simply
+     * Standard. Passed through unvalidated for forward
+     * compatibility, so choose it carefully -- 0 means Fast, not
+     * "unset".
      */
     uint32 private constant FINALITY_FINALIZED = 2000;
 
@@ -275,24 +302,19 @@ contract NamepassFactory {
      * The value `initialize` starts an L2 at; adjustable afterwards, because
      * this number is Circle's and can move.
      */
-    uint96 private constant INITIAL_MAX_BURN = 10_000_000e6;
+    /// @dev Ethereum mainnet — the hub for a production set.
+    uint256 private constant MAINNET_CHAIN_ID = 1;
+
+    /// @dev Sepolia — the hub for a testnet set.
+    uint256 private constant SEPOLIA_CHAIN_ID = 11155111;
 
     /**
-     * @dev 100,000 USDC. The lowest the burn cap may be set to.
+     * @dev Longest label ENS will price, in raw UTF-8 bytes.
      *
-     * This is not a typo guard, it is what stops the cap being used as a
-     * pause. Without a floor an owner can set the cap to one micro-unit, and
-     * every `renew` on that chain then moves 0.000001 USDC — funds stay safe
-     * at their deposit addresses and become unprocessable, which is exactly
-     * the liveness that permissionless `renew` exists to guarantee.
-     *
-     * With the floor, no payment at or below 100,000 USDC can be affected at
-     * all, and a larger one can only be split into 100,000 USDC slices, never
-     * stopped. It sits two orders of magnitude under Circle's current limit so
-     * it constrains an owner without constraining real configuration if that
-     * limit ever moves down.
+     * Not a Namepass policy — the one validity constraint ENS
+     * applies that can be checked deterministically on any chain.
      */
-    uint96 private constant MIN_MAX_BURN = 100_000e6;
+    uint256 private constant MAX_LABEL_BYTES = 255;
 
     bytes32 private constant WALLET_SALT_NAMESPACE =
         keccak256("NAMEPASS_DEPOSIT_WALLET_V1");
@@ -312,6 +334,24 @@ contract NamepassFactory {
      * address(this) == deterministic wallet
      * SELF          == real factory
      */
+    /**
+     * @notice Smallest amount worth bridging, in USDC base units.
+     *
+     * @dev $0.11 — the helper's $0.10 gas allowance plus a margin
+     * for the dearest second ENS sells. Below this a burn produces a
+     * CCTP message that can never be claimed. See the note at the
+     * burn site.
+     *
+     * This is the factory's one ENS pricing assumption, and it is an
+     * assumption rather than a calculation: it takes on faith that
+     * the maximum supported one-second price stays inside the margin
+     * above the allowance. At present rates the dearest second is 21
+     * base units against a margin of 10,000, so the headroom is
+     * ample — but ENS governance sets those rates, and this constant
+     * cannot follow them.
+     */
+    uint256 private constant MIN_BURN_AMOUNT = 110_000;
+
     address private immutable SELF;
 
     /**
@@ -328,9 +368,13 @@ contract NamepassFactory {
      * addresses, which is correct: they are separate deployments
      * with separate deposit addresses.
      *
-     * ENS *pricing* is not assumed anywhere here. The L1 helper
-     * reads it from an external contract it can repoint, so rent and
-     * discount changes never reach this factory.
+     * No exact ENS pricing calculation happens here — the helper
+     * reads rates from the registrar's own oracle, so rent and
+     * discount changes never reach this factory. There is one
+     * approximation: `MIN_BURN_AMOUNT` conservatively assumes the
+     * dearest supported one-second price stays inside its margin
+     * above the gas allowance. That is an assumption, not a
+     * calculation, and it holds with room to spare at present rates.
      */
     uint256 private immutable HUB_CHAIN_ID;
 
@@ -349,21 +393,8 @@ contract NamepassFactory {
     /// @dev CCTP finality threshold. Owner-adjustable.
     uint32 private _minFinalityThreshold;
 
-    /*
-     * Slot: _tokenMessenger | _maxBurnAmount  (exactly 32 bytes)
-     */
-
     /// @dev Local TokenMessengerV2. Zero on Ethereum. Frozen.
     address private _tokenMessenger;
-
-    /**
-     * @dev Largest USDC amount to put through a single CCTP burn.
-     * Owner-adjustable; zero on Ethereum, where nothing is burned.
-     *
-     * `uint96` because it packs with the messenger above and still tops out
-     * around 79 trillion USDC.
-     */
-    uint96 private _maxBurnAmount;
 
     /**
      * @dev The single Ethereum helper. On L2 this is both the CCTP
@@ -386,6 +417,8 @@ contract NamepassFactory {
     error InvalidHubChainId();
     error EmptyLabel();
     error DottedLabel();
+
+    error LabelTooLong();
     error NoUSDC();
 
     error TransferFailed();
@@ -398,7 +431,9 @@ contract NamepassFactory {
     error InvalidHelper();
 
     error InvalidFinalityThreshold();
-    error InvalidMaxBurnAmount();
+    error BelowMinimumBurn();
+
+    error BurnsDisabled();
 
     error MissingTokenMessenger();
     error UnexpectedTokenMessenger();
@@ -430,8 +465,6 @@ contract NamepassFactory {
 
     event FinalityUpdated(uint32 minFinalityThreshold);
 
-    event MaxBurnAmountUpdated(uint96 maxBurnAmount);
-
     /**
      * @dev The only on-chain record of the label a wallet belongs
      * to. `labelKey` is a keccak hash and cannot be reversed, so the
@@ -447,8 +480,11 @@ contract NamepassFactory {
      * @dev One per processed deposit, emitted by the factory rather
      * than the wallet so an indexer watches a single address.
      *
-     * On Ethereum this is immediately followed by the helper's own
-     * renewal event. On an L2 it marks the burn — the CCTP nonce is
+     * On Ethereum the helper's `Renewed` fires *before* this, not
+     * after: the renewal happens inside `wallet.execute()`, and this
+     * is emitted only once that returns. An indexer keying off log
+     * order needs `Renewed` then `DepositProcessed`. On an L2 it
+     * marks the burn — the CCTP nonce is
      * in TokenMessengerV2's `DepositForBurn` in the same
      * transaction, and the helper emits the settlement on mainnet.
      *
@@ -475,7 +511,27 @@ contract NamepassFactory {
             revert ZeroAddress();
         }
 
-        if (hubChainId == 0) {
+        /*
+         * Only the hubs this bytecode was written for.
+         *
+         * `hubChainId` decides which path the contract believes is
+         * Ethereum, it is immutable, and it is part of the creation
+         * code — so a wrong value is not a misconfiguration to be
+         * corrected but a whole deployment set at wrong addresses,
+         * with an L2 that thinks it is the hub and never burns. A
+         * zero check catches nothing plausible; the plausible
+         * mistakes are `1115511`, or an L2's own id pasted from the
+         * chain list.
+         *
+         * Adding a hub later is a deliberate source edit and a new
+         * deployment set, which is what it would be regardless: a
+         * different hub needs its own helper, its own CCTP domain,
+         * and its own deposit addresses.
+         */
+        if (
+            hubChainId != MAINNET_CHAIN_ID &&
+            hubChainId != SEPOLIA_CHAIN_ID
+        ) {
             revert InvalidHubChainId();
         }
 
@@ -517,8 +573,12 @@ contract NamepassFactory {
      * Expected call path:
      *
      * factory.renew(label)
-     *     -> wallet.execute(label, amount)
-     *         -> delegatecall factory.execute(label, amount)
+     *     -> wallet.execute(label, amount, maxFeeBps, executor)
+     *         -> delegatecall factory.execute(...)
+     *
+     * `executor` is renew()'s own msg.sender, carried through so the
+     * Ethereum path can pay the helper's gas allowance to whoever
+     * paid for the transaction.
      */
     modifier onlyWalletContext() {
         if (
@@ -586,15 +646,6 @@ contract NamepassFactory {
         returns (address)
     {
         return _l1Helper;
-    }
-
-    function maxBurnAmount()
-        external
-        view
-        onlyFactoryContext
-        returns (uint96)
-    {
-        return _maxBurnAmount;
     }
 
     function finality()
@@ -712,7 +763,6 @@ contract NamepassFactory {
             _minFinalityThreshold =
                 FINALITY_FINALIZED;
 
-            _maxBurnAmount = INITIAL_MAX_BURN;
         }
 
         _usdc = usdcAddress;
@@ -727,7 +777,6 @@ contract NamepassFactory {
 
         emit FinalityUpdated(_minFinalityThreshold);
 
-        emit MaxBurnAmountUpdated(_maxBurnAmount);
     }
 
     /**
@@ -736,10 +785,11 @@ contract NamepassFactory {
      * @dev Speed only. The fee ceiling is *not* stored — it is
      * supplied per call, so no setting here can price a transfer.
      *
-     * Circle currently documents values at or below 1000 as Fast
-     * and at or above 2000 as Standard; the range between is not
-     * documented. Passed through unvalidated for forward
-     * compatibility, so choose it carefully — 0 means Fast, not
+     * Circle documents <= 1000 as Fast/Confirmed and > 1000 as
+     * Standard/Finalized; 1000 and 2000 are the two defined values.
+     * There is no undocumented middle band -- 1500 is simply
+     * Standard. Passed through unvalidated for forward
+     * compatibility, so choose it carefully -- 0 means Fast, not
      * "unset".
      *
      * Mutable because a redeploy is not available as a remedy:
@@ -773,49 +823,6 @@ contract NamepassFactory {
         _minFinalityThreshold = minFinalityThreshold;
 
         emit FinalityUpdated(minFinalityThreshold);
-    }
-
-    /**
-     * @notice Sets the largest USDC amount put through one CCTP burn.
-     *
-     * @dev Tracks Circle's per-transaction limit, which is Circle's number to
-     * change. Adjustable rather than constant because a redeploy is not a
-     * remedy here — wallets delegate to this factory permanently, so a new
-     * factory would not repair a single existing deposit address.
-     *
-     * Cannot redirect anything: the destination is frozen either way, and this
-     * only decides how much travels per transaction.
-     */
-    function setMaxBurnAmount(
-        uint96 newMaxBurnAmount
-    )
-        external
-        onlyFactoryContext
-        onlyOwner
-    {
-        if (_l1Helper == address(0)) {
-            revert NotInitialized();
-        }
-
-        if (block.chainid == HUB_CHAIN_ID) {
-            /*
-             * Nothing is burned on Ethereum. A non-zero value here would be
-             * read later as though it constrained something.
-             */
-            if (newMaxBurnAmount != 0) {
-                revert InvalidMaxBurnAmount();
-            }
-        } else if (newMaxBurnAmount < MIN_MAX_BURN) {
-            /*
-             * Below the floor the cap stops being a Circle limit and starts
-             * being a pause switch. See MIN_MAX_BURN.
-             */
-            revert InvalidMaxBurnAmount();
-        }
-
-        _maxBurnAmount = newMaxBurnAmount;
-
-        emit MaxBurnAmountUpdated(newMaxBurnAmount);
     }
 
     /**
@@ -911,6 +918,25 @@ contract NamepassFactory {
         }
 
         /*
+         * ENS's pricing path rejects labels beyond this length
+         * outright, so a longer one derives an address that is
+         * provably useless: fundable, burnable, and impossible to
+         * renew against. Mirroring the one deterministic constraint
+         * ENS applies costs a comparison and removes that whole
+         * class of address.
+         *
+         * This is emphatically **not** normalization. ENSIP-15 is
+         * not reproducible in Solidity, so a label that is merely
+         * un-normalized still derives a valid-looking address here
+         * and still cannot be renewed. That gap is real and belongs
+         * to off-chain tooling — normalize before showing anyone an
+         * address, not after they have funded it.
+         */
+        if (raw.length > MAX_LABEL_BYTES) {
+            revert LabelTooLong();
+        }
+
+        /*
          * A label is one component. A caller passing "vitalik.eth"
          * would otherwise derive a perfectly valid address that no
          * renewal can ever be executed against — and with no sweep,
@@ -985,7 +1011,7 @@ contract NamepassFactory {
         external
         onlyFactoryContext
     {
-        _renew(label, 0);
+        _renew(label, 0, msg.sender);
     }
 
     /**
@@ -1019,12 +1045,13 @@ contract NamepassFactory {
         external
         onlyFactoryContext
     {
-        _renew(label, maxFeeBps);
+        _renew(label, maxFeeBps, msg.sender);
     }
 
     function _renew(
         string calldata label,
-        uint16 maxFeeBps
+        uint16 maxFeeBps,
+        address executor
     )
         private
     {
@@ -1062,15 +1089,99 @@ contract NamepassFactory {
          * sit here indefinitely rather than fail once and recover. Take a
          * slice instead and let repeated calls drain the rest.
          *
+         * The limit is read from Circle rather than stored here. It used to be
+         * owner-adjustable, which meant an over-limit deposit could depend on
+         * somebody at Namepass correcting a setting — the one liveness gap
+         * left in a system whose whole claim is that it keeps working with
+         * nobody paying attention. `TokenMessengerV2.localMinter()` exposes
+         * the TokenMinter that actually enforces the ceiling, so the factory
+         * follows Circle's live configuration automatically and no key is
+         * needed when Circle moves it.
+         *
+         * A zero limit means Circle has disabled burns for this token, not
+         * that burns are unlimited, so it is refused rather than treated as
+         * absent.
+         *
          * Ethereum is uncapped: nothing is burned there, only transferred to
          * the helper, and no limit applies to that.
          */
         if (
             block.chainid !=
-            HUB_CHAIN_ID &&
-            amount > _maxBurnAmount
+            HUB_CHAIN_ID
         ) {
-            amount = _maxBurnAmount;
+            uint256 burnLimit =
+                ITokenMessengerV2(_tokenMessenger)
+                    .localMinter()
+                    .burnLimitsPerMessage(_usdc);
+
+            if (burnLimit == 0) {
+                revert BurnsDisabled();
+            }
+
+            if (amount > burnLimit) {
+                amount = burnLimit;
+            }
+        }
+
+        /*
+         * Off the hub chain, refuse to burn what mainnet could never
+         * spend.
+         *
+         * The helper takes a flat gas allowance off every payment
+         * before pricing it, and reverts if what remains cannot buy a
+         * whole second. On Ethereum that revert is harmless — the
+         * transfer reverts with it and the funds stay at the deposit
+         * address, visible and retryable.
+         *
+         * A burn is not reversible. Burn less than the allowance and
+         * the USDC leaves this chain, arrives as an attested CCTP
+         * message, and every attempt to claim it reverts forever:
+         * stranded, not pending, and invisible to the pending-balance
+         * card, which reads the deposit address. So the check has to
+         * happen here, before the burn, rather than on arrival.
+         *
+         * The floor is the allowance plus the dearest one-second
+         * price ENS charges — a three-character name at 20_294_267
+         * per second is 21 base units — rounded up to a clean figure.
+         * Keep `MIN_BURN_AMOUNT` at or above
+         * `ENSV2RenewalHelper.GAS_ALLOWANCE` plus that second; it
+         * cannot be read from the helper, which lives on Ethereum.
+         *
+         * It is checked against what would *arrive*, not what is
+         * sent. Circle takes its fee out of the burn, so the figure
+         * mainnet has to work with is `amount - fee`, and a gross
+         * check would pass a payment whose net cannot cover the
+         * allowance: burned, unclaimable, exactly the state this
+         * guard exists to prevent. The real fee is only known at
+         * settlement, so the ceiling the caller authorized stands in
+         * for it -- the same `maxFee` computed in `_executeL2`,
+         * which is the most Circle can take.
+         *
+         * Zero-fee Standard transfers make this identical to a gross
+         * check today. That is a property of Circle's current
+         * pricing rather than of this design, and `renewWithFee`
+         * exists precisely because it may not hold.
+         */
+        if (
+            block.chainid !=
+            HUB_CHAIN_ID
+        ) {
+            uint256 worstCaseFee =
+                (
+                    amount *
+                    uint256(maxFeeBps) +
+                    BPS_DENOMINATOR -
+                    1
+                ) /
+                BPS_DENOMINATOR;
+
+            if (
+                worstCaseFee >= amount ||
+                amount - worstCaseFee <
+                MIN_BURN_AMOUNT
+            ) {
+                revert BelowMinimumBurn();
+            }
         }
 
         _deployIfNeeded(
@@ -1081,7 +1192,7 @@ contract NamepassFactory {
         );
 
         INamepassWallet(wallet)
-            .execute(label, amount, maxFeeBps);
+            .execute(label, amount, maxFeeBps, executor);
 
         emit DepositProcessed(
             labelKey,
@@ -1154,7 +1265,8 @@ contract NamepassFactory {
     function execute(
         string calldata label,
         uint256 amount,
-        uint16 maxFeeBps
+        uint16 maxFeeBps,
+        address executor
     )
         external
         onlyWalletContext
@@ -1179,7 +1291,8 @@ contract NamepassFactory {
                 usdcAddress,
                 helper,
                 label,
-                amount
+                amount,
+                executor
             );
         } else {
             _executeL2(
@@ -1202,19 +1315,25 @@ contract NamepassFactory {
         address usdcAddress,
         address helper,
         string calldata label,
-        uint256 amount
+        uint256 amount,
+        address executor
     )
         private
     {
         /*
-         * The transfer and helper call are atomic.
+         * Approve rather than transfer: the helper pulls what it is
+         * about to spend, so the amount it prices against is one it
+         * verified rather than one this contract asserted.
          *
-         * If renewFromWallet() reverts, the USDC transfer also
-         * reverts and the funds stay at the deposit address, where
-         * the sender left them and where the pending-balance card
-         * can still see them.
+         * The approval and helper call are atomic.
+         *
+         * If renewFromWallet() reverts, the approval reverts with
+         * it and the funds stay at the deposit address, where the
+         * sender left them and where the pending-balance card can
+         * still see them. On success the helper pulls exactly
+         * `amount`, so no allowance is left standing.
          */
-        _safeTransfer(
+        _safeApprove(
             usdcAddress,
             helper,
             amount
@@ -1223,7 +1342,8 @@ contract NamepassFactory {
         INamepassL1Helper(helper)
             .renewFromWallet(
                 label,
-                amount
+                amount,
+                executor
             );
     }
 
@@ -1313,32 +1433,6 @@ contract NamepassFactory {
      * Native USDC returns one on all four target chains; this costs
      * a few bytes and removes a class of chain-specific surprise.
      */
-    function _safeTransfer(
-        address token,
-        address to,
-        uint256 amount
-    )
-        private
-    {
-        (bool ok, bytes memory data) =
-            token.call(
-                abi.encodeCall(
-                    IERC20.transfer,
-                    (to, amount)
-                )
-            );
-
-        if (
-            !ok ||
-            (
-                data.length != 0 &&
-                !abi.decode(data, (bool))
-            )
-        ) {
-            revert TransferFailed();
-        }
-    }
-
     function _safeApprove(
         address token,
         address spender,

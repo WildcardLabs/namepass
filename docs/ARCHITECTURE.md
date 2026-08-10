@@ -64,14 +64,15 @@ Three consequences of that, all decided in `contracts/NamepassFactory.sol`:
   `setL1Helper`.
 - **Everything that can move money is frozen at `initialize`, and there is no sweep.** `usdc`, the
   CCTP `tokenMessenger` a wallet approves, and the Ethereum helper it ultimately pays are all
-  set-once. Two settings remain — the CCTP finality tier and the per-burn maximum — and neither
-  changes *where* anything goes, only how long it waits and how much travels per transaction. After
-  initialization the owner cannot move a single deposited dollar.
+  set-once. **One** setting remains — the CCTP finality tier — and it does not change *where*
+  anything goes, only how long it waits. After initialization the owner cannot move a single
+  deposited dollar.
 
   **Be precise about what that does and doesn't buy.** "Cannot steal" is not "cannot interfere."
-  The burn cap is the setting that could be turned into a pause switch — set one micro-unit per burn
-  and an L2 stalls while the owner touches nothing — so it has a floor (`MIN_MAX_BURN`, 100,000
-  USDC) and no payment at or below that can be affected at all.
+  The per-burn cap used to be the setting that could be turned into a pause switch — set one
+  micro-unit per burn and an L2 stalls while the owner touches nothing. It is now read live from
+  Circle (`TokenMessengerV2.localMinter().burnLimitsPerMessage(usdc)`) rather than stored, so that
+  lever no longer exists and the earlier `MIN_MAX_BURN` floor that blunted it is gone with it.
 
   **The fee ceiling is not a setting at all** — it is a per-call argument, which is what closes the
   other half. `renew(label)` authorizes zero, the right default while Standard is free.
@@ -86,7 +87,7 @@ Three consequences of that, all decided in `contracts/NamepassFactory.sol`:
   redirect anything, or make Circle take the full ceiling — so the worst case is a funder paying the
   going rate for speed they didn't ask for, and only on a chain set to Fast at all.
 
-  The residual is `setFinality`. Circle documents nothing for thresholds between 1001 and 1999, so
+  The residual is `setFinality`. Circle documents `<= 1000` as Fast/Confirmed and `> 1000` as Standard/Finalized — 1000 and 2000 are the defined values, and a threshold in between is simply Standard, so
   an owner setting one is an unquantified risk, and unlike the fee there is no per-call override.
 
   The Ethereum path is immune to all of it — `_executeEthereum` reads only the two frozen addresses,
@@ -167,6 +168,59 @@ Consequences that shape everything else:
 - **A CCTP burn is irreversible.** There is no refund-to-origin, so the "a refund looks like a
   deposit" hazard that shaped the deposit ledger is largely gone (see `deposits.kind` below).
 
+## Two ENS renewers, not one
+
+There is no single canonical renewal contract during the ENS v1 to v2 migration, and the helper
+selects between two on every renewal. Confirmed against ENS's `contracts-v2` source
+(`1edb1816`), not inferred:
+
+| ENS contract | Renews when | Notes |
+|---|---|---|
+| `ETHRegistrar` | `REGISTERED`, or in grace with a `latestOwner` | migrated and native v2 names |
+| `ETHRenewerV1` | `RESERVED`, or available-with-no-owner inside the v2 grace period | premigrated v1 names; also renews the **v1** registrar via `_onRenew` |
+
+A v1 name that has been premigrated sits in v2 as `RESERVED` with no owner and is renewable only
+through `ETHRenewerV1`. When its owner completes migration it becomes `REGISTERED` and only
+`ETHRegistrar` will take it. Both predicates live in `_isRenewable` overrides and are disjoint by
+construction, and **both populations exist simultaneously for the length of the migration** — so a
+helper holding one address silently fails for half of ENS, and repointing it just swaps which half.
+
+Both inherit `AbstractETHRegistrar` and so share `IETHRenewer`: `renew`, `getRenewPrice`,
+`isRenewable`, `rentPriceOracle`. One code path drives either.
+
+Selection asks ENS rather than deciding:
+
+```
+ethRegistrar.isRenewable(label) ?  → ETHRegistrar
+  else ethRenewerV1.isRenewable(label) ? → ETHRenewerV1
+    else revert NameNotRenewable
+```
+
+Reading registry status and reimplementing `RESERVED` versus `REGISTERED` in the helper would be a
+copy that goes stale the moment ENS adjusts it. `isRenewable` is where ENS keeps that logic.
+
+**The oracle must come from the selected renewer, not chosen independently.** Each renewer has its
+own `rentPriceOracle()`, and the helper's invariant is that its inverse price, ENS's forward quote
+and the amount actually charged all agree — which only holds if all three come from the same
+contract. So: select the renewer, read *its* oracle, invert *that* pricing, call *its*
+`getRenewPrice`, approve *it*, call *its* `renew`, then verify the balance delta.
+
+Both pointers are moved by `setRenewers`, callable only by `ensGovernanceExecutor` — **the ENS DAO
+Timelock (`wallet.ensdao.eth`), not the Governor**. Executable proposals are voted at the Governor
+but executed by the Timelock, so the Timelock is the `msg.sender` the helper sees. Passing the
+Governor compiles, deploys, and leaves the renewers permanently frozen.
+
+That address is itself reassignable by `setGovernanceExecutor`, callable only by the current
+executor. Without it, ENS migrating its own governance would strand these pointers — the same trap
+as an immutable registrar, one level up. With it, a governance-migration proposal reassigns the
+authority and then migrates, and Namepass is not involved either way. The handover is one-way and
+immediate, so it must name an executor that is already live.
+
+The upshot for a funder is that none of this is visible. They send USDC to the same permanent
+address whether or not their name has migrated, and the helper picks the right ENS path on chain.
+When migration completes, `ETHRenewerV1` simply stops matching anything, and ENS governance can
+retire it by setting it to zero.
+
 ## CCTP at contract level
 
 Standard (not Fast) transfers: no Circle fee, ~13–19 minutes for attestation. Fast Transfer is
@@ -218,25 +272,26 @@ Details to pin down against Circle's current docs — treat as directional, not 
   This one is cheap to get wrong and total when you do.
 - **Domain IDs** — Ethereum 0, Arbitrum 3, Base 6, **Arc 26**. Confirm each before deploying,
   because getting one wrong sends funds to the right address on the wrong chain.
-- **Finality thresholds** — Circle currently documents values **at or below 1000 as Fast** and **at
-  or above 2000 as Standard**. The range between them is not documented; don't assume it means
-  either. The factory passes the value through **unvalidated** on an L2, because pinning today's
-  tiers would mean a new one could never be used and there is no redeploy that repairs a published
-  deposit address — so the owner has to choose it carefully. Note a threshold of 0 means *Fast*, not
-  "unset". Switching is a `setFinality` call and moves no deposit address, so the Fast Transfer
-  rejection below is a default, not a lock-in.
+- **Finality thresholds** — Circle documents **`<= 1000` as Fast/Confirmed** and **`> 1000` as
+  Standard/Finalized**, with 1000 and 2000 as the two defined values. A threshold in between is not
+  a third tier — 1500 is simply Standard. The factory passes the value through **unvalidated** on
+  an L2, because pinning today's tiers would mean a new one could never be used and there is no
+  redeploy that repairs a published deposit address — so the owner has to choose it carefully. Note
+  a threshold of 0 means *Fast*, not "unset". Switching is a `setFinality` call and moves no
+  deposit address, so the Fast Transfer rejection below is a default, not a lock-in.
 - **When the burn reverts** — when `maxFee` is under the *applicable* on-chain minimum fee. A
   ceiling too low for Fast need not be fatal: Circle may degrade the transfer to Standard, which
   changes which minimum applies. So the cost of too low a ceiling is usually a silent downgrade
   rather than a failure, but "usually" is doing work — treat a revert as reachable.
-- **A single burn is capped at 10,000,000 USDC by Circle.** Above it the burn reverts — and since
-  the retry is the same oversized burn, an over-limit balance would sit at the deposit address
-  indefinitely rather than fail once and recover. `renew` therefore processes at most
-  `maxBurnAmount` per call and repeated calls drain the rest, with `DepositProcessed.remaining`
-  carrying what is still there so the backend knows to call again rather than wait for a new
-  deposit. The cap is owner-adjustable because it is Circle's number, not ours, and a redeploy
-  cannot fix a wrong one — wallets delegate to this factory permanently. Ethereum is uncapped;
-  nothing is burned there.
+- **A single burn is capped per message by Circle** (10,000,000 USDC at the time of writing). Above
+  it the burn reverts — and since the retry is the same oversized burn, an over-limit balance would
+  sit at the deposit address indefinitely rather than fail once and recover. `renew` therefore
+  processes at most Circle's current limit per call and repeated calls drain the rest, with
+  `DepositProcessed.remaining` carrying what is still there so the backend knows to call again
+  rather than wait for a new deposit. **The limit is read from Circle, not stored**: it is Circle's
+  number, it can move, and a stored copy meant an over-limit deposit could wait on somebody at
+  Namepass fixing a setting. A zero limit means Circle disabled burns for the token and is refused
+  rather than read as "no cap". Ethereum is uncapped; nothing is burned there.
 
   In principle this means **a flow is no longer one-to-one with a deposit** — a single payment can
   produce several, each with its own CCTP message and its own $0.10 allowance on mainnet, which is
@@ -371,6 +426,27 @@ pending → ready → signing → burning → attesting → claiming → settled
 `unclaimed` is the CCTP-specific state: attested, mintable, but the claim reverted — most likely
 because the name became un-renewable between burn and attestation. It is retryable forever, which
 is why it is a distinct state rather than a failure.
+
+**Nothing on chain gates a burn on renewability**, and it deliberately doesn't — `renew` is
+permissionless, so anyone can push an expired name's balance across. The burn succeeds, the mint is
+authenticated, and the renewal reverts on arrival. Raised in audit; the consequences are the
+backend's, not the contracts':
+
+- **The flow can sit in `unclaimed` for a very long time.** A name in its premium auction becomes
+  renewable again when someone registers it — which may be never. `unclaimed` therefore needs no
+  retry budget and no eventual `failed` transition, but it does need a backoff that decays to
+  something like daily, or the worker burns gas re-simulating a claim that cannot succeed yet.
+- **Retry the claim, don't re-attest, on Standard.** A finalized attestation does not expire, so
+  `completeCCTP(message, attestation)` with the stored blob is valid indefinitely. Store the
+  message and attestation, not just the nonce.
+- **Fast transfers would change that.** `BurnMessageV2` carries an `expirationBlock`, so a Fast
+  attestation can lapse while a flow waits in `unclaimed` — and the recovery is re-attestation
+  through Iris, not a retry of the stored blob. Nothing uses Fast today (see the finality note
+  above), but the worker should branch on the finality tier the flow was burned at rather than
+  assume the stored attestation stays good forever.
+- **Gate the trigger off-chain instead.** Checking renewability before burning keeps the funds at
+  the deposit address, where the pending-balance card can still see them — which is the whole
+  argument for "burn only after confirming the name is renewable" above.
 
 An Ethereum-origin flow skips `burning` and `attesting`.
 
