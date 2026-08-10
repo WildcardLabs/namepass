@@ -30,6 +30,26 @@ export const YEAR_SECONDS = 31536000n;
 /** Per-second base rate by label length. Index 0/1 are invalid. */
 export const BASE_RATE_PER_CP = [0n, 0n, 20294267n, 5073567n, 253679n];
 
+/**
+ * Characters in a label, counted the way the oracle counts them.
+ *
+ * **Not `label.length`.** JavaScript's `String.length` is UTF-16 code
+ * units, so anything above the BMP counts twice: `"😀😀😀".length` is
+ * 6, and 6 selects the 5+ character rate — $8/year for a name ENS
+ * prices as three characters at $640/year. The spread reaches 80x.
+ *
+ * The oracle indexes its base rates by **code point**, via a byte walk
+ * over the UTF-8 label (`_strlen` in `contracts/ENSV2RenewalHelper.sol`,
+ * itself a transcription of ENS's own). The string iterator is
+ * code-point based, so spreading matches it.
+ *
+ * Follows ENS in counting emoji by code point: a ZWJ sequence is five
+ * characters, not one, and a variation selector adds one.
+ */
+export function labelLength(label: string): number {
+	return [...label].length;
+}
+
 export function rateFor(labelLength: number): bigint {
 	if (labelLength < 3) return 0n;
 	if (labelLength === 3) return BASE_RATE_PER_CP[2];

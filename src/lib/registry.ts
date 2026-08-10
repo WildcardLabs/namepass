@@ -1,4 +1,4 @@
-import { solve, YEAR_SECONDS } from "./pricing";
+import { labelLength, solve, YEAR_SECONDS } from "./pricing";
 import { GAS_ALLOWANCE } from "./fees";
 
 /**
@@ -318,7 +318,7 @@ function buildName(
 		if (at > now) break;
 		const chain = CHAINS[Math.floor(rand() * CHAINS.length)];
 		const applied = AMOUNTS[Math.floor(rand() * AMOUNTS.length)];
-		const { seconds, off } = solve(applied, label.length);
+		const { seconds, off } = solve(applied, labelLength(label));
 		expiry += Number(seconds) * 1000;
 		events.push({
 			id: `${name}-${i}`,
@@ -338,7 +338,7 @@ function buildName(
 
 	return {
 		name,
-		labelLength: label.length,
+		labelLength: labelLength(label),
 		pass: `${label}.namepass.eth`,
 		address: `0x${hex(rand, 40)}`,
 		activatedAt,
@@ -471,7 +471,7 @@ export function claimName(input: string): NameRecord {
 	const expiryAtActivation = now + Math.floor(120 + rand() * 240) * DAY;
 	const rec: NameRecord = {
 		name,
-		labelLength: label.length,
+		labelLength: labelLength(label),
 		pass: `${label}.namepass.eth`,
 		address: `0x${hex(rand, 40)}`,
 		activatedAt: now,
