@@ -1,8 +1,11 @@
 # Architecture — frontend (what actually exists)
 
-`docs/ARCHITECTURE.md` describes the backend that is **planned and unbuilt**. This file describes
-the app that is **built and running**, in enough detail to change it without re-deriving how it
-works.
+`docs/ARCHITECTURE.md` covers two things. The contracts are **deployed to testnet**. The automation
+backend is **specified and unbuilt**. This file describes the app that is **built and running**. It
+gives enough detail to change the app without a re-reading of the code.
+
+The app does not call either of them. The app derives each deposit address to match the deployed
+factory. The app does not read any activity or balance from a chain.
 
 Read `CLAUDE.md` first for the short version and the working conventions. This is the long version.
 
@@ -404,7 +407,9 @@ sits inside `overflow-hidden` accordions), `ChainTag` (chain name + brand-colour
 ## 9. Verifying a change
 
 `npm run build` is the type-check (`tsc --noEmit && vite build`). There is no lint script and no
-test framework — a Vitest suite over `pricing.ts` has been discussed and not built.
+**JavaScript** test framework. A Vitest suite over `pricing.ts` has been discussed and not built.
+The contracts do have tests: `forge test` runs 61 of them. `npm run build` does not build
+`contracts/`.
 
 Beyond that, the useful technique is asserting invariants against the real modules in the browser
 console while the dev server runs:

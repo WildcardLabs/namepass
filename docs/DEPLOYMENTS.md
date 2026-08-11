@@ -3,6 +3,11 @@
 Live contract addresses. Every value here was read back off the chain rather than copied from a
 deployment script.
 
+**Testnet only. Not audited.** Everything below belongs to one testnet set with a Sepolia hub. 61
+Foundry tests cover the contracts, and several review passes examined them. **No external audit has
+been done.** The words "proven on chain" in this file mean only what the listed transaction hashes
+show.
+
 **There is no mainnet deployment.** `hubChainId` is part of the factory's creation code, so a
 mainnet set produces a different factory address and therefore a different deposit address for
 every name. The two sets are permanently separate, and the factory only accepts `1` or `11155111`.
