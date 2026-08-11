@@ -132,7 +132,7 @@ the renewal *history* shown under it is not.
 | Chain reads | A ~180-line batched `eth_call` client over `fetch` (`lib/rpc.ts`). No web3 library: the app reads four `view` functions once at boot and never signs anything, so a wallet SDK would be several hundred kilobytes of surface area for nothing |
 | ENS names | [`@adraffy/ens-normalize`](https://github.com/adraffy/ens-normalize.js) for ENSIP-15, and [`@noble/hashes`](https://github.com/paulmillr/noble-hashes) for the keccak-256 behind the CREATE2 derivation — the only two runtime dependencies that touch money |
 | Contracts (deployed, testnet) | Solidity 0.8.24 · Foundry · CREATE2 via the Safe Singleton Factory · Circle CCTP v2 · ENS v2 renewers |
-| Automation (specified, unbuilt) | Moralis webhooks · Vercel Workflow · Postgres. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| Automation (specified, unbuilt) | Goldsky Turbo Pipelines · Vercel Functions · Vercel Workflows · Neon Postgres. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Routing | ~40 lines of hand-rolled `history.pushState` — no router dependency for five pages |
 
 ## 🚀 Getting started

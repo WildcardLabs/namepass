@@ -8,9 +8,13 @@
   `docs/DEPLOYMENTS.md` records the addresses, the configuration, and the transactions that prove
   each claim. **The contracts have no external audit. There is no mainnet deployment.**
 - **Backend: specified, not built.** The sections from "Services" to the end of the file describe
-  the webhook, the Postgres schema, the Vercel Workflow, and the reconcile cron. **None of them
-  exist.** There is no code, no database, and no deployment. The UI follows this specification. The
-  file also lists the open questions.
+  the Goldsky pipeline, the Neon schema, the Vercel functions and Workflow, and the reconcile cron.
+  **None of them exist.** There is no code, no database, and no deployment. The UI follows this
+  specification. The file also lists the open questions.
+
+  The stack was settled on 2026-08-11: **Goldsky Turbo Pipelines → Vercel Functions → Vercel
+  Workflows, over Neon Postgres.** It replaces an earlier Moralis-and-Supabase design. See
+  `docs/DECISIONS.md` for why.
 
 A deposit does not start a renewal today, because the service that would detect it is not built.
 The on-chain path works. `renew(label)` is permissionless, so any person can push a deposit through
@@ -149,15 +153,16 @@ someone else. Use `@adraffy/ens-normalize`.
 performs those steps today.
 
 ```
-  deposit         burn + hook      attestation        mint + renewal
-  ───────►  ───────────────►  ──────────────►  ─────────────────►
-  (any chain)   Vercel fn         Circle Iris      (mainnet, atomic)
-                                Vercel Workflow
+  deposit          burn + hook      attestation        mint + renewal
+  ───────►   ───────────────►  ──────────────►  ─────────────────►
+  (any chain)    Vercel fn         Circle Iris      (mainnet, atomic)
+   Goldsky                        Vercel Workflow
 ```
 
 1. USDC lands at a name's CREATE2 address on Base, Arbitrum, Arc or Ethereum.
-2. A **Moralis webhook** hits a Vercel serverless function. It records the deposit and, if the
-   trigger conditions are met, starts a flow.
+2. A **Goldsky Turbo Pipeline** filters that transfer against the Namepass address set and posts it
+   to a Vercel serverless function. The function records the deposit and, if the trigger conditions
+   are met, starts a flow.
 3. The function performs the CCTP **burn with a hook** on the origin chain.
 4. A **Vercel Workflow** polls Circle's **Iris API** for the attestation — the slow step, roughly
    half a minute to half an hour depending on the origin chain — see the measured spread under
@@ -379,28 +384,45 @@ Details to pin down against Circle's current docs — treat as directional, not 
 > produce. The contract sections above describe the built part.
 
 The plan is to run everything on Vercel with the app: same repository, same environment, atomic
-deploys, and no CORS.
+deploys, and no CORS. The database is **Neon**. See "Ingestion — Goldsky Turbo Pipelines" below for
+why the pipeline and the database cannot be chosen independently.
 
-### `POST /api/webhooks/moralis` — deposit ingestion
+### `POST /api/webhooks/goldsky` — deposit ingestion
 
-Thin by design. Verify the HMAC signature, write the row, decide, return 200 quickly (Moralis
-retries non-2xx, and a slow handler becomes duplicate deliveries).
+Thin by design. Authenticate, write the rows, decide, return `200` quickly.
 
 ```
-verify signature  →  store raw payload (webhook_deliveries)
-                  →  upsert deposit, unique on (chain_id, tx_hash, log_index)
-                  →  applyPayment: park with a reason, or start a flow
-                  →  if starting, enqueue the renewal Workflow
-                  →  200
+check the auth header  →  store raw payload (pipeline_deliveries)
+                       →  upsert each deposit, unique on (chain_id, tx_hash, log_index)
+                       →  applyPayment per row: park with a reason, or start a flow
+                       →  if starting, enqueue the renewal Workflow
+                       →  200
 ```
 
-It must **not** run the flow. Even with settlement and renewal collapsed into one transaction,
-waiting on the attestation runs from seconds to half an hour depending on origin chain — far outside any serverless limit.
+Four properties of the Goldsky webhook sink shape this handler, and three of them differ from a
+normal webhook:
+
+- **The body is an array, not one deposit.** The sink batches, at `batch_size` rows or
+  `batch_flush_interval`, whichever comes first. Handle a list.
+- **Delivery is at-least-once.** `deposits_onchain_unique` on `(chain_id, tx_hash, log_index)` is
+  what makes a repeat delivery a no-op instead of a second renewal. It is not a nicety here.
+- **A `4xx` response fails the whole pipeline.** Only `408`, `429` and `5xx` retry. So a row this
+  handler cannot parse must be quarantined and answered `200`. A validation bug that returns `400`
+  stops ingestion for **every** name, not just the bad row.
+- **Authentication is one static header, not an HMAC.** Goldsky's `httpauth` secret injects a single
+  header name and value. There is no signature over the body, so compare the value in constant time
+  and treat the endpoint path as a second secret. An earlier draft of this file specified HMAC
+  verification; that was Moralis's model and does not carry over.
+
+A slow handler does not cause duplicate deliveries here — the sink applies backpressure and slows
+the pipeline instead. It must still **not** run the flow: waiting on the attestation runs from
+seconds to half an hour depending on origin chain, far outside any serverless limit.
 
 ### `POST /api/names/:name/claim` — activation
 
-Normalize (ENSIP-15) → derive address → insert `names` row → register the address with the Moralis
-stream. Idempotent: claiming an existing name returns it.
+Normalize (ENSIP-15) → derive address → insert `names` row. A trigger on that insert copies the
+address into the pipeline's dynamic table, so the new name is monitored within seconds and no
+second system has to be told about it. Idempotent: claiming an existing name returns it.
 
 ### `POST /api/flows/trigger` — the manual escape hatch
 
@@ -422,21 +444,40 @@ this isn't a request handler:
 
 ### Vercel Cron: `reconcile`
 
-The safety net, independent of webhooks. Compares each address's on-chain balance against
+The safety net, independent of the pipeline. Compares each address's on-chain balance against
 `Σ deposits − Σ allocations`, surfaces flows past their per-status SLA, and refreshes aggregates.
-This is the only defence against a webhook that never arrives at all — the thing most likely to be
-skipped and most expensive to skip.
+This is the only defence against a delivery that never arrives at all — the thing most likely to be
+skipped and most expensive to skip. It is also the only thing that can see a deposit to a name that
+was never claimed; see "The unclaimed-name blind spot".
 
 ### Environment
 
-`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (writes; never shipped to the client),
-`SUPABASE_ANON_KEY` (client reads), `MORALIS_API_KEY`, `MORALIS_WEBHOOK_SECRET`, RPC URLs per chain,
-the signer key for the gas-sponsoring wallet, and `CIRCLE_IRIS_URL`.
+| Variable | Used by | Notes |
+|---|---|---|
+| `DATABASE_URL` | app + functions | Neon **pooled** string. Normal query traffic. |
+| `DATABASE_URL_UNPOOLED` | migrations, Workflow | Neon **direct** string. Required for anything with session state. |
+| `GOLDSKY_WEBHOOK_HEADER` / `GOLDSKY_WEBHOOK_SECRET` | ingestion endpoint | The header name and value Goldsky injects. |
+| `CIRCLE_IRIS_URL` | Workflow | Attestation polling. |
+| `RPC_URL_<CHAIN>` | Workflow, reconciler | One per chain. |
+| `RENEWAL_SIGNER_KEY` | Workflow | The gas-sponsoring wallet. Never shipped to the client. |
+
+Goldsky holds its own credential for the dynamic table, and it is **not** any of the above — see the
+role split under Ingestion.
 
 ## Schema
 
 Three layers: an append-only ledger (truth), a state machine (lifecycle), derived read models
 (speed). Money is `numeric(78,0)` in base units throughout — never float, never JS `number`.
+
+The frontend already models every shape below. `src/lib/registry.ts` is the reference for what each
+one has to carry, and `docs/FRONTEND.md` §4 gives the exported function signatures. Three of its
+properties are constraints on this schema, not preferences:
+
+- **Money is `bigint` micro-units end to end.** `numeric(78,0)` in Postgres, and a **string** across
+  JSON. `JSON.stringify` cannot represent a `bigint`, and `pricing.ts` is exact to the micro-unit,
+  so a value that passes through `Number` loses the precision the tier boundaries turn on.
+- **Balances are per chain and never merge.** There is no global balance column anywhere.
+- **A renewal carries three amounts**, not one: `amount_in`, `gas_allowance`, `amount_applied`.
 
 ### names
 
@@ -459,8 +500,12 @@ Every inbound transfer to a monitored address.
 constraint deposits_onchain_unique unique (chain_id, tx_hash, log_index)
 ```
 
-That constraint is the idempotency key. Webhooks are at-least-once; this makes a duplicate delivery
-a no-op instead of a double renewal.
+That constraint is the idempotency key. The Goldsky webhook sink is **at-least-once by
+specification**, so a repeat delivery is expected traffic rather than an edge case; this constraint
+makes it a no-op instead of a double renewal.
+
+`from_address` is the funder, and the pipeline supplies it on every row. This is what closed the
+"funder identity" question that used to sit under Open — see the note there.
 
 `kind` is one of `user_deposit | internal | unknown`. Under CCTP a burn is irreversible, so the
 `bridge_refund` case that originally motivated this field is gone — nothing comes back to the
@@ -533,10 +578,41 @@ was never anything to batch — and it would have let a stuck Base transfer bloc
 payment that needs no CCTP at all. Chains proceed independently; a name can legitimately have four
 flows running at once.
 
+### renewals
+
+One settled flow. Earlier revisions of this file queried this table in the read models and never
+defined it, which is the kind of gap that only shows up when someone writes the migration.
+
+`id`, `flow_id` (unique), `name_id`, `origin_chain_id`, `amount_in`, `gas_allowance`,
+`amount_applied`, `duration_seconds`, `discount_bps`, `expiry_after`, `block_time`.
+
+Two columns that look redundant and are not. `expiry_after` is the name's expiry **after this
+renewal was applied**, which is what the detail view's runway bar draws from — recomputing it by
+summing durations gets a different answer the moment a renewal lands from outside Namepass.
+`discount_bps` stores the discount as a number rather than the `"43.75%"` label that
+`ActivityEvent.off` renders; the label is a formatting decision and belongs in the UI.
+
+Rows here are the only source for public statistics. **Stats come from finalized renewals, never
+from deposits** — that one rule is what stops in-flight or failed money inflating anything public.
+
+### name_balances
+
+The per-chain pending state, materialized. `name_id`, `chain_id`, `amount`, `hold_reason`, primary
+key `(name_id, chain_id)`.
+
+`hold_reason` is **not nullable**, and that is a product constraint rather than a data-modelling
+one. A deposit address is a pass-through, so money at rest is always either blocked by something or
+a failure. A balance with nothing wrong with it tells the funder the automation stalled and needs
+them, which is the opposite of the product. See "Held vs in-flight" below for the derivation and the
+five reasons.
+
 ### flow_steps
 
 Every on-chain transaction belonging to a flow — `deposit`, `burn`, `renewal` — with `chain_id`,
 `tx_hash`, `gas_cost_wei`, `gas_payer`, `block_time`, `error`.
+
+The `deposit` step comes from the pipeline; `burn` and `renewal` come from the worker's own
+transactions. Three sources, one table.
 
 This is what the Explorer renders when a renewal is expanded — `ActivityEvent.steps` in
 `src/lib/registry.ts` already models it. Cross-chain payments produce three (deposit, burn, mint +
@@ -547,17 +623,45 @@ transaction, not two, because the renewal rides the CCTP hook — and the UI lab
 ### flow_events
 
 Append-only audit: `flow_id`, `from_status`, `to_status`, `actor`
-(`webhook | worker | reconciler | admin:<id>`), `reason`, `payload`, `created_at`. This is what
+(`ingest | worker | reconciler | admin:<id>`), `reason`, `payload`, `created_at`. This is what
 answers "why is this stuck and what has already been tried" in the admin panel.
 
 ### deposit_allocations
 
 `deposit_id`, `flow_id`, `amount`. N deposits → 1 flow (accumulation), 1 deposit → partial spend.
 
-### webhook_deliveries
+### pipeline_deliveries
 
-Raw payloads stored **before** parsing — `provider`, `signature_valid`, `payload`, `received_at`,
+Raw payloads stored **before** parsing — `source`, `auth_ok`, `payload`, `row_count`, `received_at`,
 `processed_at`, `error`. This is the replay source when a delivery fails mid-processing.
+
+One batch is one row here, and it can carry many deposits. Store the batch, then parse — a row the
+handler cannot read must land here and be answered `200`, because a `4xx` stops the pipeline for
+every name.
+
+### streamling.namepass_addresses
+
+Not a Namepass table. Goldsky's dynamic table creates and owns it, in its own schema, in this same
+database. It holds one column of lowercase hex addresses and it is what the pipeline filters
+against. Keep it in step with `names` from a trigger rather than from application code, so a name
+cannot be claimed without being monitored:
+
+```sql
+create function sync_namepass_address() returns trigger as $$
+begin
+  insert into streamling.namepass_addresses (value)
+  values (lower('0x' || encode(new.deposit_address, 'hex')))
+  on conflict do nothing;
+  return new;
+end $$ language plpgsql;
+
+create trigger names_sync_address after insert on names
+  for each row execute function sync_namepass_address();
+```
+
+**One table serves all four chains.** The CREATE2 address is identical everywhere, so there is one
+address set and four pipeline sources reading it. Changes take effect in seconds with no pipeline
+redeploy.
 
 ## Held vs in-flight — and it's per chain
 
@@ -593,7 +697,7 @@ them, which is the opposite of the product. `holdReason` is non-nullable for exa
 
 | Reason | Triggerable | Meaning |
 |---|---|---|
-| `not_detected` | ✅ | The webhook never fired — an anomaly |
+| `not_detected` | ✅ | The pipeline never delivered the deposit — an anomaly |
 | `flow_failed` | ✅ | A burn was attempted and didn't go out; funds never left |
 | `flow_in_progress` | ❌ | Queued behind this chain's active flow |
 | `name_inactive` | ❌ | Expired, in premium auction, or never registered |
@@ -638,14 +742,22 @@ where f.status in ('ready','signing','burning','attesting','claiming')
 order by f.entered_status_at desc;
 
 -- settled
-select r.tx_hash, n.name, r.origin_chain_id, r.amount_in, r.gas_allowance,
-       r.amount_applied, r.duration_seconds, r.discount, r.block_time
+select r.id, n.name, r.origin_chain_id, r.amount_in, r.gas_allowance,
+       r.amount_applied, r.duration_seconds, r.discount_bps, r.block_time
 from renewals r join names n on n.id = r.name_id
 order by r.block_time desc limit 20;
 ```
 
-Subscribe the in-flight set via **Supabase Realtime** rather than polling — a window of minutes to half an hour is
-exactly what makes live progress worth showing.
+**Poll the in-flight set; do not build a subscription for it.** An earlier revision specified
+Supabase Realtime here. Neon has no equivalent, and the feed does not need one: a flow changes
+status perhaps four times across a window of 30 seconds to 26 minutes, so a poll every few seconds
+shows every transition a viewer can perceive. A websocket would add a persistent connection and a
+second failure mode to save latency nobody can see.
+
+The client already keeps one DOM element across settlement — `ActivityEvent.flowKey` in
+`src/lib/registry.ts` exists so an in-flight row becomes a settled row rather than being destroyed
+and rebuilt. Keep that key stable across the poll boundary and the transition stays smooth without
+a push channel.
 
 ### Name detail — `findName()` / `nameExpiry()` / activity table
 
@@ -685,11 +797,32 @@ error: any name can be claimed, and the address is computable without a row.
 Materialized view refreshed on the reconcile cron — total renewals, total USDC applied, total time
 delivered. Cheap to read, expensive to compute live.
 
-### Supabase specifics
+### Neon specifics
 
-All of this is public data, so: **RLS anon-read on the read models only**, writes exclusively via the
-service-role key from Vercel functions. Never expose the service-role key to the client. Realtime on
-`flows` for live progress.
+**The client never reaches the database.** All reads go through Vercel functions. This is the one
+structural difference from the Supabase design this replaced: there is no anon key, no RLS policy,
+and no auto-generated REST layer, so the safe default is that nothing is exposed until a function
+exposes it. The data is public, but "public" is then a decision each endpoint makes rather than a
+policy that has to be right on every table.
+
+Three rules, all of them cheap to get wrong:
+
+- **Pooled for the app, direct for everything with session state.** `DATABASE_URL` (the `-pooler`
+  host) serves query traffic. `DATABASE_URL_UNPOOLED` serves migrations, `pg_dump`, and the
+  Workflow. PgBouncer runs in transaction mode, so a pooled connection drops `SET` state between
+  statements and the failures never name pooling as the cause.
+- **Use the HTTP driver in serverless functions.** `@neondatabase/serverless` over HTTP for one-shot
+  queries avoids holding a TCP connection for the life of an invocation. Connection exhaustion under
+  burst is the standard failure of serverless plus Postgres, and every query in this file is a
+  one-shot.
+- **Give Goldsky its own role.** It needs DDL on the `streamling` schema and nothing else. Grant it
+  `usage`/`create` there and no privileges on `names`, `deposits`, `flows` or `renewals`. The
+  pipeline credential is not `DATABASE_URL`.
+
+Neon suspends an idle compute, so the first query after a quiet period pays a cold start of roughly
+a few hundred milliseconds. That is acceptable for the read side and irrelevant to the pipeline,
+which writes continuously once traffic exists. It would **not** be acceptable to put a cold start in
+front of the deposit handler if the pipeline ever became latency-sensitive; it is not today.
 
 ### The `bigint` boundary
 
@@ -738,19 +871,76 @@ Auto-retrigger reads the same set with `next_retry_at <= now()` and exponential 
 `attempt` stops a name that fails before the burn from retrying forever.
 
 **Reconciliation** — compare each address's on-chain balance against
-`Σ deposits − Σ allocations`, independent of webhooks. This is the only defense against a delivery
-that never arrives at all, and it's the thing most likely to be skipped and most expensive to skip.
+`Σ deposits − Σ allocations`, independent of the pipeline. This is the only defense against a
+delivery that never arrives at all, and it's the thing most likely to be skipped and most expensive
+to skip.
 
-**Ingestion** is **Moralis webhooks**, behind one internal entry point —
-`ingestDeposit(chain, txHash, logIndex, to, amount, blockNumber)` — so the source can change without
-a rewrite. Address-list webhooks are fine at launch scale; their cost scales with addresses watched.
-Past tens of thousands of addresses, filtering USDC `Transfer` events per chain scales with transfer
-volume instead, and hosted indexers (Ponder, Envio, Goldsky) do exactly that into Postgres. CREATE2
-helps here: the address set is computable, so an indexer can derive it rather than being fed it.
+## Ingestion — Goldsky Turbo Pipelines
 
-**Hosting** — the webhook receiver is a **Vercel serverless function** alongside the app (same repo,
-same env, atomic deploys): verify the signature, write the deposit row, start the flow, return.
-Waiting on the attestation is a **Vercel Workflow**, not the request handler — a poll of up to half an hour
+One pipeline per chain reads USDC `Transfer` events, filters them against the Namepass address set,
+and posts the survivors to the Vercel function. Keep it behind one internal entry point —
+`ingestDeposit(chain, txHash, logIndex, to, from, amount, blockNumber)` — so the source can change
+without a rewrite.
+
+**The filter is a dynamic table, and that is why the database and the pipeline are one decision.**
+Goldsky's dynamic table is backed by Postgres, and pointing it at the same Neon database the app
+uses means the address set has exactly one writer: the trigger on `names`. A SQL transform then
+filters against it:
+
+```yaml
+transforms:
+  namepass_addresses:
+    type: dynamic_table
+    backend_type: Postgres
+    backend_entity_name: namepass_addresses
+    secret_name: NEON_GOLDSKY
+
+  deposits:
+    type: sql
+    sql: |
+      SELECT *
+      FROM base_sepolia.erc20_transfers
+      WHERE dynamic_table_check('namepass_addresses', to_address)
+        AND lower(contract_address) = lower('<USDC on this chain>')
+```
+
+The first argument to `dynamic_table_check` is the **transform** name and must be a string literal.
+The value column is the primary key, so lookup stays cheap as the set grows.
+
+Two consequences worth stating plainly:
+
+- **The address set is computable, so it never has to be exported.** CREATE2 means the trigger can
+  derive and insert the address at claim time, and a lost row is recoverable by recomputation.
+- **Scaling is by transfer volume, not by addresses watched.** This is the opposite of an
+  address-list webhook, whose cost grows with the watch list. It is why the set can grow without a
+  pricing cliff.
+
+### The unclaimed-name blind spot
+
+**A dynamic table only contains addresses that were inserted, and the contract does not require a
+name to be claimed before it can be funded.** Any person can compute any name's deposit address and
+send USDC to it. If that name was never activated, there is no row in `names`, no address in the
+dynamic table, no delivery, no flow, and nothing in the pending-balance card.
+
+The money is not lost — it sits at the address, and `renew(label)` is permissionless, so anyone can
+push it through. But the automation is blind to it and the app cannot show it. Three options, none
+chosen yet:
+
+1. **Accept it** and say so in the UI: a Namepass is monitored from activation.
+2. **Preload** the address set with the top *N* ENS labels so the common case is covered before
+   anyone activates anything.
+3. **Reconcile against the chain** rather than the address list, on the cron, and backfill a `names`
+   row when a deposit is found at a derived address.
+
+Option 3 is the only one that closes the gap completely, and the reconciler is the natural place for
+it. This needs a decision before launch — it is the one hole the pipeline design opens that the
+Moralis design also had.
+
+### Hosting
+
+The receiver is a **Vercel serverless function** alongside the app (same repository, same
+environment, atomic deploys): authenticate, write the deposit rows, start the flow, return. Waiting
+on the attestation is a **Vercel Workflow**, not the request handler — a poll of up to half an hour
 is far outside serverless limits.
 
 ## Build order
@@ -786,8 +976,9 @@ The order follows the cost of an error, not the visibility of the result. Steps 
    claimed it on Ethereum Sepolia. Both renewer branches ran. The accounting balanced to the base
    unit. The helper kept zero dust. `docs/DEPLOYMENTS.md` lists the transactions. Testnet cannot
    exercise the ENS governance path, because Sepolia has no DAO Timelock.
-4. **Ingestion.** Moralis stream behind the single `ingestDeposit` entry point, plus the reconciler
-   from day one — not later.
+4. **Ingestion.** One Goldsky pipeline per chain behind the single `ingestDeposit` entry point, plus
+   the reconciler from day one — not later. Start with one chain and the `blackhole` sink to see the
+   filtered stream before a webhook exists, then point it at the function.
 5. **Frontend swap.** Replace `registry.ts` internals with API calls; the exported function shapes
    stay.
 6. **Admin panel.** Stuck flows, `unclaimed` recovery, manual retrigger.
@@ -796,11 +987,10 @@ The order follows the cost of an error, not the visibility of the result. Steps 
 
 - **Minimum balance to trigger.** The ~$0.67 floor falls out of the 15% ratio; the real number is a
   subsidy decision (see Trigger policy).
-- **Funder identity.** Not tracked. The mock's semantic labels (`community`, `treasury`) aren't
-  derivable from an address; `owner` is, by comparison to the ENS owner. Either the UI shows
-  addresses/ENS names or the concept goes away.
 - **`bigint` across JSON.** Amounts and durations need to serialize as strings and parse back, or
   the precision `pricing.ts` is careful about dies at the API boundary.
+- **Deposits to names nobody claimed.** See "The unclaimed-name blind spot". Decide between
+  accepting it, preloading the address set, or reconciling against the chain.
 
 - **Who owns the helper's dust, and how does it get out.** Renewals buy whole seconds, so a
   sub-second remainder is left behind on every single flow. It needs a withdrawal path or it is
@@ -823,3 +1013,10 @@ Settled, noted here so they don't get reopened as bugs:
 - **The aggregate tiles mix bases on purpose.** `total_received` is lifetime USDC at the address,
   `total_seconds` is what the registry recorded — two different facts, neither derived from the
   other, so there is nothing to reconcile.
+- **Funder identity.** Solved by the pipeline. Every delivered row carries the transfer's `from`,
+  stored as `deposits.from_address`, so the UI shows the real sender and resolves it to an ENS name
+  where one exists. The mock's semantic labels (`community`, `treasury`) were never derivable and
+  go away. `owner` stays derivable, by comparison against the ENS owner.
+- **The database and the pipeline are one choice, not two.** Goldsky's dynamic table is Postgres, so
+  the filter lives in the same Neon database the app reads. Picking a non-Postgres store would mean
+  running a second database purely to hold the address set, and keeping two writers in step.

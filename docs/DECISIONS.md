@@ -7,6 +7,62 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-11 — Backend stack: Goldsky + Vercel + Neon, replacing Moralis + Supabase
+
+The backend is specified as **Goldsky Turbo Pipelines → Vercel Functions → Vercel Workflows, over
+Neon Postgres.** Nothing is built yet; this replaces the Moralis-and-Supabase design that
+`docs/ARCHITECTURE.md` carried since 2026-07-29.
+
+**Why Goldsky over an address-list webhook.** Moralis watches a list of addresses, and its cost
+grows with the length of that list. Goldsky filters a transfer stream against a **dynamic table**,
+so cost grows with transfer volume instead. For a product that intends to hold an address for every
+ENS name, a watch list is the wrong axis to scale on. The dynamic table also updates within seconds
+with no pipeline redeploy, so activation stays a single database insert.
+
+**Why the database and the pipeline are one decision.** Goldsky's dynamic table is backed by
+Postgres. Pointing it at the same database the app reads means the address set has exactly one
+writer — a trigger on `names` — and no export step. Choosing a non-Postgres store would mean running
+a second database only to hold that set, and keeping two writers in step. This is the reason the
+choice below is between Postgres providers rather than between databases.
+
+**Why Neon over Supabase.** Both are supported dynamic-table backends, so compatibility did not
+decide it. Four things did:
+
+- The connection story on Vercel. Every query in the design is one-shot, and
+  `@neondatabase/serverless` answers them over HTTP without holding a TCP connection for the life of
+  an invocation. Connection exhaustion under burst is the standard failure of serverless plus
+  Postgres. Supavisor solves the same problem with more moving parts.
+- Branch per preview deploy, which matters because a reconciler and a money state machine are about
+  to be built and a migration wants testing against production-shaped data first.
+- Scale-to-zero, for a project with no traffic and no backend yet.
+- Nothing needed Supabase's differentiators. **The app has no wallet connection and no user accounts
+  of any kind**, so Auth and RLS were unused, and PostgREST would have saved about six queries.
+
+**What was given up, and the mitigation.** Supabase Realtime. The feed shows in-flight renewals
+across a 30-second-to-26-minute window, and `postgres_changes` on `flows` would have been free.
+Neon has no equivalent, so the feed **polls**. A flow changes status about four times across that
+window, so a poll every few seconds shows every transition a viewer can perceive; a websocket would
+add a persistent connection and a second failure mode to save latency nobody can see. If sub-second
+feed updates ever matter, this is the decision to revisit first.
+
+**Three things this changed downstream**, each easy to miss:
+
+- **The ingestion endpoint no longer verifies an HMAC.** Goldsky's `httpauth` injects one static
+  header and does not sign the body. The old text specified signature verification, which was
+  Moralis's model.
+- **A `4xx` from the endpoint fails the entire pipeline.** Only `408`, `429` and `5xx` retry. So an
+  unparseable row must be quarantined and answered `200`; returning `400` stops ingestion for every
+  name, not just the bad row.
+- **Funder identity stopped being an open question.** The transfer event carries `from`, so the real
+  sender is available on every deposit. The mock's `community`/`treasury` labels were never
+  derivable and are dropped.
+
+**What it did not fix.** A dynamic table only contains addresses that were inserted, so a deposit to
+a name nobody activated produces no delivery and never appears in the app. The money is safe and
+`renew(label)` still works, but the automation is blind to it. Recorded under "The unclaimed-name
+blind spot" with three options and no decision. The Moralis design had the same hole for the same
+reason, so this is neither a regression nor something the new stack solved.
+
 ### 2026-08-11 — `findExpiry` is authoritative for v1 names too; grace is `expired && renewable`
 
 Premigrated names come back from `findExpiry` **62 days later** than v1's own registrar, and this
