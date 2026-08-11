@@ -26,8 +26,10 @@ import {
 import {
 	activeFlows,
 	allNames,
+	applyNameState,
 	claimName,
 	findName,
+	minTrigger,
 	nameExpiry,
 	recentActivity,
 	renewalCount,
@@ -52,7 +54,10 @@ import {
 import PassCard from "./PassCard";
 import PendingBalance from "./PendingBalance";
 import ChainTag from "./ChainTag";
-import { YEAR_SECONDS } from "../lib/pricing";
+import { ceilToCent, costOf, YEAR_SECONDS } from "../lib/pricing";
+import { LABEL_PROBLEM_TEXT, labelProblem } from "../lib/namepass";
+import { fetchNameState } from "../lib/ensName";
+import { IS_TESTNET } from "../lib/tokens";
 import { GAS_ALLOWANCE } from "../lib/fees";
 import { fetchProfile, type EnsProfile } from "../lib/ens";
 import { XIcon } from "./icons";
@@ -623,6 +628,51 @@ function NameDetail({
 		};
 	}, [record.name]);
 
+	/* The ENS name's real expiry and whether ENS will renew it, from the chain.
+	   Same shape as the profile fetch above and for the same reason: the
+	   promise is shared per label, so ignore a late result rather than cancel
+	   it. `applyNameState` mutates the record, so nudge the reducer to re-read. */
+	useEffect(() => {
+		let cancelled = false;
+		fetchNameState(record.name.replace(/\.eth$/, "")).then((state) => {
+			if (cancelled || !state) return;
+			applyNameState(record, state);
+			refresh();
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [record, record.name]);
+
+	const onchain = record.onchain;
+
+	/**
+	 * The least USDC worth sending to a name in its grace period, and which
+	 * constraint set it.
+	 *
+	 * Two independent floors, and quoting the wrong one misleads:
+	 *
+	 * - **catch-up** — a renewal extends from the *current* expiry, not from
+	 *   today, so it has to buy back everything the name has already lapsed
+	 *   before it is live again. Priced at full rate, since the discount tiers
+	 *   all need years and this is days.
+	 * - **trigger** — below `minTrigger()` a payment doesn't move at all; it
+	 *   parks at the address as `below_threshold`. For a 5+ character name this
+	 *   is usually the binding one, because days of runway cost cents.
+	 *
+	 * Both carry the gas allowance, like every other amount the app quotes.
+	 */
+	const graceMinimum = useMemo(() => {
+		if (onchain?.lapsedFor == null) return null;
+		/* +1s: buying back exactly what has lapsed lands on the expiry, not past it. */
+		const owed = BigInt(Math.ceil(onchain.lapsedFor / 1000)) + 1n;
+		const catchUp = ceilToCent(costOf(owed, record.labelLength) + GAS_ALLOWANCE);
+		const floor = minTrigger();
+		return catchUp >= floor
+			? { amount: catchUp, bound: "catch-up" as const }
+			: { amount: floor, bound: "trigger" as const };
+	}, [onchain?.lapsedFor, record.labelLength]);
+
 	const t = profile?.text ?? {};
 	const links = (
 		[
@@ -661,20 +711,98 @@ function NameDetail({
 						The ENS name · expires
 					</div>
 
-					<div className="mt-3 text-[26px] md:text-[30px] text-[rgba(30,50,90,0.95)] tracking-tight leading-none">
-						{fmtDate(expiry)}
-					</div>
-					<div className="mt-2 text-[13px] text-[rgba(30,50,90,0.55)]">
-						{daysLeft > 0
-							? `${daysLeft.toLocaleString("en-US")} days of registration remaining`
-							: "Expired, needs renewal"}
-					</div>
+					{/* Three states, and the middle two must not look alike: not read
+					    yet, read and unregistered, read and registered. Rendering
+					    "not registered" while the call is still in flight tells
+					    someone their name doesn't exist because an RPC was slow. */}
+					{!onchain ? (
+						<>
+							<div className="mt-3 h-[30px] w-40 rounded-lg bg-[rgba(30,50,90,0.07)] motion-safe:animate-pulse" />
+							<div className="mt-3 h-[13px] w-56 rounded-full bg-[rgba(30,50,90,0.06)] motion-safe:animate-pulse" />
+						</>
+					) : onchain.expiry === null ? (
+						<>
+							<div className="mt-3 text-[26px] md:text-[30px] text-[rgba(30,50,90,0.5)] tracking-tight leading-none">
+								Not registered
+							</div>
+							<div className="mt-2 text-[13px] text-[rgba(30,50,90,0.55)]">
+								Nobody holds this name on {IS_TESTNET ? "Sepolia" : "Ethereum"} yet.
+							</div>
+						</>
+					) : (
+						<>
+							<div className="mt-3 text-[26px] md:text-[30px] text-[rgba(30,50,90,0.95)] tracking-tight leading-none">
+								{fmtDate(expiry)}
+							</div>
+							<div className="mt-2 text-[13px] text-[rgba(30,50,90,0.55)]">
+								{daysLeft > 0
+									? `${daysLeft.toLocaleString("en-US")} days of registration remaining`
+									: `Expired ${Math.floor((onchain.lapsedFor ?? 0) / 86_400_000).toLocaleString("en-US")} days ago`}
+							</div>
+						</>
+					)}
+
+					{/* In its grace period: expired, still renewable, and on a deadline.
+					    All three matter to someone deciding whether to send, and the
+					    amount is the actionable part — see `graceMinimum`. */}
+					{onchain?.graceRemaining != null && (
+						<div className="mt-3 flex items-start gap-2 rounded-xl border border-[rgba(30,50,90,0.15)] bg-[rgba(30,50,90,0.03)] px-3 py-2.5">
+							<Clock className="w-3.5 h-3.5 mt-[2px] shrink-0 text-[rgba(30,50,90,0.5)]" />
+							<p className="text-[12.5px] text-[rgba(30,50,90,0.7)] leading-relaxed">
+								<span className="text-[rgba(30,50,90,0.95)]">
+									In its grace period.
+								</span>{" "}
+								ENS will still renew it for{" "}
+								{Math.floor(onchain.graceRemaining / 86_400_000).toLocaleString(
+									"en-US",
+								)}{" "}
+								more days, then the name is released.{" "}
+								{graceMinimum !== null && (
+									<>
+										It takes at least{" "}
+										<span className="text-[rgba(30,50,90,0.95)] tabular-nums">
+											{fmtUsdc(graceMinimum.amount)}
+										</span>{" "}
+										{graceMinimum.bound === "catch-up"
+											? "to buy back the time it has already lapsed — less than that renews it but leaves it expired."
+											: "for a payment to trigger a renewal at all, which is more than enough to clear the expiry."}
+									</>
+								)}
+							</p>
+						</div>
+					)}
+
+					{/* ENS decides this, not us — and it decides what happens to money
+					    sent here, so it's worth saying before someone sends any
+					    rather than explaining it afterwards next to a stuck balance. */}
+					{onchain && !onchain.renewable && (
+						<div className="mt-3 flex items-start gap-2 rounded-xl border border-[rgba(30,50,90,0.15)] bg-[rgba(30,50,90,0.03)] px-3 py-2.5">
+							<Clock className="w-3.5 h-3.5 mt-[2px] shrink-0 text-[rgba(30,50,90,0.5)]" />
+							<p className="text-[12.5px] text-[rgba(30,50,90,0.7)] leading-relaxed">
+								ENS won't renew this name right now. The address still works —
+								anything sent waits at it until the name can be renewed again.
+							</p>
+						</div>
+					)}
 
 					{/* Runway: how far Namepass has pushed the expiry out.
 					    Attributed explicitly — the expiry above is the name's real one
 					    and the owner may well have renewed elsewhere too, so an
-					    unqualified "+27 years added" would claim credit for it. */}
-					<div className="mt-5">
+					    unqualified "+27 years added" would claim credit for it.
+
+					    Hidden unless the expiry is real and still ahead. The bar's
+					    right-hand end *is* the expiry, so with none it draws a runway
+					    to a date that doesn't exist, directly under the words "Not
+					    registered" — and for an already-expired name the left end is
+					    `expiry − time delivered`, which put `nouns.eth`'s activation in
+					    2013, years before ENS existed. */}
+					<div
+						className={`mt-5 ${
+							onchain && (onchain.expiry === null || onchain.expiry <= Date.now())
+								? "hidden"
+								: ""
+						}`}
+					>
 						<div className="flex justify-between text-[11px] text-[rgba(30,50,90,0.5)] mb-2">
 							<span>At activation</span>
 							<span>Now</span>
@@ -732,7 +860,7 @@ function NameDetail({
 
 						{/* Avatar + description */}
 						<div className="mt-3 flex items-start gap-3">
-							<div className="w-11 h-11 shrink-0 rounded-full bg-[rgba(30,50,90,0.07)] border border-[rgba(30,50,90,0.1)] overflow-hidden flex items-center justify-center">
+							<div className="w-11 h-11 shrink-0 rounded-xl bg-[rgba(30,50,90,0.07)] border border-[rgba(30,50,90,0.1)] overflow-hidden flex items-center justify-center">
 								{profile?.avatar ? (
 									<img
 										src={profile.avatar}
@@ -1012,8 +1140,13 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 	const [notFound, setNotFound] = useState<string | null>(null);
 	const [activating, setActivating] = useState(false);
 
-	/** ENS v2 prices nothing below three characters, so it can't be renewed. */
-	const tooShort = notFound !== null && notFound.replace(/\.eth$/, "").length < 3;
+	/**
+	 * Why this name can't have a Namepass, if it can't. Asked of the same
+	 * function that derives the deposit address, so the search box can never
+	 * offer to activate a name the derivation would refuse — the sub-three-
+	 * character case this used to check by hand is one of its answers.
+	 */
+	const problem = notFound === null ? null : labelProblem(notFound);
 
 	const record = useMemo(
 		() => (selected ? findName(selected) : undefined),
@@ -1044,7 +1177,9 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 	/* Auto-search once a complete .eth name has been typed — no Enter needed. */
 	useEffect(() => {
 		const value = query.trim().toLowerCase();
-		if (!/^[a-z0-9-]{3,}\.eth$/.test(value)) return;
+		/* Any complete single-label `.eth`, not just ASCII — `labelProblem` is
+		   what judges it, and this only decides when to stop waiting for Enter. */
+		if (!/^[^\s.]{3,}\.eth$/.test(value)) return;
 		const timer = setTimeout(() => submit(value), 350);
 		return () => clearTimeout(timer);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1108,7 +1243,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 							</div>
 						)}
 
-						{notFound && tooShort && (
+						{notFound && problem && (
 							<motion.div
 								initial={{ opacity: 0, y: -4 }}
 								animate={{ opacity: 1, y: 0 }}
@@ -1118,16 +1253,16 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								<div className="text-[13.5px] text-[rgba(30,50,90,0.9)]">
 									<span className="font-medium">{notFound}</span> can't be registered.
 								</div>
-								{/* ENS v2 has no rate below three characters, so a Namepass for one
-								    could never buy any time — better to say so than to let someone
-								    activate an address that can never work. */}
+								{/* A name ENS can't hold — too short to be priced, or not a name
+								    ENSIP-15 admits — could never buy any time, so say so rather
+								    than letting someone activate an address that can never work. */}
 								<p className="mt-1 text-[12.5px] text-[rgba(30,50,90,0.55)] leading-relaxed">
-									ENS names need at least three characters.
+									{LABEL_PROBLEM_TEXT[problem]}
 								</p>
 							</motion.div>
 						)}
 
-						{notFound && !tooShort && (
+						{notFound && !problem && (
 							<motion.div
 								initial={{ opacity: 0, y: -4 }}
 								animate={{ opacity: 1, y: 0 }}

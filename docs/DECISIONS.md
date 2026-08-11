@@ -7,6 +7,185 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-11 — `findExpiry` is authoritative for v1 names too; grace is `expired && renewable`
+
+Premigrated names come back from `findExpiry` **62 days later** than v1's own registrar, and this
+was first read as a bug and "fixed" by reading v1's `BaseRegistrar.nameExpires` instead. That was
+wrong, and the reversal is worth recording because the wrong answer is the intuitive one.
+
+ENS v2 shortens the grace period from 90 days to 28, and compensates with a one-time free 62-day
+renewal applied to **every** v1 name automatically at the upgrade — no action by the owner (DAO
+proposal 6.43). So the 62 days is real registration time, not registry bookkeeping, and from v2
+launch `findExpiry` is the operative expiry for both populations:
+
+```
+v1 basis:  expiry + 90d grace
+v2 basis:  (expiry + 62d) + 28d grace     ← same instant, and what holds at launch
+```
+
+We build against v2 launch, so `ETHRegistrar` and `ETHRenewerV1` are the authority. They answer
+for both populations, which is exactly why they're the right pair — v1's `BaseRegistrar` is not
+consulted at all, and neither is the 62-day offset.
+
+**What made this confusing on testnet.** Sepolia today is mid-migration: the +62 days is recorded
+in the registry, but v1 still governs, so `ETHRenewerV1.getRemainingGracePeriod` reports grace
+against the *un-extended* expiry. On `farcaster` that read 73.8 days of grace while `findExpiry`
+said 46 days of registration remaining — two clocks on one card, which is precisely how the UI
+ended up saying "expires 26 Sept" above "lapsed 16 days ago". That state disappears at launch.
+
+**So grace is derived, not fetched:** `expired && renewable`, using `findExpiry` for the first and
+`isRenewable` for the second. It needs no window constant — past grace both renewers return false
+(checked on `nouns`, released and false on both). `getRemainingGracePeriod` still supplies how
+long is left, but only once `findExpiry` says the name has expired, so it can never contradict the
+date on the card.
+
+**Grace notice.** A name in grace gets a panel naming the deadline and the minimum worth sending.
+That minimum is the larger of the catch-up cost — a renewal extends from the expiry, not from
+today, so it must buy back what has already lapsed, at full rate since the discount tiers all need
+years — and `minTrigger()`, below which a payment parks instead of moving. The sentence changes to
+name whichever bound applies; quoting one while the other binds would be precise and useless.
+
+### 2026-08-11 — Expiry and renewability read from ENS, and the simulated history slides to fit
+
+The date on a name card was a seeded PRNG. It's now `findExpiry(label)` on ENS's registry, reached
+the same way the oracle is — `ETH_REGISTRY()` off both renewers, which must agree, rather than a
+pinned address. Renewability is `isRenewable(label)` on both renewers, true if either claims it,
+matching how `_selectRenewer` picks.
+
+**The interesting part is what to do with the simulated history underneath.** Those renewals were
+generated to add up to the fake expiry, so making the expiry real leaves them contradicting it. The
+options were to show the real expiry and let the runway disagree with it, to keep the fake expiry
+and quarantine the real one somewhere else, or to slide the whole timeline so its end lands on the
+real date. Sliding won: the figure a funder actually reads is then the chain's, and the seeded
+renewals stay internally consistent behind it. Overwriting just the end was tried and produced "at
+activation 2027 → now 2045" for a history that only added ten years. (The same trick was already in
+the file for the hardcoded not-renewable name; this generalises it and deletes that hardcode.)
+
+Two states that must not be conflated, and the type enforces it: `fetchNameState` returning `null`
+means the read failed, while `{ expiry: null }` is the chain saying nobody has registered the name.
+Showing "Not registered" for a slow RPC would be a lie about someone's name.
+
+Also removed: `NOT_RENEWABLE = new Set(["ens.eth"])`. ENS's own answer replaces it — and on Sepolia
+`ens.eth` is in fact renewable, via `ETHRenewerV1`, so the hardcode was wrong as well as fake.
+
+**Not fixed, and worth flagging:** `pass` — the `<label>.namepass.eth` shown as "Send here · auto
+renewal address" — is still string concatenation. `namepass.eth` exists on Sepolia but has no
+resolver, so those subnames resolve to nothing while sitting above the real address in the UI.
+
+### 2026-08-11 — Only what quotes a price waits on the oracle, and it waits as a skeleton
+
+Gating whole pages on the oracle read was wrong, and visibly so: for ~220ms on every reload a
+white card sat where the hero belongs, then swapped to the video hero while the document height
+went 1007 → 3444px. It read as the page breaking, not loading.
+
+The rule now is that a component waits only if it actually quotes a price. The hero is copy over
+video and paints on the first frame; its one pricing dependency, the renewal ticker, mounts when
+the rates land and its existing 0.2s slide-in absorbs the delay. The Simulator renders its own
+section, heading, card and tabs immediately, with skeletons standing in for the two panels that
+show numbers. The placeholder and the real body are both 916px, so nothing moves when the values
+arrive.
+
+**The wait says nothing.** An earlier pass had a "reading ENS's price oracle" panel explaining
+where rates come from, plus a line under the Simulator linking the oracle contract. Both went:
+at ~150ms the panel was a flash rather than information, and narrating the app's own network
+activity is clutter on a page whose job is to answer "what does $27 buy". The provenance belongs
+in the docs, not in the UI. A *failure* still gets words, because there's no cached price to
+quietly carry on with.
+
+Consequence worth knowing: `Simulator` is now a shell that picks between `SimulatorBody`, a
+skeleton, and an error. The body has to stay a separate component — it prices inside a `useState`
+initializer, so it must not mount at all before the rates exist.
+
+### 2026-08-11 — Prices read from ENS's oracle at boot
+
+`src/lib/pricing.ts` no longer contains a price. Base rates, discount tiers, the discount
+denominator and the USDC conversion ratio are read from ENS's `StandardRentPriceOracle` when the
+app loads (`oracle.ts`), and every pricing function throws until they arrive. This closes the
+duplicate flagged the day before, below.
+
+Three calls that could each have gone the other way:
+
+**The oracle is discovered, not pinned.** `docs/DEPLOYMENTS.md` has its address and using it
+would have been one constant instead of two. Rejected because the helper deliberately doesn't do
+that — it reads `rentPriceOracle()` off the renewer it's about to call, on the grounds that
+reading it from anywhere else is how the agreement between quote and charge stops being an
+invariant. So the frontend pins the two *renewer* addresses and asks them. Those are addresses,
+not prices, and they're the same class of constant as the USDC contracts in `tokens.ts`.
+
+Consequence: the app can't select a renewer per label the way `_quote` does, because the price
+table it draws is generic (3 / 4 / 5+ characters) and has no label to select with. It reads both
+renewers' oracles and requires them to agree. Today they're the same contract. If they ever
+diverge there is no single table to draw, and it fails rather than pricing half of ENS wrongly.
+
+**Fetched once at boot, not per quote.** Calling `quote()` on the helper per keystroke would be
+the most faithful thing possible and would make the Simulator unusable — that page's whole point
+is that dragging a slider updates instantly. Reading the *parameters* once and inverting them
+locally keeps every quote synchronous and costs one ~150ms read at load. The inversion is the only
+part that's ours, and it's checked against the chain (below).
+
+**No fallback table.** The tempting middle ground — ship the current values as a default and
+refresh from the oracle in the background — was rejected outright. It reintroduces exactly the
+failure being removed, just with a shorter window: a first paint quoting `$16.61` for a 3-year
+tier that has since moved, to someone who then sends `$16.61`. Nothing is priced from memory, so
+a failed read says so plainly instead.
+
+The knock-on is that `registry.ts` can no longer build its seeded history at import — those
+renewals are priced with the same `solve()` — so `initRegistry()` runs after the read lands.
+
+> **Amended same day.** The first version of this gated *whole pages* on the read, which put a
+> white card where the hero belongs for ~220ms on every reload, with the document height jumping
+> 1007 → 3444px underneath it. See the entry above.
+
+**What proves it:** `solve()` against the deployed helper's `quote(label, amount)`. Checked on
+nine cases across 3, 4 and 5+ character names and every discount tier when this landed; all nine
+matched to the second, including `quote("vitalik", 8000000) = 31535917`.
+
+Not done, and worth knowing: the read isn't cached across page loads, and there's no error
+boundary, so a component that somehow renders before `setRates()` throws rather than degrading.
+In dev this shows up as a crash after editing `pricing.ts`, because HMR resets the module
+singleton under mounted components; a reload fixes it.
+
+### 2026-08-11 — Deposit addresses derived locally, not read from the chain
+
+The app now shows the real deposit address for a name (`src/lib/namepass.ts`) instead of seeded
+random hex. The derivation is reimplemented in TypeScript rather than fetched via
+`predictWallet(string)` on an RPC.
+
+Calling the contract would have been the obvious way and was rejected on two counts. The
+derivation depends on nothing but the factory address and the label — no chain state, no block —
+so an RPC round-trip buys no additional truth, only a spinner and a failure mode on the one
+element in the UI that must never be blank or stale. And an address fetched over an RPC is only as
+trustworthy as that RPC; deriving it locally means the bytes come from constants sitting in the
+repo, reviewable, rather than from whatever a public endpoint returned.
+
+What that costs is a duplicated derivation — the same shape of problem as the pricing constants
+below, and pinned by the same things (`foundry.toml`'s compiler settings feed the creation-code
+hash). It's bounded differently, though: the factory is immutable and already deployed, so unlike
+the ENS rates there's nothing upstream that can move under it. It can only break if someone edits
+a constant, which is why the file says so at length.
+
+**What would catch it:** `cast call $FACTORY 'predictWallet(string)(address)' vitalik` against
+`0x043c184003266644372bA5fA4946777b3f1cFC3D`. Checked against six labels on three chains when this
+landed.
+
+### 2026-08-11 — ENSIP-15 normalization added as a dependency rather than a regex
+
+`@adraffy/ens-normalize` (~60 KB) went in as a real dependency, and the two entry points that used
+`/^[a-z0-9-]{3,}$/` to validate a name now ask `labelProblem()` instead.
+
+A regex was the cheaper option and is what the app had. It's wrong in both directions: it rejects
+emoji and non-Latin names, which ENS genuinely supports, and it accepts things ENSIP-15 doesn't —
+`ab--cd.eth` passed it, and would have been offered an "Activate now" button and a deposit
+address. That address is derivable, fundable, and permanently unrenewable, because the factory
+hashes the exact bytes it's given and there's no sweep. The contract's own comment hands
+normalization to off-chain tooling for exactly this reason; leaving the gap open was the only
+option not on the table.
+
+Consequence worth knowing: normalization is the *last* word on validity, so the three-character
+floor and the "no dots" rule live in `namepass.ts` now rather than in the components. The
+Explorer's hardcoded "ENS names need at least three characters" is one of several answers it can
+give, not a special case.
+
 ### 2026-08-10 — Testnet deployed; the frontend's pricing constants are now a duplicate
 
 The contracts are live on Sepolia, Base Sepolia, Arbitrum Sepolia and Arc, and every path has run
@@ -27,6 +206,11 @@ loudly on drift, or a monitoring check comparing the two. Neither is built.
 **What would catch it:** `getBaseRates()` and `getDiscountPoints()` on the oracle in
 `docs/DEPLOYMENTS.md` versus `BASE_RATE_PER_CP` and `TIERS`. If they ever disagree, the frontend is
 wrong and the contracts are right.
+
+> **Resolved 2026-08-11.** The duplicate is gone — `pricing.ts` reads those same two getters at
+> boot rather than holding a copy, so there is nothing left to drift. `BASE_RATE_PER_CP` and
+> `TIERS` no longer exist. See the entry at the top; the reasoning about the Simulator's
+> instant slider still holds and is why the read happens once at load rather than per quote.
 
 A related note recorded while it is fresh: **CCTP attestation time is not uniform**. Arc attested
 in ~30 seconds where Base took ~26 minutes, measured minutes apart on the same label. Settlement is

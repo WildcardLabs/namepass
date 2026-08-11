@@ -12,6 +12,7 @@ import {
 import { GAS_ALLOWANCE } from "../lib/fees";
 import { fmtUsdc } from "../lib/format";
 import Tooltip from "./Tooltip";
+import PricingError from "./PricingError";
 
 const LENGTHS = [
 	{ len: 3, label: "3 characters", example: "ens.eth" },
@@ -67,7 +68,118 @@ function humanDuration(seconds: bigint): string {
 	return parts.join(", ");
 }
 
-export default function Simulator() {
+/**
+ * The section, its copy, and the card it all sits in.
+ *
+ * Split from the body below so the heading and the card frame render on the
+ * first paint, while only the two panels that quote a price wait on the oracle
+ * read. `SimulatorBody` calls pricing functions in its very first render — a
+ * `useState` initializer among them — so it must not mount before the rates
+ * land; keeping it a separate component is what guarantees that.
+ */
+export default function Simulator({
+	priced,
+	problem,
+	onRetry,
+}: {
+	priced: boolean;
+	/** Set only when the oracle read failed, in which case there's no skeleton to show. */
+	problem: string | null;
+	onRetry: () => void;
+}) {
+	return (
+		<section id="simulator" className="bg-[#f0f0f0] px-5 md:px-10 py-20 md:py-28">
+			<div className="max-w-[1100px] mx-auto">
+				<div className="max-w-2xl">
+					<span className="text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
+						Cost simulator
+					</span>
+					<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(30,50,90,0.95)] tracking-tight leading-[1.05]">
+						See what any amount buys.
+					</h2>
+					<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(30,50,90,0.6)] leading-relaxed">
+						ENS offers better rates for longer renewals. Namepass always locks in the longest period your payment qualifies for, so you never leave a discount on the table.
+					</p>
+				</div>
+
+				<div className="mt-10 bg-white rounded-[1.5rem] md:rounded-[2rem] border border-[rgba(30,50,90,0.08)] overflow-hidden">
+					{priced ? (
+						<SimulatorBody />
+					) : problem ? (
+						<div className="p-6 md:p-10">
+							<PricingError message={problem} onRetry={onRetry} />
+						</div>
+					) : (
+						<SimulatorSkeleton />
+					)}
+				</div>
+			</div>
+		</section>
+	);
+}
+
+/** Neutral placeholder in the shape of the real thing. Says nothing, on purpose. */
+function Bar({ className = "" }: { className?: string }) {
+	return (
+		<div
+			className={`rounded-full bg-[rgba(30,50,90,0.07)] motion-safe:animate-pulse ${className}`}
+		/>
+	);
+}
+
+function SimulatorSkeleton() {
+	return (
+		<>
+			<div className="flex flex-col sm:flex-row border-b border-[rgba(30,50,90,0.08)]">
+				{LENGTHS.map((l) => (
+					<div
+						key={l.len}
+						className="flex-1 px-5 py-4 border-b sm:border-b-0 sm:border-r border-[rgba(30,50,90,0.08)] last:border-0"
+					>
+						{/* The labels are ours and known; only the rate beside them is ENS's. */}
+						<div className="text-[15px] text-[rgba(30,50,90,0.6)]">{l.label}</div>
+						<Bar className="mt-1.5 h-[10px] w-32" />
+					</div>
+				))}
+			</div>
+
+			<div className="p-6 md:p-10 grid md:grid-cols-2 gap-10 md:gap-16 items-start">
+				<div>
+					<div className="text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
+						Payment received
+					</div>
+					<Bar className="mt-3 h-[44px] md:h-[52px] w-48 !rounded-2xl" />
+					<Bar className="mt-3 h-[10px] w-44" />
+					<Bar className="mt-6 h-[6px] w-full" />
+					{/* Matches the tier cards' 55px so the section is the same height
+					    loading as loaded — see the note on `Bar`. */}
+					<div className="mt-7 grid grid-cols-3 gap-2.5">
+						{[0, 1, 2].map((i) => (
+							<Bar key={i} className="h-[55px] !rounded-2xl" />
+						))}
+					</div>
+				</div>
+
+				<div className="md:border-l md:border-[rgba(30,50,90,0.08)] md:pl-16">
+					<div className="text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
+						Renewal time bought
+					</div>
+					<Bar className="mt-3 h-[32px] md:h-[38px] w-40 !rounded-2xl" />
+					<div className="mt-8 space-y-4">
+						{[0, 1, 2, 3, 4, 5].map((i) => (
+							<div key={i} className="flex justify-between gap-4">
+								<Bar className="h-[12px] w-28" />
+								<Bar className="h-[12px] w-16" />
+							</div>
+						))}
+					</div>
+				</div>
+			</div>
+		</>
+	);
+}
+
+function SimulatorBody() {
 	const [len, setLen] = useState(5);
 	const [budget, setBudget] = useState<bigint>(
 		() => ceilToCent(payableThresholds(5)[2].exact + ALLOWANCE),
@@ -111,23 +223,9 @@ export default function Simulator() {
 	}
 
 	return (
-		<section id="simulator" className="bg-[#f0f0f0] px-5 md:px-10 py-20 md:py-28">
-			<div className="max-w-[1100px] mx-auto">
-				<div className="max-w-2xl">
-					<span className="text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
-						Cost simulator
-					</span>
-					<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(30,50,90,0.95)] tracking-tight leading-[1.05]">
-						See what any amount buys.
-					</h2>
-					<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(30,50,90,0.6)] leading-relaxed">
-						ENS offers better rates for longer renewals. Namepass always locks in the longest period your payment qualifies for, so you never leave a discount on the table.
-					</p>
-				</div>
-
-				<div className="mt-10 bg-white rounded-[1.5rem] md:rounded-[2rem] border border-[rgba(30,50,90,0.08)] overflow-hidden">
-					<div className="flex flex-col sm:flex-row border-b border-[rgba(30,50,90,0.08)]">
-						{LENGTHS.map((l) => {
+		<>
+			<div className="flex flex-col sm:flex-row border-b border-[rgba(30,50,90,0.08)]">
+				{LENGTHS.map((l) => {
 							const on = l.len === len;
 							return (
 								<button
@@ -204,20 +302,62 @@ export default function Simulator() {
 								className="mt-5 w-full accent-[rgba(30,50,90,0.9)]"
 							/>
 
-							<div className="mt-5 flex flex-wrap gap-2">
+							{/* One card per discount tier: the period, and what it saves.
+							    Deliberately no amount — the total each card sets is the
+							    headline directly above it, and the per-year cost is a row
+							    in the panel opposite, so putting either here duplicates a
+							    figure a few inches away.
+
+							    Highlighted is the tier the current amount actually lands
+							    on, not every tier it has cleared. At $20 you've passed the
+							    2-year threshold but you're buying at the 3-year rate, and
+							    lighting up both said the opposite. */}
+							<div className="mt-7 grid grid-cols-3 gap-2.5">
 								{marks.map((m) => {
-									const reached = budget >= m.send;
+									const on = result.tierYears === m.years;
 									return (
 										<button
 											key={m.years}
 											onClick={() => setBudget(m.send)}
-											className={`px-3 py-1.5 rounded-full text-[12.5px] border transition-colors tabular-nums ${
-												reached
-													? "border-[rgba(30,50,90,0.35)] text-[rgba(30,50,90,0.9)] bg-[rgba(30,50,90,0.05)]"
-													: "border-[rgba(30,50,90,0.12)] text-[rgba(30,50,90,0.5)] hover:border-[rgba(30,50,90,0.3)]"
+											aria-pressed={on}
+											className={`relative rounded-2xl border px-1.5 py-4 text-center transition-colors ${
+												on
+													? "border-[rgba(30,50,90,0.5)] bg-[rgba(30,50,90,0.06)]"
+													: "border-[rgba(30,50,90,0.12)] hover:border-[rgba(30,50,90,0.3)] hover:bg-[rgba(30,50,90,0.02)]"
 											}`}
 										>
-											{fmtUsdc(m.send)} → {m.years}y
+											{/* Exact, not rounded to a whole percent. "−13%" for a
+											    12.5% tier flatters the discount, and this sits two
+											    inches from a panel that states the real figure. */}
+											{m.off && (
+												<span
+													/* Fixed height + flex centring rather than vertical
+													   padding: `leading-none` leaves the glyphs sitting
+													   off-centre, and a border in *both* states — dropping
+													   it when selected made the badge 2px shorter the
+													   moment it lit up.
+
+													   `pb-px` is optical, not arithmetic: this font's
+													   inline box is lopsided (ascent 11, descent 3 at
+													   10px) while digits put almost no ink below the
+													   baseline, so centring the *box* still leaves the
+													   glyphs ~0.6px low. Measured, not guessed — the
+													   first attempt at this centred the box and looked
+													   no better. */
+													className={`absolute -top-[9px] right-1 inline-flex h-[18px] items-center justify-center rounded-full border px-1.5 pb-px text-[10px] leading-none tabular-nums transition-colors ${
+														on
+															? "border-[rgba(30,50,90,0.92)] bg-[rgba(30,50,90,0.92)] text-white"
+															: "border-[rgba(30,50,90,0.12)] bg-white text-[rgba(30,50,90,0.5)]"
+													}`}
+												>
+													−{m.off}
+												</span>
+											)}
+											<div
+												className={`text-[14px] ${on ? "text-[rgba(30,50,90,0.95)]" : "text-[rgba(30,50,90,0.65)]"}`}
+											>
+												{m.years > 0 ? `${m.years} years` : "Bulk rate"}
+											</div>
 										</button>
 									);
 								})}
@@ -329,10 +469,9 @@ export default function Simulator() {
 									text="Goes toward network fees for moving the USDC and renewing on Ethereum. Same on every chain."
 								/>
 							</div>
+
 						</div>
 					</div>
-				</div>
-			</div>
-		</section>
+		</>
 	);
 }

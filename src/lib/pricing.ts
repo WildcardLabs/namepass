@@ -1,34 +1,61 @@
 /**
- * Exact ENS v2 StandardRentPriceOracle pricing.
+ * Exact ENS v2 `StandardRentPriceOracle` pricing.
  *
- * Values are taken from the deployed contract's constructor arguments.
- * All arithmetic is BigInt; `divCeil` mirrors the contract's
- * `Math.Rounding.Ceil` in `_toAmount`, so results match on-chain to the
+ * **The arithmetic lives here; the numbers do not.** Base rates, discount
+ * tiers, the discount denominator and the USDC conversion ratio are read off
+ * ENS's deployed oracle at boot by `oracle.ts` and installed with
+ * `setRates()`. Nothing in this file decides what a name costs — it decides
+ * how to invert what ENS charges, which is the one part that is genuinely
+ * ours and is checked against the chain by `ENSV2RenewalHelper._quote`.
+ *
+ * All arithmetic is `BigInt`; `divCeil` mirrors the contract's
+ * `Math.Rounding.Ceil` in `_toAmount`, so results match on chain to the
  * micro-unit.
  *
- * Base rates are per-second, indexed by character count:
- *   1–2 chars  unavailable
- *   3 chars    20_294_267
- *   4 chars     5_073_567
- *   5+ chars       253_679
- *
- * These are read from the deployed oracle, not derived. They correspond to
- * $640/$160/$8 per year over a 365-day year — do NOT re-derive them from a
- * Julian year (365.25 days, 31_557_600s). That mistake understated every rate
- * by ~0.07%, which reads as roughly six free hours per year purchased.
+ * Every function below throws until `setRates()` has run. That is deliberate
+ * and it is why there is no default: a fallback price is a made-up price, and
+ * the failure mode of showing one is a funder sending an amount that buys less
+ * than the screen promised. `App.tsx` gates the UI on the load instead.
  */
 
-export const DENOM = 100000000000000000000000000000000000000n; // 1e38
+import type { OracleRates } from "./oracle";
 
 /**
- * 365 days. This is the oracle's year: `TIERS[].start` are exact multiples of
- * it, so it doubles as the seconds→years divisor for display. Changing it
- * silently moves every threshold and every "N years" label.
+ * 365 days. **Not an oracle value** — ENS has no notion of a year, it prices
+ * per second. This is a display convention, and it is the right one because
+ * the oracle's tier durations are exact multiples of it: 63072000, 94608000
+ * and 189216000 are 2, 3 and 6 of these. Deriving it from a Julian year
+ * (365.25 days) understated every rate by ~0.07% once — see
+ * `docs/DECISIONS.md`, 2026-08-06.
+ *
+ * If ENS ever sets a tier that isn't a whole multiple of this, `tiers()` says
+ * so rather than rounding — see `yearsOf`.
  */
 export const YEAR_SECONDS = 31536000n;
 
-/** Per-second base rate by label length. Index 0/1 are invalid. */
-export const BASE_RATE_PER_CP = [0n, 0n, 20294267n, 5073567n, 253679n];
+export class PricingNotLoadedError extends Error {
+	constructor() {
+		super("ENS pricing has not been read from the chain yet.");
+		this.name = "PricingNotLoadedError";
+	}
+}
+
+let loaded: OracleRates | null = null;
+
+/** Install the configuration read from the chain. Called once, at boot. */
+export function setRates(next: OracleRates): void {
+	loaded = next;
+}
+
+/** The live configuration. Throws rather than guess. */
+export function rates(): OracleRates {
+	if (!loaded) throw new PricingNotLoadedError();
+	return loaded;
+}
+
+export function ratesLoaded(): boolean {
+	return loaded !== null;
+}
 
 /**
  * Characters in a label, counted the way the oracle counts them.
@@ -50,77 +77,147 @@ export function labelLength(label: string): number {
 	return [...label].length;
 }
 
-export function rateFor(labelLength: number): bigint {
-	if (labelLength < 3) return 0n;
-	if (labelLength === 3) return BASE_RATE_PER_CP[2];
-	if (labelLength === 4) return BASE_RATE_PER_CP[3];
-	return BASE_RATE_PER_CP[4];
+/**
+ * Per-second rate for a label length, straight out of the oracle's array.
+ *
+ * Mirrors `_rateFor` exactly, **including the off-by-one**: the index is
+ * `length - 1`, so a 3-character name reads `baseRates[2]`. The length is
+ * clamped to the array first, which is what makes the last entry cover
+ * everything longer — a 40-character name pays the 5+ rate. A length the array
+ * prices at zero is a name ENS won't sell; today that's anything under three
+ * characters, and the contract reverts on it rather than charging nothing.
+ */
+export function rateFor(length: number): bigint {
+	const { baseRates } = rates();
+	if (length < 1 || baseRates.length === 0) return 0n;
+	return baseRates[Math.min(length, baseRates.length) - 1] ?? 0n;
 }
 
 export interface Tier {
 	/** Minimum duration in seconds at which this rate applies. */
 	start: bigint;
-	/** Discount numerator over DENOM. */
+	/** Discount numerator over the oracle's denominator. */
 	numer: bigint;
-	/** Human-facing discount label, e.g. "43.75%". */
+	/** Human-facing discount label, e.g. `"43.75%"`. Empty at full price. */
 	off: string;
-	/** Whole years this tier corresponds to. */
+	/** Whole years this tier corresponds to, `0` at full price. */
 	years: number;
 }
 
-export const TIERS: Tier[] = [
-	{ start: 189216000n, numer: 56250000000000000000000000000000000000n, off: "43.75%", years: 6 },
-	{ start: 94608000n, numer: 68750000000000000000000000000000000000n, off: "31.25%", years: 3 },
-	{ start: 63072000n, numer: 87500000000000000000000000000000000000n, off: "12.5%", years: 2 },
-	/* The oracle's `getDiscountPoints()` returns only the three above. This
-	   full-price entry is ours, standing in for the contract's post-loop
-	   `duration = budget / rate` fallback — `start: 0` always matches, and at
-	   `numer == DENOM` the tier formula reduces to exactly that floor divide. */
-	{ start: 0n, numer: DENOM, off: "", years: 0 },
-];
+/**
+ * Whole years in a duration, or `0` if it isn't a whole number of them.
+ *
+ * The quick-select buttons are labelled "2y / 3y / 6y", which is only honest
+ * while ENS's tiers land on whole years. They do today. If one ever doesn't,
+ * this returns 0 and the UI shows the amount without a year label rather than
+ * rounding 2.5 years to "2y" beside a price that buys more than that.
+ */
+function yearsOf(seconds: bigint): number {
+	return seconds % YEAR_SECONDS === 0n ? Number(seconds / YEAR_SECONDS) : 0;
+}
+
+/**
+ * Percentage off, from the tier's multiplier. `numer/denom` is what you pay,
+ * so the discount is the rest. Trailing zeros are trimmed: `12.5%`, not
+ * `12.50%`.
+ */
+function offLabel(numer: bigint, denom: bigint): string {
+	const bps = ((denom - numer) * 10000n) / denom;
+	if (bps === 0n) return "";
+	const whole = bps / 100n;
+	const frac = (bps % 100n).toString().padStart(2, "0").replace(/0+$/, "");
+	return frac ? `${whole}.${frac}%` : `${whole}%`;
+}
+
+/**
+ * Discount tiers, best first — the order `solve` walks, where the first
+ * affordable tier is necessarily the optimal one. `oracle.ts` has already
+ * asserted the ordering that makes that true.
+ *
+ * The last entry is **ours**: a full-price tier standing in for the contract's
+ * post-loop `duration = budget / rate` fallback. `start: 0` always matches,
+ * and at `numer == denom` the tier formula reduces to exactly that floor
+ * divide, so one loop covers both.
+ */
+export function tiers(): Tier[] {
+	const { points, denom } = rates();
+	const discounted = points
+		.map((p) => ({
+			start: p.duration,
+			numer: p.numer,
+			off: offLabel(p.numer, denom),
+			years: yearsOf(p.duration),
+		}))
+		.sort((a, b) => (b.start > a.start ? 1 : b.start < a.start ? -1 : 0));
+
+	return [...discounted, { start: 0n, numer: denom, off: "", years: 0 }];
+}
 
 export const divCeil = (a: bigint, b: bigint): bigint => (a + b - 1n) / b;
 
+/**
+ * ENS's standard-unit → payment-token conversion: `ceil(value * numer / denom)`.
+ *
+ * Two values, not one. Treating the ratio as a single divisor is only right
+ * while `numer` is 1 — which it is today — and silently mis-prices the moment
+ * ENS configures it otherwise. `_toPaymentUnits` in the helper is the same
+ * expression.
+ */
+function toPaymentUnits(standard: bigint): bigint {
+	const { tokenNumer, tokenDenom } = rates();
+	return divCeil(standard * tokenNumer, tokenDenom);
+}
+
 /** Minimum USDC (6dp micro-units) to reach a tier, for a given label length. */
-export function tierCost(tier: Tier, labelLength: number): bigint {
-	const rate = rateFor(labelLength);
+export function tierCost(tier: Tier, length: number): bigint {
+	const rate = rateFor(length);
 	if (rate === 0n) return 0n;
-	return divCeil((rate * tier.start * tier.numer) / DENOM, 1000000n);
+	return toPaymentUnits((rate * tier.start * tier.numer) / rates().denom);
 }
 
 /** Cost of an arbitrary duration at full price. */
-export function costOf(seconds: bigint, labelLength: number): bigint {
-	const rate = rateFor(labelLength);
-	return divCeil((rate * seconds * DENOM) / DENOM, 1000000n);
+export function costOf(seconds: bigint, length: number): bigint {
+	return toPaymentUnits(rateFor(length) * seconds);
 }
 
 /** Longest renewal a budget buys, and the rate it lands on. */
 export function solve(
 	budgetMicro: bigint,
-	labelLength = 5,
+	length = 5,
 ): { seconds: bigint; off: string; tierYears: number } {
-	const rate = rateFor(labelLength);
+	const rate = rateFor(length);
 	if (rate === 0n) return { seconds: 0n, off: "", tierYears: 0 };
-	for (const tier of TIERS) {
-		if (budgetMicro >= tierCost(tier, labelLength)) {
-			const seconds =
-				((budgetMicro * 1000000n + 1n) * DENOM - 1n) / (rate * tier.numer);
+
+	const { denom, tokenNumer, tokenDenom } = rates();
+
+	/*
+	 * Invert ENS's payment conversion. Forward it charges
+	 * `ceil(standard * numer / denom)`, so a token budget affords every
+	 * standard price S with `S <= floor(budget * denom / numer)`.
+	 */
+	const budget = (budgetMicro * tokenDenom) / tokenNumer;
+
+	for (const tier of tiers()) {
+		if (budgetMicro >= tierCost(tier, length)) {
+			/* Exact inverse of the contract's floor, matching `_quote`. */
+			const seconds = ((budget + 1n) * denom - 1n) / (rate * tier.numer);
 			return { seconds, off: tier.off, tierYears: tier.years };
 		}
 	}
 	return { seconds: 0n, off: "", tierYears: 0 };
 }
 
-/** The three discount thresholds for a label length, cheapest first. */
-export function thresholds(labelLength: number) {
-	return TIERS.slice(0, 3)
-		.map((t) => ({ tier: t, cost: tierCost(t, labelLength) }))
+/** The discount thresholds for a label length, cheapest first. */
+export function thresholds(length: number) {
+	return tiers()
+		.filter((t) => t.start > 0n)
+		.map((t) => ({ tier: t, cost: tierCost(t, length) }))
 		.reverse();
 }
 
 /** One year at full price, for a label length. */
-export function oneYearCost(labelLength: number): bigint {
-	return costOf(YEAR_SECONDS, labelLength);
+export function oneYearCost(length: number): bigint {
+	return costOf(YEAR_SECONDS, length);
 }
 
 /** Round micro-USDC up to the next whole cent — payable, and always clears the tier. */
@@ -128,9 +225,16 @@ export function ceilToCent(micro: bigint): bigint {
 	return ((micro + 9999n) / 10000n) * 10000n;
 }
 
-/** Payable button amounts for each threshold: exact cost rounded up to a cent. */
-export function payableThresholds(labelLength: number) {
-	return thresholds(labelLength).map((t) => ({
+/**
+ * Payable button amounts for each threshold: exact cost rounded up to a cent.
+ *
+ * **No one-year entry**, and that's a positioning decision rather than an
+ * oversight — see `docs/DECISIONS.md` (2026-08-06) before adding one. What
+ * comes back is whatever discount tiers ENS currently publishes, so if
+ * governance adds or drops one, the quick-selects follow.
+ */
+export function payableThresholds(length: number) {
+	return thresholds(length).map((t) => ({
 		years: t.tier.years,
 		off: t.tier.off,
 		exact: t.cost,
@@ -154,16 +258,16 @@ export interface NextTierHint {
  */
 export function nextTierHint(
 	budgetMicro: bigint,
-	labelLength: number,
+	length: number,
 	proximity = 0.35,
 ): NextTierHint | null {
-	const current = solve(budgetMicro, labelLength);
-	for (const t of payableThresholds(labelLength)) {
+	const current = solve(budgetMicro, length);
+	for (const t of payableThresholds(length)) {
 		if (budgetMicro >= t.payable) continue;
 		const delta = t.payable - budgetMicro;
 		/* Only surface it if the top-up is small relative to what they've already put in. */
 		if (budgetMicro > 0n && Number(delta) > Number(budgetMicro) * proximity) return null;
-		const after = solve(t.payable, labelLength);
+		const after = solve(t.payable, length);
 		const gain = after.seconds - current.seconds;
 		if (gain <= 0n) return null;
 		return { years: t.years, off: t.off, payable: t.payable, delta, gain };

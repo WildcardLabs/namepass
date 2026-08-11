@@ -152,7 +152,7 @@ export default function Leaderboard({ onBack, onViewName, onSupportedTokens }: P
 
 									<NameAvatar
 										name={r.name}
-										className={`shrink-0 w-9 h-9 rounded-full bg-[rgba(30,50,90,0.05)] object-cover ${
+										className={`shrink-0 w-9 h-9 rounded-[10px] bg-[rgba(30,50,90,0.05)] object-cover ${
 											rank === 1
 												? "border-2 border-[rgba(30,50,90,0.6)]"
 												: "border border-[rgba(30,50,90,0.1)]"
