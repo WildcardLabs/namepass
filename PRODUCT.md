@@ -50,10 +50,10 @@ gave them one status and became inaccurate. Keep them separate.
   contracts: deposit, CCTP burn on each L2, attestation, and one transaction that mints and renews
   together. `docs/DEPLOYMENTS.md` records the addresses and the results. **The contracts have no
   external audit and no mainnet deployment.** Neither is scheduled.
-- **The automation backend does not exist.** There is no webhook, no database, and no worker. No
-  service watches a deposit address. No service starts a flow. `docs/ARCHITECTURE.md` is a
-  specification, not a description. A renewal happens today only when a person calls the
-  permissionless `renew(label)` function.
+- **The automation backend does not exist.** There is no Goldsky pipeline, Neon database, API, or
+  Vercel Workflow. No service watches a deposit address. No service starts a flow.
+  `docs/ARCHITECTURE.md` is a specification, not a description. A renewal happens today only when
+  a person calls the permissionless `renew(label)` function.
 - **The frontend is a prototype.** The addresses, the prices, and the expiry dates are real. The
   activity, the balances, and the renewal history are simulated in the browser. See
   `docs/FRONTEND.md`.

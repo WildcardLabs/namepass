@@ -37,11 +37,11 @@ limit analysis, technical accuracy, or the ability to explain a complex subject.
   change. Read it before any non-trivial change; it's written so you don't have to re-derive the
   mechanics from the code.
 - **`docs/ARCHITECTURE.md`** — CREATE2-derived addresses, Circle CCTP with a hook that renews on the
-  mint, the Postgres schema, and the trigger/retry policy. **This file has a mixed status and marks
-  each part.** The contracts are deployed to four testnets and proven on chain. Everything from
-  "Services" onward is a specification only: the webhook, schema, worker, and cron do not exist. The
-  UI follows that specification. Read this file before you change anything that models deposits,
-  flows, or pending balances.
+  mint, and the planned Goldsky + Neon + Vercel production system. **This file has a mixed status
+  and marks each part.** The contracts are deployed to four testnets and proven on chain.
+  Everything from "Production system" onward is a specification only. The Goldsky pipeline, Neon
+  schema, APIs, relayer, and Vercel Workflow do not exist. Read this file before you change
+  anything that models activation, deposits, flows, pending balances, or backend services.
 - **`docs/DEPLOYMENTS.md`** — live contract addresses, the salt and creation-code hashes behind
   them, per-chain configuration, and what has actually been proven on chain. Read it before
   touching anything deployment-shaped; the addresses are not recoverable from the source alone.
@@ -77,9 +77,10 @@ app.
 
 Namepass: every ENS name gets a permanent, chain-agnostic USDC deposit address. Anyone can send
 USDC to it (no ownership required) and it's converted into ENS renewal time at the exact on-chain
-rate. Addresses are derived deterministically with CREATE2 — no custodian holds keys. In the real
-product a webhook detects payments, Circle's CCTP moves the USDC to Ethereum, and the renewal
-executes in the same transaction that completes the transfer.
+rate. Addresses are derived deterministically with CREATE2 — no custodian holds keys. The planned
+product uses Goldsky Turbo to detect payments, Neon Postgres to store application state, and
+Vercel Workflow to move the USDC through Circle CCTP. The renewal executes in the same transaction
+that completes the transfer.
 
 **The contracts are real and deployed; the app in front of them is not wired up yet.** Hold both
 halves of that at once:
@@ -101,6 +102,13 @@ So don't write copy or code comments implying the *app* talks to chain state, an
 implying the *contracts* are hypothetical either. `src/lib/pricing.ts` used to hardcode the rates
 the contracts read live; since 2026-08-11 it reads them from the same oracle at boot, so the two
 can no longer drift apart.
+
+**The production backend plan uses one role per platform.** Goldsky detects chain events and reads
+only the watched-address table. Neon is the application source of truth. Vercel Functions own HTTP
+validation and public reads. Vercel Workflow owns long-running renewal execution. Do not add a
+second event ledger, queue, worker service, real-time service, or balance aggregate without a
+measured need and a new decision entry. The chain remains authoritative for balances, receipts,
+and renewals.
 
 ## Commands
 
