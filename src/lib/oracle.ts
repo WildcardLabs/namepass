@@ -32,7 +32,7 @@ import {
 	ethCallBatch,
 	RpcError,
 } from "./rpc";
-import { SUPPORTED_TOKENS } from "./tokens";
+import { HUB_CHAIN } from "./chains";
 
 /**
  * ENS v2 on Sepolia — `docs/DEPLOYMENTS.md`.
@@ -43,13 +43,11 @@ import { SUPPORTED_TOKENS } from "./tokens";
  * is the same kind of constant as a contract address in `tokens.ts`, and the
  * helper stores them for exactly this reason.
  */
-export const ETH_REGISTRAR = "0xa88553F454b77203B0D036A05c894d555EAAa2Cc";
-export const ETH_RENEWER_V1 = "0x4ad56feb5Fc7B8298db06E88fd5CBc41D64602Fa";
+export const ETH_REGISTRAR = HUB_CHAIN.ensRegistrarAddress!;
+export const ETH_RENEWER_V1 = HUB_CHAIN.ensRenewerV1Address!;
 
 /** USDC on Sepolia, from the list the supported-tokens page publishes. */
-const SEPOLIA_USDC = SUPPORTED_TOKENS.find(
-	(t) => t.network === "Sepolia",
-)!.address;
+const SEPOLIA_USDC = HUB_CHAIN.usdcAddress;
 
 /** One of ENS's `DiscountPoint`s: buy at least `duration` and pay `numer/denom`. */
 export interface DiscountPoint {

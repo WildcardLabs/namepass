@@ -1,39 +1,58 @@
 # Architecture — frontend (what actually exists)
 
 `docs/ARCHITECTURE.md` covers two things. The contracts are **deployed to testnet**. The automation
-backend is **specified and unbuilt**. This file describes the app that is **built and running**. It
-gives enough detail to change the app without a re-reading of the code.
+backend is **implemented in code but not deployed**. This file describes the app that is **built**.
+It gives enough detail to change the app without re-reading the code.
 
-The app does not call either of them. The app derives each deposit address to match the deployed
-factory. The app does not read any activity or balance from a chain.
+The app derives each deposit address to match the deployed factory. The Explorer and Leaderboard
+read public data through the Vercel API. They do not connect to Neon or chain RPC directly.
 
 Read `CLAUDE.md` first for the short version and the working conventions. This is the long version.
+
+### Current public read model
+
+`publicApi.ts` is the browser boundary for `GET /api/activity`, `GET /api/names/:label`,
+`GET /api/names/:label/activity`, `GET /api/flows/:id`, `GET /api/leaderboard`, public
+configuration, and activation.
+`readModel.ts` adapts those responses to the existing visual components. It keeps USDC values as
+decimal strings or `bigint`. It does not create simulated activity.
+
+The activity endpoints return canonical `Renewed` events. A payment event is not shown as a
+completed renewal. Each renewal keeps `Funded by` separate from `Processed by`. The first value
+comes only from an exact linked deposit. The second value comes from the permanent `Renewed`
+executor fact. A recent canonical delete removes the row on the next poll.
+
+The selected-name endpoints return one native-USDC balance per active chain. An `amount: null`
+means that the server could not read that chain. The UI renders it as unavailable, never as zero.
+`GET /api/config/public` returns one decimal trigger floor for every active chain. The browser
+validates the complete set before it enables a manual renewal. It shows the floor as unavailable
+until this read succeeds. The endpoint can also return the optional public relayer address. It
+never returns the relayer private key.
+
+The live feed polls every 12 seconds. A selected name polls every 4 seconds while it has an active
+flow and every 15 seconds while idle. Both refetch on window focus and back off after errors.
+Funding controls appear only after activation returns from the API. `registry.ts` remains an
+explicit local demonstration fixture. Production screens must not import it.
 
 ---
 
 ## 1. What's real and what isn't
 
-| Real | Simulated |
+| Real | Demo-only |
 |---|---|
-| ENS v2 pricing math, exact to the micro-unit (`lib/pricing.ts`) | All renewal history and activity (`lib/registry.ts`) |
-| ENS's rates, read from its oracle at boot (`lib/oracle.ts`) | Transaction hashes (random hex) |
-| Deposit addresses (`lib/namepass.ts` — the deployed factory's own derivation) | Balances, pending states, flow steps |
-| **Name expiry and renewability (`lib/ensName.ts` — `findExpiry` / `isRenewable`)** | `activatedAt`, and the activation point on the runway bar |
-| ENS profile data — avatars, socials, addresses (`lib/ens.ts` → resolvio API) | Aggregates and Leaderboard rank, which derive from the above |
-| Block explorer URLs per chain (`lib/format.ts`) | The hero ticker's amounts and its `START_EXPIRY` base date |
-| QR encoding (`lib/qr.ts`) | **`pass` (`<label>.namepass.eth`) — a template string that resolves to nothing** |
+| ENS v2 pricing math, exact to the micro-unit (`lib/pricing.ts`) | `lib/registry.ts` fixtures for an explicit local demonstration only |
+| ENS's rates, read from its oracle at boot (`lib/oracle.ts`) | Transaction hashes in those fixtures only |
+| Deposit addresses (`lib/namepass.ts` — the deployed factory's own derivation) | None on production screens |
+| Activation, canonical renewals, flows, and leaderboard values (`lib/publicApi.ts`) | The hero ticker is product illustration, not activity data |
+| ENS profile data — avatars, socials, addresses (`lib/ens.ts` → resolvio API) | None on production screens |
+| Chain and deployment configuration (`lib/chains.ts`) | The hero ticker's amounts and its `START_EXPIRY` base date |
+| QR encoding (`lib/qr.ts`) | None on production screens |
 
-There is **no** wallet connection, no wallet-facing RPC, no transactions and no backend. Nothing
-writes anywhere; reload resets everything. What the app *does* do on chain is read, twice, at
-boot: ENS's pricing configuration and the helper's gas allowance.
+There is no wallet connection or browser database credential. Activation and public reads use the
+API. The backend still needs deployment before a hosted preview can show live records.
 
-**`pass` is the one to fix next.** `PassCard` shows `<label>.namepass.eth` under "Send here · auto
-renewal address", above the raw address and copyable — but it's `${label}.namepass.eth` built by
-string concatenation. `namepass.eth` is registered on Sepolia (expires 2027-08-11) and has **no
-resolver**, so the subnames resolve to nothing: checked 2026-08-11, `vitalik.namepass.eth` comes
-back with `resolver: null` and no addresses. It is a fabricated payment target presented more
-prominently than the real one. Either set a wildcard resolver that returns the CREATE2 address, or
-stop showing it.
+`PassCard` shows and copies only the activated deposit address. It does not show the unresolvable
+`<label>.namepass.eth` template.
 
 Three things are real in a way the rest isn't:
 
@@ -42,9 +61,8 @@ Three things are real in a way the rest isn't:
 - **The prices** are ENS's own, fetched from the registrar's oracle. Only the inversion — longest
   duration a budget buys — is this app's arithmetic, and it's checked against the deployed
   helper's `quote()`.
-- **The expiry and renewability** come from ENS's registry and renewers per name. The renewal
-  *history* under them is still invented; `applyNameState` slides that history so its end lands on
-  the real expiry rather than contradicting it.
+- **The expiry and renewability** are read by the server during activation and returned through the
+  public API. The browser does not perform a second chain read.
 
   Both come from `ETHRegistrar` and `ETHRenewerV1`, which answer for **both** populations — v1's
   `BaseRegistrar` is deliberately not consulted. `findExpiry` runs 62 days later than v1's own
@@ -52,19 +70,19 @@ Three things are real in a way the rest isn't:
   90 → 28 days and applies a one-time +62 day renewal to every v1 name automatically at the
   upgrade, so from launch it is the operative date. See `docs/DECISIONS.md`, 2026-08-11.
 
-Everything wrapped around them — what's arrived, what's pending, what it renewed — is still
-simulation.
+The browser does not invent deposits, flow states, sender addresses, executor addresses, or
+transaction hashes.
 
 ---
 
 ## 2. Routing and shell
 
-Hand-rolled, no router dependency. `App.tsx` holds `page: "home" | "leaderboard" | "terms" |
-"privacy"` and syncs it to `window.location` via `history.pushState` + a `popstate` listener
-(`pathToPage` / `pageToPath`).
+Hand-rolled, no router dependency. `App.tsx` holds `page: "home" | "leaderboard" | "supported" |
+"terms" | "privacy"` and syncs it to `window.location` through `history.pushState` and a
+`popstate` listener (`pathToPage` / `pageToPath`).
 
-Every route renders inside `PageShell` with `Navbar` as its first child — that's what makes four
-pages feel like one app. `Navbar` takes `showMenu={false}` off Home. Vite's dev server falls back to
+Every route renders inside `PageShell` with `Navbar` as its first child. This makes five pages feel
+like one app. `Navbar` takes `showMenu={false}` off Home. Vite's dev server falls back to
 `index.html` for unknown paths; production needs `vercel.json`'s catch-all rewrite or a direct load
 of `/leaderboard` 404s.
 
@@ -80,7 +98,6 @@ post-activation landing and the Leaderboard's "View activity" link.
 mount
   └─ Promise.all([ loadOracleRates(), assertGasAllowance() ])   ~150 ms
         ├─ setRates(live)      pricing.ts stops throwing
-        ├─ initRegistry()      seeded demo history can now be priced
         └─ boot = "ready"
 ```
 
@@ -105,11 +122,6 @@ cached default was rejected. `Simulator` takes `priced` and `problem` and picks 
 skeleton and error; `SimulatorBody` is a separate component precisely so it cannot mount before
 the rates exist, since it prices in a `useState` initializer.
 
-`initRegistry()` is the reason the seed can't be built at import any more: those renewals are
-priced with the same `solve()`. It guards on its own `seeded` flag rather than on
-`registry.length`, because a visitor can activate a Namepass from the claim modal — which never
-waits — before the read lands.
-
 **Dev-only gotcha:** editing `pricing.ts` resets its module singleton under mounted components, so
 HMR surfaces `PricingNotLoadedError` where a fresh load wouldn't. Reload the page. There is no
 error boundary, on purpose — the skeleton and error states are the handled paths, and a component
@@ -120,6 +132,11 @@ pricing without rates is a bug that should be loud.
 ## 3. The `lib/` layer
 
 Modules with deliberately separate jobs. Blurring them is the main way this codebase gets worse.
+
+**`chains.ts` — shared chain and deployment configuration.** It supplies chain names, IDs, native
+USDC, Namepass and Circle deployments, explorers, RPC variable names, finality, polling, tags, and
+logo files. The frontend and server views come from this one registry. `tokens.ts` remains a small
+frontend adapter. Run `node scripts/check-chains.mjs` after a registry change.
 
 **`rpc.ts` — a minimal `eth_call` client.** Batched JSON-RPC over `fetch`, selectors from
 `keccak256`, and a decoder that handles exactly three shapes: a word, a pair of words, and a
@@ -203,15 +220,16 @@ Two things here are correctness, not politeness:
 - **`NAMEPASS_FACTORY` belongs to the testnet set.** `hubChainId` is in the factory's creation
   code, so a mainnet factory lands elsewhere and derives a different address for every name.
   `depositAddress` throws outright if `IS_TESTNET` is false, because the alternative is quietly
-  printing an address nobody controls. This constant and `tokens.ts` move together.
+  printing an address nobody controls. Both values come from `chains.ts`.
 - **`normalizeLabel` runs before every derivation.** The contract hashes the exact UTF-8 bytes it
   is handed and cannot normalize — ENSIP-15 isn't reproducible in Solidity — so an un-normalized
   label derives a *valid-looking* address for a name that can never be renewed, and there is no
   sweep. `@adraffy/ens-normalize` is what closes that gap, and it is why the UI validates with
   `labelProblem()` rather than a regex that approximates the same rules.
 
-**`registry.ts` — the domain model and the simulation.** Section 4 and 5. Its `address` field is
-the one thing on a `NameRecord` that isn't invented; it comes from `namepass.ts`.
+**`publicApi.ts`** validates the browser response boundary. **`readModel.ts`** maps canonical
+renewal facts and flow state into the existing Explorer and Leaderboard component contracts.
+`registry.ts` is local demonstration data only and is not part of the production frontend.
 
 **`ens.ts` — real network calls** to the resolvio profile API. Cached and deduplicated, and
 deliberately **not** abortable — see the note in the file. Because requests are shared between
@@ -228,7 +246,10 @@ ignore late results instead.
 
 ---
 
-## 4. Domain model
+## 4. Legacy local fixture model
+
+This section documents `registry.ts` only. It is not the production read model. The API read model
+is defined in `docs/ARCHITECTURE.md` under “API and frontend reads”.
 
 ```
 NameRecord
@@ -278,13 +299,12 @@ It requires a recoverable reason, a renewable name, no flow on that chain, and c
 ratio (`MAX_FEE_BPS = 1500`, giving `$0.666667`) that was a placeholder for an undecided business
 number. The UI must **state** this figure; "too small" alone leaves nobody able to act.
 
-In production the API returns the configured minimum and this constant goes away — see
-`docs/ARCHITECTURE.md` → Minimum amount. Until the Phase 6 frontend cutover it is the number the
-card states.
+The production frontend gets the configured minimum from `GET /api/config/public`. This legacy
+fixture keeps `MIN_TRIGGER` only for local demonstration data.
 
 ---
 
-## 5. The simulation
+## 5. Legacy simulation fixture
 
 All pending state is grown, never seeded. Every address starts empty — a seeded balance has no story
 for why it's there.
@@ -333,7 +353,7 @@ duration each will buy once it lands.
 
 ---
 
-## 6. State ownership and re-rendering
+## 6. Legacy fixture state ownership
 
 `registry.ts` holds a **module-level mutable array**. Mutating it does not trigger React — so
 components that drive it force their own re-render with `useReducer((n) => n + 1, 0)` and call the
@@ -397,11 +417,10 @@ sits inside `overflow-hidden` accordions), `ChainTag` (chain name + brand-colour
 5. `seconds` and `off` always solved from `amountApplied`, never the deposited amount.
 6. Amounts in the breakdown panel use `fmtUsdcExact`; a tier can turn on a micro-unit.
 7. `SEED_NAMES` labels are 3+ characters.
-8. Chains are Base, Arbitrum, Arc, Ethereum. **No Optimism** — no logo asset, deliberately
-   removed everywhere.
+8. `chains.ts` defines Base, Arbitrum, Arc, and Ethereum. **No Optimism.**
 9. UI enablement derives from `canTrigger()`.
 10. Aggregate tiles mix bases on purpose: `total received` is lifetime USDC at the address,
-    `time delivered` is what the registry recorded. Not meant to reconcile.
+    `time delivered` is what the API recorded. They are not expected to reconcile.
 11. **No price is ever shown from memory.** `pricing.ts` holds no default rates and no cached
     copy; it throws until `setRates()` has run. Adding a fallback so the Simulator can paint
     sooner reintroduces the exact failure the gate exists to prevent.
@@ -410,10 +429,14 @@ sits inside `overflow-hidden` accordions), `ChainTag` (chain name + brand-colour
 
 ## 9. Verifying a change
 
-`npm run build` is the type-check (`tsc --noEmit && vite build`). There is no lint script and no
-**JavaScript** test framework. A Vitest suite over `pricing.ts` has been discussed and not built.
-The contracts do have tests: `forge test` runs 61 of them. `npm run build` does not build
-`contracts/`.
+`npm run build` type-checks the browser and builds the Vite, Nitro, and Workflow output. Run
+`npm run check:server` for the server TypeScript check. Run `npm run test:frontend` for the browser
+adapter checks, `npm run test:server` for the Node server tests, and `npm run test:workflow` for the
+Workflow runtime probe. There is no lint script and no `npm test` alias. The contracts have 61
+Foundry tests. Run them with `forge test`; `npm run build` does not build `contracts/`.
+
+Run `node scripts/check-chains.mjs` after a chain registry change. It checks completeness, unique
+identifiers, generated views, and logo assets.
 
 Beyond that, the useful technique is asserting invariants against the real modules in the browser
 console while the dev server runs:

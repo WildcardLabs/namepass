@@ -26,21 +26,22 @@ import {
 import {
 	activeFlows,
 	allNames,
-	applyNameState,
-	claimName,
 	findName,
+	hasActiveFlow,
 	minTrigger,
 	nameExpiry,
 	recentActivity,
 	renewalCount,
-	tickSimulation,
 	timeDelivered,
 	totalReceived,
 	type ActivityEvent,
 	type FlowStatus,
 	type FlowStep,
 	type NameRecord,
-} from "../lib/registry";
+	syncFeed,
+	syncName,
+	setPublicConfig,
+} from "../lib/readModel";
 import {
 	explorerUrl,
 	fmtAgo,
@@ -48,6 +49,7 @@ import {
 	fmtDuration,
 	fmtUsdc,
 	fmtUsdcExact,
+	fmtYears,
 	truncAddress,
 	truncTx,
 } from "../lib/format";
@@ -55,13 +57,12 @@ import PassCard from "./PassCard";
 import PendingBalance from "./PendingBalance";
 import ChainTag from "./ChainTag";
 import { ceilToCent, costOf, YEAR_SECONDS } from "../lib/pricing";
-import { LABEL_PROBLEM_TEXT, labelProblem } from "../lib/namepass";
-import { fetchNameState } from "../lib/ensName";
-import { IS_TESTNET } from "../lib/tokens";
+import { LABEL_PROBLEM_TEXT, labelProblem, normalizeLabel } from "../lib/namepass";
 import { GAS_ALLOWANCE } from "../lib/fees";
 import { fetchProfile, type EnsProfile } from "../lib/ens";
 import { XIcon } from "./icons";
-import NumberTicker from "./magicui/NumberTicker";
+import { activateName, getActivity, getFlow, getName, getNameActivity, getPublicConfig, micro, safeInteger, triggerFlow, type PublicFlow } from "../lib/publicApi";
+import { chainById, HUB_CHAIN } from "../lib/chains";
 
 /**
  * "Received" is what the funder sent; the rate and time next to it were bought
@@ -373,6 +374,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 	const reduced = useReducedMotion() ?? false;
 	const listRef = useRef<HTMLDivElement>(null);
 	const [rowHeight, setRowHeight] = useState<number | null>(null);
+	const [loadError, setLoadError] = useState<string | null>(null);
 
 	/* Measured rather than hardcoded, because a row is a single line on desktop
 	   and a stacked card on mobile, and a fixed pixel height would be wrong on
@@ -392,11 +394,41 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 	}, []);
 
 	useEffect(() => {
-		const id = setInterval(() => {
-			tickSimulation();
-			tick();
-		}, 2600);
-		return () => clearInterval(id);
+		let stopped = false;
+		let timer = 0;
+		let failures = 0;
+		let loading = false;
+		const schedule = (delay: number) => {
+			window.clearTimeout(timer);
+			timer = window.setTimeout(() => void load(), delay);
+		};
+		const load = async () => {
+			if (stopped || loading) return;
+			loading = true;
+			try {
+				syncFeed(await getActivity());
+				failures = 0;
+				setLoadError(null);
+				tick();
+			} catch (cause) {
+				failures += 1;
+				setLoadError(cause instanceof Error ? cause.message : "Could not load activity.");
+			} finally {
+				loading = false;
+				if (!stopped) schedule(Math.min(12_000 * 2 ** failures, 60_000));
+			}
+		};
+		const focus = () => {
+			window.clearTimeout(timer);
+			void load();
+		};
+		void load();
+		window.addEventListener("focus", focus);
+		return () => {
+			stopped = true;
+			window.clearTimeout(timer);
+			window.removeEventListener("focus", focus);
+		};
 	}, []);
 
 	const inFlight = activeFlows().slice(0, MAX_IN_FLIGHT);
@@ -426,7 +458,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 			at: f.startedAt,
 		})),
 		...settled.map((e) => ({
-			key: e.flowKey ?? e.id,
+			key: e.id,
 			name: e.name,
 			chain: e.chain,
 			amountDeposited: e.amountDeposited,
@@ -441,7 +473,9 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 	];
 
 	return (
-		<div className="border border-[rgba(30,50,90,0.1)] rounded-2xl overflow-hidden">
+		<>
+			{loadError && <p role="alert" className="mb-3 text-[12.5px] text-red-700">{loadError}</p>}
+			<div className="border border-[rgba(30,50,90,0.1)] rounded-2xl overflow-hidden">
 			{/* Desktop column headers, hidden on mobile where rows become cards */}
 			<div className="hidden md:grid grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)] gap-4 px-5 py-3 bg-[rgba(30,50,90,0.03)] border-b border-[rgba(30,50,90,0.1)] text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
 				<span>ENS name</span>
@@ -475,7 +509,8 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 					</AnimatePresence>
 				</div>
 			</div>
-		</div>
+			</div>
+		</>
 	);
 }
 
@@ -498,7 +533,10 @@ function stepLabel(step: FlowStep, bridged: boolean): string {
  */
 function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 	const bridged = event.steps.some((s) => s.kind === "burn");
-	const years = Number(event.seconds) / Number(YEAR_SECONDS);
+	const hasMeaningfulDuration = event.seconds > YEAR_SECONDS / 100n;
+	const effectiveRate = event.seconds > 0n
+		? (event.amountApplied * YEAR_SECONDS + event.seconds / 2n) / event.seconds
+		: 0n;
 	return (
 		<div className="px-4 md:px-5 py-5 bg-[rgba(30,50,90,0.015)] border-t border-[rgba(30,50,90,0.06)] grid gap-6 md:grid-cols-2">
 			<div>
@@ -533,14 +571,29 @@ function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 					{/* Without this the panel says where the money went but not what it
 					    bought it at, so "$27 · 6 years" looks like bad arithmetic until
 					    you notice the bulk rate is $4.50, not the headline $8. */}
-					{years > 0.01 && (
+					{hasMeaningfulDuration && (
 						<div className="flex justify-between gap-4">
 							<dt className="text-[rgba(30,50,90,0.6)]">Effective rate</dt>
 							<dd className="text-[rgba(30,50,90,0.7)] tabular-nums">
-								{fmtUsdc(BigInt(Math.round(Number(event.amountApplied) / years)))}/year
+								{fmtUsdc(effectiveRate)}/year
 							</dd>
 						</div>
 					)}
+				</dl>
+				<dl className="mt-4 space-y-1.5 border-t border-[rgba(30,50,90,0.08)] pt-3 text-[12px]">
+					<div>
+						<dt className="text-[rgba(30,50,90,0.5)]">Funded by</dt>
+						<dd className="mt-0.5 break-all font-mono text-[rgba(30,50,90,0.8)]">
+							{event.funder}
+						</dd>
+					</div>
+					<div>
+						<dt className="text-[rgba(30,50,90,0.5)]">Processed by</dt>
+						<dd className="mt-0.5 break-all text-[rgba(30,50,90,0.8)]">
+							{event.executorIsRelayer ? "Namepass · " : ""}
+							<span className="font-mono">{event.executor}</span>
+						</dd>
+					</div>
 				</dl>
 				</div>
 
@@ -579,6 +632,57 @@ function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 	);
 }
 
+function UnclaimedFlowCard({ label, flow, renewable, onRetry }: { label: string; flow: PublicFlow; renewable: boolean; onRetry: () => void }) {
+	const [retrying, setRetrying] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const chain = chainById(safeInteger(flow.originChainId) ?? -1);
+	const evidence = flow.evidence;
+	const retry = async () => {
+		setRetrying(true);
+		setError(null);
+		try {
+			await triggerFlow(label, flow.originChainId);
+			onRetry();
+		} catch (cause) {
+			setError(cause instanceof Error ? cause.message : "Retry failed.");
+		} finally {
+			setRetrying(false);
+		}
+	};
+	return (
+		<div className="mt-5 rounded-2xl border border-[rgba(30,50,90,0.18)] bg-[rgba(30,50,90,0.035)] p-4">
+			<h4 className="text-[15px] text-[rgba(30,50,90,0.95)]">Waiting to renew</h4>
+			<p className="mt-1.5 text-[13px] leading-relaxed text-[rgba(30,50,90,0.65)]">The USDC left {chain?.name ?? "the origin chain"} and is secured in a Circle message. This name cannot be renewed now. Namepass will retry when renewal is possible.</p>
+			<dl className="mt-3 space-y-1 text-[12px] text-[rgba(30,50,90,0.6)]">
+				<div className="flex justify-between gap-4"><dt>Amount</dt><dd>{fmtUsdcExact(micro(flow.amountDetected))}</dd></div>
+				<div className="flex justify-between gap-4"><dt>Origin chain</dt><dd>{chain?.name ?? flow.originChainId}</dd></div>
+				<div className="flex justify-between gap-4"><dt>Circle nonce</dt><dd className="font-mono truncate">{flow.cctpNonce ?? "Not available"}</dd></div>
+				<div className="flex justify-between gap-4"><dt>Latest retry</dt><dd>{flow.nextActionAt ? fmtDate(new Date(flow.nextActionAt).getTime()) : "Not scheduled"}</dd></div>
+			</dl>
+			{evidence?.originTxHash && chain && <a href={explorerUrl(chain.name, evidence.originTxHash)} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 font-mono text-[12px] text-[rgba(30,50,90,0.65)] hover:text-[rgba(30,50,90,0.95)]">Origin transaction {truncTx(evidence.originTxHash)} <ExternalLink className="w-3 h-3" /></a>}
+			<p className="mt-3 text-[12px] leading-relaxed text-[rgba(30,50,90,0.5)]">This transfer cannot return to {chain?.name ?? "the origin chain"}. A retry uses the same Circle message.</p>
+			{renewable && <button type="button" onClick={() => void retry()} disabled={retrying} className="mt-3 inline-flex items-center gap-2 rounded-full border border-[rgba(30,50,90,0.25)] px-3 py-1.5 text-[12px] text-[rgba(30,50,90,0.8)] hover:bg-white disabled:opacity-50">{retrying && <Loader2 className="w-3 h-3 animate-spin" />}Retry renewal</button>}
+			{error && <p role="alert" className="mt-2 text-[12px] text-red-700">{error}</p>}
+		</div>
+	);
+}
+
+function SettledFlowCard({ flow }: { flow: PublicFlow }) {
+	const evidence = flow.evidence;
+	const renewal = evidence?.renewalTxHash;
+	const hub = chainById(11155111);
+	return (
+		<div className="mt-4 rounded-2xl border border-[rgba(30,50,90,0.1)] bg-[rgba(30,50,90,0.015)] p-4">
+			<div className="flex items-center justify-between gap-3">
+				<span className="text-[14px] text-[rgba(30,50,90,0.9)]">Renewal settled</span>
+				<span className="text-[12px] tabular-nums text-[rgba(30,50,90,0.6)]">{fmtUsdc(micro(flow.amountProcessed ?? flow.amountDetected))}</span>
+			</div>
+			{renewal && hub && <a href={explorerUrl(hub.name, renewal)} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1.5 font-mono text-[12px] text-[rgba(30,50,90,0.65)] hover:text-[rgba(30,50,90,0.95)]">Renewal transaction {truncTx(renewal)} <ExternalLink className="w-3 h-3" /></a>}
+			{evidence?.executorAddress && <p className="mt-2 text-[12px] text-[rgba(30,50,90,0.6)]" aria-label={`Processed by ${evidence.executorAddress}`}>Processed by {evidence.executorIsRelayer ? "Namepass " : ""}<span className="font-mono">{evidence.executorAddress}</span></p>}
+		</div>
+	);
+}
+
 /* ------------------------------------------------------------------ */
 /* Name detail                                                         */
 /* ------------------------------------------------------------------ */
@@ -587,14 +691,13 @@ function NameDetail({
 	record,
 	onBack,
 	onSupportedTokens,
+	onRefresh,
 }: {
 	record: NameRecord;
 	onBack: () => void;
 	onSupportedTokens: () => void;
+	onRefresh: () => void;
 }) {
-	/* A settling flow appends a renewal to the record in place, so the expiry,
-	   aggregates and activity table all need a nudge to re-read it. */
-	const [, refresh] = useReducer((n: number) => n + 1, 0);
 	/* Which renewal has its transaction breakdown open. One at a time. */
 	const [openEvent, setOpenEvent] = useState<string | null>(null);
 	const events = [...record.events].reverse();
@@ -628,22 +731,6 @@ function NameDetail({
 		};
 	}, [record.name]);
 
-	/* The ENS name's real expiry and whether ENS will renew it, from the chain.
-	   Same shape as the profile fetch above and for the same reason: the
-	   promise is shared per label, so ignore a late result rather than cancel
-	   it. `applyNameState` mutates the record, so nudge the reducer to re-read. */
-	useEffect(() => {
-		let cancelled = false;
-		fetchNameState(record.name.replace(/\.eth$/, "")).then((state) => {
-			if (cancelled || !state) return;
-			applyNameState(record, state);
-			refresh();
-		});
-		return () => {
-			cancelled = true;
-		};
-	}, [record, record.name]);
-
 	const onchain = record.onchain;
 
 	/**
@@ -667,7 +754,8 @@ function NameDetail({
 		/* +1s: buying back exactly what has lapsed lands on the expiry, not past it. */
 		const owed = BigInt(Math.ceil(onchain.lapsedFor / 1000)) + 1n;
 		const catchUp = ceilToCent(costOf(owed, record.labelLength) + GAS_ALLOWANCE);
-		const floor = minTrigger();
+		const floor = minTrigger(String(HUB_CHAIN.chainId));
+		if (floor === undefined) return null;
 		return catchUp >= floor
 			? { amount: catchUp, bound: "catch-up" as const }
 			: { amount: floor, bound: "trigger" as const };
@@ -726,7 +814,7 @@ function NameDetail({
 								Not registered
 							</div>
 							<div className="mt-2 text-[13px] text-[rgba(30,50,90,0.55)]">
-								Nobody holds this name on {IS_TESTNET ? "Sepolia" : "Ethereum"} yet.
+								Nobody holds this name on Ethereum yet.
 							</div>
 						</>
 					) : (
@@ -827,7 +915,7 @@ function NameDetail({
 								{fmtDate(record.expiryAtActivation)}
 							</span>
 							<span className="text-[rgba(30,50,90,0.9)]">
-								+{timeDelivered(record).toFixed(1)} years via Namepass
+								+{fmtYears(timeDelivered(record))} years via Namepass
 							</span>
 						</div>
 					</div>
@@ -836,7 +924,23 @@ function NameDetail({
 					    the profile because it's the actionable half of the card. */}
 					{/* Keyed so switching names resets the card — otherwise an open
 					    tooltip and a running flow timer carry over to the next one. */}
-					<PendingBalance key={record.name} record={record} onSettled={refresh} />
+						<PendingBalance key={record.name} record={record} onSettled={onRefresh} />
+
+					{record.flows
+						.filter((flow) => flow.status === "unclaimed")
+						.map((flow) => (
+							<UnclaimedFlowCard
+								key={flow.id}
+								label={record.name.replace(/\.eth$/, "")}
+								flow={flow}
+								renewable={Boolean(onchain?.renewable)}
+								onRetry={onRefresh}
+							/>
+						))}
+
+					{record.flows.filter((flow) => flow.status === "settled").map((flow) => (
+						<SettledFlowCard key={flow.id} flow={flow} />
+					))}
 
 					{/* ENS records — identity, not payment history */}
 					<div className="mt-5 pt-5 border-t border-[rgba(30,50,90,0.08)] flex-1">
@@ -918,7 +1022,6 @@ function NameDetail({
 
 				<PassCard
 					name={record.name}
-					pass={record.pass}
 					address={record.address}
 					onSupportedTokens={onSupportedTokens}
 				/>
@@ -929,14 +1032,12 @@ function NameDetail({
 				{[
 					/* "y" not " years" — at three-up on a phone the long form wraps and
 					   drops this value below the other two. Matches fmtDuration anyway. */
-					{ k: "Time delivered", value: timeDelivered(record), decimals: 1, suffix: "y" },
-					{
-						k: "Total received",
-						value: totalReceived(record),
-						decimals: Number.isInteger(totalReceived(record)) ? 0 : 2,
-						prefix: "$",
-					},
-					{ k: "Renewals", value: renewalCount(record), decimals: 0 },
+						{ k: "Time delivered", value: `${fmtYears(timeDelivered(record))}y` },
+						{
+							k: "Total received",
+							value: fmtUsdc(totalReceived(record)),
+						},
+						{ k: "Renewals", value: renewalCount(record).toString() },
 				].map((s) => (
 					/* Labels wrap to two lines at narrow widths ("Renewals" doesn't), so
 					   the label absorbs the slack and the values stay on one line. */
@@ -944,13 +1045,9 @@ function NameDetail({
 						<div className="flex-1 text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
 							{s.k}
 						</div>
-						<NumberTicker
-							value={s.value}
-							decimals={s.decimals}
-							prefix={s.prefix}
-							suffix={s.suffix}
-							className="mt-1.5 block text-[19px] text-[rgba(30,50,90,0.95)] tracking-tight tabular-nums whitespace-nowrap"
-						/>
+							<span className="mt-1.5 block text-[19px] text-[rgba(30,50,90,0.95)] tracking-tight tabular-nums whitespace-nowrap">
+								{s.value}
+							</span>
 					</div>
 				))}
 			</div>
@@ -961,7 +1058,7 @@ function NameDetail({
 					<span className="text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
 						Activity
 					</span>
-					{renewalCount(record) === 0 && (
+					{events.length <= 1 && (
 						<span className="text-[12px] text-[rgba(30,50,90,0.5)]">
 							Waiting for the first payment
 						</span>
@@ -982,7 +1079,7 @@ function NameDetail({
 					<div className="divide-y divide-[rgba(30,50,90,0.07)]">
 						{events.map((e) => {
 							/* Activation has no transactions behind it, so nothing to open. */
-							const expandable = e.steps.length > 0;
+							const expandable = e.kind === "renewal" && e.steps.length > 0;
 							const isOpen = openEvent === e.id;
 							return (
 							<div key={e.id}>
@@ -1003,11 +1100,11 @@ function NameDetail({
 									</span>
 
 									<span className="min-w-0 text-[15px] md:text-[14.5px] text-[rgba(30,50,90,0.95)] truncate">
-										{e.kind === "activated" ? "Namepass activated" : "Renewal"}
+										{e.kind === "activated" ? "Namepass activated" : e.kind === "deposit" ? "Payment received" : "Renewal"}
 									</span>
 
 									<span className="hidden md:block text-[13.5px]">
-										{e.kind === "renewal" ? (
+										{e.kind !== "activated" ? (
 											<ChainTag chain={e.chain} />
 										) : (
 											<span className="text-[rgba(30,50,90,0.35)]">-</span>
@@ -1015,11 +1112,11 @@ function NameDetail({
 									</span>
 
 									<span className="hidden md:block text-[13.5px] text-[rgba(30,50,90,0.75)] text-right tabular-nums">
-										{e.kind === "renewal" ? (
+										{e.kind !== "activated" ? (
 											<AmountCell
 												deposited={e.amountDeposited}
 												applied={e.amountApplied}
-												showApplied={e.gasAllowance > 0n}
+												showApplied={e.kind === "renewal" && e.gasAllowance > 0n}
 											/>
 										) : (
 											"-"
@@ -1049,7 +1146,7 @@ function NameDetail({
 								</div>
 
 								{/* Mobile detail pairs */}
-								{e.kind === "renewal" && (
+								{e.kind !== "activated" && (
 									<dl className="md:hidden mt-2.5 grid grid-cols-[minmax(5.25rem,auto)_minmax(4rem,auto)_minmax(4.75rem,auto)_auto] justify-between gap-x-2 gap-y-1 items-baseline">
 										<div>
 											<dt className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
@@ -1067,7 +1164,7 @@ function NameDetail({
 												<AmountCell
 													deposited={e.amountDeposited}
 													applied={e.amountApplied}
-													showApplied={e.gasAllowance > 0n}
+												showApplied={e.kind === "renewal" && e.gasAllowance > 0n}
 													dense
 												/>
 											</dd>
@@ -1077,7 +1174,7 @@ function NameDetail({
 												Rate
 											</dt>
 											<dd className="mt-0.5 text-[12.5px] text-[rgba(30,50,90,0.75)]">
-												{e.off ? `${e.off} off` : "Standard"}
+											{e.kind === "renewal" ? (e.off ? `${e.off} off` : "Standard") : "-"}
 											</dd>
 										</div>
 										<div className="text-right">
@@ -1085,7 +1182,7 @@ function NameDetail({
 												Time
 											</dt>
 											<dd className="mt-0.5 text-[12.5px] text-[rgba(30,50,90,0.95)] tabular-nums">
-												{fmtDuration(e.seconds)}
+											{e.kind === "renewal" ? fmtDuration(e.seconds) : "-"}
 											</dd>
 										</div>
 									</dl>
@@ -1100,6 +1197,11 @@ function NameDetail({
 									)}
 								</div>
 							</button>
+							{e.kind === "deposit" && (
+								<p className="px-4 pb-3 text-[12px] text-[rgba(30,50,90,0.6)] md:px-5" aria-label={`Funded by ${e.funder}`}>
+									Funded by <span className="font-mono">{e.funder}</span>
+								</p>
+							)}
 
 							<AnimatePresence initial={false}>
 								{isOpen && (
@@ -1139,6 +1241,24 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 	const [query, setQuery] = useState("");
 	const [notFound, setNotFound] = useState<string | null>(null);
 	const [activating, setActivating] = useState(false);
+	const [version, refresh] = useReducer((value: number) => value + 1, 0);
+	const [, reload] = useReducer((value: number) => value + 1, 0);
+	const [requestError, setRequestError] = useState<string | null>(null);
+	const [configVersion, refreshConfig] = useReducer((value: number) => value + 1, 0);
+
+	useEffect(() => {
+		let stopped = false;
+		void getPublicConfig()
+			.then((config) => {
+				if (stopped) return;
+				setPublicConfig(config);
+				refreshConfig();
+			})
+			.catch((cause: unknown) => {
+				if (!stopped) setRequestError(cause instanceof Error ? cause.message : "Could not load the public chain configuration.");
+			});
+		return () => { stopped = true; };
+	}, []);
 
 	/**
 	 * Why this name can't have a Namepass, if it can't. Asked of the same
@@ -1150,8 +1270,55 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 
 	const record = useMemo(
 		() => (selected ? findName(selected) : undefined),
-		[selected],
+		[selected, version],
 	);
+
+	useEffect(() => {
+		if (!selected) return;
+		let stopped = false;
+		let timer = 0;
+		let failures = 0;
+		let loading = false;
+		const schedule = (delay: number) => {
+			window.clearTimeout(timer);
+			timer = window.setTimeout(() => void load(), delay);
+		};
+		const load = async () => {
+			if (stopped || loading) return;
+			loading = true;
+			try {
+				const activity = await getNameActivity(selected);
+				const details = await Promise.all(activity.flows.map((flow) => getFlow(flow.id).catch(() => null)));
+				const byId = new Map(details.filter((value): value is { flow: PublicFlow } => Boolean(value)).map(({ flow }) => [flow.id, flow]));
+				if (!stopped) {
+								syncName({ ...activity, flows: activity.flows.map((flow) => byId.get(flow.id) ?? flow) });
+					setRequestError(null);
+					failures = 0;
+					refresh();
+				}
+			} catch (cause) {
+				if (!stopped) setRequestError(cause instanceof Error ? cause.message : "Could not load this name.");
+				failures += 1;
+			}
+			finally {
+				loading = false;
+				const current = findName(selected);
+				const delay = current && hasActiveFlow(current) ? 4_000 : 15_000;
+				if (!stopped) schedule(Math.min(delay * 2 ** failures, 60_000));
+			}
+		};
+		const focus = () => {
+			window.clearTimeout(timer);
+			void load();
+		};
+		void load();
+		window.addEventListener("focus", focus);
+		return () => {
+			stopped = true;
+			window.clearTimeout(timer);
+			window.removeEventListener("focus", focus);
+		};
+	}, [selected, reload, configVersion]);
 
 	const suggestions = useMemo(() => {
 		const q = query.trim().toLowerCase();
@@ -1161,16 +1328,26 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 			.slice(0, 6);
 	}, [query]);
 
-	function submit(raw = query) {
-		const value = raw.trim().toLowerCase();
+	async function submit(raw = query) {
+		const value = raw.trim();
 		if (!value) return;
-		const hit = findName(value);
-		if (hit) {
-			onSelect(hit.name);
+		if (labelProblem(value)) {
+			setNotFound(value.endsWith(".eth") ? value : `${value}.eth`);
+			return;
+		}
+		try {
+			const label = normalizeLabel(value);
+			await getName(label);
+			onSelect(`${label}.eth`);
 			setQuery("");
 			setNotFound(null);
-		} else {
-			setNotFound(value.endsWith(".eth") ? value : `${value}.eth`);
+			setRequestError(null);
+		} catch (cause) {
+			const status = cause && typeof cause === "object" && "status" in cause
+				? (cause as { status?: number }).status
+				: undefined;
+			if (status === 404) setNotFound(`${normalizeLabel(value)}.eth`);
+			else setRequestError(cause instanceof Error ? cause.message : "Search failed.");
 		}
 	}
 
@@ -1180,7 +1357,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 		/* Any complete single-label `.eth`, not just ASCII — `labelProblem` is
 		   what judges it, and this only decides when to stop waiting for Enter. */
 		if (!/^[^\s.]{3,}\.eth$/.test(value)) return;
-		const timer = setTimeout(() => submit(value), 350);
+		const timer = setTimeout(() => void submit(value), 350);
 		return () => clearTimeout(timer);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [query]);
@@ -1211,7 +1388,8 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 					<div className="w-full md:w-[300px] shrink-0">
 						<div className="flex items-center bg-white border border-[rgba(30,50,90,0.15)] rounded-[0.9rem] pl-4 pr-2 py-2.5 focus-within:border-[rgba(30,50,90,0.4)] transition-colors">
 							<Search className="w-4 h-4 text-[rgba(30,50,90,0.4)] shrink-0" />
-							<input
+								<input
+									aria-label="Search an ENS name"
 								value={query}
 								onChange={(e) => {
 									setQuery(e.target.value);
@@ -1280,14 +1458,15 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 									onClick={() => {
 										if (activating) return;
 										setActivating(true);
-										const target = notFound;
-										setTimeout(() => {
-											const created = claimName(target);
-											setActivating(false);
-											setQuery("");
-											setNotFound(null);
-											onActivated(created.name);
-										}, 1100);
+										void activateName(notFound)
+											.then((created) => {
+											syncName({ name: created.name, renewals: [], flows: [], balances: [], nextCursor: null });
+												setQuery("");
+												setNotFound(null);
+												onActivated(created.name.displayName);
+											})
+											.catch((cause: unknown) => setRequestError(cause instanceof Error ? cause.message : "Activation failed."))
+											.finally(() => setActivating(false));
 									}}
 									disabled={activating}
 									className="mt-3 w-full flex items-center justify-center gap-2 bg-[rgba(30,50,90,0.9)] text-white rounded-full py-2.5 hover:bg-[rgba(30,50,90,1)] transition-colors disabled:opacity-70"
@@ -1308,13 +1487,15 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 						)}
 					</div>
 				</div>
+				{requestError && <p role="alert" className="mt-3 text-[12.5px] text-red-700">{requestError}</p>}
 
 				<div className="mt-12 md:mt-16">
 					{record ? (
 						<NameDetail
 							record={record}
-							onBack={() => onSelect(null)}
-							onSupportedTokens={onSupportedTokens}
+									onBack={() => onSelect(null)}
+									onSupportedTokens={onSupportedTokens}
+									onRefresh={reload}
 						/>
 					) : (
 						<LiveFeed onSelect={(n) => onSelect(n)} />

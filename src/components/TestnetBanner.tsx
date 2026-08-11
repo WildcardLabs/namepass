@@ -1,5 +1,5 @@
 import { FlaskConical } from "lucide-react";
-import { IS_TESTNET } from "../lib/tokens";
+import { IS_TESTNET, TOKEN_CHAINS } from "../lib/chains";
 
 /**
  * A slim marquee above the page card, on every route.
@@ -32,9 +32,11 @@ export default function TestnetBanner() {
 
 	const items = [
 		"Testnet preview",
-		"Addresses are on Sepolia, Base Sepolia, Arbitrum Sepolia and Arc Testnet",
+		`Addresses are on ${TOKEN_CHAINS.map((chain) => chain.network)
+			.join(", ")
+			.replace(/, ([^,]*)$/, " and $1")}`,
 		"Testnet USDC only",
-		"Balances and activity are simulated",
+		"Public activity needs the testnet backend",
 	];
 
 	/* Rendered twice; the track translates by exactly -50% so the second copy

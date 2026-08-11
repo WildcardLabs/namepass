@@ -1,4 +1,9 @@
 {
+	"crons": [
+		{ "path": "/api/cron/recover", "schedule": "* * * * *" },
+		{ "path": "/api/cron/health", "schedule": "*/5 * * * *" },
+		{ "path": "/api/cron/retention", "schedule": "17 3 * * *" }
+	],
 	"rewrites": [
 		{ "source": "/(.*)", "destination": "/index.html" }
 	]

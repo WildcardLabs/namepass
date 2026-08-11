@@ -2,19 +2,11 @@ import { motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { ArrowUpRight, Check, Copy, Infinity as InfinityIcon } from "lucide-react";
 import { encodeQR } from "../lib/qr";
-
-const CHAINS = [
-	{ name: "Base", file: "base.svg" },
-	{ name: "Arbitrum", file: "arbitrum.svg" },
-	{ name: "Arc", file: "arc.svg" },
-	{ name: "Ethereum", file: "ethereum.svg" },
-];
+import { FUNDING_CHAINS } from "../lib/chains";
 
 interface Props {
 	/** ENS name being funded, e.g. "vitalik.eth" */
 	name: string;
-	/** Permanent Namepass subdomain, e.g. "vitalik.namepass.eth" */
-	pass: string;
 	/** Permanent deposit address. */
 	address: string;
 	/**
@@ -40,15 +32,13 @@ const MODULE_MS = 140;
 
 export default function PassCard({
 	name,
-	pass,
 	address,
 	onSupportedTokens,
 	animate = false,
 	surface = "solid",
 	layout = "stack",
 }: Props) {
-	const [copied, setCopied] = useState<"pass" | "address" | null>(null);
-	const [showRaw, setShowRaw] = useState(false);
+	const [copied, setCopied] = useState(false);
 
 	const matrix = useMemo(() => {
 		try {
@@ -58,10 +48,10 @@ export default function PassCard({
 		}
 	}, [address]);
 
-	function copy(text: string, which: "pass" | "address") {
+	function copy(text: string) {
 		const done = () => {
-			setCopied(which);
-			setTimeout(() => setCopied(null), 1600);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 1600);
 		};
 		if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, done);
 		else done();
@@ -144,20 +134,20 @@ export default function PassCard({
 			</div>
 
 			<div className={split ? "sm:flex-1 sm:min-w-0" : ""}>
-			{/* Primary: the human-readable name */}
+			{/* The address is the only fundable identifier. */}
 			<button
-				onClick={() => copy(pass, "pass")}
+				onClick={() => copy(address)}
 				className={`${split ? "mt-5 sm:mt-0" : "mt-5"} w-full text-left rounded-[1.4rem] border px-4 py-3 transition-colors group ${fieldBg}`}
 			>
 				<div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
 					<InfinityIcon className="w-3 h-3" />
-					Send here · auto renewal address
+					Deposit address · any supported chain
 				</div>
 				<div className="mt-1 flex items-center justify-between gap-3">
-					<span className="min-w-0 text-[15px] md:text-[16px] text-[rgba(30,50,90,0.95)] truncate">
-						{pass}
+					<span className="min-w-0 text-[12.5px] leading-snug text-[rgba(30,50,90,0.95)] font-mono break-all">
+						{address}
 					</span>
-					{copied === "pass" ? (
+					{copied ? (
 						<span className="flex items-center gap-1.5 shrink-0 text-[12px] text-[rgba(30,50,90,0.8)]">
 							<Check className="w-3.5 h-3.5" />
 							Copied
@@ -167,41 +157,6 @@ export default function PassCard({
 					)}
 				</div>
 			</button>
-
-			{/* Secondary: the raw address, tucked away until wanted */}
-			{!showRaw ? (
-				<button
-					onClick={() => setShowRaw(true)}
-					className="mt-2.5 w-full text-center text-[12px] text-[rgba(30,50,90,0.5)] hover:text-[rgba(30,50,90,0.8)] transition-colors py-1"
-				>
-					or use the raw address
-				</button>
-			) : (
-				<motion.button
-					initial={{ opacity: 0, height: 0 }}
-					animate={{ opacity: 1, height: "auto" }}
-					transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-					onClick={() => copy(address, "address")}
-					className={`mt-2.5 w-full text-left rounded-[1.4rem] border px-4 py-3 transition-colors group overflow-hidden ${fieldBg}`}
-				>
-					<div className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
-						Deposit address · any chain
-					</div>
-					<div className="mt-1 flex items-start justify-between gap-3">
-						<span className="text-[12.5px] leading-snug text-[rgba(30,50,90,0.95)] font-mono break-all">
-							{address}
-						</span>
-						{copied === "address" ? (
-							<span className="flex items-center gap-1.5 shrink-0 text-[12px] text-[rgba(30,50,90,0.8)]">
-								<Check className="w-3.5 h-3.5" />
-								Copied
-							</span>
-						) : (
-							<Copy className="w-4 h-4 shrink-0 text-[rgba(30,50,90,0.35)] group-hover:text-[rgba(30,50,90,0.75)] transition-colors" />
-						)}
-					</div>
-				</motion.button>
-			)}
 
 			<p className="mt-4 text-center text-[12px] text-[rgba(30,50,90,0.5)] leading-relaxed">
 				Every payment extends{" "}
@@ -232,13 +187,13 @@ export default function PassCard({
 						On any of these chains
 					</div>
 					<div className="mt-2.5 flex items-center justify-center gap-x-5 gap-y-2 flex-wrap">
-						{CHAINS.map((c) => (
+						{FUNDING_CHAINS.map((c) => (
 							<span
 								key={c.name}
 								className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(30,50,90,0.7)]"
 							>
 								<img
-									src={`${import.meta.env.BASE_URL}logos/${c.file}`}
+									src={`${import.meta.env.BASE_URL}logos/${c.logo}`}
 									alt=""
 									className="w-4 h-4 shrink-0"
 								/>

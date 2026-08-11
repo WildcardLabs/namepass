@@ -1,4 +1,4 @@
-# Architecture — contracts (built) and production system (specified)
+# Architecture — contracts (built) and production system (implemented, not deployed)
 
 **This file covers two parts at two different stages. Check which part you are reading.**
 
@@ -7,17 +7,20 @@
   four testnets**. Both have been run against the deployed ENS and Circle contracts.
   `docs/DEPLOYMENTS.md` records the addresses, the configuration, and the transactions that prove
   each claim. **The contracts have no external audit. There is no mainnet deployment.**
-- **Production system: specified, not built.** The sections from "Production system" to the end
-  describe Goldsky Turbo, Neon Postgres, Vercel Functions, Vercel Workflow, the API, the schema,
-  and the implementation phases. **None of them exist.** There is no backend code, database, or
-  pipeline deployment. The UI follows the domain model in this specification.
+- **Production system: implemented in code, not deployed.** The repository contains the shared
+  chain registry, Neon schema and migration, API, Goldsky pipeline definition, webhook receiver,
+  relayer transaction logic, durable workflows, recovery jobs, and frontend API cutover. The
+  sections from "Production system" to the end describe this code and its remaining deployment,
+  testnet, operations, audit, and mainnet gates. There is no deployed backend, database schema,
+  pipeline, or relayer.
 
-A deposit does not start a renewal today, because the service that would detect it is not built.
+A deposit does not start a renewal today, because the detection and execution services are not
+deployed.
 The on-chain path works. `renew(label)` is permissionless, so any person can push a deposit through
 it manually. The testnet flows below were run this way.
 
 **For the app that does exist, see `docs/FRONTEND.md`.** That covers the running frontend in
-detail: data layer, domain model, simulation lifecycle, state model, component map and invariants.
+detail: public API boundary, legacy local fixture, state model, component map, and invariants.
 
 Settled calls and their rationale live in `docs/DECISIONS.md`; this file is the current picture,
 not the history.
@@ -143,10 +146,10 @@ someone else. Use `@adraffy/ens-normalize`.
 
 ## The flow
 
-**The on-chain steps are built and proven. The service that connects them is not built.** Steps 1,
-3, and 5 below are contract behavior. They have been run from all three L2s on testnet; see
-`docs/DEPLOYMENTS.md`. Step 2 and the polling in step 4 belong to the unbuilt backend. A person
-performs those steps today.
+**The on-chain steps are built and proven. The service code that connects them is not deployed.**
+Steps 1, 3, and 5 below are contract behavior. They have been run from all three L2s on testnet;
+see `docs/DEPLOYMENTS.md`. The repository implements step 2 and the polling in step 4. A person
+still performs those steps against the deployed testnet contracts today.
 
 ```
   deposit         burn + hook      attestation        mint + renewal
@@ -373,9 +376,11 @@ Details to pin down against Circle's current docs — treat as directional, not 
 
 ## Production system
 
-> **This section is a specification. It is not built yet.** The contracts above are deployed to
-> four testnets. The frontend still uses simulated activity from `src/lib/registry.ts`. There is no
-> API, database, Goldsky pipeline, relayer, or Vercel Workflow in this repository.
+> **This section is implemented in code but not deployed.** The repository contains the shared
+> chain registry, Neon schema and migration, API, Goldsky pipeline definition, webhook receiver,
+> relayer transaction logic, durable workflows, recovery jobs, and frontend API cutover. The
+> contracts above are deployed to four testnets. There is no deployed API, database schema,
+> Goldsky pipeline, relayer, or Vercel Workflow environment.
 
 The remaining system uses three managed platforms:
 
@@ -424,8 +429,8 @@ receipts, contract events, and current contract reads before it moves money.
 
 ## One configuration model
 
-The implementation must create one shared chain registry. The frontend, API, workflow, Goldsky
-configuration generator, and tests must read it.
+`src/lib/chains.ts` is the shared chain registry. The frontend, API, workflows, Goldsky generator,
+and tests read it.
 
 Each chain entry contains:
 
@@ -445,8 +450,9 @@ Each chain entry contains:
 The registry contains no secrets. RPC URLs and signer keys stay in Vercel environment variables.
 Goldsky dataset versions stay pinned in the committed pipeline definition.
 
-This change removes the current multi-file chain list. A chain is supported only when one registry
-entry, its logo asset, its deployed contracts, and its end-to-end test all exist.
+The registry removes the old multi-file chain list. `scripts/check-chains.mjs` checks required
+fields, generated views, unique identifiers, and logo assets. A chain is supported only when one
+registry entry, its logo asset, its deployed contracts, and its end-to-end test all exist.
 
 ### Launch chain sets
 
@@ -654,8 +660,10 @@ Every output row uses a stable event ID. It includes:
 - normalized transfer or decoded event fields
 - `_gs_op`
 
-Keep `_gs_op` through every transform. Goldsky uses `c` for a canonical create and `d` when a reorg
-removes a row.
+Keep `_gs_op` through every transform. Goldsky documents `i` for an insert and `d` for a delete,
+while some provider-facing CDC paths use `c` for a create. The receiver accepts `i` and `c`,
+normalizes both to the internal create operation `c`, and rejects `u`. Chain event rows are
+immutable, so an update is not valid input. A reorg removes a row with `d`.
 
 The pipeline sends one row per webhook request. This reduces partial-batch handling and makes the
 event ID the idempotency key.
@@ -1059,6 +1067,7 @@ canonical flag.
 - `block_time`
 - `gs_op`
 - `canonical`
+- `facts`, validated event fields that do not expire
 - `payload`, nullable after the retention period
 - `payload_expires_at`
 - `first_seen_at`
@@ -1067,10 +1076,10 @@ canonical flag.
 Add a unique constraint on `(chain_id, tx_hash, log_index, event_type)`. A reorg delete updates
 `canonical`.
 
-Keep the raw Goldsky payload for 30 days. Keep the normalized columns, canonical state, domain rows,
-and transaction evidence without a time limit. Raw payloads contain public chain data and are useful
-for incident diagnosis, but Goldsky can replay them. Permanent duplicate storage has no launch
-benefit.
+Keep the raw Goldsky payload for 30 days. Keep the validated `facts`, normalized columns, canonical
+state, domain rows, and transaction evidence without a time limit. Public reads use `facts`, never
+the expiring payload. Raw payloads contain public chain data and are useful for incident diagnosis,
+but Goldsky can replay them.
 
 A daily authenticated retention job clears expired payloads in bounded batches. It sets `payload`
 to `NULL`; it does not delete the `chain_events` row. The job uses `payload_expires_at`, so it does
@@ -1108,6 +1117,8 @@ One renewal execution.
 
 - `id`
 - `name_id`
+- `deposit_event_id`, nullable exact link to the funding event
+- `renewal_event_id`, nullable exact link to the canonical `Renewed` event
 - `origin_chain_id`
 - `trigger`: `automatic`, `manual`, `recovery`, or `external`
 - `status`
@@ -1153,6 +1164,12 @@ Ethereum flows skip the CCTP states.
 
 Use a partial unique index for one active flow per name and chain. Active means every state except
 `settled`, `cancelled`, and `failed`. An `unclaimed` flow remains active.
+
+Use unique partial indexes for non-null `deposit_event_id`, `renewal_event_id`, and
+`workflow_run_id`. A canonical `Renewed` event links to a known transaction intent when one exists.
+Otherwise it creates one settled `external` flow. A delete removes it from aggregates and public
+activity. A replay restores the same flow. A renewal that arrived before activation remains in
+`chain_events` and is projected when the name is activated.
 
 ### `flow_transitions`
 
@@ -1221,7 +1238,8 @@ Do not add these old draft tables:
 
 `chain_events` is the replay and audit inbox. `flows` and `flow_transitions` hold workflow state.
 `transaction_intents` holds on-chain steps. Public renewal rows come from canonical `Renewed`
-events.
+events and permanent validated facts. `CCTPClaimed` supplies the exact source domain and nonce.
+`MessageSent` supplies the origin transaction. `NameRenewed` supplies the expiry after renewal.
 
 ## API and frontend reads
 
@@ -1236,6 +1254,7 @@ version.
 - `POST /api/webhooks/goldsky`
 - `GET /api/cron/recover`, authenticated with `CRON_SECRET`
 - `GET /api/cron/retention`, authenticated with `CRON_SECRET`
+- `GET /api/cron/health`, authenticated with `CRON_SECRET`
 
 ### Read endpoints
 
@@ -1249,6 +1268,10 @@ version.
 
 Use cursor pagination for activity. Cap page sizes. Set short public cache headers for aggregate
 reads. Do not cache active flow detail.
+
+Both activity endpoints return canonical `Renewed` rows. They do not treat a deposit as a completed
+renewal. The receiver recomputes name totals from canonical events after every create, delete, or
+replay, so duplicate delivery and reorgs cannot add totals twice.
 
 ### Public sender identity
 
@@ -1299,19 +1322,17 @@ Polling is sufficient and has fewer failure modes.
 Vercel Cron calls `GET /api/cron/recover`. This is a control-plane repair job. It is not a chain
 indexer.
 
-It finds bounded batches of:
+It uses a transaction-scoped database advisory lock. It finds bounded batches of:
 
 - queued flows with no workflow run ID
-- workflows whose next action time passed
+- unclaimed CCTP flows whose next action time passed and that have no workflow run ID
 - signed transactions that were never broadcast
-- broadcast transactions without a recorded receipt
-- attested CCTP messages without a claim
-- settled flows whose canonical `Renewed` event has not arrived yet
 - names with a non-empty `unscanned_chain_ids`
 
-For each row, it starts or resumes the same idempotent action. For the last one it re-reads the
-balance on the listed chains, removes each chain that answers, and queues a flow if the balance is
-now eligible.
+For a queued or due unclaimed flow, it starts the same idempotent workflow. It never replaces an
+existing Workflow run. The workflow itself owns active Iris polling. For a stored signed
+transaction, it rebroadcasts the exact stored bytes. For an unscanned name, it re-reads only the
+listed chains, removes each chain that answers, and queues a flow if the balance is now eligible.
 
 The job does not scan every deposit address and does not compute balances from deposit arithmetic.
 Goldsky source checkpoints recover chain ingestion. Public manual trigger plus activation balance
@@ -1397,6 +1418,7 @@ Vercel server variables:
 - `DATABASE_URL_UNPOOLED`, migrations only
 - one RPC URL per supported chain
 - `RELAYER_PRIVATE_KEY`
+- `RELAYER_ADDRESS` (public address only; used to label Namepass executions)
 - `GOLDSKY_WEBHOOK_SECRET`
 - `CRON_SECRET`
 - `CIRCLE_IRIS_URL`
@@ -1585,6 +1607,9 @@ preview environment.
 
 ### Phase 1 — shared chain registry
 
+**Implemented:** the registry, public and server views, frontend adapters, and completeness check
+exist. The current frontend order, labels, addresses, explorers, tags, and assets are unchanged.
+
 - Create the shared registry.
 - Move tokens, fees, explorers, tags, assets, and deployment references to it.
 - Add completeness tests.
@@ -1593,6 +1618,10 @@ preview environment.
 **Gate:** removing a required field fails a test, and the current frontend output does not change.
 
 ### Phase 2 — Neon schema and API foundation
+
+**Implemented in code, not deployed:** Drizzle schema and migration, value-free environment
+template, structured API validation, activation and public read endpoints, and local tests exist.
+Database roles and a preview Neon branch are still external gates.
 
 - Add Drizzle, `pg`, and `@vercel/functions`.
 - Add migrations and roles.
@@ -1605,6 +1634,11 @@ preview environment.
 
 ### Phase 3 — Goldsky ingestion
 
+**Implemented in code, not deployed:** the generated pinned-candidate Turbo pipeline, authenticated
+webhook receiver, permanent validated event facts, external-renewal reconciliation, and create,
+duplicate, delete, replay, and input-boundary tests exist. Goldsky must still verify the exact
+datasets, validate the YAML, create the secrets, and deliver testnet events.
+
 - Add the pinned Turbo pipeline definition.
 - Add deposit and protocol-event transforms.
 - Add the authenticated webhook receiver.
@@ -1616,6 +1650,13 @@ delivery.
 
 ### Phase 4 — Ethereum workflow
 
+**Implemented in code, not proven end to end:** the Ethereum workflow checks finality,
+renewability, balance, simulation, durable nonce ownership, stored signed bytes, receipt status,
+and exact settlement events. Recovery can rebroadcast a prepared transaction. Local tests cover
+the step logic and ownership guards. The Workflow runtime probe covers compiler output, durable
+step persistence, and targeted sleep resume. It does not cover Namepass workflow composition or
+retry behavior. A real automatic Sepolia run and Workflow runtime retry tests remain gates.
+
 - Add Workflow to the Vite project.
 - Add the flow state machine.
 - Add nonce reservation and transaction intents.
@@ -1625,6 +1666,14 @@ delivery.
 **Gate:** a real Sepolia deposit renews once after forced webhook and workflow retries.
 
 ### Phase 5 — CCTP workflow
+
+**Implemented in code, not proven end to end:** the L2 workflow parses the origin burn receipt,
+polls Circle Iris v2, validates the complete CCTP route and message fields, stores the message and
+attestation before the claim, and submits the Ethereum claim through a durable transaction intent.
+An unclaimed flow keeps one Circle message and retries only that claim. A non-zero origin remainder
+queues a new recovery flow. Local checks cover Iris retry responses, route mismatch, claim retry,
+duplicate execution, and workflow-owner scoping. The three real L2 testnet runs remain an external
+gate.
 
 - Add origin burn receipt parsing.
 - Add Circle Iris polling.
@@ -1638,6 +1687,11 @@ remains recoverable.
 
 ### Phase 6 — frontend cutover
 
+**Implemented in code, not deployed:** production screens read the public API. They do not import
+the local registry fixture. The browser loads the per-chain trigger floors from public
+configuration. It does not use a fallback floor. It keeps public monetary values as decimal text
+or `bigint`, polls active flows, and renders public sender, executor, evidence, and retry data.
+
 - Replace `registry.ts` reads with API adapters.
 - Keep mock fixtures only for local and preview demonstration modes.
 - Activate a name before showing its funding controls.
@@ -1650,6 +1704,13 @@ remains recoverable.
 **Gate:** no production screen imports simulated activity.
 
 ### Phase 7 — operations and hardening
+
+**Partially implemented in code, not deployed:** authenticated Vercel recovery, health, and
+retention crons exist. Recovery uses a bounded transaction-scoped lease. It repairs unowned queued
+flows, due unclaimed CCTP flows, unscanned activation chains, and prepared unbroadcast
+transactions. The health check returns database and per-chain gas status only. It does not return
+keys, URLs, addresses, balances, raw payloads, or signed transactions. Raw payload deletion is
+limited to 500 expired rows per daily run; normalized event columns and event rows remain.
 
 - Add dashboards and alerts.
 - Add recovery and restore drills.

@@ -1,4 +1,5 @@
 import { decodeUint, ethCallBatch } from "./rpc";
+import { FUNDING_CHAINS, HUB_CHAIN } from "./chains";
 
 /**
  * What a renewal costs on top of the ENS price.
@@ -24,13 +25,13 @@ import { decodeUint, ethCallBatch } from "./rpc";
 export const GAS_ALLOWANCE = 100000n;
 
 /** Chains a payment can arrive on, in the order the UI lists them. */
-export const FEE_CHAINS = ["Base", "Arbitrum", "Arc", "Ethereum"];
+export const FEE_CHAINS = FUNDING_CHAINS.map((chain) => chain.name);
 
 /**
  * The renewal helper on Sepolia — `docs/DEPLOYMENTS.md`. Not deterministic,
  * so unlike the factory there is nothing to derive; it has to be pinned.
  */
-export const NAMEPASS_HELPER = "0xf1b51552098ffa7dc2cd83d0fb6508e57db8acc1";
+export const NAMEPASS_HELPER = HUB_CHAIN.helperAddress!;
 
 /**
  * Check the allowance above against the deployed contract.

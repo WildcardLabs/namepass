@@ -1,9 +1,9 @@
 import { motion, AnimatePresence } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import { ArrowLeft, ArrowRight, ChevronDown } from "lucide-react";
-import { allNames, renewalCount, timeDelivered } from "../lib/registry";
-import { fmtDelivered } from "../lib/format";
-import NumberTicker from "./magicui/NumberTicker";
+import { allNames, renewalCount, syncLeaderboard, timeDelivered } from "../lib/readModel";
+import { getLeaderboard } from "../lib/publicApi";
+import { fmtDelivered, fmtYears } from "../lib/format";
 import DotPattern from "./magicui/DotPattern";
 import ShineBorder from "./magicui/ShineBorder";
 import AnimatedShinyText from "./magicui/AnimatedShinyText";
@@ -52,8 +52,8 @@ function Toggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void })
 	);
 }
 
-function monthsDelivered(rec: Parameters<typeof timeDelivered>[0]): number {
-	return timeDelivered(rec) * 12;
+function compareBigints(a: bigint, b: bigint): number {
+	return a === b ? 0 : a > b ? -1 : 1;
 }
 
 interface Props {
@@ -68,11 +68,51 @@ export default function Leaderboard({ onBack, onViewName, onSupportedTokens }: P
 	const [mode, setMode] = useState<Mode>("renewals");
 	const [expanded, setExpanded] = useState<string | null>(null);
 	const [pageIndex, setPageIndex] = useState(0);
+	const [version, refresh] = useReducer((value: number) => value + 1, 0);
+	const [loadError, setLoadError] = useState<string | null>(null);
 
 	const ranked = useMemo(() => {
 		const metric = mode === "renewals" ? renewalCount : timeDelivered;
-		return [...allNames()].sort((a, b) => metric(b) - metric(a));
-	}, [mode]);
+		return [...allNames()].sort((a, b) => compareBigints(metric(a), metric(b)));
+	}, [mode, version]);
+
+	useEffect(() => {
+		let stopped = false;
+		let timer = 0;
+		let failures = 0;
+		let loading = false;
+		const schedule = (delay: number) => {
+			window.clearTimeout(timer);
+			timer = window.setTimeout(() => void load(), delay);
+		};
+		const load = async () => {
+			if (stopped || loading) return;
+			loading = true;
+			try {
+				syncLeaderboard(await getLeaderboard());
+				failures = 0;
+				setLoadError(null);
+				refresh();
+			} catch (cause) {
+				failures += 1;
+				setLoadError(cause instanceof Error ? cause.message : "Could not load the leaderboard.");
+			} finally {
+				loading = false;
+				if (!stopped) schedule(Math.min(15_000 * 2 ** failures, 60_000));
+			}
+		};
+		const focus = () => {
+			window.clearTimeout(timer);
+			void load();
+		};
+		void load();
+		window.addEventListener("focus", focus);
+		return () => {
+			stopped = true;
+			window.clearTimeout(timer);
+			window.removeEventListener("focus", focus);
+		};
+	}, []);
 
 	const pageCount = Math.max(1, Math.ceil(ranked.length / PAGE_SIZE));
 	const page = ranked.slice(pageIndex * PAGE_SIZE, pageIndex * PAGE_SIZE + PAGE_SIZE);
@@ -130,13 +170,9 @@ export default function Leaderboard({ onBack, onViewName, onSupportedTokens }: P
 						/* The ranked figure switches unit where the subtitle beneath it
 						   does: days, then months, then years — so a 3-character name
 						   measured in days doesn't rank as a flat zero. */
-						const months = monthsDelivered(r);
-						const unit = months < 1 ? "d" : months < 12 ? "mo" : "y";
-						const timeValue =
-							unit === "d" ? Math.round(months * 30.4) : unit === "mo" ? months : months / 12;
-						const primary = mode === "renewals" ? renewalCount(r) : timeValue;
-						const primaryDecimals = mode === "renewals" || unit !== "y" ? 0 : 1;
-						const primarySuffix = mode === "renewals" ? "" : unit;
+						const primary = mode === "renewals"
+							? renewalCount(r).toString()
+							: `${fmtYears(timeDelivered(r))}y`;
 
 						return (
 							<div key={r.name}>
@@ -164,19 +200,16 @@ export default function Leaderboard({ onBack, onViewName, onSupportedTokens }: P
 											{r.name}
 										</div>
 										<div className="mt-0.5 text-[12.5px] text-[rgba(30,50,90,0.5)] tabular-nums">
-											{renewalCount(r)} renewals · {fmtDelivered(timeDelivered(r))}{" "}
+											{renewalCount(r).toString()} renewals · {fmtDelivered(timeDelivered(r))}{" "}
 											delivered
 										</div>
 									</div>
 
 									<div className="shrink-0 flex items-center gap-3">
 										<div className="text-right">
-											<NumberTicker
-												value={primary}
-												decimals={primaryDecimals}
-												suffix={primarySuffix}
-												className="block text-[17px] md:text-[19px] text-[rgba(30,50,90,0.95)] tracking-tight tabular-nums"
-											/>
+											<span className="block text-[17px] md:text-[19px] text-[rgba(30,50,90,0.95)] tracking-tight tabular-nums">
+												{primary}
+											</span>
 											<div className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.4)]">
 												{mode === "renewals" ? "Renewals" : "Delivered"}
 											</div>
@@ -197,10 +230,9 @@ export default function Leaderboard({ onBack, onViewName, onSupportedTokens }: P
 											className="overflow-hidden"
 										>
 											<div className="px-4 md:px-5 py-5 bg-[rgba(30,50,90,0.015)] border-t border-[rgba(30,50,90,0.06)]">
-												<PassCard
-													name={r.name}
-													pass={r.pass}
-													address={r.address}
+								<PassCard
+									name={r.name}
+									address={r.address}
 													onSupportedTokens={onSupportedTokens}
 												/>
 												{/* The address is here; the history isn't. Radius, border
@@ -222,6 +254,7 @@ export default function Leaderboard({ onBack, onViewName, onSupportedTokens }: P
 						);
 					})}
 				</div>
+				{loadError && <p role="alert" className="mt-3 text-[12.5px] text-red-700">{loadError}</p>}
 
 				{pageCount > 1 && (
 					<div className="mt-6 flex items-center justify-between">

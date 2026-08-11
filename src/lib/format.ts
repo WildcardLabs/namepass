@@ -1,4 +1,5 @@
 import { YEAR_SECONDS } from "./pricing";
+import { chainByName } from "./chains";
 
 export function fmtDate(ms: number): string {
 	return new Date(ms).toLocaleDateString("en-GB", {
@@ -32,8 +33,12 @@ export function fmtAgo(ms: number): string {
 
 /** Whole-dollar when exact, else 2dp. Amounts are 6dp micro-units. */
 export function fmtUsdc(micro: bigint): string {
-	const v = Number(micro) / 1e6;
-	return `$${Math.abs(v - Math.round(v)) < 0.005 ? Math.round(v) : v.toFixed(2)}`;
+	const negative = micro < 0n;
+	const value = negative ? -micro : micro;
+	const cents = (value + 5_000n) / 10_000n;
+	const whole = cents / 100n;
+	const fraction = (cents % 100n).toString().padStart(2, "0");
+	return `${negative ? "-$" : "$"}${whole}${fraction === "00" ? "" : `.${fraction}`}`;
 }
 
 /**
@@ -45,9 +50,11 @@ export function fmtUsdc(micro: bigint): string {
  * in a panel where someone is checking the arithmetic.
  */
 export function fmtUsdcExact(micro: bigint): string {
-	const whole = micro / 1000000n;
-	const frac = (micro % 1000000n).toString().padStart(6, "0").replace(/0+$/, "");
-	return `$${whole}.${frac.padEnd(2, "0")}`;
+	const negative = micro < 0n;
+	const value = negative ? -micro : micro;
+	const whole = value / 1000000n;
+	const frac = (value % 1000000n).toString().padStart(6, "0").replace(/0+$/, "");
+	return `${negative ? "-$" : "$"}${whole}.${frac.padEnd(2, "0")}`;
 }
 
 /**
@@ -57,26 +64,32 @@ export function fmtUsdcExact(micro: bigint): string {
  *
  * "9 days" · "8 months" · "1 year 3 months" · "22 years"
  */
-export function fmtDelivered(years: number): string {
-	const months = Math.round(years * 12);
+export function fmtDelivered(seconds: bigint): string {
+	const months = (seconds * 12n + YEAR_SECONDS / 2n) / YEAR_SECONDS;
 	/* A three-character name's renewals are measured in days, and rounding those
 	   to months just prints "0 months delivered". */
-	if (months < 1) {
-		const days = Math.round(years * 365);
-		return `${days} day${days === 1 ? "" : "s"}`;
+	if (months < 1n) {
+		const days = (seconds + 43_200n) / 86_400n;
+		return `${days} day${days === 1n ? "" : "s"}`;
 	}
-	if (months < 12) return `${months} month${months === 1 ? "" : "s"}`;
-	const y = Math.floor(months / 12);
-	const m = months % 12;
-	const yPart = `${y} year${y === 1 ? "" : "s"}`;
-	return m > 0 ? `${yPart} ${m} month${m === 1 ? "" : "s"}` : yPart;
+	if (months < 12n) return `${months} month${months === 1n ? "" : "s"}`;
+	const y = months / 12n;
+	const m = months % 12n;
+	const yPart = `${y} year${y === 1n ? "" : "s"}`;
+	return m > 0n ? `${yPart} ${m} month${m === 1n ? "" : "s"}` : yPart;
 }
 
 /** "+6.0y" or "+228d" for sub-year durations. */
 export function fmtDuration(seconds: bigint): string {
-	const years = Number(seconds) / Number(YEAR_SECONDS);
-	if (years >= 1) return `+${years.toFixed(1)}y`;
-	return `+${Math.floor(Number(seconds) / 86400)}d`;
+	const tenths = (seconds * 10n + YEAR_SECONDS / 2n) / YEAR_SECONDS;
+	if (tenths >= 10n) return `+${tenths / 10n}.${tenths % 10n}y`;
+	return `+${seconds / 86_400n}d`;
+}
+
+/** One decimal year value without the prefix/suffix used by compact duration labels. */
+export function fmtYears(seconds: bigint): string {
+	const tenths = (seconds * 10n + YEAR_SECONDS / 2n) / YEAR_SECONDS;
+	return `${tenths / 10n}.${tenths % 10n}`;
 }
 
 export function truncAddress(addr: string): string {
@@ -87,17 +100,8 @@ export function truncTx(tx: string): string {
 	return `${tx.slice(0, 10)}…${tx.slice(-6)}`;
 }
 
-const EXPLORER: Record<string, string> = {
-	/* Testnet explorers — the app is a testnet deployment. Swap these and
-	   `lib/tokens.ts` together if it ever goes to mainnet. */
-	Ethereum: "https://sepolia.etherscan.io/tx/",
-	Base: "https://sepolia.basescan.org/tx/",
-	Arbitrum: "https://sepolia.arbiscan.io/tx/",
-	Arc: "https://testnet.arcscan.app/tx/",
-};
-
 /** Block explorer link for a transaction. Empty when the chain is unknown. */
 export function explorerUrl(chain: string, tx: string): string {
-	const base = EXPLORER[chain];
-	return base ? `${base}${tx}` : "";
+	const entry = chainByName(chain);
+	return entry ? `${entry.explorerUrl}/tx/${tx}` : "";
 }

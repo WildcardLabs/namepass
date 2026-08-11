@@ -37,8 +37,8 @@ exists, and any person can verify it before someone claims the name. An indexing
 inbound payment. Circle's CCTP moves the funds to Ethereum. The renewal executes in the transaction
 that completes the transfer. No person intervenes.
 
-The contracts for this path are built. The detection service is not built. Read the next section
-before you describe this automation as working.
+The contracts and automation code for this path are built. The automation is not deployed. Read
+the next section before you describe it as a running system.
 
 ## Current status
 
@@ -50,16 +50,17 @@ gave them one status and became inaccurate. Keep them separate.
   contracts: deposit, CCTP burn on each L2, attestation, and one transaction that mints and renews
   together. `docs/DEPLOYMENTS.md` records the addresses and the results. **The contracts have no
   external audit and no mainnet deployment.** Neither is scheduled.
-- **The automation backend does not exist.** There is no Goldsky pipeline, Neon database, API, or
-  Vercel Workflow. No service watches a deposit address. No service starts a flow.
-  `docs/ARCHITECTURE.md` is a specification, not a description. A renewal happens today only when
-  a person calls the permissionless `renew(label)` function.
-- **The frontend is a prototype.** The addresses, the prices, and the expiry dates are real. The
-  activity, the balances, and the renewal history are simulated in the browser. See
+- **The automation backend is implemented in code but is not deployed.** The repository contains
+  the Goldsky pipeline definition, Neon schema and migration, API, durable workflows, and recovery
+  jobs. No deployed Goldsky pipeline, database schema, relayer, or Vercel server environment starts
+  a flow today. `docs/ARCHITECTURE.md` describes both the implemented code and the external gates.
+- **The frontend is a prototype.** The addresses and pricing math are real. The Explorer and
+  Leaderboard read the public API, but that API needs a backend deployment before it can supply
+  production data. `src/lib/registry.ts` contains local demonstration fixtures only. See
   `docs/FRONTEND.md`.
 
 Do not write copy that says the contracts are hypothetical. Do not write copy that says the app
-reads the contracts.
+is a deployed automation service.
 
 ## Supported chains
 
@@ -105,9 +106,9 @@ decided and shouldn't be assumed or invented in copy, code, or future planning:
   testnet. There is no audit, no mainnet deployment, and no date for either. The technical launch
   gates and the initial three-chain scope are decided in `docs/ARCHITECTURE.md`. The business model,
   audit schedule, and release date remain open.
-- **The end of the prototype stage for the frontend.** The app must read from the automation
-  backend. That backend is specified and unbuilt (`docs/ARCHITECTURE.md`). A connection between the
-  app and the contracts is therefore a project, not a configuration change.
+- **The end of the prototype stage.** The frontend cutover to the public API exists in code. The
+  backend, database, pipeline, relayer, and stable environment still need deployment and end-to-end
+  proof. No date defines when that work changes the product status.
 - Governance and legal structure. **Custody is now settled, not open:** moving to CREATE2-derived
   addresses removed the custodial step. No third party holds keys on Namepass's behalf, and each
   address is computable and verifiable from the name alone. This reversed an earlier CDP
