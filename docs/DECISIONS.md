@@ -63,11 +63,16 @@ entry recorded that as an open problem with three options. It isn't one, and the
 writing down because the instinct is to solve it in the pipeline:
 
 **The app never needed the pipeline to see that money.** The deposit address is derived locally from
-the label, so the balance is a `balanceOf` call on four chains — and `src/lib/rpc.ts` already has
-`encodeAddress`, `decodeUint`, and a per-chain `rpcUrl`, so it is four batched reads and no new
-dependency. The Explorer reads the chain when a name is viewed. Triggering from there upserts the
-`names` row, which fires the sync trigger, which puts the address in the dynamic table — so the gap
-closes itself the first time anyone looks.
+the label, so the balance is a `balanceOf` call on four chains. The Explorer reads the chain when a
+name is viewed. Triggering from there upserts the `names` row, which fires the sync trigger, which
+puts the address in the dynamic table — so the gap closes itself the first time anyone looks.
+
+To be clear about what exists: **the app does not read balances today.** It reads pricing and the
+gas allowance at boot, and per-name expiry and renewability, all against Sepolia. There is no
+`balanceOf` call and no RPC endpoint for the other three chains. What makes this cheap is that
+`balanceOf(address)` is the fixed-shape call `rpc.ts` was designed around, so it needs three RPC
+endpoints in config rather than a web3 library. An earlier version of this entry said "no new
+dependency" in a way that read as "already wired"; it is not.
 
 What remains is that **discovery is pull-based**: nobody is watching, so funds at an unclaimed
 address wait until a person opens that name, and they are absent from the leaderboard until a flow

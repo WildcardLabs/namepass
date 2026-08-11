@@ -929,10 +929,23 @@ from the label, and the balance is a `balanceOf` call. So the Explorer reads it 
 depositAddress(label)  →  balanceOf(address) on each of the four chains  →  render
 ```
 
-This needs nothing new. `src/lib/rpc.ts` already has `encodeAddress`, `decodeUint`, and an
-`rpcUrl` parameter on `ethCallBatch`, so it is four batched `eth_call`s — one per chain — and the
-per-chain shape the pending-balance card already renders. It is also the honest read for *every*
-name, claimed or not: the chain balance is the truth and `name_balances` is a cache of it.
+**The app does not do this today.** Its only on-chain reads are ENS's pricing configuration and the
+gas allowance at boot, plus per-name expiry and renewability — all against Sepolia. There is no
+`balanceOf` call anywhere and no RPC endpoint configured for Base, Arbitrum or Arc.
+
+It needs no new dependency, though. `balanceOf(address)` is exactly the fixed-shape call
+`src/lib/rpc.ts` was built for — `encodeAddress` and `decodeUint` exist, and `ethCallBatch` already
+takes an `rpcUrl`, which no caller passes yet. The work is three RPC endpoints in config beside the
+USDC addresses `tokens.ts` already carries per chain, one `usdcBalances(address)` helper, and a call
+from the name view. The result maps onto the per-chain shape `PendingBalance.tsx` renders.
+
+It is also the honest read for *every* name, claimed or not: the chain balance is the truth and
+`name_balances` is a cache of it.
+
+**This read must fail soft, and that is a different policy from every read the app does today.**
+`oracle.ts` and `fees.ts` stop the app when they fail, because a missing price is a wrong price. A
+balance is not. One flaky Arc endpoint must degrade that chain's row, not blank the card or block
+the page.
 
 **Triggering from that view claims the name as a side effect.** `POST /api/flows/trigger` normalizes
 the label, derives the address, and **upserts the `names` row** before starting the flow. The insert
@@ -1015,6 +1028,10 @@ The order follows the cost of an error, not the visibility of the result. Steps 
   makes the money visible and recoverable (see "Unclaimed names"). Sweeping a candidate label set on
   a schedule would close the last gap — nobody is watching — at a cost in RPC calls. A spend
   decision, not a safety one.
+- **The failure policy for a balance read.** It must fail soft, per "Unclaimed names", which no read
+  in the app does today. Decide it when the live reads are built, not before: the choice is whether
+  a chain with no answer renders as absent, as zero, or as an explicit "couldn't check", and only
+  the third is honest.
 
 - **Who owns the helper's dust, and how does it get out.** Renewals buy whole seconds, so a
   sub-second remainder is left behind on every single flow. It needs a withdrawal path or it is
