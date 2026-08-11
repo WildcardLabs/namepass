@@ -2,6 +2,27 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Technical writing
+
+Use **ASD-STE100 Simplified Technical English** for technical writing about this repository. This
+includes agent responses, documentation, issues, pull requests, plans, and code comments.
+
+- Use short, direct sentences. Prefer the active voice.
+- Put one instruction or action in each sentence.
+- Use one term for one concept. Do not change terms only to add variety.
+- Avoid idioms, filler, unnecessary jargon, and unclear pronouns.
+- Define a necessary technical term when the reader might not know it.
+- Keep code identifiers, commands, error messages, quotations, and proper nouns exact.
+- Do not apply this rule to source-code syntax, legal text, historical quotations, or approved
+  product copy.
+- Keep all necessary technical detail. Simplified English controls the wording, not the depth of
+  the explanation.
+- Accuracy has priority. If a strict Simplified English construction changes or hides the meaning,
+  use the clearest accurate wording and explain the necessary term.
+
+The purpose of this rule is to make technical communication easier to understand. It must not
+limit analysis, technical accuracy, or the ability to explain a complex subject.
+
 ## Read these too
 
 - **`README.md`** — the product pitch, feature tour, and tech stack, written for a human visiting
