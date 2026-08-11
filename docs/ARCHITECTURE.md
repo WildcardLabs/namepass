@@ -1,4 +1,4 @@
-# Architecture — contracts (built) and backend (specified)
+# Architecture — contracts (built) and production system (specified)
 
 **This file covers two parts at two different stages. Check which part you are reading.**
 
@@ -7,10 +7,10 @@
   four testnets**. Both have been run against the deployed ENS and Circle contracts.
   `docs/DEPLOYMENTS.md` records the addresses, the configuration, and the transactions that prove
   each claim. **The contracts have no external audit. There is no mainnet deployment.**
-- **Backend: specified, not built.** The sections from "Services" to the end of the file describe
-  the webhook, the Postgres schema, the Vercel Workflow, and the reconcile cron. **None of them
-  exist.** There is no code, no database, and no deployment. The UI follows this specification. The
-  file also lists the open questions.
+- **Production system: specified, not built.** The sections from "Production system" to the end
+  describe Goldsky Turbo, Neon Postgres, Vercel Functions, Vercel Workflow, the API, the schema,
+  and the implementation phases. **None of them exist.** There is no backend code, database, or
+  pipeline deployment. The UI follows the domain model in this specification.
 
 A deposit does not start a renewal today, because the service that would detect it is not built.
 The on-chain path works. `renew(label)` is permissionless, so any person can push a deposit through
@@ -151,14 +151,14 @@ performs those steps today.
 ```
   deposit         burn + hook      attestation        mint + renewal
   ───────►  ───────────────►  ──────────────►  ─────────────────►
-  (any chain)   Vercel fn         Circle Iris      (mainnet, atomic)
-                                Vercel Workflow
+  (any chain)   origin chain      Circle Iris       Ethereum, atomic
+                └──────────── Vercel Workflow orchestrates ────────────┘
 ```
 
 1. USDC lands at a name's CREATE2 address on Base, Arbitrum, Arc or Ethereum.
-2. A **Moralis webhook** hits a Vercel serverless function. It records the deposit and, if the
-   trigger conditions are met, starts a flow.
-3. The function performs the CCTP **burn with a hook** on the origin chain.
+2. A **Goldsky Turbo webhook** hits a Vercel Function. It records the deposit and starts a durable
+   workflow when the trigger conditions are met.
+3. The workflow performs the CCTP **burn with a hook** on the origin chain.
 4. A **Vercel Workflow** polls Circle's **Iris API** for the attestation — the slow step, roughly
    half a minute to half an hour depending on the origin chain — see the measured spread under
    "CCTP at contract level".
@@ -371,455 +371,1353 @@ Details to pin down against Circle's current docs — treat as directional, not 
   allowance were built on the assumption, and "no fee quoting" below is a bet on Circle's pricing
   rather than a property of the protocol.
 
-## Services
+## Production system
 
-> **None of this is built.** The sections from here to the end of the file are a specification:
-> services, schema, read models, trigger policy, and operations. There is no webhook endpoint, no
-> database, no worker, and no cron. `src/lib/registry.ts` simulates the states these services would
-> produce. The contract sections above describe the built part.
+> **This section is a specification. It is not built yet.** The contracts above are deployed to
+> four testnets. The frontend still uses simulated activity from `src/lib/registry.ts`. There is no
+> API, database, Goldsky pipeline, relayer, or Vercel Workflow in this repository.
 
-The plan is to run everything on Vercel with the app: same repository, same environment, atomic
-deploys, and no CORS.
+The remaining system uses three managed platforms:
 
-### `POST /api/webhooks/moralis` — deposit ingestion
+- **Goldsky Turbo** detects USDC transfers and Namepass contract events.
+- **Neon Postgres** stores application state and is the source of truth for the API.
+- **Vercel** hosts the Vite app, API functions, and durable renewal workflows.
 
-Thin by design. Verify the HMAC signature, write the row, decide, return 200 quickly (Moralis
-retries non-2xx, and a slow handler becomes duplicate deliveries).
+Circle Iris remains an external protocol API. Chain RPC endpoints remain necessary for reads,
+transaction submission, and receipt checks. These are integrations, not additional application
+services.
 
-```
-verify signature  →  store raw payload (webhook_deliveries)
-                  →  upsert deposit, unique on (chain_id, tx_hash, log_index)
-                  →  applyPayment: park with a reason, or start a flow
-                  →  if starting, enqueue the renewal Workflow
-                  →  200
-```
+The first production version does not add a queue, Redis, a WebSocket service, a separate worker
+deployment, or a second database. Vercel Workflow supplies durable execution. Neon supplies
+transactions and constraints. Goldsky supplies the ordered event stream and retries.
 
-It must **not** run the flow. Even with settlement and renewal collapsed into one transaction,
-waiting on the attestation runs from seconds to half an hour depending on origin chain — far outside any serverless limit.
+### System map
 
-### `POST /api/names/:name/claim` — activation
+~~~mermaid
+flowchart LR
+    U[User or funder] -->|Activate name and read data| V[Vercel app and API]
+    U -->|Send native USDC| C[Supported chain]
+    C -->|USDC transfers and protocol logs| G[Goldsky Turbo]
+    N[(Neon Postgres)] -->|watched addresses| G
+    G -->|Authenticated, at-least-once webhook| V
+    V -->|Transactions and read models| N
+    V -->|Start or resume| W[Vercel Workflow]
+    W -->|renew or renewWithFee| C
+    W -->|Get message and attestation| I[Circle Iris]
+    W -->|completeCCTP| E[Ethereum helper]
+    V -->|Read API| F[Vite frontend]
+~~~
 
-Normalize (ENSIP-15) → derive address → insert `names` row → register the address with the Moralis
-stream. Idempotent: claiming an existing name returns it.
+### Service boundaries
 
-### `POST /api/flows/trigger` — the manual escape hatch
-
-Open to anyone, rate-limited. Re-checks every precondition server-side (never trust the client's
-view, which is stale the instant it renders) and returns `409` when a flow is already active on that
-`(name, chain)`. Exists only for the anomalies — see Trigger policy.
-
-### Vercel Workflow: `renewal` — durable orchestration
-
-One instance per flow. Steps are individually idempotent and resumable, which is the whole reason
-this isn't a request handler:
-
-| Step | Does | On failure |
+| Component | Owns | Does not own |
 |---|---|---|
-| `burn` | Sign + send `depositForBurn` on origin | Retry with backoff; funds never left, so safe |
-| `awaitAttestation` | Poll Iris until complete | Sleep + retry; back off per origin chain, not globally |
-| `claim` | `receiveMessage` on mainnet — mints, renews, takes allowance | Message stays attested + unclaimed → retryable forever |
-| `record` | Write `renewals` + `flow_steps`, bump aggregates | Retry; reconciler catches drift |
+| Goldsky Turbo | Chain event detection, source checkpoints, delivery retries | Business decisions, flow state, balances, transaction signing |
+| Neon Postgres | Names, deposits, flows, transaction intents, constraints, public read data | Chain finality, CCTP attestations, durable code execution |
+| Vercel Functions | HTTP validation, database transactions, workflow start, public reads | Long waits, in-memory queues, durable locks |
+| Vercel Workflow | Renewal sequence, retry policy, Circle polling, chain writes | Public read models, event indexing |
+| Contracts | Deterministic wallets, USDC movement, ENS pricing, atomic mint and renewal | ENS normalization, deposit detection, automation |
+| Circle Iris | CCTP message and attestation data | Namepass flow state or retry decisions |
 
-### Vercel Cron: `reconcile`
-
-The safety net, independent of webhooks. Compares each address's on-chain balance against
-`Σ deposits − Σ allocations`, surfaces flows past their per-status SLA, and refreshes aggregates.
-This is the only defence against a webhook that never arrives at all — the thing most likely to be
-skipped and most expensive to skip.
-
-### Environment
-
-`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (writes; never shipped to the client),
-`SUPABASE_ANON_KEY` (client reads), `MORALIS_API_KEY`, `MORALIS_WEBHOOK_SECRET`, RPC URLs per chain,
-the signer key for the gas-sponsoring wallet, and `CIRCLE_IRIS_URL`.
-
-## Schema
-
-Three layers: an append-only ledger (truth), a state machine (lifecycle), derived read models
-(speed). Money is `numeric(78,0)` in base units throughout — never float, never JS `number`.
-
-### names
+The API never treats Goldsky, Neon, or a workflow result as proof of chain state. It verifies
+receipts, contract events, and current contract reads before it moves money.
+
+## One configuration model
+
+The implementation must create one shared chain registry. The frontend, API, workflow, Goldsky
+configuration generator, and tests must read it.
+
+Each chain entry contains:
+
+- internal chain key
+- display name and logo key
+- chain ID
+- testnet or mainnet flag
+- Goldsky dataset prefix
+- native USDC address
+- Namepass factory address
+- Circle source domain
+- block explorer URL
+- RPC environment-variable name
+- deposit finality policy
+- workflow polling policy
+
+The registry contains no secrets. RPC URLs and signer keys stay in Vercel environment variables.
+Goldsky dataset versions stay pinned in the committed pipeline definition.
 
-`id`, `name` (ENSIP-15 normalized), `label`, `label_length`, `namehash`, `deposit_address`,
-`claimed_at`, `current_expiry`, `expiry_synced_at`. No custodial account id — the address is a pure
-function of the name, so this row is an index, not the source of truth.
-
-Plus denormalized leaderboard columns — `total_received`, `total_seconds`, `renewal_count`,
-`last_renewal_at`. The ledger is the source of truth; these are a cache a reconciler rebuilds and
-alerts on when they drift.
+This change removes the current multi-file chain list. A chain is supported only when one registry
+entry, its logo asset, its deployed contracts, and its end-to-end test all exist.
 
-### deposits
-
-Every inbound transfer to a monitored address.
+### Launch chain sets
 
-`id`, `name_id`, `kind`, `classified_by`, `refund_for_flow_id`, `chain_id`, `token`, `from_address`,
-`amount`, `tx_hash`, `log_index`, `block_number`, `block_time`, `confirmations`, `status`.
+The stable testnet and the initial mainnet do not have to contain the same chains.
 
-```sql
-constraint deposits_onchain_unique unique (chain_id, tx_hash, log_index)
-```
+| Environment | Chains |
+|---|---|
+| Stable testnet | Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, Arc Testnet |
+| Initial mainnet | Ethereum, Base, Arbitrum |
 
-That constraint is the idempotency key. Webhooks are at-least-once; this makes a duplicate delivery
-a no-op instead of a double renewal.
+Arc is testnet-only for this launch plan. As of 2026-08-11, Circle lists Arc Testnet but not Arc
+mainnet as a CCTP domain. Goldsky also lists Arc Testnet but not Arc mainnet. Initial mainnet launch
+must not wait for Arc.
 
-`kind` is one of `user_deposit | internal | unknown`. Under CCTP a burn is irreversible, so the
-`bridge_refund` case that originally motivated this field is gone — nothing comes back to the
-address after a failed transfer, because the money was never returned, only left unclaimed.
+Support evidence: [Circle CCTP supported domains](https://developers.circle.com/cctp/concepts/supported-chains-and-domains)
+and [Goldsky supported networks](https://docs.goldsky.com/chains/supported-networks).
 
-`kind` stays anyway, and it is worth being clear that it is now doing a smaller job: quarantining
-transfers that aren't sender payments (`unknown` by default rather than auto-processing) and keeping
-non-payment movements out of contribution totals. It is no longer load-bearing for retry capping.
+Add Arc mainnet later only when all of these conditions are true:
 
-Retries still need a cap, but for a different reason: a flow can fail before the burn goes out
-(gas, nonce, RPC), leaving the funds untouched at the address and eligible to try again. `attempt`
-on the flow covers that directly, without needing to recognise returning money.
+- Circle supports native USDC, Standard CCTP v2, and hooks on Arc mainnet.
+- Goldsky provides the required Arc mainnet `erc20_transfers` and `raw_logs` datasets.
+- The shared registry contains reviewed RPC, finality, explorer, token, and CCTP values.
+- The Namepass contracts are audited, deployed, verified, and tested on Arc mainnet.
+- A low-value canary produces matching Goldsky, Circle, contract, API, and frontend evidence.
 
-### flows
+The $0.50 trigger floor starts with no per-chain override. A later change needs measured transaction
+costs and a reviewed configuration change. It does not need a contract deployment.
 
-One renewal attempt. `id`, `name_id`, `status`, `origin_chain_id`, `amount_in`, `gas_allowance`,
-`amount_applied`, `quoted_seconds`, `quoted_expiry`, `actual_seconds`, `actual_expiry`,
-`cctp_nonce`, `attestation`, `attempt`, `retriggered_from`, `last_error`, `next_retry_at`,
-`entered_status_at`, `created_at`.
+## Name activation
 
-```
-pending → ready → signing → burning → attesting → claiming → settled
-                                                       └──→ unclaimed
-                                                       └──→ failed | cancelled
-```
+A deterministic address can be derived for every valid ENS label. Goldsky cannot infer a label from
+an address. It therefore needs an explicit set of addresses to watch.
 
-`unclaimed` is the CCTP-specific state: attested, mintable, but the claim reverted — most likely
-because the name became un-renewable between burn and attestation. It is retryable forever, which
-is why it is a distinct state rather than a failure.
+`POST /api/names/activate` performs this sequence:
 
-**Nothing on chain gates a burn on renewability**, and it deliberately doesn't — `renew` is
-permissionless, so anyone can push an expired name's balance across. The burn succeeds, the mint is
-authenticated, and the renewal reverts on arrival. Raised in audit; the consequences are the
-backend's, not the contracts':
+1. Accept a single `.eth` name or label.
+2. Normalize it with ENSIP-15.
+3. Reject invalid, dotted, empty, or over-length labels.
+4. Read ENS renewability and expiry from the authoritative renewers.
+5. Derive the deposit address with the deployed factory constants.
+6. In one Neon transaction, insert the name and insert the lowercase address into
+   `goldsky.watched_addresses`.
+7. Read the native USDC balance of the address.
+8. If the balance is positive, create or find a queued flow. This recovers funds that arrived before
+   activation.
+9. Return the activated name and address.
 
-- **The flow can sit in `unclaimed` for a very long time.** A name in its premium auction becomes
-  renewable again when someone registers it — which may be never. `unclaimed` therefore needs no
-  retry budget and no eventual `failed` transition, but it does need a backoff that decays to
-  something like daily, or the worker burns gas re-simulating a claim that cannot succeed yet.
-- **Retry the claim, don't re-attest, on Standard.** A finalized attestation does not expire, so
-  `completeCCTP(message, attestation)` with the stored blob is valid indefinitely. Store the
-  message and attestation, not just the nonce.
-- **Fast transfers would change that.** `BurnMessageV2` carries an `expirationBlock`, so a Fast
-  attestation can lapse while a flow waits in `unclaimed` — and the recovery is re-attestation
-  through Iris, not a retry of the stored blob. Nothing uses Fast today (see the finality note
-  above), but the worker should branch on the finality tier the flow was burned at rather than
-  assume the stored attestation stays good forever.
-- **Gate the trigger off-chain instead.** Checking renewability before burning keeps the funds at
-  the deposit address, where the pending-balance card can still see them — which is the whole
-  argument for "burn only after confirming the name is renewable" above.
+The endpoint is idempotent. The normalized label and deposit address both have unique constraints.
+A repeated activation returns the existing row.
 
-An Ethereum-origin flow skips `burning` and `attesting`.
+The frontend must not show a copy button or QR code for a newly entered name until activation
+succeeds. This ordering closes the dynamic-table timing window. Goldsky checks the Postgres table
+on each batch. A transfer that is mined after the activation response can match the next batch.
 
-`quoted_*` and `actual_*` are separate because the pricing math is exact and the UI shows a specific
-duration — storing both is how the day they diverge gets noticed.
-
-```sql
-create unique index one_active_flow_per_name_chain
-  on flows (name_id, origin_chain_id)
-  where status not in ('settled','failed','cancelled');
-```
+A person can still derive and fund an address without activating it. Goldsky cannot detect that
+transfer at the time it occurs. The balance check in step 7 is the recovery path. The recovered
+flow can renew the name, but the application might not know the original sender or transfer time.
+The API marks this source as `balance_recovery` and does not invent contribution metadata.
 
-This is the real guard against double-triggering, since the trigger is open to anyone and UI state
-is stale the instant it renders. A second concurrent trigger for the same chain hits a constraint
-violation and the API returns `409 already in progress`.
+### Balance reads fail soft
 
-**On `(name, chain)`, not on `name` alone.** An earlier draft used the stricter version, arguing it
-batched mainnet gas. That argument doesn't survive: funds on different chains can't merge, so there
-was never anything to batch — and it would have let a stuck Base transfer block a fresh Ethereum
-payment that needs no CCTP at all. Chains proceed independently; a name can legitimately have four
-flows running at once.
+Step 7 reads four chains. A read can fail. **A failed read must not fail the activation**, and it
+must not be recorded as a zero balance.
 
-### flow_steps
+This is the opposite of how the frontend's other chain reads behave. `oracle.ts` and `fees.ts` stop
+the application when they fail, deliberately, because a missing price is a wrong price and a
+fallback price is an invented one. A missing balance is not the same thing. One unreachable Arc
+endpoint must not block an activation or blank a card.
 
-Every on-chain transaction belonging to a flow — `deposit`, `burn`, `renewal` — with `chain_id`,
-`tx_hash`, `gas_cost_wei`, `gas_payer`, `block_time`, `error`.
+Three rules follow:
 
-This is what the Explorer renders when a renewal is expanded — `ActivityEvent.steps` in
-`src/lib/registry.ts` already models it. Cross-chain payments produce three (deposit, burn, mint +
-renewal); Ethereum-origin payments skip the burn and produce two. The mint and the renewal are one
-transaction, not two, because the renewal rides the CCTP hook — and the UI labels that final step
-"Renewed" rather than "Minted and renewed" when nothing was bridged.
+- **Activate on partial success.** Record the balances that came back, and write the chains that did
+  not answer to `names.unscanned_chain_ids`.
+- **Render an unanswered chain as unknown.** Never as zero and never as absent. Both state a fact
+  the application does not have, and "no balance on Arc" is the sentence that stops a person
+  chasing money they actually sent.
+- **The recovery job retries it.** This matters more than it looks. The recovery job does not scan
+  deposit addresses, and a failed read creates no queued flow, so nothing else would ever look
+  again. Without this retry, a funded chain that was unreachable for one second at activation stays
+  invisible to the backend permanently, and the only recovery is a person noticing and pressing the
+  manual trigger.
 
-### flow_events
+Names remain in the watched set. Deleting them would make later deposits invisible. The table is
+therefore small, append-only application data, not an expiring cache.
 
-Append-only audit: `flow_id`, `from_status`, `to_status`, `actor`
-(`webhook | worker | reconciler | admin:<id>`), `reason`, `payload`, `created_at`. This is what
-answers "why is this stuck and what has already been tried" in the admin panel.
+## Goldsky Turbo
 
-### deposit_allocations
+### Pipeline scope
 
-`deposit_id`, `flow_id`, `amount`. N deposits → 1 flow (accumulation), 1 deposit → partial spend.
+Use one Turbo pipeline for each stable application environment:
 
-### webhook_deliveries
+- `namepass-testnet` targets the four testnets and the stable testnet Vercel deployment.
+- `namepass-mainnet` will target the audited mainnet deployments.
+- Pull-request previews do not receive Goldsky webhooks.
 
-Raw payloads stored **before** parsing — `provider`, `signature_valid`, `payload`, `received_at`,
-`processed_at`, `error`. This is the replay source when a delivery fails mid-processing.
+Each pipeline has three event families. Two of them read contracts Namepass does not own. That is
+required, not optional: without them the Explorer cannot link a renewal to the transactions behind
+it, and cannot show the correct expiry after a renewal. See "Why the external events are required".
 
-## Held vs in-flight — and it's per chain
+**Deposit events**
 
-The UI needs to tell "funds you can trigger" from "funds already moving." That distinction is not a
-flag — it falls out of allocation, **computed per chain**:
+Use each chain's curated `erc20_transfers` dataset. Filter at the source for the native USDC contract.
+Then keep rows whose lowercase `recipient` exists in `goldsky.watched_addresses`.
 
-```
-in_flight[c] = Σ allocations to flows on chain c in (ready, signing, burning, attesting, claiming)
-held[c]      = Σ confirmed deposits on chain c − Σ allocations on chain c
-```
+The supported-network check confirms that Goldsky has logs and enriched transaction data for
+Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and Arc Testnet. The implementation must still run
+`goldsky dataset get` for every exact dataset name and pin the returned version before deployment.
+Do not guess a dataset slug or use `latest`.
 
-**The per-chain part is load-bearing and easy to get wrong.** A CREATE2 address is identical on
-every chain, which makes a single global balance figure look natural — and it's wrong. The balances
-are separate pots that can never be combined, so:
+**Namepass protocol events**
 
-- **The trigger threshold applies per chain.** 50¢ on Base plus 50¢ on Arc means *neither*
-  goes anywhere, despite $1 sitting at the address. The UI has to say this or it reads as broken.
-- **Dust strands permanently.** 30¢ on a chain nobody else funds will sit there forever; under a
-  global-balance model it would eventually combine with something. No sweep mechanism is designed.
-  Show it honestly rather than implying it's on its way.
-- **A stuck chain doesn't block the others**, which is what the `(name, chain)` constraint above
-  buys.
+Use each chain's `raw_logs` dataset. Filter for the Namepass factory address. On Ethereum, also
+filter for the helper address. Decode these events:
 
-Starting a flow allocates deposits **in the same transaction**, so there is no window where money
-looks triggerable while a flow owns it, and no separate flag to keep in sync.
+- `WalletDeployed`
+- `DepositProcessed`
+- `CCTPClaimed`
+- `Renewed`
 
-`src/components/PendingBalance.tsx` renders this, with a `holdReason` driving the tooltip:
+Protocol events are necessary even when the workflow records its own receipts. The contracts are
+permissionless. A third party can call `renew` or `completeCCTP` without the Namepass API. Goldsky
+makes that activity visible and reconciles the public history.
 
-**Every resting balance carries a reason — there is no unexplained state.** A deposit address is a
-pass-through, not a wallet: money at rest is always either blocked by something or a failure. Show
-a balance with nothing wrong with it and you've told the funder the automation stalled and needs
-them, which is the opposite of the product. `holdReason` is non-nullable for exactly this reason.
+**External protocol events**
 
-| Reason | Triggerable | Meaning |
-|---|---|---|
-| `not_detected` | ✅ | The webhook never fired — an anomaly |
-| `flow_failed` | ✅ | A burn was attempted and didn't go out; funds never left |
-| `flow_in_progress` | ❌ | Queued behind this chain's active flow |
-| `name_inactive` | ❌ | Expired, in premium auction, or never registered |
-| `below_threshold` | ❌ | Under the per-chain minimum (currently **$0.67**) |
+Same `raw_logs` mechanism, two more addresses per chain. These are Circle's and ENS's contracts.
 
-**`name_inactive` is deliberately one state, not three.** Expired, mid-premium-auction and
-never-registered are different on-chain situations that make no difference here — all three mean the
-name can't be renewed and the funds wait. Splitting them is three ways of telling the funder the
-same thing.
+| Chain | Contract | Event | Supplies |
+|---|---|---|---|
+| Every L2 | Circle `MessageTransmitterV2` | `MessageSent(bytes message)` | The CCTP nonce, read from the message at byte offset 12 |
+| Ethereum | ENS `ETHRegistrar` and `ETHRenewerV1` | `NameRenewed(...)` | `newExpiry`, and renewals that bypassed Namepass |
 
-**There is no "awaiting confirmation" state.** Webhooks fire on finalized deposits only, so there
-is no moment where the app knows money is coming but hasn't arrived. An earlier draft modelled one;
-it described something the platform can't observe.
+`MessageTransmitterV2` is `0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275` on every testnet chain. The
+ENS addresses are in `docs/DEPLOYMENTS.md`. Pin all of them from the shared chain registry, the same
+way the factory address is pinned.
 
-**The minimum has to be stated, not just enforced.** `minTrigger()` exists so the UI can say
-"under the $0.67 minimum on this chain" — "too small" without a number leaves nobody able to act on
-it.
+### Why the external events are required
 
-Only the two anomalies are triggerable. Everything else the system resolves on its own, and
-offering a button for those would imply the automation needs supervision. Reasons are stored, not
-inferred — "we tried and it failed" must never read the same as "waiting for the name to become
-renewable", because they need different things from whoever is looking.
+Both close a gap that Namepass's own events cannot, and neither needs a contract change.
 
-## Read models — what the frontend actually asks for
+**The CCTP nonce is the only exact key between a burn and its claim.**
 
-The schema above is the write side. This is the read side, and it's the part that decides whether the
-frontend is usable. Each query below maps to something `src/lib/registry.ts` already exposes, so the
-migration is a data-source swap rather than a UI rewrite — see `docs/FRONTEND.md` §4 for the shapes.
+`CCTPClaimed` on Ethereum is indexed by `nonce`. `DepositProcessed` on the origin chain is not, and
+cannot be. CCTP v2's `depositForBurnWithHook` returns nothing — the `uint64 nonce` return belongs to
+v1, and declaring it in v2 makes Solidity enforce a returndata size and revert on every burn, which
+is why the factory's interface declares it `void`. **The factory never learns the nonce, so no
+redeploy could make it emit one.**
 
-**Stats come from finalized renewals only, never from deposits.** That single rule is what stops
-in-flight or failed money inflating anything public.
+Circle's `MessageTransmitterV2` emits `MessageSent` in the same transaction as the burn, and the
+nonce sits at a fixed offset in that blob. The helper already decodes it the same way
+(`MESSAGE_NONCE_OFFSET`). Indexing it gives the join:
 
-### Live feed — `recentActivity()`
+~~~text
+origin chain:   DepositProcessed  +  MessageSent          (same transaction)
+                                            │ nonce
+Ethereum:                        CCTPClaimed(nonce)  +  Renewed
+~~~
 
-Two queries, in-flight above settled:
+Without `MessageSent`, linking a burn to its claim needs a heuristic on label, source domain and
+ordering. That is exact enough for flows the workflow ran, because `transaction_intents` records
+them. It is not exact for a renewal a third party pushed, which is the case protocol events exist to
+capture.
 
-```sql
--- in flight
-select f.id, n.name, f.origin_chain_id, f.amount_in, f.status, f.quoted_seconds
-from flows f join names n on n.id = f.name_id
-where f.status in ('ready','signing','burning','attesting','claiming')
-order by f.entered_status_at desc;
+**ENS reports the expiry after a renewal, so nothing has to derive it.**
 
--- settled
-select r.tx_hash, n.name, r.origin_chain_id, r.amount_in, r.gas_allowance,
-       r.amount_applied, r.duration_seconds, r.discount, r.block_time
-from renewals r join names n on n.id = r.name_id
-order by r.block_time desc limit 20;
-```
+`NameRenewed` carries `newExpiry` directly. The alternative is to read the current expiry and
+subtract known durations backwards, which is wrong the moment a name is renewed outside Namepass, at
+registration, or by the v2 migration's one-time 62-day adjustment. Those are exactly the cases a
+funder would notice on the runway bar.
 
-Subscribe the in-flight set via **Supabase Realtime** rather than polling — a window of minutes to half an hour is
-exactly what makes live progress worth showing.
+`NameRenewed.referrer` is **indexed**, and the deployed helper sets a Namepass referrer
+(`docs/DEPLOYMENTS.md`). Renewals that came through Namepass can therefore be separated from the
+rest by an indexed filter, with no join.
 
-### Name detail — `findName()` / `nameExpiry()` / activity table
+**What the Explorer gets from each source.** `Renewed` was written for this — `label` is unindexed
+so an indexer can read the string, `labelHash` is indexed so it can be filtered, and the three
+amounts are deliberately not collapsed.
 
-`names` row for expiry and aggregates; `renewals` joined to `flow_steps` for the expandable
-breakdown (2–3 transactions per renewal). The frontend needs all three amounts per renewal, so
-select `amount_in`, `gas_allowance`, `amount_applied` — don't collapse them.
+| Explorer field | Source |
+|---|---|
+| name | `Renewed.label`, a readable string |
+| duration | `Renewed.duration` |
+| deposited, allowance, applied | `Renewed.amountReceived`, `gasAllowance`, `amountApplied` |
+| final step label | `Renewed.fromCCTP` picks "Renewed" or "Minted and renewed" |
+| who pushed it | `Renewed.executor` |
+| origin chain | `CCTPClaimed.sourceDomain`, same transaction; Ethereum when `fromCCTP` is false |
+| expiry after this renewal | `NameRenewed.newExpiry` |
+| the transactions behind it | `DepositProcessed` + `MessageSent` joined to `CCTPClaimed` by nonce |
+| discount label | Not on chain. Computed from the applied amount and label length. |
 
-### Pending balance — per chain
+In-flight rows are not in this table on purpose. No event can express `attesting`, because it is the
+gap between two transactions. Live progress comes from `flows` in Neon. Events describe settled
+history only.
 
-```sql
-select b.chain_id, b.amount, b.hold_reason
-from name_balances b
-where b.name_id = $1 and b.amount > 0
-order by b.chain_id;
-```
+### Transform output
 
-Materialized per `(name, chain)`, or derived from `Σ deposits − Σ allocations` grouped by chain.
-Never summed across chains — see Held vs in-flight.
+Every output row uses a stable event ID. It includes:
 
-### Leaderboard — `timeDelivered()` / `renewalCount()`
+- event family and event type
+- chain ID
+- block number and time
+- transaction hash
+- log index
+- contract or token address
+- normalized transfer or decoded event fields
+- `_gs_op`
 
-Reads the denormalized columns on `names`, so ranking is an index scan rather than an aggregate over
-the ledger:
+Keep `_gs_op` through every transform. Goldsky uses `c` for a canonical create and `d` when a reorg
+removes a row.
 
-```sql
-select name, renewal_count, total_seconds, total_received
-from names order by renewal_count desc limit 15 offset $1;
-```
+The pipeline sends one row per webhook request. This reduces partial-batch handling and makes the
+event ID the idempotency key.
 
-### Search — name → address
+### Delivery choice
 
-`select deposit_address from names where name = $1` after ENSIP-15 normalization. A miss is not an
-error: any name can be claimed, and the address is computable without a row.
+The pipeline uses an authenticated webhook sink. It does not also write the same event to a
+Goldsky-managed Postgres sink.
 
-### Top-level totals
+This is intentional:
 
-Materialized view refreshed on the reconcile cron — total renewals, total USDC applied, total time
-delivered. Cheap to read, expensive to compute live.
+- Goldsky already checkpoints the source and retries the webhook indefinitely for network errors,
+  timeouts, `408`, `429`, and `5xx` responses.
+- The Vercel endpoint upserts the event into Neon before it returns `2xx`.
+- A second sink would create two writers, a delivery-order race, and a second schema to operate.
+- Neon is already the queryable application index.
 
-### Supabase specifics
+The webhook has at-least-once delivery. The receiver must expect duplicates. It also must expect a
+reorg delete after a create.
 
-All of this is public data, so: **RLS anon-read on the read models only**, writes exclusively via the
-service-role key from Vercel functions. Never expose the service-role key to the client. Realtime on
-`flows` for live progress.
+Goldsky stores the webhook authorization header as an `httpauth` secret. The pipeline file contains
+only the secret name. The Vercel endpoint compares the header in constant time and rejects an
+invalid request.
 
-### The `bigint` boundary
+### Goldsky database role
 
-Amounts and durations must cross JSON as **strings** and be parsed back to `BigInt` client-side.
-`pricing.ts` is exact to the micro-unit and `JSON.stringify` cannot represent a `bigint` — silently
-going through `Number` is how that precision dies at the API layer.
+Goldsky reads only `goldsky.watched_addresses` from Neon. Use a dedicated `goldsky_reader` role.
+
+After migrations create the schema and table, grant this role:
+
+- `CONNECT` on the database
+- `USAGE` on the `goldsky` schema
+- `SELECT` on `goldsky.watched_addresses`
+
+Do not give it application-table write access. Use a direct Neon connection string with
+`sslmode=require`. Store that string only in Goldsky Secrets.
+
+### Reorg and finality policy
+
+Detection is not permission to spend.
+
+The webhook records a detected deposit immediately. The workflow then waits for the configured
+deposit finality policy before it calls `renew`. Prefer an RPC `finalized` block check when the chain
+supports it. Otherwise, use a reviewed confirmation depth in the shared chain registry.
+
+Before the first origin transaction, the workflow verifies all of these facts:
+
+- the deposit transaction is still canonical
+- the watched address still has native USDC
+- the name is renewable now
+- no other active flow owns this name and chain
+- the factory and token addresses match the chain registry
+
+If Goldsky sends `_gs_op = d` before a transaction is broadcast, the receiver marks the deposit as
+orphaned and cancels a flow that has no origin transaction. If a reorg occurs after the origin
+transaction, contract state and transaction receipts control recovery. The webhook alone cannot
+reverse a chain action.
+
+## Webhook ingestion
+
+`POST /api/webhooks/goldsky` is a small Vercel Function.
+
+It performs this sequence:
+
+1. Verify the authorization header before JSON parsing.
+2. Enforce a body-size limit.
+3. Parse the event with a strict schema.
+4. Verify that the chain, token, contract, and event signature are allowlisted.
+5. Start one Neon transaction.
+6. Upsert the chain event by its Goldsky event ID and on-chain position.
+7. Apply `_gs_op`.
+8. Upsert the domain row, such as a deposit or renewal.
+9. Create a queued flow when the trigger policy permits it.
+10. Commit.
+11. Start or resume the Vercel Workflow when a queued flow exists.
+12. Return `2xx` only after the durable database write and workflow-start attempt succeed.
+
+A duplicate create changes no money totals and starts no second flow. A duplicate delete changes no
+additional state.
+
+If Neon or Workflow is unavailable, return `503`. Goldsky will retry. Do not return `2xx` and hope a
+background callback finishes.
 
 ## Trigger policy
 
-The trigger endpoint is open to anyone. That's deliberate and safe: it can only ever spend funds
-already committed to that name, every precondition is checked server-side, and the unique index
-above makes concurrent calls a constraint violation rather than a double spend.
+### Automatic queueing
 
-`renew(label)` on the factory is open to anyone for the same reasons, minus the server-side checks —
-so the endpoint is a convenience and a bookkeeping hook, not the gate. Anything the endpoint refuses
-can still be done directly against the contract by whoever wants to pay the gas. That is the
-intended property, not a hole: it means the money is not hostage to Namepass being up.
+Evaluate each name and chain separately. Funds on different chains never combine.
 
-Auto-trigger fires when the $0.10 gas allowance is at most ~15% of the balance, which puts the floor
-around **$0.67**. ENS imposes no minimum renewal duration (the 28-day minimum applies to
-registration only), so nothing forces a floor from the protocol side.
+The webhook queues work as soon as it has a canonical detected deposit. The workflow, not the
+webhook request, waits for finality.
 
-**That floor is a placeholder, and the real one is a business decision that hasn't been made.**
-Namepass fronts dollars of mainnet gas per flow and rebates ten cents, so every flow runs at a loss
-and the question is how much subsidy per renewal is acceptable — not an arithmetic question the
-allowance can answer. The ratio was kept rather than replaced with an invented constant.
+The first production queueing policy is:
 
-Worth knowing when setting it: $1 buys **~45 days** on a 5+ character name, ~2.3 days on a
-4 character one, ~14 hours on a 3 character one. A flat floor means very different things per tier.
+~~~text
+eligible =
+  canonical deposit exists
+  AND on-chain wallet balance > GAS_ALLOWANCE
+  AND no active flow exists for (name, chain)
+  AND subsidy policy permits the transaction
+~~~
 
-## Operations
+The workflow waits for deposit finality and then rechecks name renewability immediately before it
+submits the origin transaction. If the name is not renewable, the workflow moves to `held` and
+keeps the funds at the deposit address. This split is necessary because Goldsky sends the transfer
+event before a later finality transition. Waiting to create a flow would leave no event that starts
+the work.
 
-**Stuck-flow detection** — `entered_status_at` plus a per-status SLA, with a partial index so the
-admin panel stays fast regardless of table size:
+The contract uses the wallet's live balance. The database does not attempt to allocate exact
+deposit rows to a flow. Deposits are contribution history. The `DepositProcessed` event is the
+authority for the amount a flow actually consumed.
 
-```sql
-create index flows_active on flows (status, entered_status_at)
-  where status not in ('settled','failed','cancelled');
-```
+This removes `deposit_allocations` and a derived balance ledger. The public pending balance comes
+from the latest chain read plus the active flow state.
 
-`unclaimed` deserves its own SLA and its own admin view — it is not stuck in the usual sense (the
-money is safe and the message is replayable) but it needs a human or a scheduled retry to decide
-when the name became renewable again.
+### Manual trigger
 
-Auto-retrigger reads the same set with `next_retry_at <= now()` and exponential backoff. Capping
-`attempt` stops a name that fails before the burn from retrying forever.
+`POST /api/flows/trigger` is permissionless, as the contract is permissionless. It accepts a
+normalized name and chain ID.
 
-**Reconciliation** — compare each address's on-chain balance against
-`Σ deposits − Σ allocations`, independent of webhooks. This is the only defense against a delivery
-that never arrives at all, and it's the thing most likely to be skipped and most expensive to skip.
+The endpoint repeats every server-side check. It does not trust frontend state. It returns:
 
-**Ingestion** is **Moralis webhooks**, behind one internal entry point —
-`ingestDeposit(chain, txHash, logIndex, to, amount, blockNumber)` — so the source can change without
-a rewrite. Address-list webhooks are fine at launch scale; their cost scales with addresses watched.
-Past tens of thousands of addresses, filtering USDC `Transfer` events per chain scales with transfer
-volume instead, and hosted indexers (Ponder, Envio, Goldsky) do exactly that into Postgres. CREATE2
-helps here: the address set is computable, so an indexer can derive it rather than being fed it.
+- `202` when it creates or resumes a queued flow
+- `200` when the same flow is already queued
+- `409` when a non-resumable active flow already exists, with its current state
+- `422` when the name or balance is not eligible
 
-**Hosting** — the webhook receiver is a **Vercel serverless function** alongside the app (same repo,
-same env, atomic deploys): verify the signature, write the deposit row, start the flow, return.
-Waiting on the attestation is a **Vercel Workflow**, not the request handler — a poll of up to half an hour
-is far outside serverless limits.
+An `unclaimed` flow is the exception to the ordinary balance checks because its origin balance is
+already zero. If a fresh ENS read says that the name is renewable, the endpoint returns `202` and
+resumes the same message. If the name is not renewable, it returns `409` with the current unclaimed
+state. It never creates a replacement burn.
 
-## Build order
+Vercel Firewall rate limits this endpoint. Database constraints provide the concurrency guard.
 
-The order follows the cost of an error, not the visibility of the result. Steps 1 and 3 are
-**done**. The other steps are not started.
+### Minimum amount
 
-1. ✅ **Factory + deposit contract, on one testnet.** The addresses are advertised as never changing, so
-   the derivation scheme is the one decision that can't be revised after launch. Deploy the factory
-   through a deterministic deployer so the addresses match across chains, then the helper, then
-   `setL1Helper` once per chain.
+The contracts enforce the technical minimum. The service also needs an economic minimum because it
+pays origin and Ethereum gas.
 
-   **Done.** The factory was deployed on 2026-08-10 to all four testnets through the Safe Singleton
-   Factory. The address is the same on every chain. `l1Helper` is frozen on each chain. See
-   `docs/DEPLOYMENTS.md`.
+**The threshold is $0.50 on a single chain, decided 2026-08-11.** It is a flat figure, not a ratio.
+It replaced "the gas allowance may be at most 15% of the balance", which produced $0.666667 and was
+a placeholder for a product decision nobody had made.
 
-   The hub chain is a **constructor argument**
-   (`hubChainId`): 11155111 for the Sepolia-based testnet set that ships first, 1 for mainnet. One
-   source file serves both, rather than an edit between deployments that has to be remembered. It
-   is part of the creation code, so it must be identical across every chain in a set, and the two
-   sets land on different factory addresses, which is what separate deployments should do. And
-   `foundry.toml` pins `solc_version`, `evm_version`, optimizer runs and
-   `bytecode_hash = "none"` because identical creation code across four chains is the whole
-   premise; a floating pragma or an embedded metadata hash moves every deposit address the product
-   has ever published.
-2. **Schema + read models.** Validate by writing the six queries above against seeded rows; if
-   the leaderboard or explorer query is awkward, the schema is wrong and it's cheap to fix now.
-3. ✅ **One full flow, end to end, on testnet.** Base → burn → Iris → mainnet mint + renew. This is
-   where the unknown-unknowns live (hook encoding, domain IDs, gas on the claim), and everything
-   upstream is guesswork until one has actually landed.
+Keep the mechanism this section already specifies: store it as server configuration **by chain**, so
+a chain with different economics can move without a deployment, and keep it out of the contracts.
+$0.50 is the value every chain starts at, not a constant that removes the per-chain setting.
 
-   **Done, from all three L2s and not only Base.** Arc, Arbitrum, and Base each burned USDC and
-   claimed it on Ethereum Sepolia. Both renewer branches ran. The accounting balanced to the base
-   unit. The helper kept zero dust. `docs/DEPLOYMENTS.md` lists the transactions. Testnet cannot
-   exercise the ENS governance path, because Sepolia has no DAO Timelock.
-4. **Ingestion.** Moralis stream behind the single `ingestDeposit` entry point, plus the reconciler
-   from day one — not later.
-5. **Frontend swap.** Replace `registry.ts` internals with API calls; the exported function shapes
-   stay.
-6. **Admin panel.** Stuck flows, `unclaimed` recovery, manual retrigger.
+The API returns the configured minimum so the frontend does not copy it. Until the frontend cutover
+in Phase 6 the simulation holds it as `MIN_TRIGGER` in `src/lib/registry.ts`, which is the number
+the pending-balance card states today. That constant is the thing the API replaces, not a second
+source to keep in step.
 
-## Open
+At a $0.10 allowance the floor is exactly 20%, so a funder sending the minimum spends a fifth of it
+on gas and buys about 18 days on a five-character name.
 
-- **Minimum balance to trigger.** The ~$0.67 floor falls out of the 15% ratio; the real number is a
-  subsidy decision (see Trigger policy).
-- **Funder identity.** Not tracked. The mock's semantic labels (`community`, `treasury`) aren't
-  derivable from an address; `owner` is, by comparison to the ENS owner. Either the UI shows
-  addresses/ENS names or the concept goes away.
-- **`bigint` across JSON.** Amounts and durations need to serialize as strings and parse back, or
-  the precision `pricing.ts` is careful about dies at the API boundary.
+## Durable renewal workflow
 
-- **Who owns the helper's dust, and how does it get out.** Renewals buy whole seconds, so a
-  sub-second remainder is left behind on every single flow. It needs a withdrawal path or it is
-  stuck forever, and "whose money is it" is a real question — it is nobody's individually, but it
-  is made of many funders' change. Sweeping it to the treasury is the obvious answer and probably
-  the right one; it should be a deliberate decision rather than a default.
-- **The `unclaimed` recovery path has no UI.** A flow whose claim reverted holds funds that are not
-  at the deposit address, so the pending-balance card can't see them. Gating the burn on
-  renewability makes this rare, but "rare" is not "never" — a name can stop being renewable between
-  burn and attestation. Note this is now the *only* resting place a funder can't see; atomicity in
-  the helper means the funds are never in the helper, and everything pre-burn stays at the deposit
-  address where the card already shows it.
+One workflow run owns one `flows` row. The workflow function only controls sequence and sleeps. Each
+network, database, signing, or parsing operation is a `use step` function.
 
-Settled, noted here so they don't get reopened as bugs:
+A step can run more than once. Every step must therefore be idempotent from its input and the Neon
+row.
 
-- **Custody.** CREATE2 addresses, no third party holding keys. Non-custodial, and the earlier
-  CDP-based design that wasn't is superseded — see `docs/DECISIONS.md`.
-- **No fee quoting.** Standard CCTP has no Circle fee; the flat $0.10 allowance replaces the whole
-  per-chain estimate/buffer approach.
-- **The aggregate tiles mix bases on purpose.** `total_received` is lifetime USDC at the address,
-  `total_seconds` is what the registry recorded — two different facts, neither derived from the
-  other, so there is nothing to reconcile.
+### Common first steps
+
+1. **Load flow.** Stop successfully if the flow is already settled or cancelled.
+2. **Confirm deposit.** Wait for canonical finality. Cancel if the deposit is orphaned.
+3. **Recheck name.** Read both ENS renewers. Park the flow if neither can renew the label.
+4. **Read balance.** Read native USDC `balanceOf` at the deterministic wallet.
+5. **Simulate origin call.** Simulate `renew(label)` or `renewWithFee(label, maxFeeBps)`.
+6. **Prepare transaction.** Create a durable transaction intent and reserve a relayer nonce.
+7. **Broadcast transaction.** Send the stored signed bytes. Re-sending the same bytes is safe.
+8. **Confirm receipt.** Wait for the receipt and parse `DepositProcessed`.
+
+The simulation is a safety check, not a guarantee. State can change before inclusion. A revert keeps
+the funds at the deposit address and is retryable after classification.
+
+### Ethereum-origin flow
+
+Ethereum has no CCTP leg.
+
+~~~text
+confirm deposit
+  → verify renewability and balance
+  → submit factory.renew(label)
+  → confirm DepositProcessed and Renewed in one receipt
+  → record settlement
+~~~
+
+The helper pulls USDC and renews atomically. A revert leaves the USDC at the deposit address.
+
+### L2-origin flow
+
+Base, Arbitrum, and Arc use CCTP.
+
+~~~text
+confirm deposit
+  → verify renewability and balance
+  → submit factory.renew(label)
+  → confirm DepositProcessed and Circle MessageSent
+  → query Iris by source domain and origin transaction hash
+  → wait for status complete
+  → verify returned route, nonce, amount, wallet, label, and attestation status
+  → submit helper.completeCCTP(message, attestation) on Ethereum
+  → confirm CCTPClaimed and Renewed in one receipt
+  → record settlement
+~~~
+
+One factory `renew` call burns at most Circle's current per-message limit. It produces at most one
+CCTP message. If `DepositProcessed.remaining` is non-zero, the settled workflow queues a new flow
+for the same name and chain. It does not add child-message logic to the current flow.
+
+Circle returns messages for a transaction in log-index order. The workflow still verifies that the
+selected message has all Namepass route fields:
+
+- expected source domain
+- Ethereum destination domain
+- Ethereum TokenMessenger recipient
+- Namepass helper as destination caller
+- Namepass helper as mint recipient
+- deterministic wallet as message sender
+- normalized label bytes as hook data
+
+The helper repeats these checks on chain. The off-chain checks prevent gas waste and bad records.
+
+### Attestation polling
+
+Use Circle's `GET /v2/messages/{sourceDomainId}` endpoint with the origin transaction hash.
+
+- Use the sandbox host for testnets.
+- Use the mainnet host for mainnet.
+- Treat `404` or an incomplete status as “not ready.”
+- Treat `429` and `5xx` as retryable.
+- Use exponential backoff with jitter.
+- Respect Circle's published API limit.
+- Store the raw message, attestation, nonce, and response status before the claim.
+
+The current deployments use Standard finality. Standard messages are attested at finalized
+finality. Fast Transfer is not part of the first backend.
+
+### Unclaimed CCTP state
+
+A burn cannot be reversed. A claim can fail if the name stops being renewable after the burn.
+
+When `completeCCTP` simulation or execution fails for a business reason:
+
+1. Set the flow to `unclaimed`.
+2. Keep the message and attestation.
+3. Show the state in the public name view.
+4. Recheck renewability on a slow backoff.
+5. Retry the same claim when the name becomes renewable.
+
+Do not start a new burn for the same USDC. The funds are represented by the unclaimed CCTP message,
+not by the origin wallet balance.
+
+The public name view shows an unclaimed flow as a separate card. It must not show zero or imply that
+the USDC is still at the origin address. Use this copy:
+
+- **Title:** `Waiting to renew`
+- **Body:** `The USDC left {origin chain} and is secured in a Circle message. This name cannot be renewed now. Namepass will retry when renewal is possible.`
+- **Evidence:** amount, origin chain, origin transaction, Circle nonce, and the latest retry time
+- **Secondary note:** `This transfer cannot return to {origin chain}. A retry uses the same Circle message.`
+
+Show `Retry renewal` only when a fresh ENS read says that the name is renewable. The action calls
+`POST /api/flows/trigger`. That endpoint must resume the existing unclaimed flow and return its flow
+ID. It must not create a flow or burn USDC again. Hide the action while the name is not renewable.
+Automatic retry remains the normal path. The button is an idempotent recovery action, not a required
+step.
+
+A Standard attestation is the current path. If the product later enables Fast Transfer, add
+re-attestation and expiration handling as a separate architecture decision.
+
+### Workflow error classes
+
+Classify failures before retry.
+
+| Class | Examples | Action |
+|---|---|---|
+| transient | RPC timeout, Iris `429`, Neon timeout | retry with backoff |
+| replacement needed | underpriced or stuck transaction | sign a replacement with the same nonce |
+| business hold | name not renewable, amount below policy | park and expose reason |
+| terminal configuration | wrong contract, wrong token, invalid route | fail and alert; do not retry |
+| already complete | nonce used, receipt already canonical | reconcile from chain and settle |
+
+Use a fatal workflow error only for a permanent input or configuration fault. Do not convert a
+business hold into repeated failed steps.
+
+## Relayer and transaction safety
+
+The relayer holds no user funds. It pays gas and receives the fixed helper allowance after a
+successful renewal. Its key is still security-sensitive because it can submit transactions and
+consume gas.
+
+Use one exclusive relayer account per environment. It can be the same address across chains, but no
+other tool or person may send transactions from it.
+
+Vercel serverless functions can run concurrently. An in-memory nonce manager is not safe. Neon
+therefore stores nonce state.
+
+### Transaction intent algorithm
+
+1. Build and simulate the call without a nonce.
+2. Start a Neon transaction.
+3. Lock the `relayer_nonces` row for the chain with `SELECT ... FOR UPDATE`.
+4. Read the RPC pending nonce.
+5. Reserve `max(database_next_nonce, rpc_pending_nonce)`.
+6. Sign the full transaction with the reserved nonce.
+7. Insert the raw signed transaction and expected hash.
+8. Increment `next_nonce`.
+9. Commit.
+10. Broadcast the stored raw transaction.
+11. Record the receipt or replacement.
+
+If the process stops after step 9, recovery rebroadcasts the same bytes. If the RPC reports “already
+known,” continue receipt polling. If a transaction is stuck, sign a higher-fee replacement with the
+same nonce and link it to the same intent.
+
+The database never stores the private key. Vercel stores it as a sensitive production environment
+variable. Preview deployments receive test-only keys and cannot read production secrets.
+
+### Relayer funding
+
+The treasury funds the relayer manually with native gas tokens. The architecture does not require
+a specific treasury wallet type. The operations role owns the refill. The private runbook names
+one primary operator and one backup operator. Do not put personal names in the public architecture
+document.
+
+Do not automate refills in the first version. An automatic treasury signer would add another key
+that can move funds. The relayer already has alerts and a manual refill has a long safety window.
+
+Set the initial balance policy from measured testnet and canary transactions:
+
+1. For each chain and transaction kind, record the highest gas cost from the launch test suite.
+2. Multiply that cost by two to define one transaction unit.
+3. Send a warning when the relayer balance is below 20 transaction units.
+4. Send a critical alert when the balance is below 5 transaction units.
+5. Refill to 50 transaction units from the treasury.
+
+Recalculate the unit after a contract change or after seven production days. Then use the greater
+of twice the test maximum and twice the observed seven-day 95th-percentile cost. Keep only this
+limited gas balance on the relayer. The $0.10 USDC allowance does not refill native gas
+automatically. Treasury operations can account for or convert collected allowances outside the
+renewal workflow.
+
+## Neon data model
+
+Use Drizzle for schema declarations and migrations. Use `numeric(78,0)` for token amounts. Return
+amounts, durations, block numbers, and chain IDs as decimal strings at the JSON boundary when they
+can exceed JavaScript's safe integer range.
+
+Vercel Functions use the pooled `DATABASE_URL`. Migrations, Goldsky's dynamic-table connection, and
+administrative tools use direct connections. A pooled connection must not be used for session-level
+locks. The transaction design uses row locks, which work with transaction pooling.
+
+### `names`
+
+One row per activated label.
+
+- `id`
+- `normalized_label`, unique
+- `display_name`
+- `label_hash`, unique
+- `namehash`
+- `deposit_address`, unique
+- `activated_at`
+- `current_expiry`
+- `renewable_by`
+- `ens_synced_at`
+- `unscanned_chain_ids`
+- cached public totals
+
+The cached totals are rebuildable. Contract events and deposit rows remain the authority.
+
+`unscanned_chain_ids` holds the chains whose activation balance read did not complete. Activation
+writes the chains that failed; the recovery job retries them and removes each one that succeeds. An
+empty array means every chain was read. It is a small array on an already-small table, not a new
+table. Without it a failed read at activation is unrecoverable — see "Balance reads fail soft".
+
+### `goldsky.watched_addresses`
+
+The dynamic table read by Goldsky.
+
+- `value`, lowercase address primary key
+- `updated_at`
+
+The activation transaction writes this table. Application migrations own it. Goldsky does not own
+the schema.
+
+### `chain_events`
+
+The event inbox. Event identity and payload are append-only. Reorg handling can change the
+canonical flag.
+
+- `event_id`, primary key
+- `event_family`
+- `event_type`
+- `chain_id`
+- `tx_hash`
+- `log_index`
+- `block_number`
+- `block_time`
+- `gs_op`
+- `canonical`
+- `payload`, nullable after the retention period
+- `payload_expires_at`
+- `first_seen_at`
+- `last_seen_at`
+
+Add a unique constraint on `(chain_id, tx_hash, log_index, event_type)`. A reorg delete updates
+`canonical`.
+
+Keep the raw Goldsky payload for 30 days. Keep the normalized columns, canonical state, domain rows,
+and transaction evidence without a time limit. Raw payloads contain public chain data and are useful
+for incident diagnosis, but Goldsky can replay them. Permanent duplicate storage has no launch
+benefit.
+
+A daily authenticated retention job clears expired payloads in bounded batches. It sets `payload`
+to `NULL`; it does not delete the `chain_events` row. The job uses `payload_expires_at`, so it does
+not calculate retention from mutable application time. A legal or incident hold can move the expiry
+for selected rows before cleanup.
+
+`event_family` is one of `deposit`, `namepass`, `circle`, or `ens`. The last two carry
+`MessageSent` and `NameRenewed`, which the Explorer needs to link a renewal to its transactions and
+to show the expiry after it. No extra table is required for them. See "Why the external events are
+required".
+
+### `deposits`
+
+One domain row per native USDC transfer to a watched address.
+
+- `event_id`, primary key and foreign key to `chain_events`
+- `name_id`
+- `chain_id`
+- `token_address`
+- `sender_address`, nullable for balance recovery
+- `amount`
+- `tx_hash`
+- `log_index`
+- `block_number`
+- `block_time`
+- `source`: `goldsky` or `balance_recovery`
+- `status`: `detected`, `finalized`, or `orphaned`
+
+Do not store a mutable “available amount” on this row. The wallet's token balance is the authority
+for what the contract can process.
+
+### `flows`
+
+One renewal execution.
+
+- `id`
+- `name_id`
+- `origin_chain_id`
+- `trigger`: `automatic`, `manual`, `recovery`, or `external`
+- `status`
+- `hold_reason`
+- `workflow_run_id`
+- `origin_tx_intent_id`
+- `claim_tx_intent_id`
+- `amount_detected`
+- `amount_processed`
+- `remaining_amount`
+- `gas_allowance`
+- `amount_applied`
+- `duration_seconds`
+- `cctp_nonce`
+- `cctp_message`
+- `cctp_attestation`
+- `last_error_code`
+- `last_error_detail`
+- `next_action_at`
+- status timestamps
+- `created_at` and `updated_at`
+
+Use this state model:
+
+~~~text
+queued
+  → confirming_deposit
+  → checking_name
+  → submitting_origin
+  → waiting_origin
+  → waiting_attestation
+  → submitting_claim
+  → waiting_claim
+  → settled
+
+checking_name → held
+waiting_attestation | submitting_claim | waiting_claim → unclaimed
+any pre-broadcast state → cancelled
+configuration fault → failed
+~~~
+
+Ethereum flows skip the CCTP states.
+
+Use a partial unique index for one active flow per name and chain. Active means every state except
+`settled`, `cancelled`, and `failed`. An `unclaimed` flow remains active.
+
+### `flow_transitions`
+
+Append-only state history.
+
+- `id`
+- `flow_id`
+- `from_status`
+- `to_status`
+- `actor`
+- `reason_code`
+- `detail`
+- `created_at`
+
+The current status stays on `flows` for fast reads. This table explains why it changed.
+
+### `relayer_nonces`
+
+One row per environment, chain, and relayer address.
+
+- `chain_id`
+- `relayer_address`
+- `next_nonce`
+- `updated_at`
+
+Primary key: `(chain_id, relayer_address)`.
+
+### `transaction_intents`
+
+One durable logical on-chain write. A fee replacement updates the same row and keeps the same
+nonce.
+
+- `id`
+- `flow_id`
+- `kind`: `origin_renew` or `claim`
+- `chain_id`
+- `from_address`
+- `to_address`
+- `nonce`
+- `call_data`
+- `value`
+- current gas fields
+- `current_raw_transaction`
+- `current_tx_hash`
+- `attempts`, a JSON array of signed hashes, fee fields, and broadcast times
+- `status`
+- `broadcast_at`
+- `confirmed_at`
+- `receipt`
+- `error`
+
+Use a unique constraint on `(flow_id, kind)`. Use a second unique constraint on
+`(chain_id, from_address, nonce)`. A replacement is another signed attempt inside the same logical
+intent, not another nonce owner.
+
+### No extra tables in the first version
+
+Do not add these old draft tables:
+
+- `deposit_allocations`
+- `webhook_deliveries`
+- a Goldsky copy of the same deposit table
+- a running-balance aggregate
+- a separate renewal table
+- a job queue table
+
+`chain_events` is the replay and audit inbox. `flows` and `flow_transitions` hold workflow state.
+`transaction_intents` holds on-chain steps. Public renewal rows come from canonical `Renewed`
+events.
+
+## API and frontend reads
+
+All public data is public chain-derived data. The frontend reads it through Vercel APIs. It does not
+connect directly to Neon. There is no user account or browser database credential in the first
+version.
+
+### Write endpoints
+
+- `POST /api/names/activate`
+- `POST /api/flows/trigger`
+- `POST /api/webhooks/goldsky`
+- `GET /api/cron/recover`, authenticated with `CRON_SECRET`
+- `GET /api/cron/retention`, authenticated with `CRON_SECRET`
+
+### Read endpoints
+
+- `GET /api/names/:label`
+- `GET /api/names/:label/activity`
+- `GET /api/activity`
+- `GET /api/leaderboard`
+- `GET /api/stats`
+- `GET /api/flows/:id`
+- `GET /api/config/public`
+
+Use cursor pagination for activity. Cap page sizes. Set short public cache headers for aggregate
+reads. Do not cache active flow detail.
+
+### Public sender identity
+
+Show the checksummed transfer sender address as `Funded by` in activity details. Dense feed rows can
+shorten it visually, but the detail view, copy action, and accessible label must contain the full
+address. Do not resolve ENS names in the first version. Resolution adds another network dependency
+and can display an unverified reverse name unless the application also performs forward
+verification.
+
+Keep the transfer sender and renewal executor separate:
+
+- `deposits.sender_address` supplies `Funded by`.
+- `Renewed.executor` supplies `Processed by`.
+- Show `Processed by Namepass` when the executor is the configured relayer, with the full address in
+  the detail view.
+- Show the raw executor address when a third party called the permissionless function.
+- Show `Sender unavailable` for `balance_recovery`. Do not invent a sender from later events.
+
+An address is public chain data. Do not add avatars, profile data, or claims such as “owner” or
+“supporter.” Those claims are not present on chain.
+
+### Frontend update model
+
+Use ordinary HTTP polling.
+
+- Poll an active name or flow every 3 to 5 seconds.
+- Poll the live feed every 10 to 15 seconds.
+- Stop fast polling when no flow is active.
+- Refetch on window focus.
+- Use exponential backoff after errors.
+
+Do not add WebSockets or Supabase Realtime. The user waits minutes for Standard CCTP on some chains.
+Polling is sufficient and has fewer failure modes.
+
+### Read-model rules
+
+- A pending balance is per name and chain.
+- The displayed balance comes from a recent native USDC `balanceOf` read.
+- An active flow explains funds that have left the origin address.
+- An `unclaimed` flow must remain visible even though the origin balance is zero.
+- Lifetime received is the sum of canonical native USDC deposit events.
+- Time delivered and amount applied come from canonical `Renewed` events.
+- A protocol event seen outside a known workflow creates or reconciles an `external` flow.
+- Never infer a completed renewal from an empty deposit address.
+
+## Recovery job
+
+Vercel Cron calls `GET /api/cron/recover`. This is a control-plane repair job. It is not a chain
+indexer.
+
+It finds bounded batches of:
+
+- queued flows with no workflow run ID
+- workflows whose next action time passed
+- signed transactions that were never broadcast
+- broadcast transactions without a recorded receipt
+- attested CCTP messages without a claim
+- settled flows whose canonical `Renewed` event has not arrived yet
+- names with a non-empty `unscanned_chain_ids`
+
+For each row, it starts or resumes the same idempotent action. For the last one it re-reads the
+balance on the listed chains, removes each chain that answers, and queues a flow if the balance is
+now eligible.
+
+The job does not scan every deposit address and does not compute balances from deposit arithmetic.
+Goldsky source checkpoints recover chain ingestion. Public manual trigger plus activation balance
+recovery handle a pre-activation transfer.
+
+**`unscanned_chain_ids` is not an address sweep.** The candidate set is names already activated
+whose activation read is recorded as incomplete, so it is bounded by activation volume and empties
+itself. It exists because the two mechanisms above have a gap between them: activation balance
+recovery only recovers what it managed to read, and the manual trigger needs a person. A chain that
+was unreachable for one second during activation would otherwise be invisible forever.
+
+Run the job at a short interval on the Vercel plan that supports it. Protect it with
+`CRON_SECRET`. Use a database lease so two invocations do not process the same recovery batch.
+
+## Environments and deployment
+
+### Local development
+
+- Vite and `vercel dev` run the app and API.
+- Workflow uses its local development backend.
+- A Neon developer branch holds the schema and fixtures.
+- Goldsky webhooks are represented by saved fixture payloads.
+- Anvil tests transaction logic without public testnet gas.
+
+### Pull-request preview
+
+- Vercel creates a preview deployment.
+- Neon creates an isolated preview branch.
+- Migrations run against that branch.
+- The preview uses fixture ingestion and test relayer keys.
+- No production or shared testnet Goldsky pipeline targets the preview URL.
+- Closing the PR deletes the preview branch.
+
+### Stable testnet
+
+- One stable Vercel deployment receives the `namepass-testnet` webhook.
+- One stable Neon branch stores testnet application state.
+- The relayer has testnet native gas only.
+- End-to-end tests send test USDC on each of the four chains.
+
+### Production
+
+- One production Vercel deployment receives the mainnet webhook.
+- The production Neon branch does not scale to zero if cold-start latency harms webhook handling.
+- Goldsky and Vercel secrets are scoped to production.
+- The relayer key is production-only and funded with small gas balances.
+- Mainnet activation starts only after the contracts are audited, deployed, verified, and proven.
+
+The Goldsky pipeline must point to a stable domain. Do not point it to a Vercel deployment URL that
+changes on every build.
+
+### Provider plans for initial production
+
+Use these plans for the first production version. Verify the plan names and limits again before
+purchase because providers can change them.
+
+| Provider | Initial plan | Reason |
+|---|---|---|
+| Vercel | Pro | The recovery cron needs a per-minute schedule. Hobby permits only daily schedules. Pro also supplies usage-based Workflow and Function capacity. |
+| Neon | Launch | The expected data and connection load is small. Launch supplies pooled connections, autoscaling, up to a seven-day restore window, and enough branches for the first preview workflow. Disable scale-to-zero on the production compute. |
+| Goldsky | Scale | Production and stable testnet require two concurrent pipelines. Scale removes the one-pipeline Starter limit and supplies priority email support with a 24-hour support target. |
+
+Plan evidence: [Vercel Cron usage and pricing](https://vercel.com/docs/cron-jobs/usage-and-pricing),
+[Neon pricing](https://neon.com/pricing), and
+[Goldsky pricing](https://docs.goldsky.com/pricing/summary).
+
+Start Goldsky on an `s` pipeline. Increase the resource size only after pipeline lag or transform
+metrics prove that it is necessary. Start Neon at its smallest practical compute size and set a cost
+ceiling with autoscaling. A plan upgrade is an operational change, not an architecture change.
+
+Move Neon to Scale when the product needs a 30-day restore window, exported metrics, IP allow rules,
+or an SLA. Move Goldsky to Enterprise only when the team needs a dedicated source IP, a four-hour
+support target, or a custom Arc integration. Move Vercel to Enterprise only when measured limits or
+an organizational control require it.
+
+## Environment variables and secrets
+
+Commit an `.env.example` with names only.
+
+Vercel server variables:
+
+- `DATABASE_URL`, pooled
+- `DATABASE_URL_UNPOOLED`, migrations only
+- one RPC URL per supported chain
+- `RELAYER_PRIVATE_KEY`
+- `GOLDSKY_WEBHOOK_SECRET`
+- `CRON_SECRET`
+- `CIRCLE_IRIS_URL`
+- trigger-policy values
+- public deployment environment name
+
+Goldsky secrets:
+
+- Neon direct connection for `goldsky_reader`
+- webhook authorization header
+
+Never expose a secret through a `VITE_*` variable. The browser receives only the public chain
+registry and public API URLs.
+
+## Security controls
+
+### Input and API controls
+
+- Normalize labels once in the shared domain module.
+- Validate every request with strict schemas.
+- Allowlist chain IDs, token addresses, contract addresses, and event signatures.
+- Compare webhook secrets in constant time.
+- Limit request bodies and page sizes.
+- Apply Vercel Firewall rate limits to activation and trigger endpoints.
+- Return generic public errors. Store exact internal errors on the flow.
+
+### Database controls
+
+- Use separate Neon roles for migrations, the Vercel application, and Goldsky.
+- Give the application role only the table privileges it needs.
+- Keep all writes server-side.
+- Use parameterized queries through Drizzle.
+- Test every unique and partial index with concurrent requests.
+- Use Neon point-in-time restore and branches for recovery drills.
+
+### Chain controls
+
+- Simulate before every transaction.
+- Verify chain ID from the RPC response.
+- Verify deployed bytecode or a pinned code hash at process start.
+- Verify every receipt status and expected event.
+- Never mark a flow settled from a submitted transaction hash.
+- Keep the relayer key exclusive to this service.
+- Alert on low relayer gas before transactions fail.
+- Default to Standard CCTP finality.
+
+### Mainnet gates
+
+Mainnet remains blocked until all of these are complete:
+
+- independent contract audit
+- exact mainnet deployment configuration review
+- deterministic address derivation parity test
+- Goldsky dataset and event-decoder validation
+- four-chain stable testnet end-to-end run
+- duplicate and reorg ingestion tests
+- workflow crash and retry tests
+- relayer nonce and replacement tests
+- unclaimed-message recovery drill
+- runbook and alert review
+
+## Observability and alerts
+
+Use Vercel Workflow observability for step execution. Use Vercel function logs for APIs. Use Goldsky
+pipeline health for source lag and webhook backpressure. Use Neon metrics for connections, query
+latency, and storage.
+
+Log structured fields:
+
+- environment
+- request or workflow ID
+- flow ID
+- normalized label hash, not a free-form label where it is not needed
+- chain ID
+- event ID
+- transaction hash
+- workflow step
+- error code
+- retry count
+
+Do not log private keys, raw authorization headers, database URLs, or signed raw transactions.
+
+Alert on:
+
+- Goldsky pipeline failure or increasing lag
+- webhook `5xx` rate
+- queued flow without a workflow run
+- flow past its state service-level objective
+- repeated Iris `429` responses
+- unclaimed CCTP growth
+- stuck or replaced transaction
+- relayer gas below threshold
+- database connection saturation
+- mismatch between workflow receipts and canonical protocol events
+
+Initial service-level objectives are operational targets, not user guarantees:
+
+- webhook accepted within 10 seconds of Goldsky delivery
+- finalized eligible deposit queued within 30 seconds
+- Ethereum renewal submitted within 60 seconds after eligibility
+- L2 claim submitted within 60 seconds after Iris reports a complete attestation
+- recovery job repairs an orphaned queued action within its next two runs
+
+## Testing strategy
+
+### Unit tests
+
+Cover:
+
+- ENSIP-15 normalization and label rejection
+- chain registry completeness
+- Goldsky event schemas
+- `_gs_op` create and delete handling
+- trigger policy
+- state transitions
+- Circle message route validation
+- receipt event parsing
+- JSON bigint serialization
+- retry classification
+
+### Database integration tests
+
+Run against a disposable Neon branch.
+
+Cover:
+
+- duplicate webhook delivery
+- out-of-order create and delete
+- concurrent activation
+- concurrent manual and automatic trigger
+- one active flow per name and chain
+- nonce reservation under concurrency
+- crash after signing and before broadcast
+- transaction replacement
+- external permissionless renewal reconciliation
+
+### Workflow tests
+
+Use the Workflow test integration.
+
+Cover:
+
+- Ethereum happy path
+- each L2 happy path
+- Iris not ready, `429`, and `5xx`
+- restart after every durable step
+- origin transaction revert
+- claim transaction revert
+- name becomes unrenewable after burn
+- duplicate workflow start
+- Circle burn-limit remainder creates the next flow
+
+### End-to-end testnet tests
+
+For each supported testnet:
+
+1. Activate a normalized ENS label.
+2. Confirm the address entered the watched table.
+3. Send native test USDC.
+4. Confirm Goldsky detects it.
+5. Confirm the workflow starts once.
+6. Confirm the expected origin transaction.
+7. For L2, confirm Iris attestation and Ethereum claim.
+8. Confirm the ENS expiry increased.
+9. Confirm the API and frontend show the canonical events.
+10. Repeat one webhook and confirm no duplicate renewal occurs.
+
+Keep transaction hashes in the deployment evidence log.
+
+## Implementation plan
+
+Each phase ends with a mergeable PR and an explicit verification gate.
+
+### Phase 0 — settle configuration and access
+
+- Configure the $0.50 trigger floor on every launch chain.
+- Purchase Vercel Pro, Neon Launch, and Goldsky Scale for production.
+- Create stable testnet Vercel, Neon, and Goldsky environments.
+- Create least-privilege database roles.
+- Create test relayer accounts and gas them.
+- Verify exact Goldsky dataset names and versions.
+- Record the commands and owners in a runbook.
+
+**Gate:** all CLIs authenticate, secrets exist outside git, and no production credential is in a
+preview environment.
+
+### Phase 1 — shared chain registry
+
+- Create the shared registry.
+- Move tokens, fees, explorers, tags, assets, and deployment references to it.
+- Add completeness tests.
+- Generate public and server views from the same data.
+
+**Gate:** removing a required field fails a test, and the current frontend output does not change.
+
+### Phase 2 — Neon schema and API foundation
+
+- Add Drizzle, `pg`, and `@vercel/functions`.
+- Add migrations and roles.
+- Add structured errors and request validation.
+- Add activation and public read endpoints.
+- Add fixture data for previews.
+- Add database integration tests.
+
+**Gate:** a preview deployment uses its own Neon branch and cannot reach production data.
+
+### Phase 3 — Goldsky ingestion
+
+- Add the pinned Turbo pipeline definition.
+- Add deposit and protocol-event transforms.
+- Add the authenticated webhook receiver.
+- Add create, duplicate, delete, and replay tests.
+- Deploy to the stable testnet endpoint.
+
+**Gate:** all four testnets deliver a real event exactly once at the domain level after duplicate
+delivery.
+
+### Phase 4 — Ethereum workflow
+
+- Add Workflow to the Vite project.
+- Add the flow state machine.
+- Add nonce reservation and transaction intents.
+- Implement the Ethereum origin path.
+- Add recovery cron and workflow tests.
+
+**Gate:** a real Sepolia deposit renews once after forced webhook and workflow retries.
+
+### Phase 5 — CCTP workflow
+
+- Add origin burn receipt parsing.
+- Add Circle Iris polling.
+- Add message route validation.
+- Add Ethereum claim transaction.
+- Add unclaimed state and recovery.
+- Test Base Sepolia, Arbitrum Sepolia, and Arc Testnet.
+
+**Gate:** every L2 completes a real burn, attestation, mint, and ENS renewal. A forced claim failure
+remains recoverable.
+
+### Phase 6 — frontend cutover
+
+- Replace `registry.ts` reads with API adapters.
+- Keep mock fixtures only for local and preview demonstration modes.
+- Activate a name before showing its funding controls.
+- Poll active flows.
+- Render held, in-flight, unclaimed, failed, and settled states from API data.
+- Add the unclaimed-flow card, evidence links, and idempotent retry action.
+- Show raw sender and executor addresses with distinct labels.
+- Keep amounts as strings or `bigint` through the adapter boundary.
+
+**Gate:** no production screen imports simulated activity.
+
+### Phase 7 — operations and hardening
+
+- Add dashboards and alerts.
+- Add recovery and restore drills.
+- Add low-gas monitoring.
+- Configure the 20-unit warning, 5-unit critical alert, and manual refill runbook.
+- Add the 30-day raw-payload retention job and verify that normalized history remains.
+- Add load and concurrency tests.
+- Add operator runbooks.
+- Complete an independent security review of the backend.
+
+**Gate:** the team can recover a stuck transaction, an unstarted flow, an Iris outage, and a Neon
+restore without editing production rows by hand.
+
+### Phase 8 — audited mainnet launch
+
+- Audit and deploy contracts.
+- Record verified addresses and hashes in `docs/DEPLOYMENTS.md`.
+- Create and validate the mainnet Goldsky pipeline.
+- Run a low-value canary on Ethereum, Base, and Arbitrum.
+- Move public configuration from testnet to mainnet in one reviewed change.
+
+**Gate:** every canary has matching deposit, flow, Circle, helper, ENS, API, and frontend evidence.
+
+## Rejected additions
+
+These can be reconsidered only when measured load or a required feature proves the need.
+
+- Supabase and Supabase Realtime
+- Moralis streams
+- Redis or a separate message queue
+- a standalone worker deployment
+- WebSockets for the public UI
+- a Goldsky Postgres sink that copies webhook data
+- a database-derived token balance
+- per-request background work after a `2xx` response
+- Fast CCTP in the first production version
+- direct browser access to Neon
+- user accounts for public chain data
+- a custom admin panel before the provider dashboards and runbooks are insufficient
+
+## Launch decisions
+
+No backend architecture question in this document remains open for the initial implementation.
+Provider limits and chain support still require verification at deployment time. A failed check
+removes the affected chain or requires a plan upgrade; it does not permit an unreviewed substitute.
+
+Settled points:
+
+- Balances stay separate by chain.
+- Standard CCTP is the default.
+- One active flow exists per name and chain.
+- Goldsky detects events. Neon stores application state. Vercel executes workflows.
+- The frontend polls the API.
+- The chain is the authority for balances, receipts, and renewals.
+- The trigger threshold is $0.50 per chain.
+- The initial mainnet supports Ethereum, Base, and Arbitrum. Arc remains testnet-only until its
+  mainnet dependencies exist and pass a canary.
+- The treasury funds the production relayer manually. The architecture does not require a specific
+  treasury wallet type. Balance alerts use transaction units derived from measured gas costs.
+- Public activity shows raw sender and executor addresses. It does not resolve ENS names initially.
+- Raw Goldsky payloads remain for 30 days. Normalized event facts remain without a time limit.
+- An unclaimed flow has explicit public copy, evidence links, automatic retry, and an idempotent
+  manual retry action when the name becomes renewable.
+- Initial production uses Vercel Pro, Neon Launch, and Goldsky Scale.
+- **Helper dust is the deployer's responsibility and is handled contract-side.** Renewals buy whole
+  seconds, so a sub-second remainder stays in the helper on every flow. `DustWithdrawn` records the
+  owner withdrawal. **No UI, and nothing in the schema.** It is rounding residue with no individual
+  owner; it is not a funder's pending balance and must never be shown as one. One consequence for
+  operations: an "is the helper empty" check must use a threshold rather than zero, or it alerts
+  forever.
+- A balance read fails soft. Show the chains that answered and render the rest as unknown.

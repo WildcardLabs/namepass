@@ -7,6 +7,183 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-11 — Initial production scope closes the remaining backend questions
+
+The first production version now has decisions for chain scope, relayer funding, public sender
+identity, raw-event retention, unclaimed-flow UX, and provider plans. These decisions complete the
+backend architecture. Provider support still needs verification during deployment.
+
+**Initial mainnet is Ethereum, Base, and Arbitrum. Arc remains on testnet.** Circle currently lists
+Arc Testnet, but not Arc mainnet, as a CCTP domain. Goldsky also lists Arc Testnet, but not Arc
+mainnet. Mainnet launch must not wait for a chain whose required services do not exist. Arc can be
+added after native USDC, CCTP v2 hooks, Goldsky datasets, deployed Namepass contracts, and a
+low-value canary are all present.
+
+**The treasury funds the production relayer manually.** The architecture does not require a
+specific treasury wallet type. An automatic refill signer would add another key that can move
+treasury funds. The first version does not need it. Per-chain balance alerts use a transaction unit
+equal to twice the greater of the tested maximum gas cost and the observed seven-day 95th-percentile
+cost. Warning, critical, and refill levels are 20, 5, and 50 units. The private runbook names the
+primary and backup operators.
+
+**Public activity shows raw addresses.** `deposits.sender_address` is `Funded by` and
+`Renewed.executor` is `Processed by`. Namepass identifies its configured relayer, but it still
+exposes the address in the detail view. ENS resolution was rejected for the first version because
+it adds a network dependency and needs forward verification to prevent a misleading reverse name.
+The UI does not infer an owner, supporter, or identity profile from an address.
+
+**Raw Goldsky payloads remain for 30 days.** Normalized event fields, canonical state, domain rows,
+and transaction evidence remain without a time limit. Goldsky can replay the raw public chain data,
+so permanent duplicate storage has no launch benefit. A daily job clears only the expired payload.
+It does not delete the event row.
+
+**An unclaimed flow is visible and actionable.** The card says that the USDC left the origin chain,
+is secured in a Circle message, and will retry when the name becomes renewable. It shows the amount,
+origin transaction, Circle nonce, and latest retry. When ENS reports that the name is renewable, an
+idempotent `Retry renewal` action resumes the same flow. It never starts another burn. Automatic
+retry remains the normal path.
+
+**Initial production uses Vercel Pro, Neon Launch, and Goldsky Scale.** Vercel Pro is required for
+the per-minute recovery cron. Neon Launch matches the small initial workload and supplies a
+seven-day restore window. Goldsky Scale supports the stable testnet and production pipelines at the
+same time and supplies priority support. The implementation starts with small compute sizes and
+scales only from measured load. Plan names and limits must be checked again before purchase.
+
+### 2026-08-11 — Trigger floor, helper dust, and what happens when a balance read fails
+
+Three items that were open are now decided. The third one found a hole between two mechanisms that
+each looked complete.
+
+**The trigger floor is $0.50 on a single chain, flat.** It was a ratio — `MAX_FEE_BPS = 1500n`, "the
+gas allowance may be at most 15% of the balance" — which produced $0.666667 and was explicitly a
+placeholder. Namepass fronts dollars of mainnet gas per flow and rebates ten cents, so the real
+question was how much subsidy per renewal is acceptable, which no arithmetic on the allowance
+answers.
+
+The per-chain server configuration stays. $0.50 is the value every chain starts at, not a constant
+that removes the setting. In the frontend it is `MIN_TRIGGER` in `src/lib/registry.ts` until the
+Phase 6 cutover, after which the API supplies it and the constant goes away. Keeping the ratio and
+retuning it to 2000 bps would also give $0.50 today; that was rejected because it lets the published
+minimum move if the allowance ever changes, and the minimum is a figure the UI states to funders.
+
+**Helper dust is the deployer's responsibility, handled contract-side, with no UI.** The open
+version of this asked where withdrawn dust should go. It is rounding residue with no individual
+owner — renewals buy whole seconds and the sub-second remainder stays in the helper. It is not a
+funder's pending balance, and putting it in the schema or on a card would tell funders that
+something of theirs is stuck. `DustWithdrawn` records the withdrawal. One operational consequence
+survives: an "is the helper empty" check must use a threshold rather than zero, or it alerts
+forever.
+
+**A balance read fails soft — and that exposed a gap.** Activation reads four chains. A read can
+fail. It must not fail the activation, and an unanswered chain must render as **unknown**, never as
+zero and never as absent, because both state a fact the application does not have.
+
+The gap is what happens next. Two mechanisms were supposed to cover a pre-activation transfer:
+activation balance recovery, and the public manual trigger. Trace a failed read against them:
+
+```
+activation reads 4 chains → Arc RPC fails → no balance seen → no flow queued
+recovery job looks for queued flows → finds none
+recovery job does not scan deposit addresses → never looks again
+```
+
+The funds are invisible to the backend permanently, and the only recovery is a person noticing and
+pressing the manual trigger. Activation balance recovery only recovers what it managed to read.
+
+So `names` gains `unscanned_chain_ids`, and the recovery job gains one case: names whose activation
+read is recorded as incomplete. **This is not the address sweep that was rejected.** The candidate
+set is names already activated with a recorded failure, so it is bounded by activation volume and
+empties itself, rather than polling thousands of addresses nobody funded.
+
+**No operator dashboard.** An earlier draft specified one with five queues. It was dropped in favour
+of what this document already has: the recovery cron performs the unsticking automatically, the
+provider dashboards cover monitoring, and the alert list covers the exceptions. A custom UI for
+queues that should be empty is speculative work before anything has launched. The correct output of
+that analysis was not a dashboard — it was the missing recovery case above.
+
+### 2026-08-11 — Goldsky detects, Neon records, and Vercel executes the production flow
+
+The previous backend specification used Moralis streams, Supabase Postgres, Supabase Realtime, a
+worker, and a reconciliation cron. None of it was built. The remaining implementation will use
+Goldsky Turbo, Neon Postgres, and Vercel. The complete current design is in
+`docs/ARCHITECTURE.md`.
+
+The platform boundary is strict:
+
+- **Goldsky Turbo detects chain events.** It reads the Neon watched-address table, filters native
+  USDC transfers, decodes Namepass protocol events, and sends an authenticated webhook.
+- **Neon Postgres records application state.** It stores names, canonical events, deposits, flows,
+  transaction intents, and public read data.
+- **Vercel Functions serve HTTP.** They validate requests, commit database transactions, and start
+  workflows.
+- **Vercel Workflow executes renewals.** It waits for deposit finality, sends origin transactions,
+  polls Circle Iris, sends Ethereum claims, and resumes after failures.
+- **The chain remains authoritative.** A database row does not prove a balance, receipt, CCTP
+  route, or ENS renewal.
+
+This uses Goldsky's deposit-detection pattern, including a Postgres-backed dynamic table. However,
+it makes one deliberate change to the example: the Turbo pipeline uses the webhook sink and does
+not also write the same transfer to a Postgres sink. The webhook receiver upserts the event into
+Neon before it returns `2xx`. Goldsky checkpoints its source and retries transient webhook failures
+indefinitely. A second sink would add a second writer and a delivery-order race without adding a
+new source of truth. See [Goldsky's deposit-detection guide](https://docs.goldsky.com/solutions/deposit-detection)
+and [delivery guarantees](https://docs.goldsky.com/turbo-pipelines/delivery-guarantees).
+
+The webhook is at-least-once. Duplicate events are normal. A stable Goldsky event ID and database
+unique constraints make duplicate delivery safe. The pipeline also keeps `_gs_op`, so a reorg
+delete can mark an event as orphaned before funds move.
+
+The watched-address table creates an activation requirement. Goldsky cannot reverse a CREATE2
+address to find its ENS label. The API must therefore normalize and activate a label before the
+frontend shows its copy button or QR code. The activation transaction inserts both the name and
+the lowercase address. It then checks the live USDC balance. This balance check recovers an address
+that was funded before activation. It cannot reconstruct sender metadata that Goldsky never saw,
+so the recovered deposit is marked as recovery data rather than invented history.
+
+Neon replaces the Supabase-specific parts. The browser does not connect to Neon. Public reads go
+through Vercel APIs. The frontend polls active flows instead of using Supabase Realtime or a new
+WebSocket service. Vercel Functions use a pooled Neon connection. Migrations and Goldsky use direct
+connections with separate roles. Pull-request previews use isolated Neon branches. The stable
+Goldsky pipeline never targets a pull-request preview URL. See [Neon's connection guidance](https://neon.com/docs/connect/connection-pooling)
+and [branching workflow guidance](https://neon.com/branching).
+
+Vercel Workflow replaces a custom queue and worker. Each network or database operation is a
+durable step. The workflow can sleep while Circle prepares an attestation. It can resume after a
+deployment or crash. One small authenticated cron repairs work that was committed but not started.
+The cron does not scan chains or maintain another balance ledger. See [Vercel Workflow](https://vercel.com/docs/workflow)
+and [Vercel Functions for Vite](https://vercel.com/docs/frameworks/frontend/vite).
+
+The flow uses the wallet's live native USDC balance. Deposit rows are contribution history. The
+`DepositProcessed` event records the amount a renewal actually consumed. This removes the proposed
+`deposit_allocations` and running-balance tables. It also avoids making database arithmetic compete
+with the token contract.
+
+Protocol events remain part of the Goldsky pipeline even though the workflow parses its own
+receipts. The contracts are permissionless. A person can call `renew` or `completeCCTP` while the
+backend is offline. Indexing `DepositProcessed`, `CCTPClaimed`, and `Renewed` makes this external
+work visible and reconciles public history.
+
+One `renew` call produces at most one CCTP message. The contract reads Circle's current burn limit
+and processes one capped amount. It leaves a remainder at the same address. A settled workflow can
+queue another flow when `DepositProcessed.remaining` is non-zero. The workflow does not need a
+multi-message child system.
+
+Rejected alternatives:
+
+- Keep Moralis and Supabase beside the selected providers. This duplicates responsibilities.
+- Use both the Goldsky Postgres sink and webhook for the same row. This creates two writers.
+- Add Redis or a separate queue. Vercel Workflow already supplies durable execution.
+- Keep an application balance aggregate. The native USDC contract already supplies the balance.
+- Add WebSockets. The CCTP wait is measured in minutes on some chains, so short polling is enough.
+- Point Goldsky at Vercel preview deployments. Those URLs and database branches are temporary.
+- Enable Fast CCTP at launch. It adds fee and attestation-expiration policy before the Standard
+  path is proven.
+
+The tradeoff is provider dependence. Goldsky must deliver events, Neon must accept writes, and
+Vercel must resume workflows. The mitigation is not another copy of each provider. It is strict
+idempotency, canonical chain checks, stored signed transactions, permissionless contract entry
+points, and tested recovery procedures.
+
 ### 2026-08-11 — `findExpiry` is authoritative for v1 names too; grace is `expired && renewable`
 
 Premigrated names come back from `findExpiry` **62 days later** than v1's own registrar, and this
@@ -1044,6 +1221,10 @@ widening its column at every other column's expense.
 **Supersedes the 2026-07-28 "Backend shape" entry below.** Two changes, and they resolve each
 other's loose ends.
 
+> **Backend provider update, 2026-08-11.** The CREATE2 and CCTP decisions remain current. The
+> Moralis ingestion and allocation-ledger details below are superseded by the Goldsky + Neon +
+> Vercel decision at the top of this file.
+
 **Addresses are derived with CREATE2**, not issued by a CDP server wallet. A name's address is
 computable from the name alone — it exists before anyone claims it and anyone can verify it offline
 without trusting a Namepass API. Contract and factory work is deliberately out of scope until this
@@ -1337,4 +1518,3 @@ the address, not the headline noun.
 > **Update 2026-07-29.** Under CREATE2-derived addresses the original wording is now accurate.
 > The framing was not retrofitted to the architecture — the architecture moved and the claim
 > became true. See the CREATE2/CCTP entry at the top.
-

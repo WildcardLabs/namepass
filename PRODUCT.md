@@ -29,13 +29,13 @@ Namepass fronts — a mainnet renewal costs dollars, not cents — so the ENS pr
 marked up. Avoid claiming "no fees" in copy; "no markup on the ENS rate" is the accurate version.
 
 **Balances are per chain and never merge.** The address is identical on every chain, but $5 on Base
-and $8 on Arbitrum are two separate pots that each have to clear the minimum (~$0.67) on their own.
+and $8 on Arbitrum are two separate pots that each have to clear the minimum ($0.50) on their own.
 This surprises people and the UI has to say it out loud.
 
 **Automation, as designed.** CREATE2 derives each name's address deterministically. The address
-exists, and any person can verify it before someone claims the name. A webhook detects an inbound
-payment. Circle's CCTP moves the funds to Ethereum. The renewal executes in the transaction that
-completes the transfer. No person intervenes.
+exists, and any person can verify it before someone claims the name. An indexing pipeline detects an
+inbound payment. Circle's CCTP moves the funds to Ethereum. The renewal executes in the transaction
+that completes the transfer. No person intervenes.
 
 The contracts for this path are built. The detection service is not built. Read the next section
 before you describe this automation as working.
@@ -50,10 +50,10 @@ gave them one status and became inaccurate. Keep them separate.
   contracts: deposit, CCTP burn on each L2, attestation, and one transaction that mints and renews
   together. `docs/DEPLOYMENTS.md` records the addresses and the results. **The contracts have no
   external audit and no mainnet deployment.** Neither is scheduled.
-- **The automation backend does not exist.** There is no webhook, no database, and no worker. No
-  service watches a deposit address. No service starts a flow. `docs/ARCHITECTURE.md` is a
-  specification, not a description. A renewal happens today only when a person calls the
-  permissionless `renew(label)` function.
+- **The automation backend does not exist.** There is no Goldsky pipeline, Neon database, API, or
+  Vercel Workflow. No service watches a deposit address. No service starts a flow.
+  `docs/ARCHITECTURE.md` is a specification, not a description. A renewal happens today only when
+  a person calls the permissionless `renew(label)` function.
 - **The frontend is a prototype.** The addresses, the prices, and the expiry dates are real. The
   activity, the balances, and the renewal history are simulated in the browser. See
   `docs/FRONTEND.md`.
@@ -63,9 +63,14 @@ reads the contracts.
 
 ## Supported chains
 
-Base, Arbitrum, Arc, Ethereum. **Not** Optimism — deliberately excluded (no brand asset, not
-part of the current chain set); don't reintroduce it without an explicit decision to add support.
-Arc is Circle's chain. It replaced Polygon on 2026-08-05. See `docs/DECISIONS.md`.
+The stable testnet supports Base Sepolia, Arbitrum Sepolia, Arc Testnet, and Ethereum Sepolia. The
+initial mainnet plan supports Base, Arbitrum, and Ethereum. Arc remains testnet-only until Circle
+and Goldsky support Arc mainnet and a low-value canary passes. Arc does not block the other three
+chains from launching.
+
+**Not** Optimism — deliberately excluded (no brand asset, not part of the current chain set); don't
+reintroduce it without an explicit decision to add support. Arc is Circle's chain. It replaced
+Polygon on 2026-08-05. See `docs/DECISIONS.md`.
 
 ## Positioning and tone
 
@@ -96,10 +101,10 @@ decided and shouldn't be assumed or invented in copy, code, or future planning:
 - Business model / monetization (is Namepass free to activate, does it take a fee on renewals,
   who funds the automation infra?)
 - Target launch timeline or rollout plan
-- **Mainnet, and the conditions to reach it.** The CREATE2 factory and the CCTP integration are
-  built and proven on testnet. There is no audit, no mainnet deployment, and no date for either.
-  The conditions for a mainnet launch are not decided. Possible conditions are an external audit, a
-  bug bounty, or a limited soft launch.
+- **The mainnet date.** The CREATE2 factory and the CCTP integration are built and proven on
+  testnet. There is no audit, no mainnet deployment, and no date for either. The technical launch
+  gates and the initial three-chain scope are decided in `docs/ARCHITECTURE.md`. The business model,
+  audit schedule, and release date remain open.
 - **The end of the prototype stage for the frontend.** The app must read from the automation
   backend. That backend is specified and unbuilt (`docs/ARCHITECTURE.md`). A connection between the
   app and the contracts is therefore a project, not a configuration change.
