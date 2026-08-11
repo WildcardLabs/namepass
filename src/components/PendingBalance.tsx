@@ -234,9 +234,9 @@ function ChainRow({
 				)}
 			</div>
 
-			{/* Manual push, for when the webhook or the burn didn't fire. Normal
-			    accumulation happens on its own, so this stays out of the way
-			    unless this chain is actually stuck. */}
+			{/* Manual push, for when the delivery or the burn didn't happen.
+			    Normal accumulation happens on its own, so this stays out of the
+			    way unless this chain is actually stuck. */}
 			{triggerable && (
 				<button
 					type="button"
