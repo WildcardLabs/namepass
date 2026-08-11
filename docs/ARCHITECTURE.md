@@ -492,7 +492,9 @@ Use one Turbo pipeline for each stable application environment:
 - `namepass-mainnet` will target the audited mainnet deployments.
 - Pull-request previews do not receive Goldsky webhooks.
 
-Each pipeline has two event families.
+Each pipeline has three event families. Two of them read contracts Namepass does not own. That is
+required, not optional: without them the Explorer cannot link a renewal to the transactions behind
+it, and cannot show the correct expiry after a renewal. See "Why the external events are required".
 
 **Deposit events**
 
@@ -504,7 +506,7 @@ Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and Arc Testnet. The implement
 `goldsky dataset get` for every exact dataset name and pin the returned version before deployment.
 Do not guess a dataset slug or use `latest`.
 
-**Protocol events**
+**Namepass protocol events**
 
 Use each chain's `raw_logs` dataset. Filter for the Namepass factory address. On Ethereum, also
 filter for the helper address. Decode these events:
@@ -517,6 +519,77 @@ filter for the helper address. Decode these events:
 Protocol events are necessary even when the workflow records its own receipts. The contracts are
 permissionless. A third party can call `renew` or `completeCCTP` without the Namepass API. Goldsky
 makes that activity visible and reconciles the public history.
+
+**External protocol events**
+
+Same `raw_logs` mechanism, two more addresses per chain. These are Circle's and ENS's contracts.
+
+| Chain | Contract | Event | Supplies |
+|---|---|---|---|
+| Every L2 | Circle `MessageTransmitterV2` | `MessageSent(bytes message)` | The CCTP nonce, read from the message at byte offset 12 |
+| Ethereum | ENS `ETHRegistrar` and `ETHRenewerV1` | `NameRenewed(...)` | `newExpiry`, and renewals that bypassed Namepass |
+
+`MessageTransmitterV2` is `0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275` on every testnet chain. The
+ENS addresses are in `docs/DEPLOYMENTS.md`. Pin all of them from the shared chain registry, the same
+way the factory address is pinned.
+
+### Why the external events are required
+
+Both close a gap that Namepass's own events cannot, and neither needs a contract change.
+
+**The CCTP nonce is the only exact key between a burn and its claim.**
+
+`CCTPClaimed` on Ethereum is indexed by `nonce`. `DepositProcessed` on the origin chain is not, and
+cannot be. CCTP v2's `depositForBurnWithHook` returns nothing — the `uint64 nonce` return belongs to
+v1, and declaring it in v2 makes Solidity enforce a returndata size and revert on every burn, which
+is why the factory's interface declares it `void`. **The factory never learns the nonce, so no
+redeploy could make it emit one.**
+
+Circle's `MessageTransmitterV2` emits `MessageSent` in the same transaction as the burn, and the
+nonce sits at a fixed offset in that blob. The helper already decodes it the same way
+(`MESSAGE_NONCE_OFFSET`). Indexing it gives the join:
+
+~~~text
+origin chain:   DepositProcessed  +  MessageSent          (same transaction)
+                                            │ nonce
+Ethereum:                        CCTPClaimed(nonce)  +  Renewed
+~~~
+
+Without `MessageSent`, linking a burn to its claim needs a heuristic on label, source domain and
+ordering. That is exact enough for flows the workflow ran, because `transaction_intents` records
+them. It is not exact for a renewal a third party pushed, which is the case protocol events exist to
+capture.
+
+**ENS reports the expiry after a renewal, so nothing has to derive it.**
+
+`NameRenewed` carries `newExpiry` directly. The alternative is to read the current expiry and
+subtract known durations backwards, which is wrong the moment a name is renewed outside Namepass, at
+registration, or by the v2 migration's one-time 62-day adjustment. Those are exactly the cases a
+funder would notice on the runway bar.
+
+`NameRenewed.referrer` is **indexed**, and the deployed helper sets a Namepass referrer
+(`docs/DEPLOYMENTS.md`). Renewals that came through Namepass can therefore be separated from the
+rest by an indexed filter, with no join.
+
+**What the Explorer gets from each source.** `Renewed` was written for this — `label` is unindexed
+so an indexer can read the string, `labelHash` is indexed so it can be filtered, and the three
+amounts are deliberately not collapsed.
+
+| Explorer field | Source |
+|---|---|
+| name | `Renewed.label`, a readable string |
+| duration | `Renewed.duration` |
+| deposited, allowance, applied | `Renewed.amountReceived`, `gasAllowance`, `amountApplied` |
+| final step label | `Renewed.fromCCTP` picks "Renewed" or "Minted and renewed" |
+| who pushed it | `Renewed.executor` |
+| origin chain | `CCTPClaimed.sourceDomain`, same transaction; Ethereum when `fromCCTP` is false |
+| expiry after this renewal | `NameRenewed.newExpiry` |
+| the transactions behind it | `DepositProcessed` + `MessageSent` joined to `CCTPClaimed` by nonce |
+| discount label | Not on chain. Computed from the applied amount and label length. |
+
+In-flight rows are not in this table on purpose. No event can express `attesting`, because it is the
+gap between two transactions. Live progress comes from `flows` in Neon. Events describe settled
+history only.
 
 ### Transform output
 
@@ -881,6 +954,11 @@ canonical flag.
 
 Add a unique constraint on `(chain_id, tx_hash, log_index, event_type)`. A reorg delete updates
 `canonical`. Keep the original payload for diagnosis.
+
+`event_family` is one of `deposit`, `namepass`, `circle`, or `ens`. The last two carry
+`MessageSent` and `NameRenewed`, which the Explorer needs to link a renewal to its transactions and
+to show the expiry after it. No extra table is required for them. See "Why the external events are
+required".
 
 ### `deposits`
 
