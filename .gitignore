@@ -2,7 +2,12 @@ node_modules/
 dist/
 .DS_Store
 *.local
-.claude/
+
+# Local agent tooling
+/.claude/
+/.agents/
+/.codex/
+/skills-lock.json
 
 # Foundry
 out/
