@@ -479,6 +479,29 @@ transfer at the time it occurs. The balance check in step 7 is the recovery path
 flow can renew the name, but the application might not know the original sender or transfer time.
 The API marks this source as `balance_recovery` and does not invent contribution metadata.
 
+### Balance reads fail soft
+
+Step 7 reads four chains. A read can fail. **A failed read must not fail the activation**, and it
+must not be recorded as a zero balance.
+
+This is the opposite of how the frontend's other chain reads behave. `oracle.ts` and `fees.ts` stop
+the application when they fail, deliberately, because a missing price is a wrong price and a
+fallback price is an invented one. A missing balance is not the same thing. One unreachable Arc
+endpoint must not block an activation or blank a card.
+
+Three rules follow:
+
+- **Activate on partial success.** Record the balances that came back, and write the chains that did
+  not answer to `names.unscanned_chain_ids`.
+- **Render an unanswered chain as unknown.** Never as zero and never as absent. Both state a fact
+  the application does not have, and "no balance on Arc" is the sentence that stops a person
+  chasing money they actually sent.
+- **The recovery job retries it.** This matters more than it looks. The recovery job does not scan
+  deposit addresses, and a failed read creates no queued flow, so nothing else would ever look
+  again. Without this retry, a funded chain that was unreachable for one second at activation stays
+  invisible to the backend permanently, and the only recovery is a person noticing and pressing the
+  manual trigger.
+
 Names remain in the watched set. Deleting them would make later deposits invisible. The table is
 therefore small, append-only application data, not an expiring cache.
 
@@ -740,9 +763,21 @@ Vercel Firewall rate limits this endpoint. Database constraints provide the conc
 The contracts enforce the technical minimum. The service also needs an economic minimum because it
 pays origin and Ethereum gas.
 
-The exact subsidy threshold is still a product decision. Store it as server configuration by chain.
-Do not put the threshold into the contracts. The API returns the configured minimum so the frontend
-does not copy it.
+**The threshold is $0.50 on a single chain, decided 2026-08-11.** It is a flat figure, not a ratio.
+It replaced "the gas allowance may be at most 15% of the balance", which produced $0.666667 and was
+a placeholder for a product decision nobody had made.
+
+Keep the mechanism this section already specifies: store it as server configuration **by chain**, so
+a chain with different economics can move without a deployment, and keep it out of the contracts.
+$0.50 is the value every chain starts at, not a constant that removes the per-chain setting.
+
+The API returns the configured minimum so the frontend does not copy it. Until the frontend cutover
+in Phase 6 the simulation holds it as `MIN_TRIGGER` in `src/lib/registry.ts`, which is the number
+the pending-balance card states today. That constant is the thing the API replaces, not a second
+source to keep in step.
+
+At a $0.10 allowance the floor is exactly 20%, so a funder sending the minimum spends a fifth of it
+on gas and buys about 18 days on a five-character name.
 
 ## Durable renewal workflow
 
@@ -919,9 +954,15 @@ One row per activated label.
 - `current_expiry`
 - `renewable_by`
 - `ens_synced_at`
+- `unscanned_chain_ids`
 - cached public totals
 
 The cached totals are rebuildable. Contract events and deposit rows remain the authority.
+
+`unscanned_chain_ids` holds the chains whose activation balance read did not complete. Activation
+writes the chains that failed; the recovery job retries them and removes each one that succeeds. An
+empty array means every chain was read. It is a small array on an already-small table, not a new
+table. Without it a failed read at activation is unrecoverable — see "Balance reads fail soft".
 
 ### `goldsky.watched_addresses`
 
@@ -1164,12 +1205,21 @@ It finds bounded batches of:
 - broadcast transactions without a recorded receipt
 - attested CCTP messages without a claim
 - settled flows whose canonical `Renewed` event has not arrived yet
+- names with a non-empty `unscanned_chain_ids`
 
-For each row, it starts or resumes the same idempotent action.
+For each row, it starts or resumes the same idempotent action. For the last one it re-reads the
+balance on the listed chains, removes each chain that answers, and queues a flow if the balance is
+now eligible.
 
 The job does not scan every deposit address and does not compute balances from deposit arithmetic.
 Goldsky source checkpoints recover chain ingestion. Public manual trigger plus activation balance
 recovery handle a pre-activation transfer.
+
+**`unscanned_chain_ids` is not an address sweep.** The candidate set is names already activated
+whose activation read is recorded as incomplete, so it is bounded by activation volume and empties
+itself. It exists because the two mechanisms above have a gap between them: activation balance
+recovery only recovers what it managed to read, and the manual trigger needs a person. A chain that
+was unreachable for one second during activation would otherwise be invisible forever.
 
 Run the job at a short interval on the Vercel plan that supports it. Protect it with
 `CRON_SECRET`. Use a database lease so two invocations do not process the same recovery batch.
@@ -1511,14 +1561,14 @@ These can be reconsidered only when measured load or a required feature proves t
 
 ## Open decisions
 
-- **Subsidy threshold.** Set the automatic and manual minimum per chain.
+- **Per-chain subsidy overrides.** The threshold is $0.50 everywhere. Decide whether any chain
+  should differ once real gas costs are known.
 - **Arc mainnet.** Confirm network, Circle, native USDC, Goldsky dataset, and finality support before
   it appears in a mainnet registry.
 - **Relayer funding.** Set gas thresholds and the operator that refills each chain.
 - **Public sender identity.** Decide whether the UI shows raw sender addresses, resolved ENS names,
   or no identity label.
 - **Data retention.** Set retention for raw Goldsky payloads inside `chain_events.payload`.
-- **Helper dust.** The owner withdrawal exists. Product policy must state where withdrawn dust goes.
 - **Unclaimed user experience.** Define the exact copy and action shown when a CCTP message waits for
   renewability.
 - **Production plan levels.** Confirm that the selected Vercel, Neon, and Goldsky plans meet cron,
@@ -1532,3 +1582,11 @@ Settled points:
 - Goldsky detects events. Neon stores application state. Vercel executes workflows.
 - The frontend polls the API.
 - The chain is the authority for balances, receipts, and renewals.
+- The trigger threshold is $0.50 per chain.
+- **Helper dust is the deployer's responsibility and is handled contract-side.** Renewals buy whole
+  seconds, so a sub-second remainder stays in the helper on every flow. `DustWithdrawn` records the
+  owner withdrawal. **No UI, and nothing in the schema.** It is rounding residue with no individual
+  owner; it is not a funder's pending balance and must never be shown as one. One consequence for
+  operations: an "is the helper empty" check must use a threshold rather than zero, or it alerts
+  forever.
+- A balance read fails soft. Show the chains that answered and render the rest as unknown.

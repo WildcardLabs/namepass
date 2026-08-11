@@ -7,6 +7,58 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-11 — Trigger floor, helper dust, and what happens when a balance read fails
+
+Three items that were open are now decided. The third one found a hole between two mechanisms that
+each looked complete.
+
+**The trigger floor is $0.50 on a single chain, flat.** It was a ratio — `MAX_FEE_BPS = 1500n`, "the
+gas allowance may be at most 15% of the balance" — which produced $0.666667 and was explicitly a
+placeholder. Namepass fronts dollars of mainnet gas per flow and rebates ten cents, so the real
+question was how much subsidy per renewal is acceptable, which no arithmetic on the allowance
+answers.
+
+The per-chain server configuration stays. $0.50 is the value every chain starts at, not a constant
+that removes the setting. In the frontend it is `MIN_TRIGGER` in `src/lib/registry.ts` until the
+Phase 6 cutover, after which the API supplies it and the constant goes away. Keeping the ratio and
+retuning it to 2000 bps would also give $0.50 today; that was rejected because it lets the published
+minimum move if the allowance ever changes, and the minimum is a figure the UI states to funders.
+
+**Helper dust is the deployer's responsibility, handled contract-side, with no UI.** The open
+version of this asked where withdrawn dust should go. It is rounding residue with no individual
+owner — renewals buy whole seconds and the sub-second remainder stays in the helper. It is not a
+funder's pending balance, and putting it in the schema or on a card would tell funders that
+something of theirs is stuck. `DustWithdrawn` records the withdrawal. One operational consequence
+survives: an "is the helper empty" check must use a threshold rather than zero, or it alerts
+forever.
+
+**A balance read fails soft — and that exposed a gap.** Activation reads four chains. A read can
+fail. It must not fail the activation, and an unanswered chain must render as **unknown**, never as
+zero and never as absent, because both state a fact the application does not have.
+
+The gap is what happens next. Two mechanisms were supposed to cover a pre-activation transfer:
+activation balance recovery, and the public manual trigger. Trace a failed read against them:
+
+```
+activation reads 4 chains → Arc RPC fails → no balance seen → no flow queued
+recovery job looks for queued flows → finds none
+recovery job does not scan deposit addresses → never looks again
+```
+
+The funds are invisible to the backend permanently, and the only recovery is a person noticing and
+pressing the manual trigger. Activation balance recovery only recovers what it managed to read.
+
+So `names` gains `unscanned_chain_ids`, and the recovery job gains one case: names whose activation
+read is recorded as incomplete. **This is not the address sweep that was rejected.** The candidate
+set is names already activated with a recorded failure, so it is bounded by activation volume and
+empties itself, rather than polling thousands of addresses nobody funded.
+
+**No operator dashboard.** An earlier draft specified one with five queues. It was dropped in favour
+of what this document already has: the recovery cron performs the unsticking automatically, the
+provider dashboards cover monitoring, and the alert list covers the exceptions. A custom UI for
+queues that should be empty is speculative work before anything has launched. The correct output of
+that analysis was not a dashboard — it was the missing recovery case above.
+
 ### 2026-08-11 — Goldsky detects, Neon records, and Vercel executes the production flow
 
 The previous backend specification used Moralis streams, Supabase Postgres, Supabase Realtime, a
