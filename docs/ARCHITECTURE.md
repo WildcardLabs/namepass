@@ -448,6 +448,33 @@ Goldsky dataset versions stay pinned in the committed pipeline definition.
 This change removes the current multi-file chain list. A chain is supported only when one registry
 entry, its logo asset, its deployed contracts, and its end-to-end test all exist.
 
+### Launch chain sets
+
+The stable testnet and the initial mainnet do not have to contain the same chains.
+
+| Environment | Chains |
+|---|---|
+| Stable testnet | Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, Arc Testnet |
+| Initial mainnet | Ethereum, Base, Arbitrum |
+
+Arc is testnet-only for this launch plan. As of 2026-08-11, Circle lists Arc Testnet but not Arc
+mainnet as a CCTP domain. Goldsky also lists Arc Testnet but not Arc mainnet. Initial mainnet launch
+must not wait for Arc.
+
+Support evidence: [Circle CCTP supported domains](https://developers.circle.com/cctp/concepts/supported-chains-and-domains)
+and [Goldsky supported networks](https://docs.goldsky.com/chains/supported-networks).
+
+Add Arc mainnet later only when all of these conditions are true:
+
+- Circle supports native USDC, Standard CCTP v2, and hooks on Arc mainnet.
+- Goldsky provides the required Arc mainnet `erc20_transfers` and `raw_logs` datasets.
+- The shared registry contains reviewed RPC, finality, explorer, token, and CCTP values.
+- The Namepass contracts are audited, deployed, verified, and tested on Arc mainnet.
+- A low-value canary produces matching Goldsky, Circle, contract, API, and frontend evidence.
+
+The $0.50 trigger floor starts with no per-chain override. A later change needs measured transaction
+costs and a reviewed configuration change. It does not need a contract deployment.
+
 ## Name activation
 
 A deterministic address can be derived for every valid ENS label. Goldsky cannot infer a label from
@@ -753,8 +780,13 @@ The endpoint repeats every server-side check. It does not trust frontend state. 
 
 - `202` when it creates or resumes a queued flow
 - `200` when the same flow is already queued
-- `409` when an active flow already exists, with its current state
+- `409` when a non-resumable active flow already exists, with its current state
 - `422` when the name or balance is not eligible
+
+An `unclaimed` flow is the exception to the ordinary balance checks because its origin balance is
+already zero. If a fresh ENS read says that the name is renewable, the endpoint returns `202` and
+resumes the same message. If the name is not renewable, it returns `409` with the current unclaimed
+state. It never creates a replacement burn.
 
 Vercel Firewall rate limits this endpoint. Database constraints provide the concurrency guard.
 
@@ -879,6 +911,20 @@ When `completeCCTP` simulation or execution fails for a business reason:
 Do not start a new burn for the same USDC. The funds are represented by the unclaimed CCTP message,
 not by the origin wallet balance.
 
+The public name view shows an unclaimed flow as a separate card. It must not show zero or imply that
+the USDC is still at the origin address. Use this copy:
+
+- **Title:** `Waiting to renew`
+- **Body:** `The USDC left {origin chain} and is secured in a Circle message. This name cannot be renewed now. Namepass will retry when renewal is possible.`
+- **Evidence:** amount, origin chain, origin transaction, Circle nonce, and the latest retry time
+- **Secondary note:** `This transfer cannot return to {origin chain}. A retry uses the same Circle message.`
+
+Show `Retry renewal` only when a fresh ENS read says that the name is renewable. The action calls
+`POST /api/flows/trigger`. That endpoint must resume the existing unclaimed flow and return its flow
+ID. It must not create a flow or burn USDC again. Hide the action while the name is not renewable.
+Automatic retry remains the normal path. The button is an idempotent recovery action, not a required
+step.
+
 A Standard attestation is the current path. If the product later enables Fast Transfer, add
 re-attestation and expiration handling as a separate architecture decision.
 
@@ -929,6 +975,29 @@ same nonce and link it to the same intent.
 
 The database never stores the private key. Vercel stores it as a sensitive production environment
 variable. Preview deployments receive test-only keys and cannot read production secrets.
+
+### Relayer funding
+
+The production treasury Safe multisignature wallet funds the relayer with native gas tokens. The
+operations role owns the refill. The private runbook names one primary operator and one backup
+operator. Do not put personal names in the public architecture document.
+
+Do not automate refills in the first version. An automatic treasury signer would add another key
+that can move funds. The relayer already has alerts and a manual refill has a long safety window.
+
+Set the initial balance policy from measured testnet and canary transactions:
+
+1. For each chain and transaction kind, record the highest gas cost from the launch test suite.
+2. Multiply that cost by two to define one transaction unit.
+3. Send a warning when the relayer balance is below 20 transaction units.
+4. Send a critical alert when the balance is below 5 transaction units.
+5. Refill to 50 transaction units from the production Safe.
+
+Recalculate the unit after a contract change or after seven production days. Then use the greater
+of twice the test maximum and twice the observed seven-day 95th-percentile cost. Keep only this
+limited gas balance on the relayer. The $0.10 USDC allowance does not refill native gas
+automatically. Treasury operations can account for or convert collected allowances outside the
+renewal workflow.
 
 ## Neon data model
 
@@ -989,12 +1058,23 @@ canonical flag.
 - `block_time`
 - `gs_op`
 - `canonical`
-- `payload`
+- `payload`, nullable after the retention period
+- `payload_expires_at`
 - `first_seen_at`
 - `last_seen_at`
 
 Add a unique constraint on `(chain_id, tx_hash, log_index, event_type)`. A reorg delete updates
-`canonical`. Keep the original payload for diagnosis.
+`canonical`.
+
+Keep the raw Goldsky payload for 30 days. Keep the normalized columns, canonical state, domain rows,
+and transaction evidence without a time limit. Raw payloads contain public chain data and are useful
+for incident diagnosis, but Goldsky can replay them. Permanent duplicate storage has no launch
+benefit.
+
+A daily authenticated retention job clears expired payloads in bounded batches. It sets `payload`
+to `NULL`; it does not delete the `chain_events` row. The job uses `payload_expires_at`, so it does
+not calculate retention from mutable application time. A legal or incident hold can move the expiry
+for selected rows before cleanup.
 
 `event_family` is one of `deposit`, `namepass`, `circle`, or `ens`. The last two carry
 `MessageSent` and `NameRenewed`, which the Explorer needs to link a renewal to its transactions and
@@ -1154,6 +1234,7 @@ version.
 - `POST /api/flows/trigger`
 - `POST /api/webhooks/goldsky`
 - `GET /api/cron/recover`, authenticated with `CRON_SECRET`
+- `GET /api/cron/retention`, authenticated with `CRON_SECRET`
 
 ### Read endpoints
 
@@ -1167,6 +1248,26 @@ version.
 
 Use cursor pagination for activity. Cap page sizes. Set short public cache headers for aggregate
 reads. Do not cache active flow detail.
+
+### Public sender identity
+
+Show the checksummed transfer sender address as `Funded by` in activity details. Dense feed rows can
+shorten it visually, but the detail view, copy action, and accessible label must contain the full
+address. Do not resolve ENS names in the first version. Resolution adds another network dependency
+and can display an unverified reverse name unless the application also performs forward
+verification.
+
+Keep the transfer sender and renewal executor separate:
+
+- `deposits.sender_address` supplies `Funded by`.
+- `Renewed.executor` supplies `Processed by`.
+- Show `Processed by Namepass` when the executor is the configured relayer, with the full address in
+  the detail view.
+- Show the raw executor address when a third party called the permissionless function.
+- Show `Sender unavailable` for `balance_recovery`. Do not invent a sender from later events.
+
+An address is public chain data. Do not add avatars, profile data, or claims such as “owner” or
+“supporter.” Those claims are not present on chain.
 
 ### Frontend update model
 
@@ -1260,6 +1361,30 @@ Run the job at a short interval on the Vercel plan that supports it. Protect it 
 
 The Goldsky pipeline must point to a stable domain. Do not point it to a Vercel deployment URL that
 changes on every build.
+
+### Provider plans for initial production
+
+Use these plans for the first production version. Verify the plan names and limits again before
+purchase because providers can change them.
+
+| Provider | Initial plan | Reason |
+|---|---|---|
+| Vercel | Pro | The recovery cron needs a per-minute schedule. Hobby permits only daily schedules. Pro also supplies usage-based Workflow and Function capacity. |
+| Neon | Launch | The expected data and connection load is small. Launch supplies pooled connections, autoscaling, up to a seven-day restore window, and enough branches for the first preview workflow. Disable scale-to-zero on the production compute. |
+| Goldsky | Scale | Production and stable testnet require two concurrent pipelines. Scale removes the one-pipeline Starter limit and supplies priority email support with a 24-hour support target. |
+
+Plan evidence: [Vercel Cron usage and pricing](https://vercel.com/docs/cron-jobs/usage-and-pricing),
+[Neon pricing](https://neon.com/pricing), and
+[Goldsky pricing](https://docs.goldsky.com/pricing/summary).
+
+Start Goldsky on an `s` pipeline. Increase the resource size only after pipeline lag or transform
+metrics prove that it is necessary. Start Neon at its smallest practical compute size and set a cost
+ceiling with autoscaling. A plan upgrade is an operational change, not an architecture change.
+
+Move Neon to Scale when the product needs a 30-day restore window, exported metrics, IP allow rules,
+or an SLA. Move Goldsky to Enterprise only when the team needs a dedicated source IP, a four-hour
+support target, or a custom Arc integration. Move Vercel to Enterprise only when measured limits or
+an organizational control require it.
 
 ## Environment variables and secrets
 
@@ -1446,7 +1571,8 @@ Each phase ends with a mergeable PR and an explicit verification gate.
 
 ### Phase 0 — settle configuration and access
 
-- Decide the subsidy threshold per chain.
+- Configure the $0.50 trigger floor on every launch chain.
+- Purchase Vercel Pro, Neon Launch, and Goldsky Scale for production.
 - Create stable testnet Vercel, Neon, and Goldsky environments.
 - Create least-privilege database roles.
 - Create test relayer accounts and gas them.
@@ -1516,6 +1642,8 @@ remains recoverable.
 - Activate a name before showing its funding controls.
 - Poll active flows.
 - Render held, in-flight, unclaimed, failed, and settled states from API data.
+- Add the unclaimed-flow card, evidence links, and idempotent retry action.
+- Show raw sender and executor addresses with distinct labels.
 - Keep amounts as strings or `bigint` through the adapter boundary.
 
 **Gate:** no production screen imports simulated activity.
@@ -1525,6 +1653,8 @@ remains recoverable.
 - Add dashboards and alerts.
 - Add recovery and restore drills.
 - Add low-gas monitoring.
+- Configure the 20-unit warning, 5-unit critical alert, and Safe refill runbook.
+- Add the 30-day raw-payload retention job and verify that normalized history remains.
 - Add load and concurrency tests.
 - Add operator runbooks.
 - Complete an independent security review of the backend.
@@ -1537,7 +1667,7 @@ restore without editing production rows by hand.
 - Audit and deploy contracts.
 - Record verified addresses and hashes in `docs/DEPLOYMENTS.md`.
 - Create and validate the mainnet Goldsky pipeline.
-- Run a low-value canary on each chain.
+- Run a low-value canary on Ethereum, Base, and Arbitrum.
 - Move public configuration from testnet to mainnet in one reviewed change.
 
 **Gate:** every canary has matching deposit, flow, Circle, helper, ENS, API, and frontend evidence.
@@ -1559,20 +1689,11 @@ These can be reconsidered only when measured load or a required feature proves t
 - user accounts for public chain data
 - a custom admin panel before the provider dashboards and runbooks are insufficient
 
-## Open decisions
+## Launch decisions
 
-- **Per-chain subsidy overrides.** The threshold is $0.50 everywhere. Decide whether any chain
-  should differ once real gas costs are known.
-- **Arc mainnet.** Confirm network, Circle, native USDC, Goldsky dataset, and finality support before
-  it appears in a mainnet registry.
-- **Relayer funding.** Set gas thresholds and the operator that refills each chain.
-- **Public sender identity.** Decide whether the UI shows raw sender addresses, resolved ENS names,
-  or no identity label.
-- **Data retention.** Set retention for raw Goldsky payloads inside `chain_events.payload`.
-- **Unclaimed user experience.** Define the exact copy and action shown when a CCTP message waits for
-  renewability.
-- **Production plan levels.** Confirm that the selected Vercel, Neon, and Goldsky plans meet cron,
-  connection, retention, and support requirements.
+No backend architecture question in this document remains open for the initial implementation.
+Provider limits and chain support still require verification at deployment time. A failed check
+removes the affected chain or requires a plan upgrade; it does not permit an unreviewed substitute.
 
 Settled points:
 
@@ -1583,6 +1704,15 @@ Settled points:
 - The frontend polls the API.
 - The chain is the authority for balances, receipts, and renewals.
 - The trigger threshold is $0.50 per chain.
+- The initial mainnet supports Ethereum, Base, and Arbitrum. Arc remains testnet-only until its
+  mainnet dependencies exist and pass a canary.
+- The production relayer is manually funded from the treasury Safe. Balance alerts use transaction
+  units derived from measured gas costs.
+- Public activity shows raw sender and executor addresses. It does not resolve ENS names initially.
+- Raw Goldsky payloads remain for 30 days. Normalized event facts remain without a time limit.
+- An unclaimed flow has explicit public copy, evidence links, automatic retry, and an idempotent
+  manual retry action when the name becomes renewable.
+- Initial production uses Vercel Pro, Neon Launch, and Goldsky Scale.
 - **Helper dust is the deployer's responsibility and is handled contract-side.** Renewals buy whole
   seconds, so a sub-second remainder stays in the helper on every flow. `DustWithdrawn` records the
   owner withdrawal. **No UI, and nothing in the schema.** It is rounding residue with no individual

@@ -7,6 +7,47 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-11 — Initial production scope closes the remaining backend questions
+
+The first production version now has decisions for chain scope, relayer funding, public sender
+identity, raw-event retention, unclaimed-flow UX, and provider plans. These decisions complete the
+backend architecture. Provider support still needs verification during deployment.
+
+**Initial mainnet is Ethereum, Base, and Arbitrum. Arc remains on testnet.** Circle currently lists
+Arc Testnet, but not Arc mainnet, as a CCTP domain. Goldsky also lists Arc Testnet, but not Arc
+mainnet. Mainnet launch must not wait for a chain whose required services do not exist. Arc can be
+added after native USDC, CCTP v2 hooks, Goldsky datasets, deployed Namepass contracts, and a
+low-value canary are all present.
+
+**The treasury Safe multisignature wallet funds the production relayer manually.** An automatic
+refill signer would add a second key that can move treasury funds. The first version does not need
+it. Per-chain balance alerts use a transaction unit equal to twice the greater of the tested maximum
+gas cost and the observed seven-day 95th-percentile cost. Warning, critical, and refill levels are
+20, 5, and 50 units. The private runbook names the primary and backup operators.
+
+**Public activity shows raw addresses.** `deposits.sender_address` is `Funded by` and
+`Renewed.executor` is `Processed by`. Namepass identifies its configured relayer, but it still
+exposes the address in the detail view. ENS resolution was rejected for the first version because
+it adds a network dependency and needs forward verification to prevent a misleading reverse name.
+The UI does not infer an owner, supporter, or identity profile from an address.
+
+**Raw Goldsky payloads remain for 30 days.** Normalized event fields, canonical state, domain rows,
+and transaction evidence remain without a time limit. Goldsky can replay the raw public chain data,
+so permanent duplicate storage has no launch benefit. A daily job clears only the expired payload.
+It does not delete the event row.
+
+**An unclaimed flow is visible and actionable.** The card says that the USDC left the origin chain,
+is secured in a Circle message, and will retry when the name becomes renewable. It shows the amount,
+origin transaction, Circle nonce, and latest retry. When ENS reports that the name is renewable, an
+idempotent `Retry renewal` action resumes the same flow. It never starts another burn. Automatic
+retry remains the normal path.
+
+**Initial production uses Vercel Pro, Neon Launch, and Goldsky Scale.** Vercel Pro is required for
+the per-minute recovery cron. Neon Launch matches the small initial workload and supplies a
+seven-day restore window. Goldsky Scale supports the stable testnet and production pipelines at the
+same time and supplies priority support. The implementation starts with small compute sizes and
+scales only from measured load. Plan names and limits must be checked again before purchase.
+
 ### 2026-08-11 — Trigger floor, helper dust, and what happens when a balance read fails
 
 Three items that were open are now decided. The third one found a hole between two mechanisms that

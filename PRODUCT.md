@@ -63,9 +63,14 @@ reads the contracts.
 
 ## Supported chains
 
-Base, Arbitrum, Arc, Ethereum. **Not** Optimism — deliberately excluded (no brand asset, not
-part of the current chain set); don't reintroduce it without an explicit decision to add support.
-Arc is Circle's chain. It replaced Polygon on 2026-08-05. See `docs/DECISIONS.md`.
+The stable testnet supports Base Sepolia, Arbitrum Sepolia, Arc Testnet, and Ethereum Sepolia. The
+initial mainnet plan supports Base, Arbitrum, and Ethereum. Arc remains testnet-only until Circle
+and Goldsky support Arc mainnet and a low-value canary passes. Arc does not block the other three
+chains from launching.
+
+**Not** Optimism — deliberately excluded (no brand asset, not part of the current chain set); don't
+reintroduce it without an explicit decision to add support. Arc is Circle's chain. It replaced
+Polygon on 2026-08-05. See `docs/DECISIONS.md`.
 
 ## Positioning and tone
 
@@ -96,10 +101,10 @@ decided and shouldn't be assumed or invented in copy, code, or future planning:
 - Business model / monetization (is Namepass free to activate, does it take a fee on renewals,
   who funds the automation infra?)
 - Target launch timeline or rollout plan
-- **Mainnet, and the conditions to reach it.** The CREATE2 factory and the CCTP integration are
-  built and proven on testnet. There is no audit, no mainnet deployment, and no date for either.
-  The conditions for a mainnet launch are not decided. Possible conditions are an external audit, a
-  bug bounty, or a limited soft launch.
+- **The mainnet date.** The CREATE2 factory and the CCTP integration are built and proven on
+  testnet. There is no audit, no mainnet deployment, and no date for either. The technical launch
+  gates and the initial three-chain scope are decided in `docs/ARCHITECTURE.md`. The business model,
+  audit schedule, and release date remain open.
 - **The end of the prototype stage for the frontend.** The app must read from the automation
   backend. That backend is specified and unbuilt (`docs/ARCHITECTURE.md`). A connection between the
   app and the contracts is therefore a project, not a configuration change.
