@@ -19,11 +19,12 @@ mainnet. Mainnet launch must not wait for a chain whose required services do not
 added after native USDC, CCTP v2 hooks, Goldsky datasets, deployed Namepass contracts, and a
 low-value canary are all present.
 
-**The treasury Safe multisignature wallet funds the production relayer manually.** An automatic
-refill signer would add a second key that can move treasury funds. The first version does not need
-it. Per-chain balance alerts use a transaction unit equal to twice the greater of the tested maximum
-gas cost and the observed seven-day 95th-percentile cost. Warning, critical, and refill levels are
-20, 5, and 50 units. The private runbook names the primary and backup operators.
+**The treasury funds the production relayer manually.** The architecture does not require a
+specific treasury wallet type. An automatic refill signer would add another key that can move
+treasury funds. The first version does not need it. Per-chain balance alerts use a transaction unit
+equal to twice the greater of the tested maximum gas cost and the observed seven-day 95th-percentile
+cost. Warning, critical, and refill levels are 20, 5, and 50 units. The private runbook names the
+primary and backup operators.
 
 **Public activity shows raw addresses.** `deposits.sender_address` is `Funded by` and
 `Renewed.executor` is `Processed by`. Namepass identifies its configured relayer, but it still

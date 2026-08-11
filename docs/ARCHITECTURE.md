@@ -978,9 +978,10 @@ variable. Preview deployments receive test-only keys and cannot read production 
 
 ### Relayer funding
 
-The production treasury Safe multisignature wallet funds the relayer with native gas tokens. The
-operations role owns the refill. The private runbook names one primary operator and one backup
-operator. Do not put personal names in the public architecture document.
+The treasury funds the relayer manually with native gas tokens. The architecture does not require
+a specific treasury wallet type. The operations role owns the refill. The private runbook names
+one primary operator and one backup operator. Do not put personal names in the public architecture
+document.
 
 Do not automate refills in the first version. An automatic treasury signer would add another key
 that can move funds. The relayer already has alerts and a manual refill has a long safety window.
@@ -1706,8 +1707,8 @@ Settled points:
 - The trigger threshold is $0.50 per chain.
 - The initial mainnet supports Ethereum, Base, and Arbitrum. Arc remains testnet-only until its
   mainnet dependencies exist and pass a canary.
-- The production relayer is manually funded from the treasury Safe. Balance alerts use transaction
-  units derived from measured gas costs.
+- The treasury funds the production relayer manually. The architecture does not require a specific
+  treasury wallet type. Balance alerts use transaction units derived from measured gas costs.
 - Public activity shows raw sender and executor addresses. It does not resolve ENS names initially.
 - Raw Goldsky payloads remain for 30 days. Normalized event facts remain without a time limit.
 - An unclaimed flow has explicit public copy, evidence links, automatic retry, and an idempotent
