@@ -507,9 +507,24 @@ makes it a no-op instead of a double renewal.
 `from_address` is the funder, and the pipeline supplies it on every row. This is what closed the
 "funder identity" question that used to sit under Open — see the note there.
 
-`kind` is one of `user_deposit | internal | unknown`. Under CCTP a burn is irreversible, so the
-`bridge_refund` case that originally motivated this field is gone — nothing comes back to the
-address after a failed transfer, because the money was never returned, only left unclaimed.
+`kind` is one of `user_deposit | reconciled | internal | unknown`. Under CCTP a burn is
+irreversible, so the `bridge_refund` case that originally motivated this field is gone — nothing
+comes back to the address after a failed transfer, because the money was never returned, only left
+unclaimed.
+
+**`reconciled` is the row that has no transaction behind it.** It records a balance observed on
+chain that the pipeline never delivered — almost always money that arrived before the name was
+activated, since a dynamic table does not replay history. Provenance is unrecoverable, so
+`tx_hash`, `log_index`, `from_address` and `block_time` are all null, and inventing them would be
+worse than the gap. `deposits_onchain_unique` cannot police these, so they need their own guard:
+
+```sql
+create unique index deposits_reconciled_unique
+  on deposits (name_id, chain_id) where kind = 'reconciled';
+```
+
+Upsert against it. Activation and the reconciler both write these, and both must adjust the single
+row rather than stack duplicates on every run.
 
 `kind` stays anyway, and it is worth being clear that it is now doing a smaller job: quarantining
 transfers that aren't sender payments (`unknown` by default rather than auto-processing) and keeping
@@ -624,7 +639,7 @@ transaction, not two, because the renewal rides the CCTP hook — and the UI lab
 
 Append-only audit: `flow_id`, `from_status`, `to_status`, `actor`
 (`ingest | worker | reconciler | admin:<id>`), `reason`, `payload`, `created_at`. This is what
-answers "why is this stuck and what has already been tried" in the admin panel.
+answers "why is this stuck and what has already been tried" in the operator dashboard.
 
 ### deposit_allocations
 
@@ -869,14 +884,14 @@ Worth knowing when setting it: $1 buys **~45 days** on a 5+ character name, ~2.3
 ## Operations
 
 **Stuck-flow detection** — `entered_status_at` plus a per-status SLA, with a partial index so the
-admin panel stays fast regardless of table size:
+operator dashboard stays fast regardless of table size:
 
 ```sql
 create index flows_active on flows (status, entered_status_at)
   where status not in ('settled','failed','cancelled');
 ```
 
-`unclaimed` deserves its own SLA and its own admin view — it is not stuck in the usual sense (the
+`unclaimed` deserves its own SLA and its own dashboard view — it is not stuck in the usual sense (the
 money is safe and the message is replayable) but it needs a human or a scheduled retry to decide
 when the name became renewable again.
 
@@ -991,12 +1006,109 @@ query thousands of addresses that nobody has funded, forever, and almost every r
 zero. Namepass monitors a name from the moment someone activates it or opens its page. It does not
 go looking for names nobody has asked about.
 
+### Activation does not backfill, so activation must read the chain
+
+**A dynamic table never replays history.** Adding an address makes the pipeline watch it from that
+moment; it does not reprocess blocks already streamed. Filtering only speeds up an explicit backfill
+run from `start_at: earliest`. Once a pipeline is at the chain tip, a new address is a
+forward-looking subscription and nothing more.
+
+That produces one specific state, and it is the one most likely to be mistaken for a bug:
+
+```
+1. USDC lands at foo.eth's address.      foo.eth is not activated → no delivery
+2. Somebody activates foo.eth.           names row created, address enters the table
+3. The pipeline watches from here.       The step-1 deposit is behind it, forever
+```
+
+The money is visible — the Explorer reads `balanceOf` — but there is **no `deposits` row, no flow,
+and nothing that will ever create one.** The ledger and the chain disagree, permanently, unless
+activation closes it.
+
+**So `POST /api/names/:name/claim` reads the four chains as part of activating.** If any chain holds
+a balance, that balance predates monitoring:
+
+- **Record it.** Insert a deposit with `kind = 'reconciled'`, a null `tx_hash`, and the observed
+  amount. Provenance is not recoverable — the individual transfers, senders and timestamps are
+  behind the pipeline — and inventing one would be worse than admitting it. `deposits.kind` exists
+  for exactly this class of row.
+- **`deposits_onchain_unique` cannot police these**, because they have no `tx_hash`. Add a partial
+  unique index on `(name_id, chain_id) where kind = 'reconciled'` and **upsert** the amount, so
+  re-running activation or the reconciler adjusts one row instead of stacking duplicates.
+- **Then apply the normal rule.** Clears the floor and the name is renewable → start a flow. Does
+  not clear → park it with the usual reason. Activation is not a special path; it just seeds the
+  balance the pipeline could not.
+
+**Nobody should have to press a button for this.** A funder who activates a name that already holds
+$27 on Base has the same expectation as one whose payment arrives afterwards. Leaving it parked
+behind a manual trigger is the case this section exists to prevent, and it is the state the
+dashboard below reports when the automatic path fails.
+
 ### Hosting
 
 The receiver is a **Vercel serverless function** alongside the app (same repository, same
 environment, atomic deploys): authenticate, write the deposit rows, start the flow, return. Waiting
 on the attestation is a **Vercel Workflow**, not the request handler — a poll of up to half an hour
 is far outside serverless limits.
+
+## Operator dashboard
+
+An internal view for watching money move and unsticking it when it doesn't. It is **a convenience,
+never a privilege**: every recovery it offers can also be done by anyone, from the public trigger
+endpoint or straight against the contract. If the dashboard is the only way to recover something,
+that thing was designed wrong.
+
+Every action it takes writes to `flow_events` with `actor = 'admin:<id>'`, so "why is this in this
+state and what has already been tried" has one answer.
+
+### What it watches
+
+| View | Query | Why it needs a human |
+|---|---|---|
+| **Stuck flows** | `flows_active` index, `entered_status_at` past a per-status SLA | A burn that never went out, a claim that keeps reverting |
+| **`unclaimed`** | `status = 'unclaimed'` | Attested and mintable, but the renewal reverted. Retryable forever, so it needs a decision on *when*, not a retry budget |
+| **Ledger drift** | chain balance ≠ `Σ deposits − Σ allocations`, per `(name, chain)` | The reconciler's own output. The catch-all for anything the pipeline missed |
+| **Pre-activation deposits** | `deposits where kind = 'reconciled'` with no settled flow | Money that landed before the name was activated — see below |
+| **Delivery failures** | `pipeline_deliveries where error is not null` | A batch the handler quarantined rather than rejecting, since a `4xx` would stop the pipeline |
+
+`unclaimed` deserves its own SLA and its own view. It is not stuck in the usual sense — the money is
+safe and the message is replayable — but a name in its premium auction may not become renewable for
+months, so the backoff should decay to something like daily rather than burning gas re-simulating a
+claim that cannot succeed yet.
+
+### The case that motivated this view
+
+**Funds arrive at an unactivated name, the name is later activated, and nobody triggers the flow.**
+
+By the design above this should not survive: `claim` reads the four chains, records what it finds as
+a `reconciled` deposit, and starts a flow if the balance clears the floor. Nobody presses anything.
+
+But it is the state with the most ways to fail, because it is the one path where the ledger is
+seeded from a balance rather than from a delivery:
+
+- The balance read failed on one chain at activation. That chain renders as unknown (see the
+  fail-soft rule), so the row was never seeded and no flow started.
+- The balance was under $0.50 at activation, parked correctly as `below_threshold` — and then a
+  second payment arrived *through the pipeline* and the pair should have been re-judged together.
+- The name was not renewable at activation, parked as `name_inactive`, and became renewable later.
+- The floor check ran but the flow insert lost a race with the `(name, chain)` unique index.
+
+All four look identical to a funder: money at the address, nothing happening. The dashboard has to
+tell them apart, which is why `hold_reason` is stored rather than inferred and why `flow_events`
+records the actor.
+
+**Its recovery action is the same one the public endpoint exposes**: re-read the chain for that
+`(name, chain)`, upsert the `reconciled` deposit, re-apply the floor and renewability checks, and
+start a flow if they pass. The dashboard adds no capability. It only removes the need to wait for
+someone to notice.
+
+### What it must not become
+
+- **A place where money can be sent somewhere.** There is no address input anywhere in it. A flow's
+  destination is fixed by the contract, and an operator who can retarget one is a custodian.
+- **A gate on the happy path.** If routine renewals need an operator, the automation is broken and
+  the dashboard is hiding it. Its queues should be empty in normal operation, and a persistently
+  non-empty one is a bug report, not a workload.
 
 ## Build order
 
@@ -1036,7 +1148,9 @@ The order follows the cost of an error, not the visibility of the result. Steps 
    filtered stream before a webhook exists, then point it at the function.
 5. **Frontend swap.** Replace `registry.ts` internals with API calls; the exported function shapes
    stay.
-6. **Admin panel.** Stuck flows, `unclaimed` recovery, manual retrigger.
+6. **Operator dashboard.** Stuck flows, `unclaimed` recovery, ledger drift, pre-activation deposits,
+   manual retrigger. Last because every recovery it offers is reachable without it — see Operator
+   dashboard.
 
 ## Open
 

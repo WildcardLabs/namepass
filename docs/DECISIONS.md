@@ -7,6 +7,49 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-11 — Activation reads the chain, because a dynamic table never replays history
+
+**Adding an address to a Goldsky dynamic table does not reprocess blocks the pipeline has already
+streamed.** Filtering only accelerates an explicit backfill from `start_at: earliest`; once a
+pipeline is at the chain tip, a new address is a forward-looking subscription. This was checked
+against Goldsky's documentation rather than assumed, because the whole activation design turns on
+it.
+
+The consequence is a state that is easy to mistake for a bug. Money lands at `foo.eth`'s address
+before anyone activates `foo.eth`. Somebody activates it later. The address enters the dynamic table
+and the pipeline watches from that moment — and the earlier deposit is behind it, permanently. There
+is no `deposits` row, no flow, and nothing that will ever create one. The Explorer still shows the
+money, because it reads `balanceOf`, so the ledger and the chain disagree in a way a funder can see.
+
+**So activation reads the four chains itself**, records anything it finds as a deposit with
+`kind = 'reconciled'`, and applies the normal floor and renewability rules. If the balance clears
+$0.50 the flow starts there and then.
+
+**Nobody presses a button.** This is the part worth recording, because a manual "trigger" step on
+that screen is the obvious implementation and it is wrong: a funder who activates a name already
+holding $27 has exactly the same expectation as one whose payment arrives a minute later, and the
+product's stated rule is that a button implies the automation needs supervision.
+
+Two schema consequences:
+
+- `deposits.kind` gains `reconciled`. These rows have no `tx_hash`, `log_index`, `from_address` or
+  `block_time` — the individual transfers are unrecoverable, and fabricating them would be worse
+  than admitting the gap.
+- `deposits_onchain_unique` cannot police a row with no transaction, so `reconciled` rows need a
+  partial unique index on `(name_id, chain_id)` and must be **upserted**. Activation and the
+  reconciler both write them, and both run more than once.
+
+**And an operator dashboard**, specified in `docs/ARCHITECTURE.md`, because this path has more ways
+to fail than any other — it is the only one that seeds the ledger from a balance rather than from a
+delivery. A failed read on one chain, a sub-floor balance, a name that was not renewable at
+activation, and a lost race on the flow insert all look identical to a funder: money at the address,
+nothing happening. Telling them apart is why `hold_reason` is stored rather than inferred.
+
+The dashboard adds no capability. Every recovery it offers is already reachable from the public
+trigger endpoint or straight against the contract, and if it ever becomes the only way to recover
+something, that thing was designed wrong. It gets no address input, ever — an operator who can
+retarget a flow is a custodian.
+
 ### 2026-08-11 — Trigger floor is a flat $0.50; dust and balance-read failures settled
 
 Three numbers and policies that had been sitting open are now decided.
