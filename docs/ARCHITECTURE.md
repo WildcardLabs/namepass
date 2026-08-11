@@ -701,7 +701,7 @@ them, which is the opposite of the product. `holdReason` is non-nullable for exa
 | `flow_failed` | ✅ | A burn was attempted and didn't go out; funds never left |
 | `flow_in_progress` | ❌ | Queued behind this chain's active flow |
 | `name_inactive` | ❌ | Expired, in premium auction, or never registered |
-| `below_threshold` | ❌ | Under the per-chain minimum (currently **$0.67**) |
+| `below_threshold` | ❌ | Under the per-chain minimum (**$0.50**) |
 
 **`name_inactive` is deliberately one state, not three.** Expired, mid-premium-auction and
 never-registered are different on-chain situations that make no difference here — all three mean the
@@ -713,7 +713,7 @@ is no moment where the app knows money is coming but hasn't arrived. An earlier 
 it described something the platform can't observe.
 
 **The minimum has to be stated, not just enforced.** `minTrigger()` exists so the UI can say
-"under the $0.67 minimum on this chain" — "too small" without a number leaves nobody able to act on
+"under the $0.50 minimum on this chain" — "too small" without a number leaves nobody able to act on
 it.
 
 Only the two anomalies are triggerable. Everything else the system resolves on its own, and
@@ -841,14 +841,20 @@ so the endpoint is a convenience and a bookkeeping hook, not the gate. Anything 
 can still be done directly against the contract by whoever wants to pay the gas. That is the
 intended property, not a hole: it means the money is not hostage to Namepass being up.
 
-Auto-trigger fires when the $0.10 gas allowance is at most ~15% of the balance, which puts the floor
-around **$0.67**. ENS imposes no minimum renewal duration (the 28-day minimum applies to
-registration only), so nothing forces a floor from the protocol side.
+Auto-trigger fires at **$0.50 on a single chain**, decided 2026-08-11. ENS imposes no minimum
+renewal duration (the 28-day minimum applies to registration only), so nothing forces a floor from
+the protocol side — this one is Namepass's own.
 
-**That floor is a placeholder, and the real one is a business decision that hasn't been made.**
-Namepass fronts dollars of mainnet gas per flow and rebates ten cents, so every flow runs at a loss
-and the question is how much subsidy per renewal is acceptable — not an arithmetic question the
-allowance can answer. The ratio was kept rather than replaced with an invented constant.
+**It is a flat figure, not a ratio.** The floor used to be "the allowance may be at most 15% of the
+balance", which produced ~$0.67 and was explicitly a placeholder for a decision nobody had made.
+Namepass fronts dollars of mainnet gas per flow and rebates ten cents, so every flow runs at a loss,
+and how much subsidy per renewal is acceptable was never an arithmetic question the allowance could
+answer. Now that the number is chosen, deriving it from the allowance again would let the published
+minimum move if the allowance ever did.
+
+At a $0.10 allowance the floor is exactly 20%, so a funder sending the minimum spends a fifth of it
+on gas and buys about 18 days on a 5+ character name. `MIN_TRIGGER` in `src/lib/registry.ts` is the
+single definition; `minTrigger()` exposes it so the UI can state the number.
 
 Worth knowing when setting it: $1 buys **~45 days** on a 5+ character name, ~2.3 days on a
 4 character one, ~14 hours on a 3 character one. A flat floor means very different things per tier.
@@ -942,10 +948,12 @@ from the name view. The result maps onto the per-chain shape `PendingBalance.tsx
 It is also the honest read for *every* name, claimed or not: the chain balance is the truth and
 `name_balances` is a cache of it.
 
-**This read must fail soft, and that is a different policy from every read the app does today.**
+**This read fails soft, and that is a different policy from every read the app does today.**
 `oracle.ts` and `fees.ts` stop the app when they fail, because a missing price is a wrong price. A
-balance is not. One flaky Arc endpoint must degrade that chain's row, not blank the card or block
-the page.
+missing balance is not. Decided 2026-08-11: **do not block, show what came back.** A chain that
+answers renders its balance. A chain that does not answer must render as **unknown** — never as
+zero and never as absent, because both of those state a fact the app does not have, and "no balance
+on Arc" is exactly the sentence that stops someone investigating money they actually sent.
 
 **Triggering from that view claims the name as a side effect.** `POST /api/flows/trigger` normalizes
 the label, derives the address, and **upserts the `names` row** before starting the flow. The insert
@@ -962,7 +970,7 @@ Two things this genuinely fixes, and two it does not:
 | ❌ It is absent from aggregates | Leaderboard and totals come from `renewals`, which needs a flow |
 
 **The trigger endpoint sponsors gas, so opening it to any label is a cost surface.** The per-chain
-floor is what bounds it: a balance must clear ~$0.67 on its own chain before anything goes out, so
+floor is what bounds it: a balance must clear $0.50 on its own chain before anything goes out, so
 dusting a thousand derived addresses buys an attacker nothing. Keep the floor check server-side and
 ahead of the row upsert, or the griefing case becomes "make Namepass write a database row per
 address" instead.
@@ -1025,20 +1033,9 @@ The order follows the cost of an error, not the visibility of the result. Steps 
 
 ## Open
 
-- **Minimum balance to trigger.** The ~$0.67 floor falls out of the 15% ratio; the real number is a
-  subsidy decision (see Trigger policy).
 - **`bigint` across JSON.** Amounts and durations need to serialize as strings and parse back, or
   the precision `pricing.ts` is careful about dies at the API boundary.
-- **The failure policy for a balance read.** It must fail soft, per "Unclaimed names", which no read
-  in the app does today. Decide it when the live reads are built, not before: the choice is whether
-  a chain with no answer renders as absent, as zero, or as an explicit "couldn't check", and only
-  the third is honest.
 
-- **Who owns the helper's dust, and how does it get out.** Renewals buy whole seconds, so a
-  sub-second remainder is left behind on every single flow. It needs a withdrawal path or it is
-  stuck forever, and "whose money is it" is a real question — it is nobody's individually, but it
-  is made of many funders' change. Sweeping it to the treasury is the obvious answer and probably
-  the right one; it should be a deliberate decision rather than a default.
 - **The `unclaimed` recovery path has no UI.** A flow whose claim reverted holds funds that are not
   at the deposit address, so the pending-balance card can't see them. Gating the burn on
   renewability makes this rare, but "rare" is not "never" — a name can stop being renewable between
@@ -1062,3 +1059,11 @@ Settled, noted here so they don't get reopened as bugs:
 - **The database and the pipeline are one choice, not two.** Goldsky's dynamic table is Postgres, so
   the filter lives in the same Neon database the app reads. Picking a non-Postgres store would mean
   running a second database purely to hold the address set, and keeping two writers in step.
+- **The trigger floor is $0.50 per chain**, flat, not a ratio. See Trigger policy.
+- **Helper dust is the deployer's responsibility, handled contract-side.** Renewals buy whole
+  seconds, so a sub-second remainder stays in the helper on every flow. **No UI, and nothing in the
+  schema.** It is rounding residue with no individual owner; it is not a funder's pending balance
+  and must never appear as one. One consequence for the backend: an "is the helper empty?"
+  monitoring check has to be written against a threshold rather than zero, or it alerts forever.
+- **A balance read fails soft.** Show the chains that answered; render the ones that did not as
+  unknown, never as zero. See "Unclaimed names".

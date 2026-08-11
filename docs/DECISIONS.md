@@ -7,6 +7,41 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-11 — Trigger floor is a flat $0.50; dust and balance-read failures settled
+
+Three numbers and policies that had been sitting open are now decided.
+
+**The trigger floor is $0.50 on a single chain, flat.** It was a ratio: `MAX_FEE_BPS = 1500n`, "the
+gas allowance may be at most 15% of the balance", which produced `$0.666667`. That ratio was
+explicitly a placeholder — the real floor is a subsidy question, since Namepass fronts dollars of
+mainnet gas per flow and rebates ten cents, and no amount of arithmetic on the allowance answers it.
+
+Now that the number is chosen it is stored as a number. `MIN_TRIGGER = 500_000n` in
+`src/lib/registry.ts`, and `clearsFloor(amount)` lost its `allowance` argument, because the floor no
+longer derives from it. Keeping the ratio and retuning it to 2000 bps would also have produced
+exactly $0.50 today, and was rejected: it would let the published minimum move if the allowance ever
+changed, and the minimum is a figure the UI states to funders.
+
+The relationship is still worth knowing, and is recorded in both places: at a $0.10 allowance the
+floor is exactly 20%, so someone sending the minimum spends a fifth of it on gas and buys about 18
+days on a 5+ character name.
+
+**Helper dust is the deployer's responsibility, handled contract-side. No UI.** Renewals buy whole
+seconds, so a sub-second remainder stays in the helper on every flow. The open question used to be
+"whose money is it, and how does it get out". It is rounding residue with no individual owner, it is
+not a funder's pending balance, and modelling it in the schema or showing it in the app would tell
+funders that something of theirs is stuck. One consequence survives for the backend: an "is the
+helper empty?" monitoring check must use a threshold rather than zero, or it alerts forever.
+
+**A balance read fails soft: do not block, show what came back.** This is the opposite of how every
+read in the app behaves today — `oracle.ts` and `fees.ts` stop the app on failure, deliberately,
+because a missing price is a wrong price and a fallback price is a made-up one. A missing balance is
+not the same thing, and one flaky Arc endpoint must not blank a card.
+
+The part worth pinning down is what an unanswered chain renders as. **Unknown, not zero and not
+absent.** Both of those state a fact the app does not have, and "no balance on Arc" is precisely the
+sentence that would stop someone chasing money they actually sent.
+
 ### 2026-08-11 — Backend stack: Goldsky + Vercel + Neon, replacing Moralis + Supabase
 
 The backend is specified as **Goldsky Turbo Pipelines → Vercel Functions → Vercel Workflows, over
@@ -88,7 +123,7 @@ names nobody has asked about.
 
 One guard that has to survive implementation: **the trigger endpoint sponsors gas**, so the
 per-chain floor check must run server-side *before* the `names` upsert. Otherwise the griefing case
-stops being "waste mainnet gas" — which the ~$0.67 floor already prevents — and becomes "make
+stops being "waste mainnet gas" — which the $0.50 floor already prevents — and becomes "make
 Namepass write a row per derived address."
 
 ### 2026-08-11 — `findExpiry` is authoritative for v1 names too; grace is `expired && renewable`

@@ -269,14 +269,14 @@ Two invariants encoded in the types:
 | `flow_failed` | ✅ | Burn was attempted and didn't go out; funds never left |
 | `flow_in_progress` | ❌ | Queued behind this chain's own active flow |
 | `name_inactive` | ❌ | Expired, in premium auction, or never registered — one state on purpose |
-| `below_threshold` | ❌ | Under `minTrigger()`, currently **$0.67** |
+| `below_threshold` | ❌ | Under `minTrigger()`, **$0.50** |
 
 `canTrigger(pending, balance)` is the **only** gate — never re-derive its conditions in a component.
 It requires a recoverable reason, a renewable name, no flow on that chain, and clearing the floor.
 
-`minTrigger()` derives from `MAX_FEE_BPS` (1500 = 15%): the allowance may be at most 15% of the
-balance, giving `$0.666667`. The UI must **state** this number; "too small" alone leaves nobody able
-to act.
+`minTrigger()` returns `MIN_TRIGGER`, a flat **$0.50** per chain, decided 2026-08-11. It replaced a
+ratio (`MAX_FEE_BPS = 1500`, giving `$0.666667`) that was a placeholder for an undecided business
+number. The UI must **state** this figure; "too small" alone leaves nobody able to act.
 
 ---
 

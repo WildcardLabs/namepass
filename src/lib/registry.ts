@@ -107,16 +107,21 @@ export interface PendingState {
 }
 
 /**
- * Auto-trigger only fires when the gas allowance is at most this share of the
- * balance, which with a flat $0.10 allowance puts the floor around $0.67 —
- * **per chain**, since the pots don't merge. 50c on Base and 50c on Arc
- * means neither goes anywhere.
+ * Smallest balance that will go out on its own, 6dp micro-units — $0.50,
+ * **per chain**, since the pots don't merge. 30c on Base and 30c on Arc means
+ * neither goes anywhere, despite 60c sitting at the address.
  *
- * Kept as a ratio rather than swapped for a hard minimum because no minimum
- * has been decided. The real floor is a business question — Namepass fronts
- * dollars of mainnet gas per flow and rebates cents — not an arithmetic one.
+ * A flat figure, not a ratio. It used to be `MAX_FEE_BPS = 1500n` — "the
+ * allowance may be at most 15% of the balance" — which produced ~$0.67 and was
+ * explicitly a placeholder for a business decision nobody had made. The
+ * decision is made: $0.50. Deriving it from the allowance again would let the
+ * published minimum move if the allowance ever did.
+ *
+ * The relationship is still worth knowing: at a $0.10 allowance this floor is
+ * exactly 20%, so a funder sending the minimum spends a fifth of it on gas and
+ * buys ~18 days on a 5+ character name.
  */
-export const MAX_FEE_BPS = 1500n;
+export const MIN_TRIGGER = 500_000n;
 
 export function totalHeld(p: PendingState): bigint {
 	return p.balances.reduce((sum, b) => sum + b.amount, 0n);
@@ -127,17 +132,18 @@ export function totalInFlight(p: PendingState): bigint {
 }
 
 /** Whether an amount is worth spending a renewal transaction on. */
-export function clearsFloor(amount: bigint, allowance: bigint): boolean {
-	return allowance * 10000n <= amount * MAX_FEE_BPS;
+export function clearsFloor(amount: bigint): boolean {
+	return amount >= MIN_TRIGGER;
 }
 
 /**
  * Smallest balance on a single chain that will go out on its own, 6dp
- * micro-units — currently $0.67. Exported because the UI has to *state* it:
- * "too small" without a number leaves the funder unable to act on it.
+ * micro-units. A function rather than the bare constant because the UI has to
+ * *state* it — "too small" without a number leaves the funder unable to act on
+ * it — and every call site should read the same way.
  */
-export function minTrigger(allowance: bigint = GAS_ALLOWANCE): bigint {
-	return (allowance * 10000n + MAX_FEE_BPS - 1n) / MAX_FEE_BPS;
+export function minTrigger(): bigint {
+	return MIN_TRIGGER;
 }
 
 /**
@@ -153,7 +159,7 @@ export function canTrigger(p: PendingState, balance: ChainBalance): boolean {
 	if (!p.renewable) return false;
 	/* One flow per chain, so a balance queues behind its own chain's flow. */
 	if (p.flows.some((f) => f.chain === balance.chain)) return false;
-	return clearsFloor(balance.amount, p.gasAllowance);
+	return clearsFloor(balance.amount);
 }
 
 /**
@@ -652,7 +658,7 @@ export function settleRenewal(rec: NameRecord, chain: string): ActivityEvent | n
 	const queued = p.balances.find((b) => b.chain === chain);
 	if (queued) {
 		p.balances = p.balances.filter((b) => b.chain !== chain);
-		if (p.renewable && clearsFloor(queued.amount, p.gasAllowance)) {
+		if (p.renewable && clearsFloor(queued.amount)) {
 			p.flows.push({ chain, amount: queued.amount, status: "signing", startedAt: Date.now() });
 		} else {
 			park(p, chain, queued.amount, p.renewable ? "below_threshold" : "name_inactive");
@@ -773,7 +779,7 @@ function applyPayment(rec: NameRecord, chain: string, amount: bigint): void {
 		? "name_inactive"
 		: p.flows.some((f) => f.chain === chain)
 			? "flow_in_progress"
-			: !clearsFloor(total, p.gasAllowance)
+			: !clearsFloor(total)
 				? "below_threshold"
 				: /* Rare: the pipeline never delivered it, so nothing picked it up. */
 					Math.random() < 0.04

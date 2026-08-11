@@ -29,7 +29,7 @@ Namepass fronts — a mainnet renewal costs dollars, not cents — so the ENS pr
 marked up. Avoid claiming "no fees" in copy; "no markup on the ENS rate" is the accurate version.
 
 **Balances are per chain and never merge.** The address is identical on every chain, but $5 on Base
-and $8 on Arbitrum are two separate pots that each have to clear the minimum (~$0.67) on their own.
+and $8 on Arbitrum are two separate pots that each have to clear the minimum ($0.50) on their own.
 This surprises people and the UI has to say it out loud.
 
 **Automation, as designed.** CREATE2 derives each name's address deterministically. The address
