@@ -48,14 +48,37 @@ can verify it offline, and no custodian holds keys. Under the hood, a webhook de
 payments, [Circle's CCTP](https://developers.circle.com/cctp) moves the USDC to Ethereum, and the
 renewal executes in the same transaction that completes the transfer — no manual intervention.
 
+The paragraph above describes the design. Only the on-chain part is built, and only on testnet.
+Read the next section before you treat any of it as a running system.
+
 ## 🎬 A note on what this is
 
-This repo is a **frontend prototype**, and it points at **test networks** — a fully interactive
-design exploration of the Namepass product surface, built to demo the experience end to end. The UI, pricing math, and interaction
-model are real and exact (see [Under the hood](#-under-the-hood)); the on-chain activity,
-balances, and ENS ecosystem stats you'll see are **seeded/simulated client-side** for
-demonstration, not pulled from a live indexer or contract. Treat it as a high-fidelity prototype,
-not a production financial product.
+This repository has three parts. Each part is at a different stage. Do not give them one status.
+
+**1. The contracts are built. They run on testnet only.**
+
+`contracts/` is deployed to four test networks: Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia,
+and Arc Testnet. The full on-chain path has been run against the deployed ENS and Circle contracts.
+The path is: deposit, CCTP burn on an L2, attestation, then one transaction that mints and renews
+together. [`docs/DEPLOYMENTS.md`](docs/DEPLOYMENTS.md) lists the addresses and the transaction
+hashes. 61 Foundry tests cover the contracts, and several review passes examined them. **No
+external audit has been done. There is no mainnet deployment.**
+
+**2. The automation backend does not exist.**
+
+No service watches a deposit address. No deposit starts a renewal by itself.
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) specifies the webhook, the database, and the worker.
+None of them are built. The `renew(label)` function is permissionless, so any person can push a
+deposit through the path manually. The testnet flows above were run this way.
+
+**3. The app in this repository is a frontend prototype.**
+
+The app points at the same test networks. The UI, the pricing math, and the interaction model are
+exact (see [Under the hood](#-under-the-hood)). The activity, the balances, and the ENS ecosystem
+statistics are simulated in the browser. The app does not read them from an indexer or from the
+deployed contracts.
+
+Treat the app as a prototype. It is not a production financial product.
 
 The **addresses, prices and expiry dates are real**, though. Every address the app shows is derived
 from the deployed factory's own CREATE2 rule — the same value `predictWallet(string)` returns on
@@ -77,7 +100,7 @@ the renewal *history* shown under it is not.
 | 🔎 **Instant search** | Type a complete `.eth` name and it auto-searches after a debounce — no Enter required. No Namepass yet? Activate it inline, right there in the empty state. Names are validated with real [ENSIP-15 normalization](https://docs.ens.domains/ensip/15), not a regex, so emoji and non-Latin names work and names ENS can't hold are turned away *before* anyone sees an address for them. |
 | 🔗 **Real deposit addresses** | The address on every card is the deployed factory's CREATE2 derivation, computed locally from the label — the same one `predictWallet("vitalik")` returns on Sepolia, Base Sepolia, Arbitrum Sepolia and Arc. No RPC, no spinner, and verifiable offline against the constants in [`src/lib/namepass.ts`](src/lib/namepass.ts). |
 | 💰 **Pending balance** | Funds that have arrived but aren't renewal time yet, broken down **per chain** — because a CREATE2 address is the same everywhere but the balances are separate pots that can't be combined. Each chain carries its own reason for waiting, and its own retry for when a transfer got stuck. |
-| 📡 **In-flight renewals** | A CCTP transfer takes 13–19 minutes, so the feed shows renewals *while* they happen — burning, awaiting attestation, renewing — with projected time shown as `~6.0y` until it lands. |
+| 📡 **In-flight renewals** | A CCTP transfer takes 30 seconds to 26 minutes. The time depends on the origin chain; see the measurements in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). The feed therefore shows a renewal while it runs, in three stages: burning, awaiting attestation, and renewing. The projected time shows as `~6.0y` until the renewal completes. |
 | 🧾 **Renewal breakdown** | Expand any renewal to see where the money went — received, gas allowance, applied — and the two or three transactions behind it, each linked to the right block explorer for its chain. |
 | 🛡️ **Supported tokens** | The exact USDC contract on each of the four networks, shown in full and linked to its block explorer, because "check the ticker" is how people lose money to bridged `USDC.e`. Deliberately a whitelist — match one of these four exactly or don't send — and honest that anything else sent to a deposit address can't be recovered. |
 | 🧪 **Testnet strip** | A slim marquee above every page saying which networks this deployment actually watches. Not dismissible: "this is a testnet" isn't a notice someone should be able to close and then forget while looking at a deposit address. Pauses under `prefers-reduced-motion`. |
@@ -108,7 +131,8 @@ the renewal *history* shown under it is not.
 | ENS data | [resolvio](https://api.resolvio.xyz) profile API — cached and deduplicated across components |
 | Chain reads | A ~180-line batched `eth_call` client over `fetch` (`lib/rpc.ts`). No web3 library: the app reads four `view` functions once at boot and never signs anything, so a wallet SDK would be several hundred kilobytes of surface area for nothing |
 | ENS names | [`@adraffy/ens-normalize`](https://github.com/adraffy/ens-normalize.js) for ENSIP-15, and [`@noble/hashes`](https://github.com/paulmillr/noble-hashes) for the keccak-256 behind the CREATE2 derivation — the only two runtime dependencies that touch money |
-| Automation (product, not this demo) | CREATE2 addresses · Circle CCTP · Moralis webhooks · Vercel Workflow |
+| Contracts (deployed, testnet) | Solidity 0.8.24 · Foundry · CREATE2 via the Safe Singleton Factory · Circle CCTP v2 · ENS v2 renewers |
+| Automation (specified, unbuilt) | Moralis webhooks · Vercel Workflow · Postgres. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Routing | ~40 lines of hand-rolled `history.pushState` — no router dependency for five pages |
 
 ## 🚀 Getting started
@@ -156,18 +180,32 @@ src/
 │   ├── qr.ts               QR matrix encoder
 │   └── format.ts           Date/currency/duration formatting
 └── App.tsx                 ~165 lines of state + routing tying it together
+
+contracts/                  Solidity. Testnet only. Not audited.
+├── NamepassFactory.sol     CREATE2 deposit wallets and the CCTP burn. Also the ERC-1167 impl.
+└── ENSV2RenewalHelper.sol  Ethereum side. Claims the CCTP message and renews in one transaction.
+
+test/                       61 Foundry tests. Pricing runs against ENS's own oracle.
+```
+
+The npm scripts do not build the contracts. Use Foundry:
+
+```bash
+forge build
+forge test
 ```
 
 ## 🔬 Under the hood
 
-A few decisions worth knowing about before you touch the code. For the full picture there are four
+A few decisions worth knowing about before you touch the code. For the full picture there are five
 docs, each with a distinct job:
 
 | Doc | Covers |
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) | Working conventions and the load-bearing constraints, in brief |
 | [`docs/FRONTEND.md`](docs/FRONTEND.md) | **How the app that exists works** — data layer, domain model, simulation, state, invariants |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The planned backend — CREATE2 addresses, CCTP, Postgres schema |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The contracts (built, testnet) and the backend (specified, unbuilt). CREATE2 addresses, CCTP, Postgres schema |
+| [`docs/DEPLOYMENTS.md`](docs/DEPLOYMENTS.md) | **Live testnet addresses** and what has been proven on chain |
 | [`PRODUCT.md`](PRODUCT.md) · [`docs/DECISIONS.md`](docs/DECISIONS.md) | What/why, and a dated log of non-obvious calls |
 
 <details>

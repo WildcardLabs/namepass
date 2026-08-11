@@ -1,8 +1,20 @@
-# Architecture — backend (planned, unbuilt)
+# Architecture — contracts (built) and backend (specified)
 
-The plan for the real backend, as far as it's been worked out. This repo is still a frontend
-prototype (see `CLAUDE.md`), so nothing here is built yet — this is the design the UI is being
-shaped against, plus an honest list of what's still open.
+**This file covers two parts at two different stages. Check which part you are reading.**
+
+- **Contracts: built.** The sections from here to the end of "CCTP at contract level" describe
+  `contracts/NamepassFactory.sol` and `contracts/ENSV2RenewalHelper.sol`. Both are **deployed to
+  four testnets**. Both have been run against the deployed ENS and Circle contracts.
+  `docs/DEPLOYMENTS.md` records the addresses, the configuration, and the transactions that prove
+  each claim. **The contracts have no external audit. There is no mainnet deployment.**
+- **Backend: specified, not built.** The sections from "Services" to the end of the file describe
+  the webhook, the Postgres schema, the Vercel Workflow, and the reconcile cron. **None of them
+  exist.** There is no code, no database, and no deployment. The UI follows this specification. The
+  file also lists the open questions.
+
+A deposit does not start a renewal today, because the service that would detect it is not built.
+The on-chain path works. `renew(label)` is permissionless, so any person can push a deposit through
+it manually. The testnet flows below were run this way.
 
 **For the app that does exist, see `docs/FRONTEND.md`.** That covers the running frontend in
 detail: data layer, domain model, simulation lifecycle, state model, component map and invariants.
@@ -120,18 +132,21 @@ first address goes out.
 | ENS renewal happens on the hub chain | **Safe** for mainnet: ENS v2 stays on Ethereum. The hub is a constructor argument (`hubChainId`), so a testnet set uses 11155111 and a mainnet set uses 1. `HUB_CCTP_DOMAIN = 0` holds for both, since Sepolia is also domain 0. |
 | ENS pricing can change | **Handled, and not here** — the L1 helper reads pricing from an external contract it can repoint, so a rent or discount change needs no factory change. |
 | Labels never contain a dot | **Safe by domain** — subnames don't pay renewal fees, so there is nothing for a subname deposit address to buy. The rejection in `_labelKey` is correct, not merely in-scope. |
-| Circle's per-burn limit stays above 100,000 USDC | `MIN_MAX_BURN` cannot be set below that, so a limit under it would leave L2 burns unable to comply. Accepted as the cost of closing the pause vector. |
+| The most expensive ENS second stays below one cent | `MIN_BURN_AMOUNT` is a constant `110_000`. This value is the $0.10 gas allowance plus a margin. A burn below this value creates a CCTP message that nobody can claim. At the current rates the most expensive second costs 21 base units, against a margin of 10,000. The margin is therefore large. However, ENS governance sets these rates, and the constant cannot follow a change. This is the factory's only ENS pricing assumption. |
 | Native USDC keeps its address per chain | Frozen at `initialize`. A Circle token migration would strand deposits in the new token, with no sweep. |
-| Ownership is never renounced | `transferOwnership` rejects `address(0)`, so the fee and burn-cap powers cannot be permanently frozen. Transfer itself is two-step, so it can't be lost to a typo. |
+| Ownership is never renounced | `transferOwnership` rejects `address(0)`. `setFinality` is the only owner function after `initialize`, so it cannot become permanently frozen. The transfer uses two steps, so a typing error cannot lose ownership. |
 
 **ENSIP-15 normalization before hashing is a security requirement, not a formatting nicety.** Skip it
 and a homoglyph of a well-known name derives a different address while rendering identically in the
 Explorer, which turns Namepass's own UI into a credible-looking way to collect payments meant for
 someone else. Use `@adraffy/ens-normalize`.
 
-Contract and factory work is out of scope until this goes live.
-
 ## The flow
+
+**The on-chain steps are built and proven. The service that connects them is not built.** Steps 1,
+3, and 5 below are contract behavior. They have been run from all three L2s on testnet; see
+`docs/DEPLOYMENTS.md`. Step 2 and the polling in step 4 belong to the unbuilt backend. A person
+performs those steps today.
 
 ```
   deposit         burn + hook      attestation        mint + renewal
@@ -358,7 +373,13 @@ Details to pin down against Circle's current docs — treat as directional, not 
 
 ## Services
 
-Everything runs on Vercel alongside the app: same repo, same env, atomic deploys, no CORS.
+> **None of this is built.** The sections from here to the end of the file are a specification:
+> services, schema, read models, trigger policy, and operations. There is no webhook endpoint, no
+> database, no worker, and no cron. `src/lib/registry.ts` simulates the states these services would
+> produce. The contract sections above describe the built part.
+
+The plan is to run everything on Vercel with the app: same repository, same environment, atomic
+deploys, and no CORS.
 
 ### `POST /api/webhooks/moralis` — deposit ingestion
 
@@ -734,14 +755,19 @@ is far outside serverless limits.
 
 ## Build order
 
-Ordered by how expensive each is to get wrong, not by how visible it is.
+The order follows the cost of an error, not the visibility of the result. Steps 1 and 3 are
+**done**. The other steps are not started.
 
-1. **Factory + deposit contract, on one testnet.** The addresses are advertised as never changing, so
+1. ✅ **Factory + deposit contract, on one testnet.** The addresses are advertised as never changing, so
    the derivation scheme is the one decision that can't be revised after launch. Deploy the factory
    through a deterministic deployer so the addresses match across chains, then the helper, then
    `setL1Helper` once per chain.
 
-   `contracts/NamepassFactory.sol` is the draft. The hub chain is a **constructor argument**
+   **Done.** The factory was deployed on 2026-08-10 to all four testnets through the Safe Singleton
+   Factory. The address is the same on every chain. `l1Helper` is frozen on each chain. See
+   `docs/DEPLOYMENTS.md`.
+
+   The hub chain is a **constructor argument**
    (`hubChainId`): 11155111 for the Sepolia-based testnet set that ships first, 1 for mainnet. One
    source file serves both, rather than an edit between deployments that has to be remembered. It
    is part of the creation code, so it must be identical across every chain in a set, and the two
@@ -752,9 +778,14 @@ Ordered by how expensive each is to get wrong, not by how visible it is.
    has ever published.
 2. **Schema + read models.** Validate by writing the six queries above against seeded rows; if
    the leaderboard or explorer query is awkward, the schema is wrong and it's cheap to fix now.
-3. **One full flow, end to end, on testnet.** Base → burn → Iris → mainnet mint + renew. This is
+3. ✅ **One full flow, end to end, on testnet.** Base → burn → Iris → mainnet mint + renew. This is
    where the unknown-unknowns live (hook encoding, domain IDs, gas on the claim), and everything
    upstream is guesswork until one has actually landed.
+
+   **Done, from all three L2s and not only Base.** Arc, Arbitrum, and Base each burned USDC and
+   claimed it on Ethereum Sepolia. Both renewer branches ran. The accounting balanced to the base
+   unit. The helper kept zero dust. `docs/DEPLOYMENTS.md` lists the transactions. Testnet cannot
+   exercise the ENS governance path, because Sepolia has no DAO Timelock.
 4. **Ingestion.** Moralis stream behind the single `ingestDeposit` entry point, plus the reconciler
    from day one — not later.
 5. **Frontend swap.** Replace `registry.ts` internals with API calls; the exported function shapes
