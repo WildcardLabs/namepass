@@ -12,13 +12,45 @@ Read `CLAUDE.md` first for the short version and the working conventions. This i
 
 | Real | Simulated |
 |---|---|
-| ENS v2 pricing math, exact to the micro-unit (`lib/pricing.ts`) | All activity, balances and flows (`lib/registry.ts`) |
-| ENS profile data — avatars, socials, addresses (`lib/ens.ts` → resolvio API) | Transaction hashes (random hex) |
-| Block explorer URLs per chain (`lib/format.ts`) | Deposit addresses (random hex) |
-| QR encoding (`lib/qr.ts`) | Expiry dates, renewal history |
+| ENS v2 pricing math, exact to the micro-unit (`lib/pricing.ts`) | All renewal history and activity (`lib/registry.ts`) |
+| ENS's rates, read from its oracle at boot (`lib/oracle.ts`) | Transaction hashes (random hex) |
+| Deposit addresses (`lib/namepass.ts` — the deployed factory's own derivation) | Balances, pending states, flow steps |
+| **Name expiry and renewability (`lib/ensName.ts` — `findExpiry` / `isRenewable`)** | `activatedAt`, and the activation point on the runway bar |
+| ENS profile data — avatars, socials, addresses (`lib/ens.ts` → resolvio API) | Aggregates and Leaderboard rank, which derive from the above |
+| Block explorer URLs per chain (`lib/format.ts`) | The hero ticker's amounts and its `START_EXPIRY` base date |
+| QR encoding (`lib/qr.ts`) | **`pass` (`<label>.namepass.eth`) — a template string that resolves to nothing** |
 
-There is **no** wallet connection, no RPC, no contract calls and no backend. Nothing writes
-anywhere; reload resets everything.
+There is **no** wallet connection, no wallet-facing RPC, no transactions and no backend. Nothing
+writes anywhere; reload resets everything. What the app *does* do on chain is read, twice, at
+boot: ENS's pricing configuration and the helper's gas allowance.
+
+**`pass` is the one to fix next.** `PassCard` shows `<label>.namepass.eth` under "Send here · auto
+renewal address", above the raw address and copyable — but it's `${label}.namepass.eth` built by
+string concatenation. `namepass.eth` is registered on Sepolia (expires 2027-08-11) and has **no
+resolver**, so the subnames resolve to nothing: checked 2026-08-11, `vitalik.namepass.eth` comes
+back with `resolver: null` and no addresses. It is a fabricated payment target presented more
+prominently than the real one. Either set a wildcard resolver that returns the CREATE2 address, or
+stop showing it.
+
+Three things are real in a way the rest isn't:
+
+- **The deposit address** depends on nothing but the factory address and the label, so it's
+  computed locally and *matches* the chain rather than being read from it.
+- **The prices** are ENS's own, fetched from the registrar's oracle. Only the inversion — longest
+  duration a budget buys — is this app's arithmetic, and it's checked against the deployed
+  helper's `quote()`.
+- **The expiry and renewability** come from ENS's registry and renewers per name. The renewal
+  *history* under them is still invented; `applyNameState` slides that history so its end lands on
+  the real expiry rather than contradicting it.
+
+  Both come from `ETHRegistrar` and `ETHRenewerV1`, which answer for **both** populations — v1's
+  `BaseRegistrar` is deliberately not consulted. `findExpiry` runs 62 days later than v1's own
+  registrar for premigrated names, and that is correct rather than a bug to fix: ENS v2 cuts grace
+  90 → 28 days and applies a one-time +62 day renewal to every v1 name automatically at the
+  upgrade, so from launch it is the operative date. See `docs/DECISIONS.md`, 2026-08-11.
+
+Everything wrapped around them — what's arrived, what's pending, what it renewed — is still
+simulation.
 
 ---
 
@@ -37,22 +69,97 @@ of `/leaderboard` 404s.
 `goToName(name)` sets it, navigates Home if needed, and scrolls to the Explorer; it backs both
 post-activation landing and the Leaderboard's "View activity" link.
 
+### Boot
+
+`App.tsx` owns one more thing: `boot`, the state of the one-time read of ENS's pricing.
+
+```
+mount
+  └─ Promise.all([ loadOracleRates(), assertGasAllowance() ])   ~150 ms
+        ├─ setRates(live)      pricing.ts stops throwing
+        ├─ initRegistry()      seeded demo history can now be priced
+        └─ boot = "ready"
+```
+
+**Only what quotes a price waits.** This is a rule, not an implementation detail — an earlier
+version held all of Home back and put a white card where the hero belongs for ~220ms on every
+reload, with the document jumping 1007 → 3444px underneath it.
+
+| Renders immediately | Waits |
+|---|---|
+| Hero — copy over video, quotes nothing | `BottomLeftCard`, the renewal ticker (`solve`) |
+| Simulator's section, heading and card frame | its two inner panels, and the per-year rate on each length tab |
+| Terms, Privacy, supported tokens | Explorer, Leaderboard |
+
+While waiting, the Simulator shows **skeletons in the shape of the numbers** — its
+placeholder and real bodies are both 916px, so nothing moves when the values land. Nothing
+announces the read: a page narrating its own network calls is noise, and at ~150ms a spinner is a
+flash rather than information.
+
+A **failure** does get words (`PricingError`, inside the same card, with a retry), because there
+is no fallback price to quietly carry on with — see `docs/DECISIONS.md` (2026-08-11) for why a
+cached default was rejected. `Simulator` takes `priced` and `problem` and picks between body,
+skeleton and error; `SimulatorBody` is a separate component precisely so it cannot mount before
+the rates exist, since it prices in a `useState` initializer.
+
+`initRegistry()` is the reason the seed can't be built at import any more: those renewals are
+priced with the same `solve()`. It guards on its own `seeded` flag rather than on
+`registry.length`, because a visitor can activate a Namepass from the claim modal — which never
+waits — before the read lands.
+
+**Dev-only gotcha:** editing `pricing.ts` resets its module singleton under mounted components, so
+HMR surfaces `PricingNotLoadedError` where a fresh load wouldn't. Reload the page. There is no
+error boundary, on purpose — the skeleton and error states are the handled paths, and a component
+pricing without rates is a bug that should be loud.
+
 ---
 
 ## 3. The `lib/` layer
 
-Five modules with deliberately separate jobs. Blurring them is the main way this codebase gets
-worse.
+Modules with deliberately separate jobs. Blurring them is the main way this codebase gets worse.
 
-**`pricing.ts` — exact contract math.** Mirrors ENS v2's `StandardRentPriceOracle` in `BigInt` end
-to end. `divCeil` matches the contract's `Math.Rounding.Ceil`. Per-second rates by label length:
-3 chars `20_294_267`, 4 chars `5_073_567`, 5+ chars `253_679` — nothing below 3 characters, which is
-why a 2-character name can never be renewed. These come from the oracle's `getBaseRates()`; they
-are `$640`/`$160`/`$8` per **365-day** year, and `YEAR_SECONDS` is `31_536_000` to match. Deriving
-them from a Julian year instead is a real bug this file has already had once — see
-`docs/DECISIONS.md`.
+**`rpc.ts` — a minimal `eth_call` client.** Batched JSON-RPC over `fetch`, selectors from
+`keccak256`, and a decoder that handles exactly three shapes: a word, a pair of words, and a
+length-prefixed array of fixed-width rows. Not a web3 library and not the start of one — the app
+makes one kind of request, at boot, and never writes. Needing dynamic argument encoding, a
+transaction, or a revert reason means taking a real dependency instead of growing this. Endpoint
+is `VITE_SEPOLIA_RPC` or a public default.
 
-Tier thresholds are **not round numbers**, and this is load-bearing:
+**`oracle.ts` — ENS's live pricing configuration.** Reads `DISCOUNT_DENOMINATOR()`,
+`getBaseRates()`, `getDiscountPoints()` and `getPaymentTokenRatio(USDC)` and hands them to
+`pricing.ts`. Two details are load-bearing:
+
+- **The oracle address is not pinned.** The two ENS *renewer* addresses are, and the oracle is
+  whatever `rentPriceOracle()` currently returns on them — the same indirection the helper uses,
+  for the same stated reason. ENS governance can repoint an oracle and the app follows.
+- **Both renewers must agree.** `_quote` picks a renewer per label with `isRenewable`; the app's
+  price table is generic (3 / 4 / 5+ characters) and has no label to pick with. So it reads both
+  and refuses if they differ, rather than drawing one table for two price regimes.
+
+`validate()` mirrors the contract's `_validatePoints`: durations must ascend and numerators
+descend, or "the first affordable tier is the best tier" — which is how `solve` picks — stops
+being true. A mis-shaped oracle stops the app rather than quietly mis-pricing it.
+
+**`pricing.ts` — exact contract math, with no numbers of its own.** Mirrors ENS v2's
+`StandardRentPriceOracle` in `BigInt` end to end; `divCeil` matches the contract's
+`Math.Rounding.Ceil`. Rates arrive via `setRates()` at boot and **every function throws
+`PricingNotLoadedError` until they do** — there is deliberately no default and no cached copy,
+because a fallback price is a made-up price. Today's values give per-second rates of 3 chars
+`20_294_267`, 4 chars `5_073_567`, 5+ chars `253_679`, i.e. `$640`/`$160`/`$8` per **365-day**
+year — but read them off the chain rather than from this paragraph.
+
+Two things here are *not* oracle values:
+
+- `YEAR_SECONDS` (`31_536_000`). ENS prices per second and has no notion of a year; this is a
+  display convention, and it's the right one only because the tier durations are exact multiples
+  of it. Deriving it from a Julian year is a real bug this file has already had once — see
+  `docs/DECISIONS.md`.
+- `rateFor`'s indexing, which mirrors `_rateFor`'s **off-by-one**: index is `length - 1`, clamped
+  to the array, so a 3-character name reads `baseRates[2]` and a 40-character one reads the last
+  entry.
+
+Tier thresholds are **not round numbers**, and this is load-bearing (values as of the oracle's
+current configuration):
 
 | Duration | Exact threshold | Payable (`ceilToCent`) | Discount |
 |---|---|---|---|
@@ -74,7 +181,34 @@ nothing per-chain to quote. One allowance **per flow**, not per deposit, taken o
 transaction that renews. Universal — Ethereum-origin payments never bridge but still trigger a
 mainnet renewal.
 
-**`registry.ts` — the domain model and the simulation.** Section 4 and 5.
+Unlike ENS's rates this stays a local constant, and the reason is worth keeping straight: the
+rates belong to ENS and are mutable by ENS governance, so a stale copy mis-quotes someone else's
+price; the allowance is Namepass's own and is `public constant` in the helper's bytecode, so it
+can't move without a redeployment. It's still verified rather than trusted —
+`assertGasAllowance()` reads it at boot and the app refuses to start on a mismatch, since a wrong
+allowance is a dime off every figure the Simulator shows.
+
+**`namepass.ts` — label → deposit address.** The deployed factory's `predictWallet(string)`,
+reimplemented in TypeScript so the app can show an address without an RPC call:
+`salt = keccak256(keccak256("NAMEPASS_DEPOSIT_WALLET_V1") ++ keccak256(label))`, then the ERC-1167
+CREATE2 address with the factory as implementation *and* deployer (a deposit wallet delegatecalls
+the factory itself). Output is EIP-55 checksummed. Verified against all four testnets:
+`depositAddress("vitalik")` is `0x043c184003266644372bA5fA4946777b3f1cFC3D`, same as `cast call`.
+
+Two things here are correctness, not politeness:
+
+- **`NAMEPASS_FACTORY` belongs to the testnet set.** `hubChainId` is in the factory's creation
+  code, so a mainnet factory lands elsewhere and derives a different address for every name.
+  `depositAddress` throws outright if `IS_TESTNET` is false, because the alternative is quietly
+  printing an address nobody controls. This constant and `tokens.ts` move together.
+- **`normalizeLabel` runs before every derivation.** The contract hashes the exact UTF-8 bytes it
+  is handed and cannot normalize — ENSIP-15 isn't reproducible in Solidity — so an un-normalized
+  label derives a *valid-looking* address for a name that can never be renewed, and there is no
+  sweep. `@adraffy/ens-normalize` is what closes that gap, and it is why the UI validates with
+  `labelProblem()` rather than a regex that approximates the same rules.
+
+**`registry.ts` — the domain model and the simulation.** Section 4 and 5. Its `address` field is
+the one thing on a `NameRecord` that isn't invented; it comes from `namepass.ts`.
 
 **`ens.ts` — real network calls** to the resolvio profile API. Cached and deduplicated, and
 deliberately **not** abortable — see the note in the file. Because requests are shared between
@@ -261,6 +395,9 @@ sits inside `overflow-hidden` accordions), `ChainTag` (chain name + brand-colour
 9. UI enablement derives from `canTrigger()`.
 10. Aggregate tiles mix bases on purpose: `total received` is lifetime USDC at the address,
     `time delivered` is what the registry recorded. Not meant to reconcile.
+11. **No price is ever shown from memory.** `pricing.ts` holds no default rates and no cached
+    copy; it throws until `setRates()` has run. Adding a fallback so the Simulator can paint
+    sooner reintroduces the exact failure the gate exists to prevent.
 
 ---
 
@@ -272,9 +409,19 @@ test framework — a Vitest suite over `pricing.ts` has been discussed and not b
 Beyond that, the useful technique is asserting invariants against the real modules in the browser
 console while the dev server runs:
 
+The strongest check available for pricing is the deployed helper itself — `quote(label, amount)`
+answers what the contract would actually charge, and `solve()` must match it to the second:
+
+```js
+const pricing = await import('/src/lib/pricing.ts');
+pricing.solve(8000000n, 7).seconds;   // 31535917n
+// cast call $HELPER 'quote(string,uint256)(uint64,uint256)' vitalik 8000000
+```
+
+Beyond that:
+
 ```js
 const reg = await import('/src/lib/registry.ts');
-const pricing = await import('/src/lib/pricing.ts');
 
 let unexplained = 0;
 for (let i = 0; i < 500; i++) {

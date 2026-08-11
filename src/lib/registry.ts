@@ -1,5 +1,6 @@
 import { labelLength, solve, YEAR_SECONDS } from "./pricing";
 import { GAS_ALLOWANCE } from "./fees";
+import { depositAddress, normalizeLabel } from "./namepass";
 
 /**
  * MODEL
@@ -223,8 +224,27 @@ export interface NameRecord {
 	labelLength: number;
 	/** Namepass subdomain — permanent. */
 	pass: string;
-	/** Namepass deposit address — permanent, receives on every chain. */
+	/**
+	 * Namepass deposit address — permanent, receives on every chain.
+	 *
+	 * **Not simulated.** Unlike everything else on this record, this is derived
+	 * from the deployed factory by `namepass.ts` and is the real address the
+	 * contracts would route. Don't fabricate one alongside the mock activity.
+	 */
 	address: string;
+	/**
+	 * What the chain says about the ENS name, once read.
+	 *
+	 * `null` means "not looked up yet" — distinct from `{ expiry: null }`,
+	 * which is the chain saying the name isn't registered. The UI must not
+	 * render the second as the first.
+	 */
+	onchain: {
+		expiry: number | null;
+		renewable: boolean;
+		graceRemaining: number | null;
+		lapsedFor: number | null;
+	} | null;
 	/** Unix ms the Namepass was activated. Permanent from here on. */
 	activatedAt: number;
 	/** The ENS name's expiry at the moment the Namepass was activated. */
@@ -340,7 +360,8 @@ function buildName(
 		name,
 		labelLength: labelLength(label),
 		pass: `${label}.namepass.eth`,
-		address: `0x${hex(rand, 40)}`,
+		address: depositAddress(label),
+		onchain: null,
 		activatedAt,
 		expiryAtActivation,
 		events,
@@ -362,10 +383,10 @@ function buildName(
  * with the reason that parked it, and the happy path (payment lands, clears
  * the floor, goes straight out) is the common case rather than an absence.
  *
- * Only `renewable` is seeded, since that's a property of the ENS name rather
- * than of any money.
+ * `renewable` isn't seeded either — it's a property of the ENS name, so it
+ * comes off the chain via `applyNameState` below. It used to be a hardcoded
+ * set containing `ens.eth`.
  */
-const NOT_RENEWABLE = new Set(["ens.eth"]);
 
 /**
  * Mix of 3, 4 and 5+ character names so tier differences are visible.
@@ -393,27 +414,76 @@ const SEED_NAMES: Array<[string, number, number]> = [
 /** The demo's own names. Anything a visitor activates is left alone. */
 const SEEDED = new Set(SEED_NAMES.map(([n]) => n));
 
+/**
+ * Built by `initRegistry()`, not at import.
+ *
+ * The seeded history is priced with `solve()`, and prices now come off the
+ * chain — so there is a moment, before that read lands, when there is no such
+ * thing as a renewal that bought 4.9 years. Building at import would have to
+ * invent one. `App.tsx` calls `initRegistry` once the rates are in, and every
+ * reader below sees an empty registry until then rather than a plausible
+ * fiction.
+ */
+const registry: NameRecord[] = [];
+
 const NOW = Date.now();
-const registry: NameRecord[] = SEED_NAMES.map(([n, s, c]) => {
-	const rec = buildName(n, s, c, NOW);
-	if (NOT_RENEWABLE.has(n)) {
-		rec.pending.renewable = false;
-		/* A name that can't be renewed has to read as expired, or the panel above
-		   the card says "376 days remaining" next to "it's in its premium
-		   auction".
-		 *
-		 * Shift the *whole* runway back rather than just overwriting the final
-		 * expiry: this name has renewals in its history that genuinely added
-		 * time, so moving only the end produced "at activation: 2027 → now:
-		 * expired", which reads as time running backwards. Sliding the timeline
-		 * keeps the arithmetic intact — it was already near expiry when the pass
-		 * was activated, renewals pushed it out, and it lapsed anyway. */
-		const shift = rec.events[rec.events.length - 1].nameExpiryAfter - (NOW - 12 * DAY);
-		rec.expiryAtActivation -= shift;
-		for (const e of rec.events) e.nameExpiryAfter -= shift;
-	}
-	return rec;
-});
+
+let seeded = false;
+
+/**
+ * Build the demo's seeded names. Idempotent; safe under StrictMode.
+ *
+ * Guarded by its own flag rather than by `registry.length`, because the
+ * registry can already be non-empty: a visitor can activate a Namepass from
+ * the navbar's claim modal, which isn't behind the pricing gate, before this
+ * ever runs. Keyed on length, that activation would have silently cancelled
+ * the entire seed.
+ */
+export function initRegistry(): void {
+	if (seeded) return;
+	seeded = true;
+	registry.push(...SEED_NAMES.map(([n, s, c]) => seedName(n, s, c)));
+}
+
+function seedName(n: string, s: number, c: number): NameRecord {
+	return buildName(n, s, c, NOW);
+}
+
+/**
+ * Anchor a record to what the chain says about its ENS name.
+ *
+ * Two things change, and the second is the subtle one:
+ *
+ * 1. `renewable` becomes ENS's answer rather than a guess, which feeds
+ *    `canTrigger()` and the `name_inactive` hold reason already.
+ * 2. The **whole simulated timeline slides** so its final expiry lands on the
+ *    real one. Overwriting just the end would leave "at activation: 2027 →
+ *    now: 2045" against a history that only added ten years, i.e. arithmetic
+ *    that doesn't add up, or time running backwards for a lapsed name.
+ *    Sliding keeps the seeded renewals internally consistent while making the
+ *    figure on the card — the one a funder actually reads — the real one.
+ *
+ * Idempotent: re-applying the same state is a no-op, since the shift is
+ * computed against the current end each time.
+ */
+export function applyNameState(
+	rec: NameRecord,
+	state: NonNullable<NameRecord["onchain"]>,
+): void {
+	rec.onchain = state;
+	rec.pending.renewable = state.renewable;
+
+	/* A name the chain has never heard of has no expiry to anchor to. The UI
+	   says "not registered" rather than drawing a runway to a made-up date. */
+	if (state.expiry === null) return;
+
+	const last = rec.events[rec.events.length - 1];
+	const shift = last.nameExpiryAfter - state.expiry;
+	if (shift === 0) return;
+
+	rec.expiryAtActivation -= shift;
+	for (const e of rec.events) e.nameExpiryAfter -= shift;
+}
 
 export function allNames(): NameRecord[] {
 	return registry;
@@ -459,9 +529,16 @@ export function recentActivity(limit = 40): Array<ActivityEvent & { name: string
 	return rows.slice(0, limit);
 }
 
-/** Activate a Namepass for a name. Idempotent. */
+/**
+ * Activate a Namepass for a name. Idempotent.
+ *
+ * Throws `InvalidLabelError` for anything ENS couldn't hold — the deposit
+ * address is derived from the label, so a name that can't be normalized has no
+ * address to show. Callers gate on `labelProblem()` before offering to
+ * activate; this throw is the backstop, not the UI's error path.
+ */
 export function claimName(input: string): NameRecord {
-	const label = input.trim().toLowerCase().replace(/\.eth$/, "");
+	const label = normalizeLabel(input);
 	const name = `${label}.eth`;
 	const existing = registry.find((r) => r.name === name);
 	if (existing) return existing;
@@ -473,7 +550,8 @@ export function claimName(input: string): NameRecord {
 		name,
 		labelLength: labelLength(label),
 		pass: `${label}.namepass.eth`,
-		address: `0x${hex(rand, 40)}`,
+		address: depositAddress(label),
+		onchain: null,
 		activatedAt: now,
 		expiryAtActivation,
 		events: [

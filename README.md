@@ -57,16 +57,25 @@ balances, and ENS ecosystem stats you'll see are **seeded/simulated client-side*
 demonstration, not pulled from a live indexer or contract. Treat it as a high-fidelity prototype,
 not a production financial product.
 
+The **addresses, prices and expiry dates are real**, though. Every address the app shows is derived
+from the deployed factory's own CREATE2 rule — the same value `predictWallet(string)` returns on
+chain, checked against all four networks. Every rate is read from ENS's rent oracle when the page
+loads. And each name's expiry and whether ENS will renew it come from ENS's registry per name. So
+the address on a card is genuine, the price beside it is ENS's, and the expiry is the real one —
+the renewal *history* shown under it is not.
+
 ## ✨ Feature tour
 
 | | |
 |---|---|
 | 🏠 **Hero + live renewal ticker** | The bottom-left card cycles real inbound-payment math — chain, amount, discount tier, and the resulting expiry — computed from the actual pricing oracle, not hardcoded copy. |
 | 🧮 **Cost simulator** | Drag a slider or type any amount and watch it resolve into exact renewal time, live, for 3/4/5+ character names — including the "you're 1 dollar from a better rate" nudge. Every amount is a *send* amount carrying a bridging allowance, so the figure on the button clears its discount tier from any supported chain. |
+| 📈 **Prices straight from ENS** | No rate table ships with the app. Base rates, discount tiers and the USDC conversion are read from the registrar's own oracle at load — the same values the renewal contract prices with. The read takes ~150ms and says nothing about itself: the hero paints immediately and the simulator shows skeletons exactly the size of the numbers they'll become. If it fails, the app says so rather than quoting a price from memory. |
 | 📡 **Explorer** | A public, Etherscan-style live feed of every renewal across every name, plus a full per-name detail view: expiry runway, ENS profile (avatar, links, socials), and complete payment history. |
 | 🏆 **Leaderboard** | Every Namepass ranked by renewals or time delivered, with inline-expandable rows (no page navigation) showing the QR code and deposit address on the spot, plus a jump straight to that name's activity. Time reads adaptively — days, months, then years and months — since names range from a week of runway to decades. |
 | 🖼️ **ENS avatars everywhere** | Real ENS avatars via the [resolvio](https://api.resolvio.xyz) profile API, gracefully falling back to a deterministic [Dicebear](https://dicebear.com) avatar seeded by name. |
-| 🔎 **Instant search** | Type a complete `.eth` name and it auto-searches after a debounce — no Enter required. No Namepass yet? Activate it inline, right there in the empty state. |
+| 🔎 **Instant search** | Type a complete `.eth` name and it auto-searches after a debounce — no Enter required. No Namepass yet? Activate it inline, right there in the empty state. Names are validated with real [ENSIP-15 normalization](https://docs.ens.domains/ensip/15), not a regex, so emoji and non-Latin names work and names ENS can't hold are turned away *before* anyone sees an address for them. |
+| 🔗 **Real deposit addresses** | The address on every card is the deployed factory's CREATE2 derivation, computed locally from the label — the same one `predictWallet("vitalik")` returns on Sepolia, Base Sepolia, Arbitrum Sepolia and Arc. No RPC, no spinner, and verifiable offline against the constants in [`src/lib/namepass.ts`](src/lib/namepass.ts). |
 | 💰 **Pending balance** | Funds that have arrived but aren't renewal time yet, broken down **per chain** — because a CREATE2 address is the same everywhere but the balances are separate pots that can't be combined. Each chain carries its own reason for waiting, and its own retry for when a transfer got stuck. |
 | 📡 **In-flight renewals** | A CCTP transfer takes 13–19 minutes, so the feed shows renewals *while* they happen — burning, awaiting attestation, renewing — with projected time shown as `~6.0y` until it lands. |
 | 🧾 **Renewal breakdown** | Expand any renewal to see where the money went — received, gas allowance, applied — and the two or three transactions behind it, each linked to the right block explorer for its chain. |
@@ -97,6 +106,8 @@ not a production financial product.
 | Motion | [`motion`](https://motion.dev) (Framer Motion's successor) for every transition, layout animation, and gesture |
 | Icons | [lucide-react](https://lucide.dev) |
 | ENS data | [resolvio](https://api.resolvio.xyz) profile API — cached and deduplicated across components |
+| Chain reads | A ~180-line batched `eth_call` client over `fetch` (`lib/rpc.ts`). No web3 library: the app reads four `view` functions once at boot and never signs anything, so a wallet SDK would be several hundred kilobytes of surface area for nothing |
+| ENS names | [`@adraffy/ens-normalize`](https://github.com/adraffy/ens-normalize.js) for ENSIP-15, and [`@noble/hashes`](https://github.com/paulmillr/noble-hashes) for the keccak-256 behind the CREATE2 derivation — the only two runtime dependencies that touch money |
 | Automation (product, not this demo) | CREATE2 addresses · Circle CCTP · Moralis webhooks · Vercel Workflow |
 | Routing | ~40 lines of hand-rolled `history.pushState` — no router dependency for five pages |
 
@@ -134,8 +145,12 @@ src/
 │   └── Footer.tsx / Terms.tsx / Privacy.tsx
 ├── lib/
 │   ├── pricing.ts          Exact ENS v2 StandardRentPriceOracle math, BigInt end to end
+│   ├── oracle.ts           ENS's live rates, read from the registrar's oracle at boot
+│   ├── ensName.ts          Per-name expiry + renewability, from ENS's registry and renewers
+│   ├── rpc.ts              Minimal batched eth_call client — reads only, never writes
+│   ├── namepass.ts         ENS label → deposit address, the deployed factory's CREATE2 rule
 │   ├── registry.ts         Seeded mock names + the flow simulation (see note above)
-│   ├── tokens.ts           Real mainnet USDC addresses — the one lib file that isn't mock
+│   ├── tokens.ts           Real testnet USDC addresses — not mock
 │   ├── fees.ts             The flat $0.10 gas allowance taken per flow
 │   ├── ens.ts              resolvio profile client
 │   ├── qr.ts               QR matrix encoder

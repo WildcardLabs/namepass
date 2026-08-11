@@ -6,10 +6,16 @@ import BottomRightCorner from "./BottomRightCorner";
 interface Props {
 	onExplore: () => void;
 	onLeaderboard: () => void;
+	/**
+	 * Whether ENS's rates have been read yet. Only the renewal ticker needs
+	 * them — the rest of the hero is copy over video and must never wait on a
+	 * network call, since it's the whole of the first paint.
+	 */
+	priced: boolean;
 }
 
 /** Home's hero content, rendered inside PageShell's video card, below Navbar. */
-export default function Hero({ onExplore, onLeaderboard }: Props) {
+export default function Hero({ onExplore, onLeaderboard, priced }: Props) {
 	return (
 		<>
 			<div className="w-full flex flex-col items-center pt-12 md:pt-16 px-6 text-center max-w-4xl">
@@ -34,7 +40,12 @@ export default function Hero({ onExplore, onLeaderboard }: Props) {
 				</motion.p>
 			</div>
 
-			<BottomLeftCard onLeaderboard={onLeaderboard} />
+			{/* The ticker resolves real payments into renewal time, so it's the one
+			    piece of the hero that can't render before the oracle read lands.
+			    It already slides in on a 0.2s delay, so arriving ~150ms later than
+			    the headline just extends the stagger it was designed with — where
+			    holding the *whole* hero back was a white flash on every reload. */}
+			{priced && <BottomLeftCard onLeaderboard={onLeaderboard} />}
 			<BottomRightCorner onOpen={onExplore} />
 		</>
 	);

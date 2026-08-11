@@ -63,14 +63,21 @@ halves of that at once:
 
 - `contracts/` is live on four testnets, tested, and verified against ENS's and Circle's deployed
   contracts. Addresses and what has been proven on chain are in `docs/DEPLOYMENTS.md`.
-- **The frontend is still a prototype.** The UI, routing, and pricing math are real and exact, but
-  on-chain activity, balances, and ENS ecosystem stats shown in the app are seeded/simulated
-  client-side (`src/lib/registry.ts`) — not read from the deployed contracts, not from an indexer.
-  There is no backend at all; `docs/ARCHITECTURE.md` describes one that does not exist.
+- **The frontend is still a prototype.** The UI, routing, pricing math, and **deposit addresses**
+  are real and exact, but on-chain activity, balances, and ENS ecosystem stats shown in the app are
+  seeded/simulated client-side (`src/lib/registry.ts`) — not read from the deployed contracts, not
+  from an indexer. There is no backend at all; `docs/ARCHITECTURE.md` describes one that does not
+  exist.
+
+The deposit address is the seam between the two halves. `src/lib/namepass.ts` reimplements the
+deployed factory's `predictWallet` derivation, so the address on a card is the address the
+contracts would actually route — but nothing the app renders *around* it is. Don't let that leak:
+an address being real doesn't make the balance beside it real.
 
 So don't write copy or code comments implying the *app* talks to chain state, and don't write them
-implying the *contracts* are hypothetical either. `src/lib/pricing.ts` in particular hardcodes rates
-that the contracts read live from the oracle — the two agree today and nothing keeps them in step.
+implying the *contracts* are hypothetical either. `src/lib/pricing.ts` used to hardcode the rates
+the contracts read live; since 2026-08-11 it reads them from the same oracle at boot, so the two
+can no longer drift apart.
 
 ## Commands
 
@@ -117,15 +124,62 @@ When adding a new page, wrap it in `PageShell` + `Navbar` the same way `App.tsx`
 existing ones, rather than giving it its own top-level layout. `Navbar` takes `showMenu={false}`
 on non-Home pages (only Home shows the Explorer/Search/Cost simulator menu).
 
-**`src/lib/` separates three different kinds of "data" — don't blur them:**
+**`src/lib/` separates different kinds of "data" — don't blur them:**
+- `namepass.ts` — ENS label → deposit address, the deployed factory's own CREATE2 derivation in
+  TypeScript. **Nothing here is simulated and every constant is load-bearing** — the factory
+  address is also the ERC-1167 implementation and the CREATE2 deployer, and changing any of them
+  moves every address the product has ever shown. `NAMEPASS_FACTORY` is the **testnet** factory
+  (`hubChainId` is in the creation code, so a mainnet set derives different addresses); it moves
+  with `IS_TESTNET`, and `depositAddress` throws rather than derive against the wrong set.
+  **Always normalize before deriving** — `normalizeLabel` is not cosmetic. The contract hashes the
+  bytes it's given and can't run ENSIP-15, so an un-normalized label produces a valid-looking
+  address for a name that can never be renewed, and there is no sweep. UI gates on
+  `labelProblem()`; don't reintroduce a regex that approximates ENSIP-15, and don't validate names
+  anywhere except through this module.
+- `rpc.ts` — a ~180-line `eth_call` client, and deliberately not the start of a web3 layer. The
+  app makes one kind of request (a batch of `view` calls, once, at boot) and every return type it
+  decodes is listed in `oracle.ts`. Needing dynamic argument encoding, a transaction, or a revert
+  reason is the signal to take a real dependency instead of extending this.
+- `ensName.ts` — per-name ENS state: the real expiry, and `isRenewable` on both renewers for
+  whether ENS will renew it now. Like the oracle, **no address is pinned** — `ETH_REGISTRY()`
+  comes off the renewers, and the two must agree on it.
+  **`ETHRegistrar` and `ETHRenewerV1` are authoritative for both populations, and nothing else is
+  consulted.** In particular `findExpiry` is the expiry for v1 names too, 62 days later than v1's
+  own registrar says. That is not an error to correct: ENS v2 cuts grace 90 → 28 days and applies
+  a one-time +62 day renewal to every v1 name **automatically at the upgrade** (DAO proposal
+  6.43), so from launch it is the operative date and both populations are released at the same
+  instant. Don't "fix" it by reading v1's `BaseRegistrar.nameExpires` — that was tried, and it
+  reintroduces the pre-upgrade clock. **Grace is `expired && renewable`**, which needs no window
+  constant: past grace both renewers return false for `isRenewable`.
+  `getRemainingGracePeriod` supplies how long is left, but is only consulted once `findExpiry`
+  says the name has expired — on testnet today a premigrated name is mid-migration and
+  `ETHRenewerV1` reports grace against the *un-extended* v1 expiry, which would put a name "73
+  days into grace" on a card whose headline says it expires in 46. Two nulls that
+  are not the same thing: a `null` **return** means the read failed (not known), while
+  `{ expiry: null }` is the chain saying the name isn't registered. Rendering the second for the
+  first tells someone their name doesn't exist because an RPC was slow.
+- `oracle.ts` — ENS's live pricing configuration. **The oracle address is not pinned**: the two
+  ENS renewer addresses are, and the oracle is read from `rentPriceOracle()` on them, which is
+  what the helper does and for the same reason. It requires the two renewers to agree on one
+  oracle and fails loudly if they don't, because the UI draws one price table and there'd be two.
+  `validate()` mirrors the contract's `_validatePoints` — a mis-shaped oracle must stop the app,
+  not quietly mis-price it.
 - `pricing.ts` — exact ENS v2 `StandardRentPriceOracle` math, `BigInt` end to end. `divCeil`
-  mirrors the contract's `Math.Rounding.Ceil`. **The base rates and discount points are read off
-  the deployed oracle (`getBaseRates()`/`getDiscountPoints()`) — never re-derive them from a
-  headline annual price.** They are `$640`/`$160`/`$8` over a **365-day** year, so `YEAR_SECONDS`
-  is `31_536_000`; deriving them from a Julian year shipped a real mispricing once (see
-  `docs/DECISIONS.md`, 2026-08-06). `YEAR_SECONDS` is also the seconds→years divisor for display,
-  so it must stay equal to the oracle's year or the tier durations stop landing on whole years.
-  Thresholds are not round numbers (e.g. the 3-year
+  mirrors the contract's `Math.Rounding.Ceil`. **The arithmetic lives here; the numbers do not.**
+  Base rates, discount tiers, the denominator and the USDC ratio all arrive via `setRates()` from
+  `oracle.ts` at boot, and every function throws `PricingNotLoadedError` until then. **Do not add
+  a default, a fallback table, or a cached copy** — a fallback price is a made-up price, and the
+  failure it produces is a funder sending an amount the screen said clears a tier. The read takes
+  ~150ms and **only what quotes a price waits on it** — the hero paints immediately and the
+  Simulator shows skeletons sized to the numbers they'll become (see `docs/FRONTEND.md` §2, and
+  don't reintroduce a whole-page gate: that put a white card where the hero belongs on every
+  reload). The wait is silent; only a failure gets words. Two things that are *not* oracle
+  values and stay constants: `YEAR_SECONDS` (`31_536_000` — ENS prices per second and has no
+  notion of a year; this is a display convention that must stay equal to a 365-day year, since the
+  tier durations are exact multiples of it, and deriving it from a Julian year shipped a real
+  mispricing once — `docs/DECISIONS.md`, 2026-08-06), and `rateFor`'s indexing, which mirrors
+  `_rateFor`'s **off-by-one**: the array index is `length - 1`, clamped, so a 3-character name
+  reads `baseRates[2]`. Thresholds are not round numbers (e.g. the 3-year
   rate is exactly `$16.500044`), which is why `ceilToCent()`/`payableThresholds()` exist — UI
   quick-select buttons must never suggest an amount that silently under-shoots a tier. **The
   quick-selects cover the three discount tiers only — do not add a one-year button.** One year
@@ -135,7 +189,12 @@ on non-Home pages (only Home shows the Explorer/Search/Cost simulator menu).
   trap applies to *display*: `fmtUsdc` renders both `$27.000071` (six years, 43.75% off) and
   `$27.00` (four years eleven months, 31.25%) as "$27", so anywhere a reader might check the
   arithmetic use `fmtUsdcExact`.
-- `registry.ts` — seeded mock activity/name data for the demo (see prototype note above). Chain
+- `registry.ts` — seeded mock activity/name data for the demo (see prototype note above). Two
+  exceptions: `address` comes from `namepass.ts`, and `onchain` (expiry + renewability) comes from
+  `ensName.ts` via `applyNameState` — don't fabricate either alongside the mock data.
+  `applyNameState` **slides the whole simulated timeline** onto the real expiry rather than
+  overwriting the end, or the runway reads "at activation 2027 → now 2045" against a history that
+  only added ten years. Chain
   pool is `["Base", "Arbitrum", "Ethereum", "Arc"]` — **do not add Optimism**, there's no logo
   asset for it (`public/logos/`) and it's been deliberately removed from every mock data source.
   Polygon was replaced by Circle's **Arc** on 2026-08-05; if anything still says Polygon, it's
@@ -166,7 +225,12 @@ on non-Home pages (only Home shows the Explorer/Search/Cost simulator menu).
   time. A renewal carries **three** amounts (`amountDeposited`,
   `gasAllowance`, `amountApplied`) because the allowance comes off on mainnet — don't collapse them
   back to one — and `steps: FlowStep[]` rather than a single tx hash. See `docs/ARCHITECTURE.md`.
-- `fees.ts` — the flat `GAS_ALLOWANCE` ($0.10) taken from every flow. Standard CCTP has no Circle
+- `fees.ts` — the flat `GAS_ALLOWANCE` ($0.10) taken from every flow. **Still a local constant,
+  unlike ENS's rates, and the distinction is the point**: the rates are ENS's and mutable by ENS
+  governance, so a stale copy mis-quotes someone else's price; the allowance is Namepass's own and
+  is `public constant` in the helper's bytecode, so it can't drift without a redeployment. It is
+  still checked rather than trusted — `assertGasAllowance()` reads it at boot and the app refuses
+  to start on a mismatch. Standard CCTP has no Circle
   fee, so there is nothing per-chain to quote and nothing to buffer. Amounts the Simulator quotes
   are **send** amounts carrying the allowance, and results are solved from `budget − allowance` —
   quoting a send amount against what its pre-allowance value would buy silently drops a discount

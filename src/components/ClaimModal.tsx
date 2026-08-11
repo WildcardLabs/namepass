@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useState } from "react";
 import { X, ArrowUpRight, Loader2 } from "lucide-react";
 import { claimName } from "../lib/registry";
+import { LABEL_PROBLEM_TEXT, labelProblem } from "../lib/namepass";
 
 
 interface Props {
@@ -33,8 +34,14 @@ export default function ClaimModal({ open, onClose, onActivated }: Props) {
 		return () => window.removeEventListener("keydown", onKey);
 	}, [open, onClose]);
 
+	/* Validated by the same function that derives the address, rather than by a
+	   regex that approximates it. ENSIP-15 admits far more than `[a-z0-9-]` —
+	   emoji names are real names — and rejects a few things that pass a regex,
+	   and either mismatch ends with someone looking at an address for a name
+	   that can't exist. */
 	const trimmed = value.trim().replace(/\.eth$/i, "");
-	const valid = /^[a-z0-9-]{3,}$/i.test(trimmed);
+	const problem = labelProblem(trimmed);
+	const valid = problem === null;
 
 	function activate() {
 		if (!valid || phase !== "input") return;
@@ -103,6 +110,12 @@ export default function ClaimModal({ open, onClose, onActivated }: Props) {
 											.eth
 										</span>
 									</div>
+									{/* Say why the button is dead rather than leaving it dead. */}
+									{problem && trimmed && (
+										<p className="mt-2 px-1 text-[12.5px] text-[rgba(30,50,90,0.55)] leading-relaxed">
+											{LABEL_PROBLEM_TEXT[problem]}
+										</p>
+									)}
 								</div>
 
 								<motion.button

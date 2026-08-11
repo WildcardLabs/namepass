@@ -79,7 +79,10 @@ Arc's USDC is a predeploy at `0x36…00`. It has code; the initialization checke
 Both renewers point at the same oracle. The helper reads it from whichever renewer it selects
 rather than storing it — see the two-renewer section in `ARCHITECTURE.md`.
 
-Live oracle configuration, for comparison against `src/lib/pricing.ts`:
+Live oracle configuration. **The frontend reads these at boot rather than holding a copy**
+(`src/lib/oracle.ts`), so the values below are a snapshot for reference, not a second source of
+truth to keep in sync. Note the app doesn't pin the oracle's address either — it reads
+`rentPriceOracle()` off the two renewers above, exactly as the helper does.
 
 ```
 DISCOUNT_DENOMINATOR      1e38
@@ -112,6 +115,12 @@ cast call $HELPER 'quote(string,uint256)(uint64,uint256)' vitalik 8000000 --rpc-
 `predictWallet("vitalik")` is `0x043c184003266644372bA5fA4946777b3f1cFC3D` on all four chains.
 `quote("vitalik", 8000000)` is `31535917` seconds — 83 short of a year, which is the shortfall
 `CLAUDE.md` describes.
+
+**The frontend derives the same addresses without an RPC.** `src/lib/namepass.ts` reimplements
+`predictWallet` in TypeScript — same salt namespace, same ERC-1167 creation code, factory as both
+implementation and deployer. It is a duplicate of what's deployed, so it's checked the same way:
+the `cast call` above against `depositAddress("vitalik")`. Anything in this file that changes the
+factory address changes that module too.
 
 ## Proven on chain
 

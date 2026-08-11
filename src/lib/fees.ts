@@ -1,3 +1,5 @@
+import { decodeUint, ethCallBatch } from "./rpc";
+
 /**
  * What a renewal costs on top of the ENS price.
  *
@@ -23,3 +25,38 @@ export const GAS_ALLOWANCE = 100000n;
 
 /** Chains a payment can arrive on, in the order the UI lists them. */
 export const FEE_CHAINS = ["Base", "Arbitrum", "Arc", "Ethereum"];
+
+/**
+ * The renewal helper on Sepolia — `docs/DEPLOYMENTS.md`. Not deterministic,
+ * so unlike the factory there is nothing to derive; it has to be pinned.
+ */
+export const NAMEPASS_HELPER = "0xf1b51552098ffa7dc2cd83d0fb6508e57db8acc1";
+
+/**
+ * Check the allowance above against the deployed contract.
+ *
+ * This one stays a local constant rather than being read at boot like ENS's
+ * rates, and the distinction is worth stating. The rates are **ENS's**, they
+ * are mutable by ENS governance, and a stale copy silently mis-quotes someone
+ * else's price — so the app refuses to hold one. The allowance is
+ * **Namepass's own**, and it is `uint256 public constant` in the helper's
+ * bytecode: it cannot change without a redeployment, which is a fact about
+ * which contract we point at rather than a value that drifts underneath us.
+ *
+ * A constant that can't drift still doesn't need to be taken on faith, though,
+ * which is what this is for. Verified at boot alongside the oracle read; a
+ * mismatch means the app is quoting send amounts against a helper that will
+ * take a different cut, so it stops rather than being a dime wrong on every
+ * figure it shows.
+ */
+export async function assertGasAllowance(): Promise<void> {
+	const [raw] = await ethCallBatch([
+		{ to: NAMEPASS_HELPER, signature: "GAS_ALLOWANCE()" },
+	]);
+	const onChain = decodeUint(raw);
+	if (onChain !== GAS_ALLOWANCE) {
+		throw new Error(
+			`The renewal helper takes ${onChain} in gas allowance, not ${GAS_ALLOWANCE}.`,
+		);
+	}
+}
