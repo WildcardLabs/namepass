@@ -76,9 +76,15 @@ dependency" in a way that read as "already wired"; it is not.
 
 What remains is that **discovery is pull-based**: nobody is watching, so funds at an unclaimed
 address wait until a person opens that name, and they are absent from the leaderboard until a flow
-settles. That is acceptable, because the funds are never at risk and `renew(label)` is
-permissionless. Closing it would mean the reconciler deriving a candidate label set and polling
-balances on a schedule — a spending decision, not a safety one.
+settles. That is accepted. The funds are never at risk and `renew(label)` is permissionless, so the
+cost of waiting is that the money is noticed late, not that it is lost.
+
+**Sweeping for unclaimed deposits was considered and rejected.** A scheduled job could derive
+addresses for a list of candidate labels and poll all four chains for balances. It would find that
+money without anyone looking. It would also query thousands of addresses nobody has funded, on
+every run, forever, and almost every read would return zero — paid for in RPC quota. Namepass
+monitors a name from the moment someone activates it or opens its page, and does not go looking for
+names nobody has asked about.
 
 One guard that has to survive implementation: **the trigger endpoint sponsors gas**, so the
 per-chain floor check must run server-side *before* the `names` upsert. Otherwise the griefing case

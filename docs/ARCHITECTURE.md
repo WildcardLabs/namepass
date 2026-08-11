@@ -967,9 +967,14 @@ dusting a thousand derived addresses buys an attacker nothing. Keep the floor ch
 ahead of the row upsert, or the griefing case becomes "make Namepass write a database row per
 address" instead.
 
-The residual — nobody is watching — is acceptable because the funds are never at risk and the
-recovery is permissionless. The reconciler could close it by deriving addresses for a candidate
-label set and checking balances on a schedule, but that is a cost decision rather than a safety one.
+The residual — nobody is watching — is accepted. The funds are never at risk and the recovery is
+permissionless, so the cost of waiting is that the money is noticed late, not that it is lost.
+
+**Do not close it by sweeping.** The obvious fix is a scheduled job that derives addresses for a
+list of candidate labels and checks all four chains for a balance. It is rejected: the app would
+query thousands of addresses that nobody has funded, forever, and almost every read would return
+zero. Namepass monitors a name from the moment someone activates it or opens its page. It does not
+go looking for names nobody has asked about.
 
 ### Hosting
 
@@ -1024,10 +1029,6 @@ The order follows the cost of an error, not the visibility of the result. Steps 
   subsidy decision (see Trigger policy).
 - **`bigint` across JSON.** Amounts and durations need to serialize as strings and parse back, or
   the precision `pricing.ts` is careful about dies at the API boundary.
-- **Whether the reconciler should hunt for unclaimed deposits.** Reading the chain on view already
-  makes the money visible and recoverable (see "Unclaimed names"). Sweeping a candidate label set on
-  a schedule would close the last gap — nobody is watching — at a cost in RPC calls. A spend
-  decision, not a safety one.
 - **The failure policy for a balance read.** It must fail soft, per "Unclaimed names", which no read
   in the app does today. Decide it when the live reads are built, not before: the choice is whether
   a chain with no answer renders as absent, as zero, or as an explicit "couldn't check", and only
