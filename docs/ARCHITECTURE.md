@@ -992,7 +992,7 @@ Set the initial balance policy from measured testnet and canary transactions:
 2. Multiply that cost by two to define one transaction unit.
 3. Send a warning when the relayer balance is below 20 transaction units.
 4. Send a critical alert when the balance is below 5 transaction units.
-5. Refill to 50 transaction units from the production Safe.
+5. Refill to 50 transaction units from the treasury.
 
 Recalculate the unit after a contract change or after seven production days. Then use the greater
 of twice the test maximum and twice the observed seven-day 95th-percentile cost. Keep only this
@@ -1654,7 +1654,7 @@ remains recoverable.
 - Add dashboards and alerts.
 - Add recovery and restore drills.
 - Add low-gas monitoring.
-- Configure the 20-unit warning, 5-unit critical alert, and Safe refill runbook.
+- Configure the 20-unit warning, 5-unit critical alert, and manual refill runbook.
 - Add the 30-day raw-payload retention job and verify that normalized history remains.
 - Add load and concurrency tests.
 - Add operator runbooks.
