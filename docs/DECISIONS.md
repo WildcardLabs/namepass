@@ -63,10 +63,13 @@ choice below is between Postgres providers rather than between databases.
 **Why Neon over Supabase.** Both are supported dynamic-table backends, so compatibility did not
 decide it. Four things did:
 
-- The connection story on Vercel. Every query in the design is one-shot, and
-  `@neondatabase/serverless` answers them over HTTP without holding a TCP connection for the life of
-  an invocation. Connection exhaustion under burst is the standard failure of serverless plus
-  Postgres. Supavisor solves the same problem with more moving parts.
+- The connection story on Vercel. **This reason was originally written up wrong and is weaker than
+  it looked.** The first draft said the win was `@neondatabase/serverless` answering queries over
+  HTTP without holding a TCP connection. Neon recommends plain `pg` on Vercel Fluid, which keeps
+  functions warm long enough to reuse TCP — and the serverless driver's HTTP mode cannot do the
+  interactive transactions the ingestion handler needs anyway. Against Supavisor this is close to a
+  wash. It is recorded because the conclusion did not change, but the reasoning behind a quarter of
+  it did.
 - Branch per preview deploy, which matters because a reconciler and a money state machine are about
   to be built and a migration wants testing against production-shaped data first.
 - Scale-to-zero, for a project with no traffic and no backend yet.

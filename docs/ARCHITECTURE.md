@@ -454,7 +454,7 @@ was never claimed; see "The unclaimed-name blind spot".
 
 | Variable | Used by | Notes |
 |---|---|---|
-| `DATABASE_URL` | app + functions | Neon **pooled** string. Normal query traffic. |
+| `DATABASE_URL` | app + functions | Neon **pooled** string, via `pg`. Normal query traffic. |
 | `DATABASE_URL_UNPOOLED` | migrations, Workflow | Neon **direct** string. Required for anything with session state. |
 | `GOLDSKY_WEBHOOK_HEADER` / `GOLDSKY_WEBHOOK_SECRET` | ingestion endpoint | The header name and value Goldsky injects. |
 | `CIRCLE_IRIS_URL` | Workflow | Attestation polling. |
@@ -811,10 +811,17 @@ Three rules, all of them cheap to get wrong:
   host) serves query traffic. `DATABASE_URL_UNPOOLED` serves migrations, `pg_dump`, and the
   Workflow. PgBouncer runs in transaction mode, so a pooled connection drops `SET` state between
   statements and the failures never name pooling as the cause.
-- **Use the HTTP driver in serverless functions.** `@neondatabase/serverless` over HTTP for one-shot
-  queries avoids holding a TCP connection for the life of an invocation. Connection exhaustion under
-  burst is the standard failure of serverless plus Postgres, and every query in this file is a
-  one-shot.
+- **The driver is `pg` (node-postgres), not `@neondatabase/serverless`.** Two reasons. Vercel Fluid
+  keeps a function warm long enough to reuse TCP connections, so the connection exhaustion the
+  serverless driver exists to avoid does not arise — pair it with `attachDatabasePool` from
+  `@vercel/functions` so the pool drains on shutdown. And the serverless driver's **HTTP mode cannot
+  do interactive multi-statement transactions**; it is for single queries and non-interactive
+  batches. The ingestion handler needs a real transaction, because starting a flow must allocate its
+  deposits in the same one — see "Held vs in-flight".
+
+  `@neondatabase/serverless` in **WebSocket** mode does support interactive transactions and is
+  node-postgres API compatible. That is the fallback if anything ever has to run on the edge
+  runtime, where TCP is unavailable. Nothing here does.
 - **Give Goldsky its own role.** It needs DDL on the `streamling` schema and nothing else. Grant it
   `usage`/`create` there and no privileges on `names`, `deposits`, `flows` or `renewals`. The
   pipeline credential is not `DATABASE_URL`.
