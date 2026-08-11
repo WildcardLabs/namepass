@@ -45,12 +45,12 @@ export type HoldReason =
 	 */
 	| "name_inactive"
 	/* The two anomalies — a person can clear these, everything else resolves
-	   itself. `not_detected` is a webhook that never fired; `flow_failed` is a
-	   burn that was attempted and didn't go out.
+	   itself. `not_detected` is a deposit the pipeline never delivered;
+	   `flow_failed` is a burn that was attempted and didn't go out.
 	 *
-	 * There is deliberately no "awaiting confirmation" state: webhooks fire on
-	 * finalized deposits only, so there is no moment where the app knows money
-	 * is coming but not yet arrived. */
+	 * There is deliberately no "awaiting confirmation" state: the pipeline
+	 * delivers finalized deposits only, so there is no moment where the app
+	 * knows money is coming but not yet arrived. */
 	| "not_detected"
 	| "flow_failed";
 
@@ -144,9 +144,9 @@ export function minTrigger(allowance: bigint = GAS_ALLOWANCE): bigint {
  * Whether anyone can push this chain's balance into a renewal right now.
  *
  * Only the anomalies qualify. Everything else the system resolves on its own —
- * a payment that clears the floor auto-triggers the moment the webhook sees
- * it, so offering a button for those cases would imply the automation needs
- * supervision. This is the escape hatch for when it genuinely didn't fire.
+ * a payment that clears the floor auto-triggers the moment the pipeline
+ * delivers it, so offering a button for those cases would imply the automation
+ * needs supervision. This is the escape hatch for when it genuinely didn't.
  */
 export function canTrigger(p: PendingState, balance: ChainBalance): boolean {
 	if (!RECOVERABLE.includes(balance.holdReason)) return false;
@@ -755,7 +755,7 @@ function paymentArrives(): void {
 }
 
 /**
- * What the webhook handler does with a deposit: judge the chain's whole
+ * What the ingestion handler does with a deposit: judge the chain's whole
  * *balance* — not just the amount that arrived — and either send it or record
  * why it can't go.
  *
@@ -775,7 +775,7 @@ function applyPayment(rec: NameRecord, chain: string, amount: bigint): void {
 			? "flow_in_progress"
 			: !clearsFloor(total, p.gasAllowance)
 				? "below_threshold"
-				: /* Rare: the webhook never fired, so nothing picked this up. */
+				: /* Rare: the pipeline never delivered it, so nothing picked it up. */
 					Math.random() < 0.04
 					? "not_detected"
 					: null;

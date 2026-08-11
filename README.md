@@ -44,9 +44,10 @@ allowance per renewal toward the mainnet fees Namepass fronts. Ownership isn't r
 one: a name's biggest supporter can keep it alive without ever holding the keys.
 
 Each address is derived deterministically with CREATE2 — it exists before anyone claims it, anyone
-can verify it offline, and no custodian holds keys. Under the hood, a webhook detects inbound
-payments, [Circle's CCTP](https://developers.circle.com/cctp) moves the USDC to Ethereum, and the
-renewal executes in the same transaction that completes the transfer — no manual intervention.
+can verify it offline, and no custodian holds keys. Under the hood, an indexing pipeline detects
+inbound payments, [Circle's CCTP](https://developers.circle.com/cctp) moves the USDC to Ethereum,
+and the renewal executes in the same transaction that completes the transfer — no manual
+intervention.
 
 The paragraph above describes the design. Only the on-chain part is built, and only on testnet.
 Read the next section before you treat any of it as a running system.

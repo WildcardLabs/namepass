@@ -33,9 +33,9 @@ and $8 on Arbitrum are two separate pots that each have to clear the minimum (~$
 This surprises people and the UI has to say it out loud.
 
 **Automation, as designed.** CREATE2 derives each name's address deterministically. The address
-exists, and any person can verify it before someone claims the name. A webhook detects an inbound
-payment. Circle's CCTP moves the funds to Ethereum. The renewal executes in the transaction that
-completes the transfer. No person intervenes.
+exists, and any person can verify it before someone claims the name. An indexing pipeline detects an
+inbound payment. Circle's CCTP moves the funds to Ethereum. The renewal executes in the transaction
+that completes the transfer. No person intervenes.
 
 The contracts for this path are built. The detection service is not built. Read the next section
 before you describe this automation as working.

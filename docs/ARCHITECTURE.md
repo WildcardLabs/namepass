@@ -915,26 +915,48 @@ Two consequences worth stating plainly:
   address-list webhook, whose cost grows with the watch list. It is why the set can grow without a
   pricing cliff.
 
-### The unclaimed-name blind spot
+### Unclaimed names — read the chain, then self-heal
 
 **A dynamic table only contains addresses that were inserted, and the contract does not require a
 name to be claimed before it can be funded.** Any person can compute any name's deposit address and
-send USDC to it. If that name was never activated, there is no row in `names`, no address in the
-dynamic table, no delivery, no flow, and nothing in the pending-balance card.
+send USDC to it. If that name was never activated there is no row in `names`, no address in the
+dynamic table, and no delivery.
 
-The money is not lost — it sits at the address, and `renew(label)` is permissionless, so anyone can
-push it through. But the automation is blind to it and the app cannot show it. Three options, none
-chosen yet:
+**The app does not need the pipeline to see that money.** The deposit address is derived locally
+from the label, and the balance is a `balanceOf` call. So the Explorer reads it directly:
 
-1. **Accept it** and say so in the UI: a Namepass is monitored from activation.
-2. **Preload** the address set with the top *N* ENS labels so the common case is covered before
-   anyone activates anything.
-3. **Reconcile against the chain** rather than the address list, on the cron, and backfill a `names`
-   row when a deposit is found at a derived address.
+```
+depositAddress(label)  →  balanceOf(address) on each of the four chains  →  render
+```
 
-Option 3 is the only one that closes the gap completely, and the reconciler is the natural place for
-it. This needs a decision before launch — it is the one hole the pipeline design opens that the
-Moralis design also had.
+This needs nothing new. `src/lib/rpc.ts` already has `encodeAddress`, `decodeUint`, and an
+`rpcUrl` parameter on `ethCallBatch`, so it is four batched `eth_call`s — one per chain — and the
+per-chain shape the pending-balance card already renders. It is also the honest read for *every*
+name, claimed or not: the chain balance is the truth and `name_balances` is a cache of it.
+
+**Triggering from that view claims the name as a side effect.** `POST /api/flows/trigger` normalizes
+the label, derives the address, and **upserts the `names` row** before starting the flow. The insert
+trigger adds the address to the dynamic table, so from that moment the name is monitored like any
+other. The blind spot closes itself the first time anybody looks at the name.
+
+Two things this genuinely fixes, and two it does not:
+
+| | |
+|---|---|
+| ✅ Money at an unclaimed address is visible | Read from chain, not from `deposits` |
+| ✅ It can be pushed through, and monitoring starts | Trigger upserts `names`, trigger syncs the table |
+| ❌ Discovery is pull-based | Nobody is watching. Funds sit until a person opens that name. |
+| ❌ It is absent from aggregates | Leaderboard and totals come from `renewals`, which needs a flow |
+
+**The trigger endpoint sponsors gas, so opening it to any label is a cost surface.** The per-chain
+floor is what bounds it: a balance must clear ~$0.67 on its own chain before anything goes out, so
+dusting a thousand derived addresses buys an attacker nothing. Keep the floor check server-side and
+ahead of the row upsert, or the griefing case becomes "make Namepass write a database row per
+address" instead.
+
+The residual — nobody is watching — is acceptable because the funds are never at risk and the
+recovery is permissionless. The reconciler could close it by deriving addresses for a candidate
+label set and checking balances on a schedule, but that is a cost decision rather than a safety one.
 
 ### Hosting
 
@@ -989,8 +1011,10 @@ The order follows the cost of an error, not the visibility of the result. Steps 
   subsidy decision (see Trigger policy).
 - **`bigint` across JSON.** Amounts and durations need to serialize as strings and parse back, or
   the precision `pricing.ts` is careful about dies at the API boundary.
-- **Deposits to names nobody claimed.** See "The unclaimed-name blind spot". Decide between
-  accepting it, preloading the address set, or reconciling against the chain.
+- **Whether the reconciler should hunt for unclaimed deposits.** Reading the chain on view already
+  makes the money visible and recoverable (see "Unclaimed names"). Sweeping a candidate label set on
+  a schedule would close the last gap — nobody is watching — at a cost in RPC calls. A spend
+  decision, not a safety one.
 
 - **Who owns the helper's dust, and how does it get out.** Renewals buy whole seconds, so a
   sub-second remainder is left behind on every single flow. It needs a withdrawal path or it is

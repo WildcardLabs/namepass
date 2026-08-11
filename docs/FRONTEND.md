@@ -301,7 +301,7 @@ genuinely had nothing happen to it. 60% of the time it targets a chain already s
 `below_threshold` (otherwise the accumulation path is statistically invisible); 25% of payments are
 dust ($0.15–$0.60).
 
-**`applyPayment(rec, chain, amount)`** is the webhook handler's logic. It judges the chain's **whole
+**`applyPayment(rec, chain, amount)`** is the ingestion handler's logic. It judges the chain's **whole
 balance**, not the arriving amount — which is what makes accumulation work for free:
 
 ```

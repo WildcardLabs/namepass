@@ -78,8 +78,8 @@ app.
 Namepass: every ENS name gets a permanent, chain-agnostic USDC deposit address. Anyone can send
 USDC to it (no ownership required) and it's converted into ENS renewal time at the exact on-chain
 rate. Addresses are derived deterministically with CREATE2 — no custodian holds keys. In the real
-product a webhook detects payments, Circle's CCTP moves the USDC to Ethereum, and the renewal
-executes in the same transaction that completes the transfer.
+product an indexing pipeline detects payments, Circle's CCTP moves the USDC to Ethereum, and the
+renewal executes in the same transaction that completes the transfer.
 
 **The contracts are real and deployed; the app in front of them is not wired up yet.** Hold both
 halves of that at once:
@@ -237,7 +237,7 @@ on non-Home pages (only Home shows the Explorer/Search/Cost simulator menu).
   seeds every address at **zero** and grows states from simulated payments — a seeded balance has
   no story for why it's there. Only the two anomalies (`not_detected`, `flow_failed`) are
   triggerable; everything else resolves itself. There is **no** "awaiting confirmation" reason —
-  webhooks fire on finalized deposits only — and expired/premium-auction/never-registered are one
+  the pipeline delivers finalized deposits only — and expired/premium-auction/never-registered are one
   `name_inactive` state, since the distinction changes nothing for the funder. `minTrigger()` is
   exported so the UI can name the per-chain minimum rather than just saying "too small".
   **`tickSimulation()` is the only source of pending state** — it's what the live feed drives on an

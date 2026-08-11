@@ -57,11 +57,28 @@ feed updates ever matter, this is the decision to revisit first.
   sender is available on every deposit. The mock's `community`/`treasury` labels were never
   derivable and are dropped.
 
-**What it did not fix.** A dynamic table only contains addresses that were inserted, so a deposit to
-a name nobody activated produces no delivery and never appears in the app. The money is safe and
-`renew(label)` still works, but the automation is blind to it. Recorded under "The unclaimed-name
-blind spot" with three options and no decision. The Moralis design had the same hole for the same
-reason, so this is neither a regression nor something the new stack solved.
+**The unclaimed-name gap, and why it is not a hole.** A dynamic table only contains addresses that
+were inserted, so a deposit to a name nobody activated produces no delivery. The first draft of this
+entry recorded that as an open problem with three options. It isn't one, and the reason is worth
+writing down because the instinct is to solve it in the pipeline:
+
+**The app never needed the pipeline to see that money.** The deposit address is derived locally from
+the label, so the balance is a `balanceOf` call on four chains — and `src/lib/rpc.ts` already has
+`encodeAddress`, `decodeUint`, and a per-chain `rpcUrl`, so it is four batched reads and no new
+dependency. The Explorer reads the chain when a name is viewed. Triggering from there upserts the
+`names` row, which fires the sync trigger, which puts the address in the dynamic table — so the gap
+closes itself the first time anyone looks.
+
+What remains is that **discovery is pull-based**: nobody is watching, so funds at an unclaimed
+address wait until a person opens that name, and they are absent from the leaderboard until a flow
+settles. That is acceptable, because the funds are never at risk and `renew(label)` is
+permissionless. Closing it would mean the reconciler deriving a candidate label set and polling
+balances on a schedule — a spending decision, not a safety one.
+
+One guard that has to survive implementation: **the trigger endpoint sponsors gas**, so the
+per-chain floor check must run server-side *before* the `names` upsert. Otherwise the griefing case
+stops being "waste mainnet gas" — which the ~$0.67 floor already prevents — and becomes "make
+Namepass write a row per derived address."
 
 ### 2026-08-11 — `findExpiry` is authoritative for v1 names too; grace is `expired && renewable`
 
