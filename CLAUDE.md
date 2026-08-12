@@ -162,6 +162,10 @@ Vite's dev server falls back to `index.html` for unknown paths automatically; th
 Vercel deployment needs `vercel.json`'s catch-all rewrite for the same behavior, or direct
 navigation/reload to `/leaderboard` etc. 404s.
 
+**Backend routes live in `routes/api/`, not root `api/`.** Nitro owns these routes and builds one
+Vercel server function. Vercel also discovers a root `api/` directory as Vercel Functions. Using
+both paths makes Vercel build the same Nitro output twice and fail on `.vc-config.json`.
+
 **Every page renders inside `PageShell`, with `Navbar` as its first child.** `PageShell` is the
 rounded card (video background on Home, white elsewhere) that every route shares — this is what
 makes Home/Leaderboard/Supported/Terms/Privacy feel like one app instead of five

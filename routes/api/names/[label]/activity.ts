@@ -1,5 +1,5 @@
-import { activityCursor, activityPageInput, handler, json, pathSegment } from "../../../server/http";
-import { nameActivity } from "../../../server/names";
+import { activityCursor, activityPageInput, handler, json, pathSegment } from "../../../../server/http";
+import { nameActivity } from "../../../../server/names";
 
 export default handler("GET", async (request) => {
 	const { limit, cursor } = activityPageInput(request);

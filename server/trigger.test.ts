@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import triggerHandler from "../api/flows/trigger";
+import triggerHandler from "../routes/api/flows/trigger";
 import { manualTriggerAction, unclaimedTriggerStatus } from "./trigger";
 
 test("manual trigger policy covers create, resume, conflict, and ineligible states", () => {

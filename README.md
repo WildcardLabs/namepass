@@ -191,7 +191,7 @@ contracts/                  Solidity. Testnet only. Not audited.
 
 test/                       61 Foundry tests. Pricing runs against ENS's own oracle.
 
-api/                        Vercel HTTP and cron entry points.
+routes/api/                 Nitro HTTP and cron entry points for Vercel.
 server/                     Validation, database, ingestion, reads, and chain operations.
 workflows/                  Durable Ethereum and CCTP workflow entry points and steps.
 drizzle/                    PostgreSQL migration and metadata.

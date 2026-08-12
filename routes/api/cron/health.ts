@@ -1,6 +1,6 @@
-import { requireCronAuthorization } from "../../server/cron";
-import { handler, json } from "../../server/http";
-import { operationsHealth } from "../../server/operations";
+import { requireCronAuthorization } from "../../../server/cron";
+import { handler, json } from "../../../server/http";
+import { operationsHealth } from "../../../server/operations";
 
 export default handler("GET", async (request) => {
 	requireCronAuthorization(request.headers.get("authorization"));

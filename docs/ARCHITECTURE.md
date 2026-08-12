@@ -1247,6 +1247,10 @@ All public data is public chain-derived data. The frontend reads it through Verc
 connect directly to Neon. There is no user account or browser database credential in the first
 version.
 
+Nitro owns all server routes. Keep them in `routes/api/`. Do not use a root `api/` directory.
+Vercel also treats a root `api/` directory as Vercel Functions, which makes it build the same Nitro
+server output twice.
+
 ### Write endpoints
 
 - `POST /api/names/activate`

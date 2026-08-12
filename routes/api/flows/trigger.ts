@@ -1,5 +1,5 @@
-import { ApiError, handler, json, readObject, requiredString } from "../../server/http";
-import { triggerFlow } from "../../server/trigger";
+import { ApiError, handler, json, readObject, requiredString } from "../../../server/http";
+import { triggerFlow } from "../../../server/trigger";
 
 export default handler("POST", async (request) => {
 	const body = await readObject(request, ["name", "chainId"]);

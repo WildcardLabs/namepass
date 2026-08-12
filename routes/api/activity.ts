@@ -1,5 +1,5 @@
-import { activityCursor, activityPageInput, handler, json } from "../server/http";
-import { activity, PUBLIC_CACHE } from "../server/reads";
+import { activityCursor, activityPageInput, handler, json } from "../../server/http";
+import { activity, PUBLIC_CACHE } from "../../server/reads";
 
 export default handler("GET", async (request) => {
 	const { limit, cursor } = activityPageInput(request);

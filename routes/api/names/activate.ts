@@ -1,5 +1,5 @@
-import { handler, json, readObject, requiredString } from "../../server/http";
-import { activateName } from "../../server/names";
+import { handler, json, readObject, requiredString } from "../../../server/http";
+import { activateName } from "../../../server/names";
 
 export default handler("POST", async (request) => {
 	const body = await readObject(request, ["name"]);
