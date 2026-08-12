@@ -10,7 +10,7 @@ import { startRenewalWorkflow } from "./workflows";
 import { chainById, SERVER_CHAINS, type ChainKey } from "../src/lib/chains";
 
 const RECOVERY_LEASE = 0x4e414d45;
-const RECOVERY_LIMIT = 50;
+const RECOVERY_LIMIT = 10;
 const RETENTION_LIMIT = 500;
 export const STARTING_STALE_MS = 5 * 60 * 1_000;
 const STARTING = "starting:";
@@ -37,7 +37,7 @@ export interface RecoveryBatch {
 }
 
 export interface RecoveryActions {
-	startFlow(flowId: string): Promise<void>;
+	startFlow(flowId: string): Promise<unknown>;
 	scanName(name: { id: string; depositAddress: string; chainIds: readonly number[] }): Promise<readonly string[]>;
 	broadcastIntent(intentId: string): Promise<unknown>;
 }
@@ -126,24 +126,23 @@ async function scanUnscannedName(name: { id: string; depositAddress: string; cha
 	return created;
 }
 
-function staleStartingMarker(now: Date) {
-	return and(
-		like(flows.workflowRunId, `${STARTING}%`),
-		lte(flows.updatedAt, new Date(now.getTime() - STARTING_STALE_MS)),
-	);
-}
-
 export function queuedRecoveryCandidate(now: Date) {
 	return and(
 		eq(flows.status, "queued"),
-		or(isNull(flows.workflowRunId), staleStartingMarker(now)),
+		or(
+			isNull(flows.workflowRunId),
+			lte(flows.updatedAt, new Date(now.getTime() - STARTING_STALE_MS)),
+		),
 	);
 }
 
 export function overdueUnclaimedRecoveryCandidate(now: Date) {
 	return and(
 		eq(flows.status, "unclaimed"),
-		or(isNull(flows.workflowRunId), staleStartingMarker(now)),
+		or(
+			isNull(flows.workflowRunId),
+			lte(flows.updatedAt, new Date(now.getTime() - STARTING_STALE_MS)),
+		),
 		lte(flows.nextActionAt, now),
 	);
 }
@@ -193,7 +192,7 @@ async function clearStaleStartingMarkers(batch: RecoveryBatch, now: Date): Promi
 	]);
 }
 
-/** Repair safe-to-restart rows. Existing workflow runs remain exclusively owned by Workflow. */
+/** Repair safe-to-restart rows. The starter verifies stale Workflow owners before replacement. */
 export async function recoverOperations(now = new Date()): Promise<RecoveryReport> {
 	const report = await withDatabaseLease(RECOVERY_LEASE, async () => {
 		const batch = await recoveryBatch(now);

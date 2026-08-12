@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { claimIntentAction, matchesRecordedCctpDepositTransfer } from "./cctp-renewal";
 import { transactionIntentAction } from "./transactions";
-import { cctpResumeStage } from "../workflows/cctp-renewal";
+import { cctpDepositAction, cctpResumeStage } from "../workflows/cctp-renewal";
 import type { Address } from "viem";
 
 test("an unclaimed flow resumes the same claim and never returns to the burn", () => {
@@ -23,6 +23,12 @@ test("duplicate execution stops after settlement", () => {
 		cctpResumeStage({ status: "settled", cctpMessage: "0x1234", cctpAttestation: "0xabcd" }),
 		"done",
 	);
+});
+
+test("a cancelled deposit stops before CCTP eligibility and burn", () => {
+	assert.equal(cctpDepositAction("waiting"), "wait");
+	assert.equal(cctpDepositAction("ready"), "proceed");
+	assert.equal(cctpDepositAction("cancelled"), "cancelled");
 });
 
 test("CCTP event-backed flows require the recorded transfer amount", () => {

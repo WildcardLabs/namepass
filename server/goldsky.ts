@@ -133,6 +133,12 @@ export function externalRenewalProjection(
 	};
 }
 
+export function ensTokenLabelHash(tokenId: string): string {
+	const value = BigInt(tokenId);
+	if (value < 0n || value >= 1n << 256n) throw new Error("The ENS token ID is not uint256.");
+	return `0x${value.toString(16).padStart(64, "0")}`;
+}
+
 function invalid(field: string): never {
 	throw new ApiError(400, "invalid_goldsky_event", `Invalid Goldsky field: ${field}.`);
 }
@@ -604,8 +610,9 @@ export const postgresGoldskyStore: GoldskyStore = {
 					}
 					const expiry = new Date(Number(String(facts.new_expiry)) * 1_000);
 					if (!Number.isFinite(expiry.getTime())) return;
+					const labelHash = ensTokenLabelHash(String(facts.token_id));
 					await tx.update(names).set({ currentExpiry: expiry, ensSyncedAt: event.blockTime })
-						.where(eq(names.normalizedLabel, String(facts.label)));
+						.where(eq(names.labelHash, labelHash));
 				},
 				async ensureFlow(nameId, chainId, amount, depositEventId) {
 					const [created] = await tx

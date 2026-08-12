@@ -12,7 +12,6 @@ import { verifiedChainClient } from "./transactions";
 import { startRenewalWorkflow } from "./workflows";
 
 const ERC20_ABI = parseAbi(["function balanceOf(address) view returns (uint256)"]);
-const GAS_ALLOWANCE = 100_000n;
 const TERMINAL = ["settled", "cancelled", "failed"] as Array<typeof flows.$inferSelect.status>;
 
 export interface TriggerResult {
@@ -137,7 +136,7 @@ export async function triggerFlow(name: string, chainId: number): Promise<Trigge
 	action = manualTriggerAction(
 		active?.status,
 		true,
-		balance > GAS_ALLOWANCE && balance >= minimumTriggerAmount(chainId),
+		balance >= minimumTriggerAmount(chainId),
 	);
 	if (action === "balance_ineligible") {
 		throw new ApiError(422, "balance_ineligible", "The chain balance is below the trigger minimum.");

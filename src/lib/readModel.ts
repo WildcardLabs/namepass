@@ -59,7 +59,8 @@ function balanceReason(name: PublicName, flow: PublicFlow | undefined, balance: 
 	if (flow) return holdReason(flow);
 	if (!name.renewableBy) return "name_inactive";
 	const minimum = minTrigger(balance.chainId);
-	return minimum === undefined || micro(balance.amount) < minimum ? "unknown" : "not_detected";
+	if (minimum === undefined) return "unknown";
+	return micro(balance.amount) < minimum ? "below_threshold" : "not_detected";
 }
 
 function safeMilliseconds(seconds: bigint): number | undefined {
@@ -77,10 +78,14 @@ function flowStatus(flow: PublicFlow): FlowStatus {
 }
 
 function holdReason(flow: PublicFlow): HoldReason {
+	if (flow.status === "unclaimed") return "flow_in_progress";
 	if (flow.status === "failed") return "flow_failed";
+	if (flow.holdReason === "origin_reverted") return "flow_failed";
 	if (flow.holdReason === "balance_recovery") return "not_detected";
-	if (flow.holdReason?.includes("threshold")) return "below_threshold";
-	return "name_inactive";
+	if (flow.holdReason === "amount_below_policy") return "below_threshold";
+	if (flow.holdReason === "name_not_renewable") return "name_inactive";
+	if (!["settled", "cancelled"].includes(flow.status)) return "flow_in_progress";
+	return "unknown";
 }
 
 function setName(name: PublicName, activity?: NameActivityRead): NameRecord {
@@ -98,7 +103,9 @@ function setName(name: PublicName, activity?: NameActivityRead): NameRecord {
 		balances: sourceBalances
 			.filter((balance) => balance.amount === null || micro(balance.amount) > 0n)
 			.map((balance) => {
-				const flow = sourceFlows.find((candidate) => candidate.originChainId === balance.chainId && ["held", "failed"].includes(candidate.status));
+				const flow = sourceFlows.find((candidate) =>
+					candidate.originChainId === balance.chainId
+					&& !["settled", "cancelled"].includes(candidate.status));
 				return { chainId: balance.chainId, chain: chainName(balance.chainId), amount: balance.amount === null ? null : micro(balance.amount), holdReason: balanceReason(name, flow, balance) };
 			}),
 	};

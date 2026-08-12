@@ -7,6 +7,22 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-12 — Nitro owns Vercel routing, and recovery verifies stale Workflow owners
+
+Nitro emits the Vercel API routes and the SPA fallback. A root `api/` directory made Vercel build
+the same Nitro function twice. A manual catch-all rewrite then ran before the generated API routes
+and sent `/api/*` requests to `index.html`. Backend routes now live only in `routes/api/`, and
+`vercel.json` contains only cron configuration. Nitro owns the route order.
+
+A stale `workflow_run_id` is not proof that a Workflow run is dead. Clearing it by age alone can
+start a second run for the same money movement. Recovery can select a stale owner, but the starter
+uses Vercel Workflow `getRun()` first. It keeps pending and running runs. It replaces
+only a missing or terminal run.
+
+The initial Vercel Firewall limits are 10 activation requests and 20 trigger requests per minute
+for one source IP. These endpoints are human actions that make several RPC calls. The limits start
+low to control provider cost and can change after measured legitimate traffic.
+
 ### 2026-08-11 — Initial production scope closes the remaining backend questions
 
 The first production version now has decisions for chain scope, relayer funding, public sender

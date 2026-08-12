@@ -1249,7 +1249,8 @@ version.
 
 Nitro owns all server routes. Keep them in `routes/api/`. Do not use a root `api/` directory.
 Vercel also treats a root `api/` directory as Vercel Functions, which makes it build the same Nitro
-server output twice.
+server output twice. Do not add a manual SPA rewrite to `vercel.json`. Nitro emits the SPA fallback
+after its API routes. A Vercel catch-all rewrite runs first and sends `/api/*` to `index.html`.
 
 ### Write endpoints
 
@@ -1271,7 +1272,8 @@ server output twice.
 - `GET /api/config/public`
 
 Use cursor pagination for activity. Cap page sizes. Set short public cache headers for aggregate
-reads. Do not cache active flow detail.
+reads. Do not cache flow detail or per-name reads. Per-name reads contain live balances and active
+flow state for the frontend's fast polling loop.
 
 Both activity endpoints return canonical `Renewed` rows. They do not treat a deposit as a completed
 renewal. The receiver recomputes name totals from canonical events after every create, delete, or
@@ -1326,15 +1328,19 @@ Polling is sufficient and has fewer failure modes.
 Vercel Cron calls `GET /api/cron/recover`. This is a control-plane repair job. It is not a chain
 indexer.
 
-It uses a transaction-scoped database advisory lock. It finds bounded batches of:
+It uses a transaction-scoped database advisory lock. It finds at most 10 rows from each recovery
+category per run:
 
-- queued flows with no workflow run ID
-- unclaimed CCTP flows whose next action time passed and that have no workflow run ID
+- queued flows with no workflow run ID or a stale workflow owner
+- unclaimed CCTP flows whose next action time passed and have no workflow run ID or a stale owner
 - signed transactions that were never broadcast
 - names with a non-empty `unscanned_chain_ids`
 
-For a queued or due unclaimed flow, it starts the same idempotent workflow. It never replaces an
-existing Workflow run. The workflow itself owns active Iris polling. For a stored signed
+For a queued or due unclaimed flow, it starts the same idempotent workflow. A stale database owner
+does not prove that the Workflow run is dead. The starter checks `getRun(runId).exists` and
+`getRun(runId).status`. It replaces the owner only when Vercel reports that the run is missing or
+terminal. It never replaces a pending or running Workflow run. The workflow itself owns
+active Iris polling. For a stored signed
 transaction, it rebroadcasts the exact stored bytes. For an unscanned name, it re-reads only the
 listed chains, removes each chain that answers, and queues a flow if the balance is now eligible.
 
@@ -1710,10 +1716,10 @@ or `bigint`, polls active flows, and renders public sender, executor, evidence, 
 ### Phase 7 — operations and hardening
 
 **Partially implemented in code, not deployed:** authenticated Vercel recovery, health, and
-retention crons exist. Recovery uses a bounded transaction-scoped lease. It repairs unowned queued
-flows, due unclaimed CCTP flows, unscanned activation chains, and prepared unbroadcast
-transactions. The health check returns database and per-chain gas status only. It does not return
-keys, URLs, addresses, balances, raw payloads, or signed transactions. Raw payload deletion is
+retention crons exist. Recovery uses a bounded transaction-scoped lease. It repairs unowned or
+stale-owned queued flows, due unclaimed CCTP flows, unscanned activation chains, and prepared
+unbroadcast transactions. The health check returns database and per-chain gas status only. It does
+not return keys, URLs, addresses, balances, raw payloads, or signed transactions. Raw payload deletion is
 limited to 500 expired rows per daily run; normalized event columns and event rows remain.
 
 - Add dashboards and alerts.

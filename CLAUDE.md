@@ -159,8 +159,8 @@ bugs this repo has shipped would have passed against a mocked oracle. If you cha
 (`"home" | "leaderboard" | "supported" | "terms" | "privacy"`), synced to `window.location` via
 `history.pushState`/`popstate` — see `pathToPage`/`pageToPath`. There's no router dependency.
 Vite's dev server falls back to `index.html` for unknown paths automatically; the production
-Vercel deployment needs `vercel.json`'s catch-all rewrite for the same behavior, or direct
-navigation/reload to `/leaderboard` etc. 404s.
+Nitro renderer supplies the same fallback in the Vercel output. Do not add a catch-all rewrite to
+`vercel.json`. Vercel applies that rewrite before Nitro's API routes and sends `/api/*` to HTML.
 
 **Backend routes live in `routes/api/`, not root `api/`.** Nitro owns these routes and builds one
 Vercel server function. Vercel also discovers a root `api/` directory as Vercel Functions. Using

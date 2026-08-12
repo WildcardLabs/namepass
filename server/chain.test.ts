@@ -63,3 +63,24 @@ test("ENS reads verify the chain and ABI-encode the normalized label", async () 
 		else process.env[rpcVariable] = previousRpc;
 	}
 });
+
+test("ENS reads reject an incomplete RPC batch", async () => {
+	const rpcVariable = "ETHEREUM_SEPOLIA_RPC_URL";
+	const previousRpc = process.env[rpcVariable];
+	const previousFetch = globalThis.fetch;
+	process.env[rpcVariable] = "https://rpc.test";
+	globalThis.fetch = async (_input, init) => {
+		const body = JSON.parse(String(init?.body)) as { method: string } | Array<{ id: number }>;
+		if (!Array.isArray(body)) {
+			return Response.json({ jsonrpc: "2.0", id: 0, result: "0xaa36a7" });
+		}
+		return Response.json([{ jsonrpc: "2.0", id: body[0]!.id, result: `0x${"1".padStart(64, "0")}` }]);
+	};
+	try {
+		await assert.rejects(() => readEnsState("vitalik"), /RPC response is incomplete/);
+	} finally {
+		globalThis.fetch = previousFetch;
+		if (previousRpc === undefined) delete process.env[rpcVariable];
+		else process.env[rpcVariable] = previousRpc;
+	}
+});

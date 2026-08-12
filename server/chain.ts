@@ -78,7 +78,7 @@ async function calls(
 		}
 		results[row.id] = row.result.replace(/^0x/, "");
 	}
-	if (results.some((result) => result === undefined)) throw new Error("The RPC response is incomplete.");
+	if (seen.size !== requests.length) throw new Error("The RPC response is incomplete.");
 	return results;
 }
 

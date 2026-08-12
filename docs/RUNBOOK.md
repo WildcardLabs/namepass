@@ -54,6 +54,18 @@ Use test-only values for preview and stable testnet. Put production values in th
 environment only. Do not expose a server secret through a `VITE_*` variable. In particular, keep
 a relayer key, a database URL, and the webhook secret out of preview unless the value is test-only.
 
+Before stable-testnet funding, add Vercel Firewall rate limits for these public write endpoints:
+
+- `POST /api/names/activate`: 10 requests per minute for one source IP.
+- `POST /api/flows/trigger`: 20 requests per minute for one source IP.
+
+These are conservative initial limits for human actions. Change them only after measured legitimate
+traffic shows that they block ordinary use or do not control provider cost.
+
+Do not apply these rules to the Goldsky webhook or cron endpoints. Verify that an excess request is
+blocked and that ordinary activation and retry requests still pass. Record the rule IDs and the
+test time in the private operator record.
+
 ### Neon
 
 Use a pooled URL for application traffic. Use a direct URL for migrations and the Goldsky reader.
@@ -137,9 +149,30 @@ balance, raw Goldsky payload, or signed transaction.
 | `/api/cron/health` | Every 5 minutes | Checks Neon, each RPC chain ID, and relayer gas status. |
 | `/api/cron/retention` | Daily at 03:17 UTC | Clears at most 500 expired raw payloads. It keeps normalized chain-event data. |
 
-The recovery job has a transaction-scoped PostgreSQL advisory lock. It only restarts a queued
-flow with no workflow ID, or an unclaimed flow with no workflow ID whose retry time has passed. It
-does not replace a live Workflow run. The CCTP workflow owns its active Iris polling.
+The recovery job has a transaction-scoped PostgreSQL advisory lock. It takes at most 10 rows from
+each recovery category. It checks stale workflow IDs through Vercel Workflow. It restarts a flow
+only when the stored run is missing or terminal. It does not replace a pending or running
+Workflow run. The CCTP workflow owns its active Iris polling.
+
+### Pending transaction replacement
+
+The testnet service does not automatically replace a pending transaction with a higher-fee
+transaction. A pending transaction can block later nonces on the same chain.
+
+If this happens on stable testnet:
+
+1. Stop new stable-testnet funding and pause the recovery cron.
+2. Confirm through two RPC providers that the stored transaction has no receipt and that its nonce
+   is still pending for the configured relayer.
+3. Do not send a transaction with a different nonce. Do not edit the intent or flow rows by hand.
+4. Prepare a reviewed hotfix that signs the same chain ID, sender, nonce, destination, value, and
+   call data with sufficient replacement fees. The hotfix must store the new signed bytes, hash,
+   fees, and attempt before it broadcasts them.
+5. Deploy the hotfix to stable testnet. Confirm the replacement receipt and the expected contract
+   events. Then restore the recovery cron and funding.
+
+Production remains blocked until the repository has an automated same-nonce replacement path and
+a test that proves it cannot change the transaction intent.
 
 ### Relayer gas thresholds
 
@@ -176,7 +209,8 @@ Run all drills on the stable testnet environment first. Do not edit production r
 
 1. **Queued flow:** create a testnet eligible deposit. Stop a Workflow start after the flow is
    queued. Call the recovery endpoint. Confirm that one workflow starts and that the same flow ID
-   settles.
+   settles. Repeat with a missing or terminal real run ID. Confirm that recovery replaces it.
+   Repeat with a pending run ID. Confirm that recovery does not start a second run.
 2. **Stored transaction:** use a testnet flow that has signed bytes but no broadcast time. Call the
    recovery endpoint. Confirm that the stored transaction hash is broadcast. Confirm the receipt
    before a flow becomes settled.

@@ -25,6 +25,13 @@ export function cctpResumeStage(flow: {
 	return "claim";
 }
 
+export function cctpDepositAction(
+	result: "ready" | "waiting" | "cancelled",
+): "proceed" | "wait" | "cancelled" {
+	if (result === "waiting") return "wait";
+	return result === "cancelled" ? "cancelled" : "proceed";
+}
+
 /** A durable workflow owns one L2 flow and one Circle message. */
 export async function cctpRenewal(
 	flowId: string,
@@ -38,7 +45,12 @@ export async function cctpRenewal(
 
 	// A stored Circle message proves that the origin burn already happened.
 	if (cctpResumeStage(flow) === "origin") {
-		while ((await confirmCctpDepositStep(flowId)) === "waiting") await sleep("30s");
+		let deposit = cctpDepositAction(await confirmCctpDepositStep(flowId));
+		while (deposit === "wait") {
+			await sleep("30s");
+			deposit = cctpDepositAction(await confirmCctpDepositStep(flowId));
+		}
+		if (deposit === "cancelled") return "cancelled";
 		const eligibility = await checkCctpEligibilityStep(flowId);
 		if (eligibility !== "ready") return eligibility;
 		await simulateCctpOriginStep(flowId);

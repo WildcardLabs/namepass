@@ -183,6 +183,8 @@ export async function checkCctpEligibility(flowId: string): Promise<"ready" | "h
 	"use step";
 	const flow = await loadCctpFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
+	if (flow.status === "settled") return "ready";
+	if (flow.status === "cancelled") return "cancelled";
 	await setFlowStatus(flowId, "checking_name");
 	const chain = originChain(flow);
 	const rpc = await verifiedChainClient(chain);

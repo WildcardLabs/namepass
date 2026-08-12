@@ -70,7 +70,7 @@ test("cron authorization rejects missing and wrong secrets", () => {
 	assert.equal(cronAuthorized("Bearer test", "test"), true);
 });
 
-test("recovery reclaims only stale queued or due unclaimed start markers", () => {
+test("recovery checks stale queued and due unclaimed workflow owners", () => {
 	const now = new Date("2026-08-11T12:00:00.000Z");
 	const db = drizzle.mock({ schema });
 	const queued = db.select().from(schema.flows).where(queuedRecoveryCandidate(now)).toSQL();
