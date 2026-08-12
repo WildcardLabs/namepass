@@ -111,11 +111,14 @@ measured need and a new decision entry. The chain remains authoritative for bala
 and renewals.
 
 **The initial production scope is settled.** Mainnet starts on Ethereum, Base, and Arbitrum; Arc
-stays testnet-only until Circle and Goldsky support Arc mainnet. Production starts on Vercel Pro,
-Neon Launch, and Goldsky Scale. Raw Goldsky payloads expire after 30 days, but normalized event
-facts remain. Public activity shows raw sender and executor addresses. The treasury funds the
-relayer manually; the architecture does not require a specific treasury wallet type. An unclaimed
-CCTP flow remains public and resumes the same message; it never burns
+stays testnet-only until Circle and Goldsky support Arc mainnet. Stable testnet uses the free
+Goldsky Starter plan. Its allowance covers the one continuously active small `namepass-testnet`
+pipeline, which reads all four testnet chains. Goldsky Scale is a production decision and is
+required only if the testnet and mainnet pipelines must run at the same time. Production starts on
+Vercel Pro and Neon Launch. Raw Goldsky payloads expire after 30 days, but normalized event facts
+remain. Public activity shows raw sender and executor addresses. The treasury funds the relayer
+manually; the architecture does not require a specific treasury wallet type. An unclaimed CCTP
+flow remains public and resumes the same message; it never burns
 the same USDC again. See `docs/ARCHITECTURE.md` and the latest entry in `docs/DECISIONS.md` before
 changing these choices.
 

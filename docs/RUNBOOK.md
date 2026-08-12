@@ -31,6 +31,7 @@ The private operator record must name one primary operator and one backup operat
 | Neon least-privilege roles | Not created | Operator action required |
 | Vercel server environment variables | None | Incomplete |
 | Goldsky project | Not selected | Operator action required |
+| Goldsky stable testnet plan | Starter | Selected; free allowance covers `namepass-testnet` |
 
 ## Phase 0 checks
 
@@ -103,6 +104,11 @@ Do not give it application-table write access. Use a direct Neon connection stri
 `DATABASE_URL` only.
 
 ### Goldsky
+
+Use Goldsky Starter for stable testnet. Its free allowance covers the one continuously active small
+`namepass-testnet` pipeline, which reads all four testnet chains. Do not require Scale for Phase 0
+or stable-testnet setup. Decide on Scale at production launch, and use it only if
+`namepass-testnet` and `namepass-mainnet` must run concurrently.
 
 Install and authenticate the CLI in a private terminal:
 
@@ -256,9 +262,10 @@ forge install foundry-rs/forge-std --no-git
 
 ## External gates
 
-The project owner must confirm Vercel Pro, Neon Launch, and Goldsky Scale before production
-purchase or deployment. Provider names, prices, and limits can change. Verify them again before
-purchase.
+The project owner must confirm Vercel Pro and Neon Launch before production purchase or deployment.
+Goldsky Starter needs no purchase for stable testnet. At production launch, decide whether
+`namepass-testnet` and `namepass-mainnet` must run concurrently. Require Goldsky Scale only if they
+must. Provider names, prices, and limits can change. Verify them again before purchase.
 
 Phase 0 is complete only when the $0.50 trigger floor is configured on each stable-testnet chain,
 all required CLIs authenticate, the stable testnet environments exist, the least-privilege roles

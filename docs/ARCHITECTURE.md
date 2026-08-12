@@ -544,9 +544,15 @@ therefore small, append-only application data, not an expiring cache.
 
 Use one Turbo pipeline for each stable application environment:
 
-- `namepass-testnet` targets the four testnets and the stable testnet Vercel deployment.
+- `namepass-testnet` is one pipeline that targets all four testnets and the stable testnet Vercel
+  deployment.
 - `namepass-mainnet` will target the audited mainnet deployments.
 - Pull-request previews do not receive Goldsky webhooks.
+
+Goldsky Starter is the current stable-testnet plan. Its free allowance covers the one continuously
+active small `namepass-testnet` pipeline. Goldsky Scale is required only if `namepass-testnet` and
+`namepass-mainnet` must run at the same time. That choice belongs to the production launch decision,
+not Phase 0 or stable-testnet setup.
 
 Each pipeline has three event families. Two of them read contracts Namepass does not own. That is
 required, not optional: without them the Explorer cannot link a renewal to the transactions behind
@@ -1394,20 +1400,25 @@ Run the job at a short interval on the Vercel plan that supports it. Protect it 
 The Goldsky pipeline must point to a stable domain. Do not point it to a Vercel deployment URL that
 changes on every build.
 
-### Provider plans for initial production
+### Provider plans for stable testnet and initial production
 
-Use these plans for the first production version. Verify the plan names and limits again before
-purchase because providers can change them.
+Use these plans for stable testnet and the first production version. Verify the plan names and
+limits again before purchase because providers can change them.
 
 | Provider | Initial plan | Reason |
 |---|---|---|
 | Vercel | Pro | The recovery cron needs a per-minute schedule. Hobby permits only daily schedules. Pro also supplies usage-based Workflow and Function capacity. |
 | Neon | Launch | The expected data and connection load is small. Launch supplies pooled connections, autoscaling, up to a seven-day restore window, and enough branches for the first preview workflow. Disable scale-to-zero on the production compute. |
-| Goldsky | Scale | Production and stable testnet require two concurrent pipelines. Scale removes the one-pipeline Starter limit and supplies priority email support with a 24-hour support target. |
+| Goldsky | Starter for stable testnet | The free allowance covers one continuously active small pipeline. The single `namepass-testnet` pipeline reads all four testnet chains. |
 
 Plan evidence: [Vercel Cron usage and pricing](https://vercel.com/docs/cron-jobs/usage-and-pricing),
 [Neon pricing](https://neon.com/pricing), and
-[Goldsky pricing](https://docs.goldsky.com/pricing/summary).
+[Goldsky pricing](https://goldsky.com/pricing) with its
+[pricing documentation](https://docs.goldsky.com/pricing/summary).
+
+At production launch, decide whether stable testnet must remain active beside mainnet. Use Goldsky
+Scale only if `namepass-testnet` and `namepass-mainnet` must run concurrently. Do not require Scale
+during Phase 0 or stable-testnet setup.
 
 Start Goldsky on an `s` pipeline. Increase the resource size only after pipeline lag or transform
 metrics prove that it is necessary. Start Neon at its smallest practical compute size and set a cost
@@ -1605,7 +1616,9 @@ Each phase ends with a mergeable PR and an explicit verification gate.
 ### Phase 0 — settle configuration and access
 
 - Configure the $0.50 trigger floor on every launch chain.
-- Purchase Vercel Pro, Neon Launch, and Goldsky Scale for production.
+- Confirm Vercel Pro and Neon Launch for production.
+- Use Goldsky Starter for stable testnet. Defer Scale to the production decision, and require it
+  only if `namepass-testnet` and `namepass-mainnet` must run concurrently.
 - Create stable testnet Vercel, Neon, and Goldsky environments.
 - Create least-privilege database roles.
 - Create test relayer accounts and gas them.
@@ -1784,7 +1797,9 @@ Settled points:
 - Raw Goldsky payloads remain for 30 days. Normalized event facts remain without a time limit.
 - An unclaimed flow has explicit public copy, evidence links, automatic retry, and an idempotent
   manual retry action when the name becomes renewable.
-- Initial production uses Vercel Pro, Neon Launch, and Goldsky Scale.
+- Stable testnet uses Goldsky Starter and one `namepass-testnet` pipeline for all four chains.
+  Initial production uses Vercel Pro and Neon Launch. Goldsky Scale is required only if the
+  stable-testnet and mainnet pipelines must run concurrently.
 - **Helper dust is the deployer's responsibility and is handled contract-side.** Renewals buy whole
   seconds, so a sub-second remainder stays in the helper on every flow. `DustWithdrawn` records the
   owner withdrawal. **No UI, and nothing in the schema.** It is rounding residue with no individual

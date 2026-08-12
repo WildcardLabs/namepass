@@ -59,11 +59,13 @@ origin transaction, Circle nonce, and latest retry. When ENS reports that the na
 idempotent `Retry renewal` action resumes the same flow. It never starts another burn. Automatic
 retry remains the normal path.
 
-**Initial production uses Vercel Pro, Neon Launch, and Goldsky Scale.** Vercel Pro is required for
-the per-minute recovery cron. Neon Launch matches the small initial workload and supplies a
-seven-day restore window. Goldsky Scale supports the stable testnet and production pipelines at the
-same time and supplies priority support. The implementation starts with small compute sizes and
-scales only from measured load. Plan names and limits must be checked again before purchase.
+**Stable testnet uses Goldsky Starter; Scale is conditional at production.** The free Starter
+allowance covers one continuously active small `namepass-testnet` pipeline, and that one pipeline
+reads all four testnet chains. Scale is required only if `namepass-testnet` and `namepass-mainnet`
+must run concurrently. This is a production decision, not a Phase 0 or stable-testnet requirement.
+Initial production still uses Vercel Pro for the per-minute recovery cron and Neon Launch for the
+small workload and seven-day restore window. Start with small compute sizes and scale only from
+measured load. Check plan names and limits again before purchase.
 
 ### 2026-08-11 — Trigger floor, helper dust, and what happens when a balance read fails
 
