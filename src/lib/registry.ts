@@ -1,6 +1,7 @@
 import { labelLength, solve, YEAR_SECONDS } from "./pricing";
 import { GAS_ALLOWANCE } from "./fees";
 import { depositAddress, normalizeLabel } from "./namepass";
+import { ACTIVE_CHAINS, HUB_CHAIN } from "./chains";
 
 /**
  * MODEL
@@ -260,7 +261,7 @@ export interface NameRecord {
 	pending: PendingState;
 }
 
-const CHAINS = ["Base", "Arbitrum", "Ethereum", "Arc"];
+const CHAINS = ACTIVE_CHAINS.map((chain) => chain.name);
 const FUNDERS = ["owner", "community", "treasury", "agent", "anon", "contributor"];
 
 /**
@@ -299,13 +300,13 @@ const DAY = 86_400_000;
 
 function buildSteps(rand: () => number, chain: string): FlowStep[] {
 	const steps: FlowStep[] = [{ kind: "deposit", chain, tx: `0x${hex(rand, 62)}` }];
-	if (chain !== "Ethereum") {
+	if (chain !== HUB_CHAIN.name) {
 		steps.push({ kind: "burn", chain, tx: `0x${hex(rand, 62)}` });
 	}
 	/* Mint and renewal are one transaction — the renewal rides the CCTP hook,
 	   so it either lands with the mint or reverts with it, leaving the message
 	   attested and replayable rather than the funds stranded. */
-	steps.push({ kind: "renewal", chain: "Ethereum", tx: `0x${hex(rand, 62)}` });
+	steps.push({ kind: "renewal", chain: HUB_CHAIN.name, tx: `0x${hex(rand, 62)}` });
 	return steps;
 }
 
@@ -325,7 +326,7 @@ function buildName(
 			id: `${name}-0`,
 			kind: "activated",
 			at: activatedAt,
-			chain: "Ethereum",
+			chain: HUB_CHAIN.name,
 			amountDeposited: 0n,
 			gasAllowance: 0n,
 			amountApplied: 0n,
@@ -565,7 +566,7 @@ export function claimName(input: string): NameRecord {
 				id: `${name}-0`,
 				kind: "activated",
 				at: now,
-				chain: "Ethereum",
+				chain: HUB_CHAIN.name,
 				amountDeposited: 0n,
 				gasAllowance: 0n,
 				amountApplied: 0n,
@@ -605,7 +606,7 @@ export function advanceFlow(rec: NameRecord, chain: string): boolean {
 	const flow = rec.pending.flows.find((f) => f.chain === chain);
 	if (!flow) return false;
 	if (flow.status === "signing") {
-		flow.status = chain === "Ethereum" ? "claiming" : "burning";
+		flow.status = chain === HUB_CHAIN.name ? "claiming" : "burning";
 		return true;
 	}
 	if (flow.status === "burning") {

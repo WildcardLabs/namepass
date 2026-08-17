@@ -3,15 +3,16 @@ import { memo, useEffect, useState } from "react";
 import { Trophy } from "lucide-react";
 import { solve, YEAR_SECONDS } from "../lib/pricing";
 import { fmtMonthYear } from "../lib/format";
+import { chainByKey } from "../lib/chains";
 import ShineBorder from "./magicui/ShineBorder";
 import AnimatedShinyText from "./magicui/AnimatedShinyText";
 
 /* Inbound payments, cycled to show money resolving into renewal time.
    `label` is the display string; `amount` is the exact USDC charged (6dp). */
 const INBOUND = [
-	{ chain: "Base", label: "$8", amount: 8_000010n },
-	{ chain: "Arbitrum", label: "$27", amount: 27_000032n },
-	{ chain: "Arc", label: "$14", amount: 14_000017n },
+	{ chain: chainByKey("base").name, label: "$8", amount: 8_000010n },
+	{ chain: chainByKey("arbitrum").name, label: "$27", amount: 27_000032n },
+	{ chain: chainByKey("arc").name, label: "$14", amount: 14_000017n },
 ];
 
 const START_EXPIRY = Date.UTC(2029, 2, 18);

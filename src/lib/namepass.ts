@@ -30,7 +30,7 @@
 import { keccak_256 } from "@noble/hashes/sha3";
 import { ens_normalize } from "@adraffy/ens-normalize";
 
-import { IS_TESTNET } from "./tokens";
+import { HUB_CHAIN, IS_TESTNET } from "./chains";
 
 /**
  * The deployed factory — **testnet set, Sepolia hub**.
@@ -41,7 +41,7 @@ import { IS_TESTNET } from "./tokens";
  * mainnet factory today. When one exists, this constant and `IS_TESTNET` move
  * together, exactly as `tokens.ts` does.
  */
-export const NAMEPASS_FACTORY = "0xe0b155Fdb1104824d7E0568aeAFCC52823EDD00F";
+export const NAMEPASS_FACTORY = HUB_CHAIN.factoryAddress!;
 
 /** `keccak256("NAMEPASS_DEPOSIT_WALLET_V1")` — the factory's salt namespace. */
 const SALT_NAMESPACE = keccak_256(utf8("NAMEPASS_DEPOSIT_WALLET_V1"));
@@ -174,6 +174,14 @@ export function depositAddress(input: string): string {
 	);
 
 	return checksum(create2.slice(12));
+}
+
+/** Return an EIP-55 address for public display. */
+export function checksumAddress(address: string): string {
+	if (!/^0x[0-9a-f]{40}$/i.test(address)) {
+		throw new Error("The address must contain 20 hexadecimal bytes.");
+	}
+	return checksum(bytes(address));
 }
 
 /*//////////////////////////////////////////////////////////////

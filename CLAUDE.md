@@ -31,16 +31,16 @@ limit analysis, technical accuracy, or the ability to explain a complex subject.
   positioning/tone decisions made through design iteration, and what's explicitly *not* decided
   yet. Read this before making product-facing decisions (copy, new features, framing) that aren't
   already covered below.
-- **`docs/FRONTEND.md`** — **the long version of this file.** How the app that exists actually
-  works: the `lib/` boundaries, the full domain model, the simulation lifecycle end to end, the
-  state/re-render model and its gotchas, the component map, the invariants list, and how to verify a
-  change. Read it before any non-trivial change; it's written so you don't have to re-derive the
-  mechanics from the code.
+- **`docs/FRONTEND.md`** — **the long version of this file.** How the app works: the `lib/`
+  boundaries, the public API read model, the legacy local fixture, the state model, the component
+  map, the invariants list, and how to verify a change. Read it before any non-trivial change; it's
+  written so you don't have to re-derive the mechanics from the code.
 - **`docs/ARCHITECTURE.md`** — CREATE2-derived addresses, Circle CCTP with a hook that renews on the
   mint, and the planned Goldsky + Neon + Vercel production system. **This file has a mixed status
-  and marks each part.** The contracts are deployed to four testnets and proven on chain.
-  Everything from "Production system" onward is a specification only. The Goldsky pipeline, Neon
-  schema, APIs, relayer, and Vercel Workflow do not exist. Read this file before you change
+  and marks each part.** The contracts are deployed to four testnets and proven on chain. The
+  shared chain registry, Neon schema/API, Goldsky pipeline definition, webhook receiver, relayer,
+  durable workflows, recovery jobs, and frontend cutover exist in the repository. None are
+  deployed. Read this file before you change
   anything that models activation, deposits, flows, pending balances, or backend services.
 - **`docs/DEPLOYMENTS.md`** — live contract addresses, the salt and creation-code hashes behind
   them, per-chain configuration, and what has actually been proven on chain. Read it before
@@ -82,16 +82,16 @@ product uses Goldsky Turbo to detect payments, Neon Postgres to store applicatio
 Vercel Workflow to move the USDC through Circle CCTP. The renewal executes in the same transaction
 that completes the transfer.
 
-**The contracts are real and deployed; the app in front of them is not wired up yet.** Hold both
-halves of that at once:
+**The contracts are real and deployed; the application code is not deployed.** Hold both facts at
+once:
 
 - `contracts/` is live on four testnets, tested, and verified against ENS's and Circle's deployed
   contracts. Addresses and what has been proven on chain are in `docs/DEPLOYMENTS.md`.
 - **The frontend is still a prototype.** The UI, routing, pricing math, and **deposit addresses**
-  are real and exact, but on-chain activity, balances, and ENS ecosystem stats shown in the app are
-  seeded/simulated client-side (`src/lib/registry.ts`) — not read from the deployed contracts, not
-  from an indexer. There is no backend at all; `docs/ARCHITECTURE.md` describes one that does not
-  exist.
+  are real and exact. The Explorer and Leaderboard use `src/lib/publicApi.ts` to read Vercel public
+  APIs. The schema, API, webhook receiver, pipeline, and workflows exist in code but are not
+  deployed. `src/lib/registry.ts` is local demonstration data and must not be imported by a
+  production screen.
 
 The deposit address is the seam between the two halves. `src/lib/namepass.ts` reimplements the
 deployed factory's `predictWallet` derivation, so the address on a card is the address the
@@ -111,11 +111,14 @@ measured need and a new decision entry. The chain remains authoritative for bala
 and renewals.
 
 **The initial production scope is settled.** Mainnet starts on Ethereum, Base, and Arbitrum; Arc
-stays testnet-only until Circle and Goldsky support Arc mainnet. Production starts on Vercel Pro,
-Neon Launch, and Goldsky Scale. Raw Goldsky payloads expire after 30 days, but normalized event
-facts remain. Public activity shows raw sender and executor addresses. The treasury funds the
-relayer manually; the architecture does not require a specific treasury wallet type. An unclaimed
-CCTP flow remains public and resumes the same message; it never burns
+stays testnet-only until Circle and Goldsky support Arc mainnet. Stable testnet uses the free
+Goldsky Starter plan. Its allowance covers the one continuously active small `namepass-testnet`
+pipeline, which reads all four testnet chains. Goldsky Scale is a production decision and is
+required only if the testnet and mainnet pipelines must run at the same time. Production starts on
+Vercel Pro and Neon Launch. Raw Goldsky payloads expire after 30 days, but normalized event facts
+remain. Public activity shows raw sender and executor addresses. The treasury funds the relayer
+manually; the architecture does not require a specific treasury wallet type. An unclaimed CCTP
+flow remains public and resumes the same message; it never burns
 the same USDC again. See `docs/ARCHITECTURE.md` and the latest entry in `docs/DECISIONS.md` before
 changing these choices.
 
@@ -124,11 +127,17 @@ changing these choices.
 ```bash
 npm install
 npm run dev       # Vite dev server
-npm run build     # tsc --noEmit && vite build — this IS the type-check step, there is no separate typecheck script
+npm run build     # frontend type-check plus the Vite, Nitro, and Workflow production build
 npm run preview   # serve the production build locally
+npm run check:server
+npm run test:frontend
+npm run test:server
+npm run test:workflow
 ```
 
-There is no lint script and no JS test framework — don't invent `npm run lint` or `npm test`.
+There is no lint script and no `npm test` alias. Server tests use Node's test runner through
+`npm run test:server`. Frontend adapter tests and the Workflow runtime probe use Vitest.
+Use the exact scripts above.
 
 **The contracts do have tests**, in Foundry:
 
@@ -153,8 +162,12 @@ bugs this repo has shipped would have passed against a mocked oracle. If you cha
 (`"home" | "leaderboard" | "supported" | "terms" | "privacy"`), synced to `window.location` via
 `history.pushState`/`popstate` — see `pathToPage`/`pageToPath`. There's no router dependency.
 Vite's dev server falls back to `index.html` for unknown paths automatically; the production
-Vercel deployment needs `vercel.json`'s catch-all rewrite for the same behavior, or direct
-navigation/reload to `/leaderboard` etc. 404s.
+Nitro renderer supplies the same fallback in the Vercel output. Do not add a catch-all rewrite to
+`vercel.json`. Vercel applies that rewrite before Nitro's API routes and sends `/api/*` to HTML.
+
+**Backend routes live in `routes/api/`, not root `api/`.** Nitro owns these routes and builds one
+Vercel server function. Vercel also discovers a root `api/` directory as Vercel Functions. Using
+both paths makes Vercel build the same Nitro output twice and fail on `.vc-config.json`.
 
 **Every page renders inside `PageShell`, with `Navbar` as its first child.** `PageShell` is the
 rounded card (video background on Home, white elsewhere) that every route shares — this is what
@@ -229,42 +242,19 @@ on non-Home pages (only Home shows the Explorer/Search/Cost simulator menu).
   trap applies to *display*: `fmtUsdc` renders both `$27.000071` (six years, 43.75% off) and
   `$27.00` (four years eleven months, 31.25%) as "$27", so anywhere a reader might check the
   arithmetic use `fmtUsdcExact`.
-- `registry.ts` — seeded mock activity/name data for the demo (see prototype note above). Two
-  exceptions: `address` comes from `namepass.ts`, and `onchain` (expiry + renewability) comes from
-  `ensName.ts` via `applyNameState` — don't fabricate either alongside the mock data.
-  `applyNameState` **slides the whole simulated timeline** onto the real expiry rather than
-  overwriting the end, or the runway reads "at activation 2027 → now 2045" against a history that
-  only added ten years. Chain
-  pool is `["Base", "Arbitrum", "Ethereum", "Arc"]` — **do not add Optimism**, there's no logo
-  asset for it (`public/logos/`) and it's been deliberately removed from every mock data source.
-  Polygon was replaced by Circle's **Arc** on 2026-08-05; if anything still says Polygon, it's
-  stale. A chain lives in more places than it looks — `registry.ts`, `fees.ts`, `format.ts`'s
-  explorer map, `tokens.ts`, `ChainTag`, `PassCard`, `BottomLeftCard`, and a logo in
-  `public/logos/`. **The app currently points at testnets** (`IS_TESTNET` in `lib/tokens.ts`);
-  `tokens.ts` and `format.ts`'s explorer map have to move together with it.
-  Also models `PendingState` — funds that have arrived but aren't renewal time yet. **Balances are
-  per chain and never merge**: the CREATE2 address is the same everywhere, but $5 on Base plus $8
-  on Arbitrum is two pots that each have to clear the threshold alone, not $13. Hence
-  `balances: ChainBalance[]` and `flows: ChainFlow[]` rather than single figures, one active flow
-  per *chain* (a stuck Base transfer must not block a fresh Ethereum payment), and `canTrigger()`
-  taking a specific balance. Keep UI enablement derived from `canTrigger()` rather than re-deriving
-  the conditions in a component. **`holdReason` is non-nullable and must stay that way**: a deposit
-  address is a pass-through, so money at rest is always blocked or broken, and an unexplained
-  balance tells the funder the automation stalled and needs them. For the same reason the demo
-  seeds every address at **zero** and grows states from simulated payments — a seeded balance has
-  no story for why it's there. Only the two anomalies (`not_detected`, `flow_failed`) are
-  triggerable; everything else resolves itself. There is **no** "awaiting confirmation" reason —
-  the pipeline delivers finalized deposits only — and expired/premium-auction/never-registered are one
-  `name_inactive` state, since the distinction changes nothing for the funder. `minTrigger()` is
-  exported so the UI can name the per-chain minimum rather than just saying "too small".
-  **`tickSimulation()` is the only source of pending state** — it's what the live feed drives on an
-  interval, and it grows balances and flows from simulated payments (`activeFlows()` exposes the
-  in-flight ones). It deliberately only touches the names in `SEED_NAMES`: a Namepass a visitor just
-  activated has genuinely had nothing happen to it. `SEED_NAMES` has a **three-character floor** —
-  ENS v2 prices nothing shorter, so such a name isn't registerable and any payment to it buys zero
-  time. A renewal carries **three** amounts (`amountDeposited`,
-  `gasAllowance`, `amountApplied`) because the allowance comes off on mainnet — don't collapse them
-  back to one — and `steps: FlowStep[]` rather than a single tx hash. See `docs/ARCHITECTURE.md`.
+- `chains.ts` — the shared chain and deployment registry. It is the only source for supported
+  chain names, IDs, native USDC, Namepass and Circle deployment addresses, explorers, RPC
+  variable names, finality, polling, tags, and logo files. `PUBLIC_CHAINS` and `SERVER_CHAINS`
+  are generated from it. Run `node scripts/check-chains.mjs` after a registry change.
+- `publicApi.ts` — typed browser adapter for the public HTTP endpoints. Amounts remain decimal
+  strings until a view converts them to `bigint`. Do not query Neon or chain RPC from a component.
+- `readModel.ts` — maps public API responses into the existing Explorer and Leaderboard view
+  contracts. It is not a source of facts and must not invent a renewal, sender, executor, or
+  transaction hash.
+- `registry.ts` — seeded local demonstration data only. Do not import it from a production screen.
+  The frontend uses the public API for activated names, public activity, flows, and leaderboard
+  data. Balances remain separate by chain. An `unclaimed` CCTP flow is not a balance at its origin
+  address. See `docs/ARCHITECTURE.md` for the public read-model rules.
 - `fees.ts` — the flat `GAS_ALLOWANCE` ($0.10) taken from every flow. **Still a local constant,
   unlike ENS's rates, and the distinction is the point**: the rates are ENS's and mutable by ENS
   governance, so a stale copy mis-quotes someone else's price; the allowance is Namepass's own and
@@ -282,9 +272,10 @@ on non-Home pages (only Home shows the Explorer/Search/Cost simulator menu).
   ignore late results instead. Don't reintroduce the signal to "clean up properly".
 
 **`contracts/` is Solidity, and nothing in the npm scripts touches it.** `npm run build` type-checks
-and builds the frontend only. `contracts/NamepassFactory.sol` is a draft for mainnet deployment,
-reviewed across several passes and covered by 61 Foundry tests, but **not audited**. It is deployed
-to testnet only. Three constraints that are easy to break by accident:
+the browser code and builds the Vite, Nitro, and Workflow output. It does not compile Solidity.
+`contracts/NamepassFactory.sol` is a draft for mainnet deployment, reviewed across several passes
+and covered by 61 Foundry tests, but **not audited**. It is deployed to testnet only. Three
+constraints that are easy to break by accident:
 
 - **Everything in `foundry.toml` is pinned on purpose.** `solc_version`, `evm_version`,
   `optimizer_runs` and `bytecode_hash = "none"` all feed the creation-code hash, and the factory

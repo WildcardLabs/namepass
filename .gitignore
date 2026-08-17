@@ -1,7 +1,11 @@
 node_modules/
 dist/
+/.output/
 .DS_Store
 *.local
+.env*
+!.env.example
+/.vercel/
 
 # Local agent tooling
 /.claude/
@@ -28,3 +32,6 @@ broadcast/
 #
 # Anchored with a leading slash, same reason as /lib/ above.
 /deploy-ui/
+.swc/
+.workflow-data/
+.workflow-vitest/

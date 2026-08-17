@@ -1,25 +1,9 @@
-const CHAIN_DOT: Record<string, string> = {
-	Base: "#0052FF",
-	Arbitrum: "#12AAFF",
-	Ethereum: "#627EEA",
-	/* Arc's own navy, taken from its logo mark. Close to the Namepass accent,
-	   which is fine — it still reads as distinct from Base's and Arbitrum's
-	   blues, and inventing a brighter Arc colour would be inventing a brand. */
-	Arc: "#1B3158",
-};
-
-/* Staggered so the row reads as several independent live signals rather than
-   one synchronised blink. */
-const PING_DELAY: Record<string, string> = {
-	Base: "0ms",
-	Arbitrum: "300ms",
-	Ethereum: "900ms",
-	Arc: "1200ms",
-};
+import { chainByName } from "../lib/chains";
 
 /** A chain name with its brand-coloured live dot. */
 export default function ChainTag({ chain }: { chain: string }) {
-	const color = CHAIN_DOT[chain] ?? "#8899aa";
+	const entry = chainByName(chain);
+	const color = entry?.tagColor ?? "#8899aa";
 	return (
 		<span className="inline-flex items-baseline gap-1.5 text-[rgba(30,50,90,0.7)] whitespace-nowrap">
 			<span className="relative flex w-1.5 h-1.5 shrink-0 self-center">
@@ -27,7 +11,7 @@ export default function ChainTag({ chain }: { chain: string }) {
 					className="absolute inline-flex w-full h-full rounded-full opacity-70 animate-ping"
 					style={{
 						background: color,
-						animationDelay: PING_DELAY[chain] ?? "0ms",
+						animationDelay: `${entry?.tagPingDelayMs ?? 0}ms`,
 						animationDuration: "2.4s",
 					}}
 				/>

@@ -1,0 +1,8 @@
+import { activityCursor, activityPageInput, handler, json } from "../../server/http";
+import { activity, PUBLIC_CACHE } from "../../server/reads";
+
+export default handler("GET", async (request) => {
+	const { limit, cursor } = activityPageInput(request);
+	const result = await activity(limit, cursor);
+	return json({ ...result, nextCursor: result.nextCursor ? activityCursor(result.nextCursor) : null }, 200, PUBLIC_CACHE);
+});

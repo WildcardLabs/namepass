@@ -1,19 +1,9 @@
 import { motion, AnimatePresence } from "motion/react";
-import { useEffect, useReducer, useState } from "react";
+import { useState } from "react";
 import { ChevronDown, Loader2, Wallet } from "lucide-react";
-import {
-	advanceFlow,
-	canTrigger,
-	minTrigger,
-	settleRenewal,
-	totalHeld,
-	totalInFlight,
-	triggerRenewal,
-	type ChainBalance,
-	type FlowStatus,
-	type HoldReason,
-	type NameRecord,
-} from "../lib/registry";
+import { canTrigger, minTrigger, totalHeld, totalInFlight, type ChainBalance, type FlowStatus, type HoldReason, type NameRecord } from "../lib/readModel";
+import { triggerFlow } from "../lib/publicApi";
+import { chainByName } from "../lib/chains";
 import { fmtUsdc } from "../lib/format";
 import Tooltip from "./Tooltip";
 import ChainTag from "./ChainTag";
@@ -21,27 +11,35 @@ import ChainTag from "./ChainTag";
 /* Each reason gets its own sentence. "We tried and it failed" must never read
    the same as "waiting for the name to become renewable" — they need
    different things from whoever is looking at them. */
-const HOLD_COPY: Record<HoldReason, string> = {
+function holdCopy(reason: HoldReason, minimum: bigint | undefined): string {
+	const floor = minimum === undefined ? "The chain minimum is not available yet." : `A renewal needs at least ${fmtUsdc(minimum)} on one chain. Balances on different chains can't be combined, so this one goes out as soon as more arrives on the same chain.`;
+	return {
 	flow_in_progress:
 		"A renewal is already running on this chain. These funds are queued and go out with the next one.",
 	name_inactive:
 		"This name isn't currently registered. It may have expired, be in its premium auction, or never have been registered. The funds stay here until it can be renewed again.",
-	below_threshold: `A renewal needs at least ${fmtUsdc(minTrigger())} on one chain. Balances on different chains can't be combined, so this one goes out as soon as more arrives on the same chain.`,
+	below_threshold: floor,
 	not_detected:
 		"This payment wasn't picked up automatically, which shouldn't happen. Normally a renewal starts the moment funds arrive. Anyone can push it through.",
 	flow_failed:
 		"A renewal was started for these funds and the transfer didn't go out. The money never left this address. Anyone can retry it.",
-};
+	unknown:
+		"The current balance or chain minimum is not available. It is not treated as zero and will be checked again.",
+	}[reason];
+}
 
 /* Scannable version of the same fact — the sentence lives in the tooltip. */
-const HOLD_LABEL: Record<HoldReason, string> = {
+function holdLabel(reason: HoldReason, minimum: bigint | undefined): string {
+	return {
 	flow_in_progress: "Queued behind the current renewal",
 	name_inactive: "Name isn't registered right now",
 	/* States the number — "too small" alone leaves nobody able to act on it. */
-	below_threshold: `Under the ${fmtUsdc(minTrigger())} minimum on this chain`,
+	below_threshold: minimum === undefined ? "Chain minimum unavailable" : `Under the ${fmtUsdc(minimum)} minimum on this chain`,
 	not_detected: "Wasn't picked up automatically",
 	flow_failed: "Transfer didn't go out",
-};
+	unknown: "Balance or minimum unavailable",
+	}[reason];
+}
 
 const FLOW_COPY: Record<FlowStatus, string> = {
 	signing: "Preparing the transfer",
@@ -53,9 +51,6 @@ const FLOW_COPY: Record<FlowStatus, string> = {
 	claiming: "Renewing on Ethereum",
 };
 
-/** Time on each stage of the simulated flow. */
-const STAGE_MS = 2000;
-
 interface Props {
 	record: NameRecord;
 	/** Fired when a flow settles, so the page can pick up the new renewal. */
@@ -63,30 +58,15 @@ interface Props {
 }
 
 export default function PendingBalance({ record, onSettled }: Props) {
-	const [version, bump] = useReducer((n: number) => n + 1, 0);
 	const [open, setOpen] = useState(false);
+	const [triggering, setTriggering] = useState<string | null>(null);
+	const [triggerError, setTriggerError] = useState<string | null>(null);
 	const p = record.pending;
-
-	/* Drives every active flow forward — whether it started here or was already
-	   running when the page loaded. Re-runs on each bump, schedules one step,
-	   and stops on its own once nothing is in flight. */
-	useEffect(() => {
-		if (record.pending.flows.length === 0) return;
-		const id = window.setTimeout(() => {
-			for (const flow of [...record.pending.flows]) {
-				if (!advanceFlow(record, flow.chain)) {
-					settleRenewal(record, flow.chain);
-					onSettled();
-				}
-			}
-			bump();
-		}, STAGE_MS);
-		return () => window.clearTimeout(id);
-	}, [record, version, onSettled]);
 
 	const held = totalHeld(p);
 	const inFlight = totalInFlight(p);
-	if (held === 0n && inFlight === 0n) return null;
+	const unknown = p.balances.filter((balance) => balance.amount === null);
+	if (held === 0n && inFlight === 0n && unknown.length === 0) return null;
 
 	/* Chains with anything on them, flows first so a chain that is both
 	   renewing and holding shows its motion above its queue. */
@@ -105,7 +85,7 @@ export default function PendingBalance({ record, onSettled }: Props) {
 	if (stuck.length > 0) {
 		summary = (
 			<>
-				{fmtUsdc(stuck.reduce((s, b) => s + b.amount, 0n))} on{" "}
+				{fmtUsdc(stuck.reduce((s, b) => s + (b.amount ?? 0n), 0n))} on{" "}
 				{stuck.map((b) => b.chain).join(" and ")} needs a retry
 			</>
 		);
@@ -122,7 +102,7 @@ export default function PendingBalance({ record, onSettled }: Props) {
 	} else {
 		summary = (
 			<>
-				{fmtUsdc(held)} waiting on {chains.length} chain
+				{held > 0n ? `${fmtUsdc(held)} waiting` : "Balance unavailable"} on {chains.length} chain
 				{chains.length === 1 ? "" : "s"}
 			</>
 		);
@@ -170,15 +150,23 @@ export default function PendingBalance({ record, onSettled }: Props) {
 										key={chain}
 										chain={chain}
 										flow={flow}
-										balance={balance}
+									balance={balance}
 										triggerable={balance ? canTrigger(p, balance) : false}
 										onTrigger={() => {
-											if (triggerRenewal(record, chain)) bump();
+											const entry = chainByName(chain);
+											if (!entry || triggering) return;
+											setTriggering(chain);
+											setTriggerError(null);
+											void triggerFlow(record.name, String(entry.chainId))
+												.then(onSettled)
+												.catch((cause: unknown) => setTriggerError(cause instanceof Error ? cause.message : "Could not start the renewal."))
+												.finally(() => setTriggering(null));
 										}}
 									/>
 								);
 							})}
 						</div>
+						{triggerError && <p role="alert" className="mt-3 text-[12px] text-red-700">{triggerError}</p>}
 
 						{/* The thing a single balance figure hides. */}
 						{chains.length > 1 && (
@@ -224,10 +212,10 @@ function ChainRow({
 				{balance && (
 					<div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-[rgba(30,50,90,0.55)]">
 						<span>
-							{fmtUsdc(balance.amount)} · {HOLD_LABEL[balance.holdReason]}
+							{balance.amount === null ? holdLabel(balance.holdReason, minTrigger(balance.chainId)) : `${fmtUsdc(balance.amount)} · ${holdLabel(balance.holdReason, minTrigger(balance.chainId))}`}
 						</span>
 						<Tooltip
-							text={HOLD_COPY[balance.holdReason]}
+							text={holdCopy(balance.holdReason, minTrigger(balance.chainId))}
 							label={`Why are these funds on ${chain} here?`}
 						/>
 					</div>

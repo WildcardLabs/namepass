@@ -7,6 +7,24 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-12 — Nitro owns Vercel routing, and recovery verifies stale Workflow owners
+
+Nitro emits the Vercel API routes and the SPA fallback. A root `api/` directory made Vercel build
+the same Nitro function twice. A manual catch-all rewrite then ran before the generated API routes
+and sent `/api/*` requests to `index.html`. Backend routes now live only in `routes/api/`, and
+`vercel.json` contains only cron configuration. Nitro owns the route order.
+
+A stale `workflow_run_id` is not proof that a Workflow run is dead. Clearing it by age alone can
+start a second run for the same money movement. Recovery can select a stale owner, but the starter
+uses Vercel Workflow `getRun()` first. It keeps pending and running runs. It replaces
+only a missing or terminal run.
+
+The initial Vercel Firewall limits are 10 activation requests and 20 trigger requests per minute
+for one source IP. The live per-name read limit is 120 requests per minute for one source IP. An
+active name polls 15 times per minute, so the read limit gives eight times the required capacity.
+These endpoints make several RPC calls. The limits control provider cost and can change after
+measured legitimate traffic.
+
 ### 2026-08-11 — Initial production scope closes the remaining backend questions
 
 The first production version now has decisions for chain scope, relayer funding, public sender
@@ -43,11 +61,13 @@ origin transaction, Circle nonce, and latest retry. When ENS reports that the na
 idempotent `Retry renewal` action resumes the same flow. It never starts another burn. Automatic
 retry remains the normal path.
 
-**Initial production uses Vercel Pro, Neon Launch, and Goldsky Scale.** Vercel Pro is required for
-the per-minute recovery cron. Neon Launch matches the small initial workload and supplies a
-seven-day restore window. Goldsky Scale supports the stable testnet and production pipelines at the
-same time and supplies priority support. The implementation starts with small compute sizes and
-scales only from measured load. Plan names and limits must be checked again before purchase.
+**Stable testnet uses Goldsky Starter; Scale is conditional at production.** The free Starter
+allowance covers one continuously active small `namepass-testnet` pipeline, and that one pipeline
+reads all four testnet chains. Scale is required only if `namepass-testnet` and `namepass-mainnet`
+must run concurrently. This is a production decision, not a Phase 0 or stable-testnet requirement.
+Initial production still uses Vercel Pro for the per-minute recovery cron and Neon Launch for the
+small workload and seven-day restore window. Start with small compute sizes and scale only from
+measured load. Check plan names and limits again before purchase.
 
 ### 2026-08-11 — Trigger floor, helper dust, and what happens when a balance read fails
 

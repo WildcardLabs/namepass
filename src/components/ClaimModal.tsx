@@ -1,8 +1,8 @@
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useState } from "react";
 import { X, ArrowUpRight, Loader2 } from "lucide-react";
-import { claimName } from "../lib/registry";
 import { LABEL_PROBLEM_TEXT, labelProblem } from "../lib/namepass";
+import { activateName } from "../lib/publicApi";
 
 
 interface Props {
@@ -17,12 +17,14 @@ type Phase = "input" | "activating";
 export default function ClaimModal({ open, onClose, onActivated }: Props) {
 	const [value, setValue] = useState("");
 	const [phase, setPhase] = useState<Phase>("input");
+	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (open) return;
 		const t = setTimeout(() => {
 			setValue("");
 			setPhase("input");
+			setError(null);
 		}, 300);
 		return () => clearTimeout(t);
 	}, [open]);
@@ -43,14 +45,18 @@ export default function ClaimModal({ open, onClose, onActivated }: Props) {
 	const problem = labelProblem(trimmed);
 	const valid = problem === null;
 
-	function activate() {
+	async function activate() {
 		if (!valid || phase !== "input") return;
 		setPhase("activating");
-		setTimeout(() => {
-			const created = claimName(trimmed);
-			onActivated(created.name);
+		setError(null);
+		try {
+			const created = await activateName(trimmed);
+			onActivated(created.name.displayName);
 			onClose();
-		}, 1100);
+		} catch (cause) {
+			setError(cause instanceof Error ? cause.message : "Activation failed. Try again.");
+			setPhase("input");
+		}
 	}
 
 	return (
@@ -93,11 +99,12 @@ export default function ClaimModal({ open, onClose, onActivated }: Props) {
 								</p>
 
 								<div className="mt-6">
-									<label className="text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.55)]">
+									<label htmlFor="claim-name" className="text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.55)]">
 										ENS Name
 									</label>
 									<div className="mt-2 flex items-center bg-[rgba(30,50,90,0.04)] border border-[rgba(30,50,90,0.1)] rounded-full pl-5 pr-2 py-2 focus-within:border-[rgba(30,50,90,0.35)] transition-colors">
 										<input
+											id="claim-name"
 											autoFocus
 											value={value}
 											disabled={phase === "activating"}
@@ -114,6 +121,11 @@ export default function ClaimModal({ open, onClose, onActivated }: Props) {
 									{problem && trimmed && (
 										<p className="mt-2 px-1 text-[12.5px] text-[rgba(30,50,90,0.55)] leading-relaxed">
 											{LABEL_PROBLEM_TEXT[problem]}
+										</p>
+									)}
+									{error && (
+										<p role="alert" className="mt-2 px-1 text-[12.5px] text-red-700 leading-relaxed">
+											{error}
 										</p>
 									)}
 								</div>

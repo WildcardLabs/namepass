@@ -15,7 +15,6 @@ import PricingError from "./components/PricingError";
 import { loadOracleRates } from "./lib/oracle";
 import { assertGasAllowance } from "./lib/fees";
 import { setRates } from "./lib/pricing";
-import { initRegistry } from "./lib/registry";
 
 const VIDEO_URL = `${import.meta.env.BASE_URL}assets/cinematic2.mp4`;
 
@@ -47,9 +46,8 @@ export default function App() {
 	/**
 	 * ENS's live pricing, read once at boot.
 	 *
-	 * Everything that quotes a price is downstream of this — `pricing.ts`
-	 * throws until it lands, and the seeded demo history can't be built without
-	 * it either, since those renewals are priced with the same `solve()`.
+	 * Everything that quotes a price is downstream of this. `pricing.ts`
+	 * throws until the live values arrive.
 	 *
 	 * Only the parts that actually quote wait on it. The hero is copy over
 	 * video and paints immediately; the Simulator renders its own chrome with
@@ -72,7 +70,6 @@ export default function App() {
 		Promise.all([loadOracleRates(), assertGasAllowance()])
 			.then(([live]) => {
 				setRates(live);
-				initRegistry();
 				setBoot({ status: "ready" });
 			})
 			.catch((err: unknown) => {
@@ -193,9 +190,7 @@ export default function App() {
 							onRetry={loadPricing}
 						/>
 
-						{/* No skeleton for the Explorer: it's a live feed of a simulation
-						    that hasn't started, so there's nothing yet to be a placeholder
-						    for. It's also far below the fold at load. */}
+						{/* Explorer owns its public API loading state. */}
 						{boot.status === "ready" && (
 							<Explorer
 								selected={selected}
