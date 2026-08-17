@@ -39,8 +39,9 @@ limit analysis, technical accuracy, or the ability to explain a complex subject.
   mint, and the planned Goldsky + Neon + Vercel production system. **This file has a mixed status
   and marks each part.** The contracts are deployed to four testnets and proven on chain. The
   shared chain registry, Neon schema/API, Goldsky pipeline definition, webhook receiver, relayer,
-  durable workflows, recovery jobs, and frontend cutover exist in the repository. None are
-  deployed. Read this file before you change
+  durable workflows, recovery jobs, and frontend cutover exist in the repository. The stable
+  testnet Neon schema and database roles are deployed. The API, Goldsky pipeline, workflows, and
+  relayer are not deployed. Read this file before you change
   anything that models activation, deposits, flows, pending balances, or backend services.
 - **`docs/DEPLOYMENTS.md`** — live contract addresses, the salt and creation-code hashes behind
   them, per-chain configuration, and what has actually been proven on chain. Read it before
