@@ -282,16 +282,6 @@ test("all protocol event shapes match their registry allowlists", () => {
 		},
 		{
 			...hubCommon,
-			event_id: "84532:message",
-			event_family: "circle",
-			event_type: "MessageSent",
-			chain_id: 84532,
-			contract_address: "0xe737e5cebeeba77efe34d4aa090756590b1ce275",
-			message: "0x1234",
-			nonce: hash,
-		},
-		{
-			...hubCommon,
 			event_id: "11155111:ens",
 			event_family: "ens",
 			event_type: "NameRenewed",

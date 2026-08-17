@@ -41,8 +41,7 @@ sources:
     start_at: latest
     filter: >-
       address IN (
-        '0xe0b155fdb1104824d7e0568aeafcc52823edd00f',
-        '0xe737e5cebeeba77efe34d4aa090756590b1ce275'
+        '0xe0b155fdb1104824d7e0568aeafcc52823edd00f'
       )
 
   arbitrum_sepolia_usdc:
@@ -60,8 +59,7 @@ sources:
     start_at: latest
     filter: >-
       address IN (
-        '0xe0b155fdb1104824d7e0568aeafcc52823edd00f',
-        '0xe737e5cebeeba77efe34d4aa090756590b1ce275'
+        '0xe0b155fdb1104824d7e0568aeafcc52823edd00f'
       )
 
   arc_testnet_usdc:
@@ -79,8 +77,7 @@ sources:
     start_at: latest
     filter: >-
       address IN (
-        '0xe0b155fdb1104824d7e0568aeafcc52823edd00f',
-        '0xe737e5cebeeba77efe34d4aa090756590b1ce275'
+        '0xe0b155fdb1104824d7e0568aeafcc52823edd00f'
       )
 
 transforms:
@@ -238,7 +235,7 @@ transforms:
         log_index,
         contract_address,
         _gs_log_decode(
-          '[{"anonymous":false,"inputs":[{"indexed":true,"name":"labelKey","type":"bytes32"},{"indexed":true,"name":"wallet","type":"address"},{"indexed":false,"name":"label","type":"string"}],"name":"WalletDeployed","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"labelKey","type":"bytes32"},{"indexed":true,"name":"wallet","type":"address"},{"indexed":false,"name":"amount","type":"uint256"},{"indexed":false,"name":"remaining","type":"uint256"}],"name":"DepositProcessed","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"nonce","type":"bytes32"},{"indexed":true,"name":"wallet","type":"address"},{"indexed":false,"name":"sourceDomain","type":"uint32"},{"indexed":false,"name":"burnAmount","type":"uint256"},{"indexed":false,"name":"feeExecuted","type":"uint256"},{"indexed":false,"name":"mintedAmount","type":"uint256"}],"name":"CCTPClaimed","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"labelHash","type":"bytes32"},{"indexed":true,"name":"wallet","type":"address"},{"indexed":true,"name":"executor","type":"address"},{"indexed":false,"name":"label","type":"string"},{"indexed":false,"name":"duration","type":"uint64"},{"indexed":false,"name":"amountReceived","type":"uint256"},{"indexed":false,"name":"gasAllowance","type":"uint256"},{"indexed":false,"name":"amountApplied","type":"uint256"},{"indexed":false,"name":"remainder","type":"uint256"},{"indexed":false,"name":"fromCCTP","type":"bool"}],"name":"Renewed","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"message","type":"bytes"}],"name":"MessageSent","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"tokenId","type":"uint256"},{"indexed":false,"name":"label","type":"string"},{"indexed":false,"name":"duration","type":"uint64"},{"indexed":false,"name":"newExpiry","type":"uint64"},{"indexed":false,"name":"paymentToken","type":"address"},{"indexed":true,"name":"referrer","type":"bytes32"},{"indexed":false,"name":"amount","type":"uint256"}],"name":"NameRenewed","type":"event"}]',
+          '[{"anonymous":false,"inputs":[{"indexed":true,"name":"labelKey","type":"bytes32"},{"indexed":true,"name":"wallet","type":"address"},{"indexed":false,"name":"label","type":"string"}],"name":"WalletDeployed","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"labelKey","type":"bytes32"},{"indexed":true,"name":"wallet","type":"address"},{"indexed":false,"name":"amount","type":"uint256"},{"indexed":false,"name":"remaining","type":"uint256"}],"name":"DepositProcessed","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"nonce","type":"bytes32"},{"indexed":true,"name":"wallet","type":"address"},{"indexed":false,"name":"sourceDomain","type":"uint32"},{"indexed":false,"name":"burnAmount","type":"uint256"},{"indexed":false,"name":"feeExecuted","type":"uint256"},{"indexed":false,"name":"mintedAmount","type":"uint256"}],"name":"CCTPClaimed","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"labelHash","type":"bytes32"},{"indexed":true,"name":"wallet","type":"address"},{"indexed":true,"name":"executor","type":"address"},{"indexed":false,"name":"label","type":"string"},{"indexed":false,"name":"duration","type":"uint64"},{"indexed":false,"name":"amountReceived","type":"uint256"},{"indexed":false,"name":"gasAllowance","type":"uint256"},{"indexed":false,"name":"amountApplied","type":"uint256"},{"indexed":false,"name":"remainder","type":"uint256"},{"indexed":false,"name":"fromCCTP","type":"bool"}],"name":"Renewed","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"tokenId","type":"uint256"},{"indexed":false,"name":"label","type":"string"},{"indexed":false,"name":"duration","type":"uint64"},{"indexed":false,"name":"newExpiry","type":"uint64"},{"indexed":false,"name":"paymentToken","type":"address"},{"indexed":true,"name":"referrer","type":"bytes32"},{"indexed":false,"name":"amount","type":"uint256"}],"name":"NameRenewed","type":"event"}]',
           topics,
           `data`
         ) AS `decoded`,
@@ -344,52 +341,32 @@ transforms:
       WHERE decoded.event_signature = 'Renewed'
         AND contract_address = '0xf1b51552098ffa7dc2cd83d0fb6508e57db8acc1'
 
-  circle_message_sent:
-    type: sql
-    primary_key: event_id
-    sql: |
-      SELECT
-        event_id,
-        'circle' AS event_family,
-        'MessageSent' AS event_type,
-        chain_id,
-        block_number,
-        block_time,
-        tx_hash,
-        log_index,
-        contract_address,
-        decoded.event_params[1] AS message,
-        concat('0x', substr(decoded.event_params[1], 27, 64)) AS nonce,
-        _gs_op
-      FROM decoded_logs
-      WHERE decoded.event_signature = 'MessageSent'
-        AND contract_address = '0xe737e5cebeeba77efe34d4aa090756590b1ce275'
-
   ens_name_renewed:
     type: sql
     primary_key: event_id
     sql: |
       SELECT
-        event_id,
+        ens.event_id,
         'ens' AS event_family,
         'NameRenewed' AS event_type,
-        chain_id,
-        block_number,
-        block_time,
-        tx_hash,
-        log_index,
-        contract_address,
-        decoded.event_params[1] AS token_id,
-        decoded.event_params[2] AS label,
-        decoded.event_params[3] AS duration,
-        decoded.event_params[4] AS new_expiry,
-        lower(decoded.event_params[5]) AS payment_token,
-        decoded.event_params[6] AS referrer,
-        decoded.event_params[7] AS amount,
-        _gs_op
-      FROM decoded_logs
-      WHERE decoded.event_signature = 'NameRenewed'
-        AND contract_address IN (
+        ens.chain_id,
+        ens.block_number,
+        ens.block_time,
+        ens.tx_hash,
+        ens.log_index,
+        ens.contract_address,
+        ens.decoded.event_params[1] AS token_id,
+        ens.decoded.event_params[2] AS label,
+        ens.decoded.event_params[3] AS duration,
+        ens.decoded.event_params[4] AS new_expiry,
+        lower(ens.decoded.event_params[5]) AS payment_token,
+        ens.decoded.event_params[6] AS referrer,
+        ens.decoded.event_params[7] AS amount,
+        ens._gs_op
+      FROM decoded_logs AS ens
+      WHERE ens.decoded.event_signature = 'NameRenewed'
+        AND ens.decoded.event_params[6] = '0x0000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac6'
+        AND ens.contract_address IN (
           '0xa88553f454b77203b0d036a05c894d555eaaa2cc',
           '0x4ad56feb5fc7b8298db06e88fd5cbc41d64602fa'
         )
@@ -426,13 +403,6 @@ sinks:
   renewed_webhook:
     type: webhook
     from: renewed
-    url: https://demo-five-gray-37.vercel.app/api/webhooks/goldsky
-    secret_name: NAMEPASS_TESTNET_WEBHOOK_AUTH
-    one_row_per_request: true
-
-  circle_message_sent_webhook:
-    type: webhook
-    from: circle_message_sent
     url: https://demo-five-gray-37.vercel.app/api/webhooks/goldsky
     secret_name: NAMEPASS_TESTNET_WEBHOOK_AUTH
     one_row_per_request: true

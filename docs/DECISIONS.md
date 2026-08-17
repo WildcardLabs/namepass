@@ -7,6 +7,27 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-17 — Circle Iris supplies the final CCTP v2 nonce
+
+The CCTP v2 `MessageSent` event on the origin chain contains a zero nonce placeholder. Circle
+assigns the final nonce off chain. Iris returns that nonce in the final message. Therefore, Goldsky
+does not index Circle `MessageSent` events for Namepass.
+
+The workflow still verifies exactly one `MessageSent` event in the origin transaction. It verifies
+the route, amount, wallet, label, and requested finality. It then requests exactly one message from
+Iris by source domain and origin transaction hash. The workflow verifies the final route and stores
+the final message, nonce, and attestation before it submits the claim.
+
+Goldsky indexes Namepass contract events. It indexes an ENS `NameRenewed` event only when it has the
+Namepass referrer from the shared deployment registry. This rule prevents unrelated Circle and ENS
+traffic from entering the application database. A referrer change must update the registry and the
+pipeline in the same release.
+
+The workflow records the origin transaction for renewals that it runs. A permissionless external
+CCTP renewal can show the claim and renewal transactions, but it can lack the origin transaction.
+Do not infer that transaction from labels, amounts, or event order. Add a separate Iris
+reconciliation method only when Circle supplies a safe lookup for this case.
+
 ### 2026-08-12 — Nitro owns Vercel routing, and recovery verifies stale Workflow owners
 
 Nitro emits the Vercel API routes and the SPA fallback. A root `api/` directory made Vercel build

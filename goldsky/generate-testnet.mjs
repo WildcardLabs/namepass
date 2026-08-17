@@ -25,7 +25,7 @@ const datasetVersion = (chain, kind) =>
 
 function rawLogAddresses(chain) {
 	if (chain.helperAddress) {
-		if (!chain.ensRegistrarAddress || !chain.ensRenewerV1Address) {
+		if (!chain.ensRegistrarAddress || !chain.ensRenewerV1Address || !chain.ensReferrer) {
 			throw new Error(`${chain.network} is missing ENS addresses.`);
 		}
 		return [
@@ -35,7 +35,7 @@ function rawLogAddresses(chain) {
 			chain.ensRenewerV1Address,
 		];
 	}
-	return [chain.factoryAddress, chain.messageTransmitterAddress];
+	return [chain.factoryAddress];
 }
 
 function renderSources() {
@@ -164,12 +164,6 @@ const eventAbi = JSON.stringify([
 	},
 	{
 		anonymous: false,
-		inputs: [{ indexed: false, name: "message", type: "bytes" }],
-		name: "MessageSent",
-		type: "event",
-	},
-	{
-		anonymous: false,
 		inputs: [
 			{ indexed: true, name: "tokenId", type: "uint256" },
 			{ indexed: false, name: "label", type: "string" },
@@ -190,18 +184,12 @@ const factoryPredicate = addressPredicate(
 	"contract_address",
 	chains.map((chain) => chain.factoryAddress),
 );
-const messageTransmitterPredicate = addressPredicate(
-	"contract_address",
-	chains.map((chain) => chain.messageTransmitterAddress),
-);
-
 const sinks = [
 	["deposits_webhook", "incoming_deposits"],
 	["wallet_deployed_webhook", "wallet_deployed"],
 	["deposit_processed_webhook", "deposit_processed"],
 	["cctp_claimed_webhook", "cctp_claimed"],
 	["renewed_webhook", "renewed"],
-	["circle_message_sent_webhook", "circle_message_sent"],
 	["ens_name_renewed_webhook", "ens_name_renewed"],
 ]
 	.map(
@@ -373,52 +361,32 @@ ${indent(rawLogsUnion, 6)}
       WHERE decoded.event_signature = 'Renewed'
         AND contract_address = '${lower(hub.helperAddress)}'
 
-  circle_message_sent:
-    type: sql
-    primary_key: event_id
-    sql: |
-      SELECT
-        event_id,
-        'circle' AS event_family,
-        'MessageSent' AS event_type,
-        chain_id,
-        block_number,
-        block_time,
-        tx_hash,
-        log_index,
-        contract_address,
-        decoded.event_params[1] AS message,
-        concat('0x', substr(decoded.event_params[1], 27, 64)) AS nonce,
-        _gs_op
-      FROM decoded_logs
-      WHERE decoded.event_signature = 'MessageSent'
-        AND ${messageTransmitterPredicate}
-
   ens_name_renewed:
     type: sql
     primary_key: event_id
     sql: |
       SELECT
-        event_id,
+        ens.event_id,
         'ens' AS event_family,
         'NameRenewed' AS event_type,
-        chain_id,
-        block_number,
-        block_time,
-        tx_hash,
-        log_index,
-        contract_address,
-        decoded.event_params[1] AS token_id,
-        decoded.event_params[2] AS label,
-        decoded.event_params[3] AS duration,
-        decoded.event_params[4] AS new_expiry,
-        lower(decoded.event_params[5]) AS payment_token,
-        decoded.event_params[6] AS referrer,
-        decoded.event_params[7] AS amount,
-        _gs_op
-      FROM decoded_logs
-      WHERE decoded.event_signature = 'NameRenewed'
-        AND contract_address IN (
+        ens.chain_id,
+        ens.block_number,
+        ens.block_time,
+        ens.tx_hash,
+        ens.log_index,
+        ens.contract_address,
+        ens.decoded.event_params[1] AS token_id,
+        ens.decoded.event_params[2] AS label,
+        ens.decoded.event_params[3] AS duration,
+        ens.decoded.event_params[4] AS new_expiry,
+        lower(ens.decoded.event_params[5]) AS payment_token,
+        ens.decoded.event_params[6] AS referrer,
+        ens.decoded.event_params[7] AS amount,
+        ens._gs_op
+      FROM decoded_logs AS ens
+      WHERE ens.decoded.event_signature = 'NameRenewed'
+        AND ens.decoded.event_params[6] = '${hub.ensReferrer}'
+        AND ens.contract_address IN (
           '${lower(hub.ensRegistrarAddress)}',
           '${lower(hub.ensRenewerV1Address)}'
         )

@@ -87,22 +87,6 @@ export async function renewalActivity(
 		.limit(limit + 1);
 	const page = rows.slice(0, limit);
 	const last = page[page.length - 1]?.event;
-	const nonceHexes = page
-		.map(({ flow }) => flow.cctpNonce)
-		.filter((value): value is string => Boolean(value) && /^\d+$/.test(value!))
-		.map((value) => `0x${BigInt(value).toString(16).padStart(64, "0")}`);
-	const messages = nonceHexes.length
-		? await database()
-			.select({ nonce: sql<string>`${chainEvents.facts}->>'nonce'`, txHash: chainEvents.txHash })
-			.from(chainEvents)
-			.where(and(
-				eq(chainEvents.canonical, true),
-				eq(chainEvents.eventFamily, "circle"),
-				eq(chainEvents.eventType, "MessageSent"),
-				inArray(sql<string>`${chainEvents.facts}->>'nonce'`, nonceHexes),
-			))
-		: [];
-	const messageByNonce = new Map(messages.map((message) => [message.nonce, message.txHash]));
 	return {
 		items: page.map(({ event, name, flow, deposit, ensFacts, originTxHash, claimTxHash }) => ({
 			renewal: publicRenewalView(
@@ -110,9 +94,7 @@ export async function renewalActivity(
 				flow,
 				deposit,
 				ensFacts,
-				originTxHash ?? (flow.cctpNonce
-					? messageByNonce.get(`0x${BigInt(flow.cctpNonce).toString(16).padStart(64, "0")}`) ?? null
-					: null),
+				originTxHash,
 				claimTxHash,
 			),
 			name: publicNameView(name),

@@ -54,7 +54,6 @@ const EVENT_FIELDS = {
 		"remainder",
 		"from_cctp",
 	],
-	"circle:MessageSent": ["contract_address", "message", "nonce"],
 	"ens:NameRenewed": [
 		"contract_address",
 		"token_id",
@@ -70,11 +69,10 @@ const EVENT_FIELDS = {
 const ALL_FIELDS = [...new Set([...COMMON_FIELDS, ...Object.values(EVENT_FIELDS).flat()])];
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const HASH = /^0x[0-9a-f]{64}$/;
-const HEX = /^0x(?:[0-9a-f]{2})*$/;
 const DECIMAL = /^(?:0|[1-9][0-9]*)$/;
 
 type EventKey = keyof typeof EVENT_FIELDS;
-type EventFamily = "deposit" | "namepass" | "circle" | "ens";
+type EventFamily = "deposit" | "namepass" | "ens";
 type GoldskyOperation = "c" | "d";
 
 export interface GoldskyEvent {
@@ -206,10 +204,6 @@ function assertAllowlisted(
 		if (contract !== chain.factoryAddress?.toLowerCase()) invalid("contract_address");
 	} else if (key === "namepass:CCTPClaimed" || key === "namepass:Renewed") {
 		if (contract !== chain.helperAddress?.toLowerCase()) invalid("contract_address");
-	} else if (key === "circle:MessageSent") {
-		if (!chain.tokenMessengerAddress || contract !== chain.messageTransmitterAddress.toLowerCase()) {
-			invalid("contract_address");
-		}
 	} else if (
 		contract !== chain.ensRegistrarAddress?.toLowerCase() &&
 		contract !== chain.ensRenewerV1Address?.toLowerCase()
@@ -285,9 +279,6 @@ export function parseGoldskyEvent(object: Record<string, unknown>): GoldskyEvent
 		for (const field of ["duration", "amount_received", "gas_allowance", "amount_applied", "remainder"])
 			decimalField(object, field);
 		if (!new Set(["true", "false"]).has(stringField(object, "from_cctp", 5))) invalid("from_cctp");
-	} else if (key === "circle:MessageSent") {
-		patternField(object, "message", HEX, 8_192);
-		patternField(object, "nonce", HASH);
 	} else {
 		decimalField(object, "token_id");
 		stringField(object, "label", 255);

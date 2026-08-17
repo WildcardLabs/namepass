@@ -12,7 +12,6 @@ export interface IrisRequest {
 	baseUrl: string;
 	sourceDomain: number;
 	transactionHash: Hex;
-	expectedMessage: Hex;
 	attempt: number;
 	initialDelayMs: number;
 	maxDelayMs: number;
@@ -50,22 +49,20 @@ export async function pollIris(
 	const payload = (await response.json()) as { messages?: unknown };
 	if (!Array.isArray(payload.messages)) throw new Error("Circle Iris returned an invalid response.");
 	if (payload.messages.length === 0) return pending("incomplete", request, response);
-	const row = payload.messages.find(
-		(value): value is Record<string, unknown> =>
-			typeof value === "object" &&
-			value !== null &&
-			typeof (value as Record<string, unknown>).message === "string" &&
-			(value as Record<string, unknown>).message?.toString().toLowerCase() === request.expectedMessage.toLowerCase(),
-	);
-	if (!row) throw new Error("Circle Iris returned no matching CCTP message.");
-	if (row.status !== "complete") return pending("incomplete", request, response);
-	if (row.cctpVersion !== 2 || typeof row.attestation !== "string" || !HEX.test(row.attestation)) {
+	if (payload.messages.length !== 1) throw new Error("Circle Iris returned multiple CCTP messages.");
+	const row = payload.messages[0];
+	if (typeof row !== "object" || row === null || typeof (row as Record<string, unknown>).message !== "string") {
+		throw new Error("Circle Iris returned an invalid CCTP message.");
+	}
+	const message = row as Record<string, unknown>;
+	if (message.status !== "complete") return pending("incomplete", request, response);
+	if (message.cctpVersion !== 2 || typeof message.attestation !== "string" || !HEX.test(message.attestation)) {
 		throw new Error("Circle Iris returned an invalid complete attestation.");
 	}
 	return {
 		kind: "complete",
-		message: row.message as Hex,
-		attestation: row.attestation as Hex,
+		message: message.message as Hex,
+		attestation: message.attestation as Hex,
 		status: "complete",
 	};
 }
