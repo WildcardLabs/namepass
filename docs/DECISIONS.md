@@ -20,8 +20,10 @@ uses Vercel Workflow `getRun()` first. It keeps pending and running runs. It rep
 only a missing or terminal run.
 
 The initial Vercel Firewall limits are 10 activation requests and 20 trigger requests per minute
-for one source IP. These endpoints are human actions that make several RPC calls. The limits start
-low to control provider cost and can change after measured legitimate traffic.
+for one source IP. The live per-name read limit is 120 requests per minute for one source IP. An
+active name polls 15 times per minute, so the read limit gives eight times the required capacity.
+These endpoints make several RPC calls. The limits control provider cost and can change after
+measured legitimate traffic.
 
 ### 2026-08-11 — Initial production scope closes the remaining backend questions
 

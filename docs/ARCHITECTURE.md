@@ -1463,7 +1463,7 @@ registry and public API URLs.
 - Allowlist chain IDs, token addresses, contract addresses, and event signatures.
 - Compare webhook secrets in constant time.
 - Limit request bodies and page sizes.
-- Apply Vercel Firewall rate limits to activation and trigger endpoints.
+- Apply Vercel Firewall rate limits to activation, trigger, and live per-name read endpoints.
 - Return generic public errors. Store exact internal errors on the flow.
 
 ### Database controls

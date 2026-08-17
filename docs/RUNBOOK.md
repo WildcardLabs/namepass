@@ -30,6 +30,7 @@ The private operator record must name one primary operator and one backup operat
 | Neon stable testnet migration | Not applied | Operator action required |
 | Neon least-privilege roles | Not created | Operator action required |
 | Vercel server environment variables | None | Incomplete |
+| Vercel Firewall rules | Not created | Project-owner permission required |
 | Goldsky project | Not selected | Operator action required |
 | Goldsky stable testnet plan | Starter | Selected; free allowance covers `namepass-testnet` |
 
@@ -55,13 +56,16 @@ Use test-only values for preview and stable testnet. Put production values in th
 environment only. Do not expose a server secret through a `VITE_*` variable. In particular, keep
 a relayer key, a database URL, and the webhook secret out of preview unless the value is test-only.
 
-Before stable-testnet funding, add Vercel Firewall rate limits for these public write endpoints:
+Before stable-testnet funding, add Vercel Firewall rate limits for these public API endpoints:
 
 - `POST /api/names/activate`: 10 requests per minute for one source IP.
 - `POST /api/flows/trigger`: 20 requests per minute for one source IP.
+- `GET /api/names/[label]`: 120 requests per minute for one source IP. One active name polls 15
+  times per minute. The limit gives that polling rate eight times the required capacity.
 
 These are conservative initial limits for human actions. Change them only after measured legitimate
-traffic shows that they block ordinary use or do not control provider cost.
+traffic shows that they block ordinary use or do not control provider cost. Stage each new rule in
+log mode. Review the matched traffic before the rule returns `429` responses.
 
 Do not apply these rules to the Goldsky webhook or cron endpoints. Verify that an excess request is
 blocked and that ordinary activation and retry requests still pass. Record the rule IDs and the
