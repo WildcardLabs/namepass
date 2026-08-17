@@ -11,11 +11,12 @@
   contains the shared chain registry, Neon schema and migration, API, Goldsky pipeline definition,
   relayer transaction logic, durable workflows, recovery jobs, and frontend API cutover. The
   sections from "Production system" to the end describe this code and its remaining deployment,
-  testnet, operations, audit, and mainnet gates. The stable testnet Neon schema and database roles
-  are deployed. There is no deployed API, Goldsky pipeline, workflow environment, or relayer.
+  testnet, operations, audit, and mainnet gates. The stable testnet Neon schema, database roles,
+  Vercel API, Workflow environment, and Goldsky pipeline are deployed. The relayer key is
+  configured, but the relayer has no recorded test gas. No automated renewal is proven end to end.
 
-A deposit does not start a renewal today, because the detection and execution services are not
-deployed.
+Do not send test USDC yet. The relayer needs gas, and the complete automated flow needs a canary on
+each testnet.
 The on-chain path works. `renew(label)` is permissionless, so any person can push a deposit through
 it manually. The testnet flows below were run this way.
 
@@ -379,8 +380,9 @@ Details to pin down against Circle's current docs — treat as directional, not 
 > **This section is implemented in code and partly deployed to stable testnet.** The repository
 > contains the shared chain registry, Neon schema and migration, API, Goldsky pipeline definition,
 > relayer transaction logic, durable workflows, recovery jobs, and frontend API cutover. The
-> contracts above are deployed to four testnets. The stable testnet Neon schema and database roles
-> are deployed. There is no deployed API, Goldsky pipeline, relayer, or Vercel Workflow environment.
+> contracts above are deployed to four testnets. The stable testnet Neon schema, database roles,
+> Vercel API, Workflow environment, and `namepass-testnet` pipeline are deployed. The relayer key
+> is configured but unfunded. The automated flow is not proven end to end.
 
 The remaining system uses three managed platforms:
 
@@ -582,24 +584,18 @@ Protocol events are necessary even when the workflow records its own receipts. T
 permissionless. A third party can call `renew` or `completeCCTP` without the Namepass API. Goldsky
 makes that activity visible and reconciles the public history.
 
-**External protocol events**
+**ENS protocol events**
 
-Same `raw_logs` mechanism, two more addresses per chain. These are Circle's and ENS's contracts.
-
-| Chain | Contract | Event | Supplies |
-|---|---|---|---|
-| Every L2 | Circle `MessageTransmitterV2` | `MessageSent(bytes message)` | The CCTP nonce, read from the message at byte offset 12 |
-| Ethereum | ENS `ETHRegistrar` and `ETHRenewerV1` | `NameRenewed(...)` | `newExpiry`, and renewals that bypassed Namepass |
-
-`MessageTransmitterV2` is `0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275` on every testnet chain. The
-ENS addresses are in `docs/DEPLOYMENTS.md`. Pin all of them from the shared chain registry, the same
-way the factory address is pinned.
+On Ethereum, use the same `raw_logs` source for `ETHRegistrar` and `ETHRenewerV1`. Keep a
+`NameRenewed` row only when it has the Namepass referrer from the shared deployment registry. This
+filter gives the exact `newExpiry` for a Namepass renewal and rejects unrelated ENS traffic. A
+referrer change must update the registry and pipeline together.
 
 ### Why the external events are required
 
 Both close a gap that Namepass's own events cannot, and neither needs a contract change.
 
-**The CCTP nonce is the only exact key between a burn and its claim.**
+**Circle Iris supplies the final CCTP v2 nonce.**
 
 `CCTPClaimed` on Ethereum is indexed by `nonce`. `DepositProcessed` on the origin chain is not, and
 cannot be. CCTP v2's `depositForBurnWithHook` returns nothing — the `uint64 nonce` return belongs to
@@ -607,20 +603,25 @@ v1, and declaring it in v2 makes Solidity enforce a returndata size and revert o
 is why the factory's interface declares it `void`. **The factory never learns the nonce, so no
 redeploy could make it emit one.**
 
-Circle's `MessageTransmitterV2` emits `MessageSent` in the same transaction as the burn, and the
-nonce sits at a fixed offset in that blob. The helper already decodes it the same way
-(`MESSAGE_NONCE_OFFSET`). Indexing it gives the join:
+Circle's `MessageTransmitterV2` emits `MessageSent` in the same transaction as the burn. In CCTP
+v2, the on-chain message contains a zero nonce placeholder. Circle assigns the final nonce off
+chain. Iris returns the final message and attestation.
 
 ~~~text
-origin chain:   DepositProcessed  +  MessageSent          (same transaction)
-                                            │ nonce
-Ethereum:                        CCTPClaimed(nonce)  +  Renewed
+origin chain:   DepositProcessed + MessageSent(zero nonce)
+                                  │ origin transaction hash
+Circle Iris:                      final message + nonce + attestation
+                                  │ nonce
+Ethereum:                         CCTPClaimed(nonce) + Renewed
 ~~~
 
-Without `MessageSent`, linking a burn to its claim needs a heuristic on label, source domain and
-ordering. That is exact enough for flows the workflow ran, because `transaction_intents` records
-them. It is not exact for a renewal a third party pushed, which is the case protocol events exist to
-capture.
+The workflow verifies the origin receipt and stores its transaction hash. It requests exactly one
+Iris message for that transaction. It then verifies the final route, nonce, amount, wallet, and
+label. Goldsky does not index global Circle events.
+
+For a permissionless external CCTP renewal, the claim and renewal events are exact. The origin
+transaction can be unknown because the application did not create its transaction intent. The
+application leaves that field empty. It does not use a heuristic.
 
 **ENS reports the expiry after a renewal, so nothing has to derive it.**
 
@@ -629,9 +630,8 @@ subtract known durations backwards, which is wrong the moment a name is renewed 
 registration, or by the v2 migration's one-time 62-day adjustment. Those are exactly the cases a
 funder would notice on the runway bar.
 
-`NameRenewed.referrer` is **indexed**, and the deployed helper sets a Namepass referrer
-(`docs/DEPLOYMENTS.md`). Renewals that came through Namepass can therefore be separated from the
-rest by an indexed filter, with no join.
+The pipeline filters `NameRenewed` by the Namepass referrer. This is the allowlist. It does not
+accept every ENS renewal.
 
 **What the Explorer gets from each source.** `Renewed` was written for this — `label` is unindexed
 so an indexer can read the string, `labelHash` is indexed so it can be filtered, and the three
@@ -646,7 +646,7 @@ amounts are deliberately not collapsed.
 | who pushed it | `Renewed.executor` |
 | origin chain | `CCTPClaimed.sourceDomain`, same transaction; Ethereum when `fromCCTP` is false |
 | expiry after this renewal | `NameRenewed.newExpiry` |
-| the transactions behind it | `DepositProcessed` + `MessageSent` joined to `CCTPClaimed` by nonce |
+| the transactions behind it | workflow transaction intents, plus `CCTPClaimed` and `Renewed` |
 | discount label | Not on chain. Computed from the applied amount and label length. |
 
 In-flight rows are not in this table on purpose. No event can express `attesting`, because it is the
@@ -869,7 +869,7 @@ Base, Arbitrum, and Arc use CCTP.
 confirm deposit
   → verify renewability and balance
   → submit factory.renew(label)
-  → confirm DepositProcessed and Circle MessageSent
+  → confirm DepositProcessed and one Circle MessageSent with the origin placeholder nonce
   → query Iris by source domain and origin transaction hash
   → wait for status complete
   → verify returned route, nonce, amount, wallet, label, and attestation status
@@ -1092,10 +1092,10 @@ to `NULL`; it does not delete the `chain_events` row. The job uses `payload_expi
 not calculate retention from mutable application time. A legal or incident hold can move the expiry
 for selected rows before cleanup.
 
-`event_family` is one of `deposit`, `namepass`, `circle`, or `ens`. The last two carry
-`MessageSent` and `NameRenewed`, which the Explorer needs to link a renewal to its transactions and
-to show the expiry after it. No extra table is required for them. See "Why the external events are
-required".
+`event_family` is one of `deposit`, `namepass`, `circle`, or `ens`. `circle` remains in the database
+enum for migration compatibility, but the current pipeline does not create Circle rows. `ens`
+carries the allowlisted `NameRenewed` event that supplies the expiry after a Namepass renewal. No
+extra table is required. See "Why the external events are required".
 
 ### `deposits`
 
@@ -1244,8 +1244,9 @@ Do not add these old draft tables:
 
 `chain_events` is the replay and audit inbox. `flows` and `flow_transitions` hold workflow state.
 `transaction_intents` holds on-chain steps. Public renewal rows come from canonical `Renewed`
-events and permanent validated facts. `CCTPClaimed` supplies the exact source domain and nonce.
-`MessageSent` supplies the origin transaction. `NameRenewed` supplies the expiry after renewal.
+events and permanent validated facts. `CCTPClaimed` supplies the exact source domain and final
+nonce. A workflow transaction intent supplies the origin transaction when Namepass ran the flow.
+`NameRenewed` supplies the expiry after renewal.
 
 ## API and frontend reads
 
@@ -1659,10 +1660,11 @@ variable are still external gates.
 
 ### Phase 3 — Goldsky ingestion
 
-**Implemented in code, not deployed:** the generated pinned-candidate Turbo pipeline, authenticated
-webhook receiver, permanent validated event facts, external-renewal reconciliation, and create,
-duplicate, delete, replay, and input-boundary tests exist. Goldsky must still verify the exact
-datasets, validate the YAML, create the secrets, and deliver testnet events.
+**Implemented and deployed to stable testnet:** Goldsky verified all eight dataset names, versions,
+and schemas. The pipeline passed validation and runs in the active `Namepass` project. Both Goldsky
+secrets exist. The stable Vercel webhook returned an authenticated `200`. The receiver, permanent
+validated event facts, external-renewal reconciliation, and input-boundary tests exist. A real
+event from each testnet is still required for the phase gate.
 
 - Add the pinned Turbo pipeline definition.
 - Add deposit and protocol-event transforms.
@@ -1695,6 +1697,8 @@ retry behavior. A real automatic Sepolia run and Workflow runtime retry tests re
 **Implemented in code, not proven end to end:** the L2 workflow parses the origin burn receipt,
 polls Circle Iris v2, validates the complete CCTP route and message fields, stores the message and
 attestation before the claim, and submits the Ethereum claim through a durable transaction intent.
+The origin receipt can contain Circle's zero nonce placeholder. The final Iris message must contain
+a nonzero nonce, and the workflow stores that final nonce before the claim.
 An unclaimed flow keeps one Circle message and retries only that claim. A non-zero origin remainder
 queues a new recovery flow. Local checks cover Iris retry responses, route mismatch, claim retry,
 duplicate execution, and workflow-owner scoping. The three real L2 testnet runs remain an external

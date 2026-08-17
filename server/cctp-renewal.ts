@@ -307,7 +307,7 @@ export async function confirmCctpOrigin(
 			status: "waiting_attestation",
 			amountProcessed: burn.amount.toString(),
 			remainingAmount: burn.remaining.toString(),
-			cctpNonce: BigInt(burn.message.nonce).toString(),
+			cctpNonce: null,
 			cctpMessage: burn.message.raw,
 			waitingAttestationAt: now,
 			updatedAt: now,
@@ -341,7 +341,6 @@ export async function pollCctpAttestation(flowId: string, attempt: number): Prom
 		baseUrl: process.env.CIRCLE_IRIS_URL ?? "",
 		sourceDomain: chain.circleDomain,
 		transactionHash: intent.txHash as Hex,
-		expectedMessage: flow.cctpMessage,
 		attempt,
 		initialDelayMs: polling.initialMs,
 		maxDelayMs: polling.maxMs,
@@ -353,14 +352,15 @@ export async function pollCctpAttestation(flowId: string, attempt: number): Prom
 		});
 		return result;
 	}
-	validateCctpMessage(result.message, {
+	const message = validateCctpMessage(result.message, {
 		originChainId: flow.originChainId,
 		wallet: flow.depositAddress,
 		label: flow.label,
 		amount: BigInt(flow.amountProcessed!),
-		nonce: `0x${BigInt(flow.cctpNonce!).toString(16).padStart(64, "0")}` as Hex,
 	});
 	await setFlowStatus(flowId, "waiting_attestation", {
+		cctpMessage: result.message,
+		cctpNonce: BigInt(message.nonce).toString(),
 		cctpAttestation: result.attestation,
 		lastErrorCode: null,
 		nextActionAt: null,

@@ -29,10 +29,12 @@ The private operator record must name one primary operator and one backup operat
 | Neon stable testnet branch | `testnet` (`br-noisy-bird-avey45an`) | Created and verified |
 | Neon stable testnet migration | `f0316ff61d800f0e904d327c43bf6794f9eca508adc59c33e2ce7fd5065cfbbe` | Applied 2026-08-17 |
 | Neon testnet roles | `namepass_migrator`, `namepass_app`, `goldsky_reader` | Created and verified |
-| Vercel server environment variables | None | Project-owner permission required |
+| Vercel server environment variables | Stable testnet values | Configured 2026-08-17 |
+| Vercel production deployment | `dpl_2PJqoLujWrk1HEBosJE1AJH98Aun` | Ready 2026-08-17 |
 | Vercel Firewall rules | Not created | Project-owner permission required |
-| Goldsky project | Not selected | Operator action required |
+| Goldsky project | `Namepass` (`project_cmshghhiu0ign01u4b8gm0kqm`) | Active and verified |
 | Goldsky stable testnet plan | Starter | Selected; free allowance covers `namepass-testnet` |
+| Goldsky stable testnet pipeline | `namepass-testnet` | Running 2026-08-17 |
 
 ## Phase 0 checks
 
@@ -49,8 +51,9 @@ vercel project inspect namepass-v2 --scope wildcard-labs
 vercel env ls --scope wildcard-labs
 ```
 
-The project currently has no server environment variables. This does not meet the stable-testnet
-environment gate. `.env.example` lists the required value-free variable names.
+The stable deployment has the database, RPC, relayer, cron, Circle, deployment-environment, and
+Goldsky webhook variables. The relayer transaction-unit variables remain unset until testnet gas
+measurements exist. `.env.example` lists the required value-free variable names.
 
 Use test-only values for preview and stable testnet. Put production values in the production
 environment only. Do not expose a server secret through a `VITE_*` variable. In particular, keep
@@ -142,8 +145,15 @@ goldsky turbo validate goldsky/namepass-testnet.yaml
 goldsky turbo apply goldsky/namepass-testnet.yaml
 ```
 
-Run `apply` only after validation succeeds and the stable webhook returns an authorized `2xx`
-response. The current origin does not prove that this receiver is deployed.
+The eight datasets matched the committed names, versions, and fields on 2026-08-17. The pipeline
+passed validation. The stable webhook returned an authorized `200`. Goldsky then applied the
+pipeline. Its current resource size is `s`, and its state is `Running`.
+
+The first live definition included global Circle `MessageSent` events. CCTP v2 puts a zero nonce
+placeholder in that on-chain event and assigns the final nonce off chain. The corrected definition
+does not index Circle events. The workflow gets the final message, nonce, and attestation from
+Iris. The raw-log sources now contain only Namepass addresses and the two Ethereum ENS renewers.
+The ENS transform requires the Namepass referrer from the shared chain registry.
 
 The testnet pipeline target is
 `https://demo-five-gray-37.vercel.app/api/webhooks/goldsky`. Store the authorization header in a
@@ -153,10 +163,10 @@ secret. Do not target a preview URL.
 
 ### Relayer
 
-Create one test-only relayer account. Store its private key only in the stable testnet Vercel
-environment. Fund its address with native test gas on Ethereum Sepolia, Base Sepolia, Arbitrum
-Sepolia, and Arc Testnet. Do not use this account outside Namepass. This step is incomplete while
-the Vercel project has no server variables.
+One test-only relayer account exists. Its private key is in the stable testnet Vercel environment.
+Fund its address with native test gas on Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and Arc
+Testnet. Do not use this account outside Namepass. This step remains incomplete until all four gas
+balances and transaction-unit values are recorded.
 
 ## Operations
 

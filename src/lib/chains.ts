@@ -30,6 +30,7 @@ export interface ChainDefinition {
 	helperAddress?: string;
 	ensRegistrarAddress?: string;
 	ensRenewerV1Address?: string;
+	ensReferrer?: string;
 	tokenMessengerAddress?: string;
 	messageTransmitterAddress: string;
 	circleDomain: number;
@@ -133,6 +134,7 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		helperAddress: HELPER,
 		ensRegistrarAddress: "0xa88553F454b77203B0D036A05c894d555EAAa2Cc",
 		ensRenewerV1Address: "0x4ad56feb5Fc7B8298db06E88fd5CBc41D64602Fa",
+		ensReferrer: "0x0000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac6",
 		tokenMessengerAddress: TOKEN_MESSENGER,
 		messageTransmitterAddress: MESSAGE_TRANSMITTER,
 		circleDomain: 0,
@@ -383,7 +385,7 @@ export function assertChainRegistry(): void {
 		}
 	}
 
-	if (!HUB_CHAIN.factoryAddress || !HUB_CHAIN.helperAddress || !HUB_CHAIN.ensRegistrarAddress || !HUB_CHAIN.ensRenewerV1Address) {
+	if (!HUB_CHAIN.factoryAddress || !HUB_CHAIN.helperAddress || !HUB_CHAIN.ensRegistrarAddress || !HUB_CHAIN.ensRenewerV1Address || !HUB_CHAIN.ensReferrer) {
 		throw new Error("The hub chain is missing its helper or ENS deployment.");
 	}
 }

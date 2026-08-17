@@ -40,8 +40,10 @@ limit analysis, technical accuracy, or the ability to explain a complex subject.
   and marks each part.** The contracts are deployed to four testnets and proven on chain. The
   shared chain registry, Neon schema/API, Goldsky pipeline definition, webhook receiver, relayer,
   durable workflows, recovery jobs, and frontend cutover exist in the repository. The stable
-  testnet Neon schema and database roles are deployed. The API, Goldsky pipeline, workflows, and
-  relayer are not deployed. Read this file before you change
+  testnet Neon schema and database roles are deployed. The stable Vercel API and Workflow
+  environment are deployed. The `namepass-testnet` Goldsky pipeline is running. The relayer is
+  configured but has no recorded test gas. No automated renewal has completed end to end. Read
+  this file before you change
   anything that models activation, deposits, flows, pending balances, or backend services.
 - **`docs/DEPLOYMENTS.md`** — live contract addresses, the salt and creation-code hashes behind
   them, per-chain configuration, and what has actually been proven on chain. Read it before
@@ -83,16 +85,17 @@ product uses Goldsky Turbo to detect payments, Neon Postgres to store applicatio
 Vercel Workflow to move the USDC through Circle CCTP. The renewal executes in the same transaction
 that completes the transfer.
 
-**The contracts are real and deployed; the application code is not deployed.** Hold both facts at
-once:
+**The contracts and stable-testnet services are deployed, but automated renewal is not yet
+proven.** Keep these facts separate:
 
 - `contracts/` is live on four testnets, tested, and verified against ENS's and Circle's deployed
   contracts. Addresses and what has been proven on chain are in `docs/DEPLOYMENTS.md`.
-- **The frontend is still a prototype.** The UI, routing, pricing math, and **deposit addresses**
-  are real and exact. The Explorer and Leaderboard use `src/lib/publicApi.ts` to read Vercel public
-  APIs. The schema, API, webhook receiver, pipeline, and workflows exist in code but are not
-  deployed. `src/lib/registry.ts` is local demonstration data and must not be imported by a
-  production screen.
+- **The deployed app is still a stable-testnet prototype.** The UI, routing, pricing math, and
+  **deposit addresses** are real and exact. The Explorer and Leaderboard use
+  `src/lib/publicApi.ts` to read the deployed Vercel public APIs. Neon, the webhook receiver,
+  Vercel Workflow, and the Goldsky pipeline are deployed. The relayer still needs test gas, and
+  the four-chain automated flow still needs proof. `src/lib/registry.ts` is local demonstration
+  data and must not be imported by a production screen.
 
 The deposit address is the seam between the two halves. `src/lib/namepass.ts` reimplements the
 deployed factory's `predictWallet` derivation, so the address on a card is the address the
@@ -110,6 +113,12 @@ validation and public reads. Vercel Workflow owns long-running renewal execution
 second event ledger, queue, worker service, real-time service, or balance aggregate without a
 measured need and a new decision entry. The chain remains authoritative for balances, receipts,
 and renewals.
+
+**Circle Iris supplies the final CCTP v2 nonce.** The origin-chain `MessageSent` event has a zero
+nonce placeholder. The workflow verifies that event and its route, then requests exactly one final
+message from Iris by origin transaction hash. Goldsky does not index global Circle events. It
+filters ENS `NameRenewed` events by the Namepass referrer in the shared chain registry. See the
+2026-08-17 decision before changing this flow.
 
 **The initial production scope is settled.** Mainnet starts on Ethereum, Base, and Arbitrum; Arc
 stays testnet-only until Circle and Goldsky support Arc mainnet. Stable testnet uses the free

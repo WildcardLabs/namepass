@@ -17,12 +17,13 @@ The pipeline has one source pair for each testnet chain:
 | Arbitrum Sepolia | `arbitrum_sepolia.erc20_transfers` `1.2.0` | `arbitrum_sepolia.raw_logs` `1.0.0` |
 | Arc Testnet | `arc_testnet.erc20_transfers` `1.1.0` | `arc_testnet.raw_logs` `1.1.0` |
 
-The versions are pinned candidates from Goldsky public dataset metadata. Before deployment, verify
-each dataset name, version, and schema with authenticated `goldsky dataset get <dataset>`.
+Goldsky verified all eight dataset names, versions, and schemas on 2026-08-17. Turbo `0.13.0`
+validated the full pipeline. The `namepass-testnet` pipeline runs in the active `Namepass` project.
 
-Validation is blocked in this workspace. The installed Goldsky CLI does not include the Turbo
-binary. The CLI also has no active authentication. Do not deploy until an authenticated environment
-validates the four dataset records and the full pipeline.
+The raw-log sources include only Namepass contract addresses and the two Ethereum ENS renewers.
+The ENS transform keeps `NameRenewed` only when it has the Namepass referrer from the shared
+deployment registry. The pipeline does not index Circle `MessageSent`. CCTP v2 assigns the final
+nonce off chain, so the workflow gets the final message, nonce, and attestation from Circle Iris.
 
 The pipeline needs two Goldsky secrets:
 

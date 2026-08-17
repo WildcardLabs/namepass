@@ -22,6 +22,7 @@ const messageAbi = parseAbi(["event MessageSent(bytes message)"]);
 const wallet = "0x1111111111111111111111111111111111111111" as Address;
 const labelHash = `0x${"22".repeat(32)}` as Hex;
 const nonce = `0x${"33".repeat(32)}` as Hex;
+const zeroNonce = `0x${"00".repeat(32)}` as Hex;
 
 function word(value: bigint | string): Hex {
 	return typeof value === "bigint"
@@ -29,18 +30,18 @@ function word(value: bigint | string): Hex {
 		: padHex(value as Hex, { size: 32 });
 }
 
-function message(overrides: { recipient?: Address; label?: string } = {}): Hex {
+function message(overrides: { recipient?: Address; label?: string; nonce?: Hex; executed?: number } = {}): Hex {
 	const origin = chainByKey("base");
 	return concatHex([
 		numberToHex(1, { size: 4 }),
 		numberToHex(origin.circleDomain, { size: 4 }),
 		numberToHex(HUB_CHAIN.circleDomain, { size: 4 }),
-		nonce,
+		overrides.nonce ?? nonce,
 		word(origin.tokenMessengerAddress!),
 		word(overrides.recipient ?? HUB_CHAIN.tokenMessengerAddress!),
 		word(HUB_CHAIN.helperAddress!),
 		numberToHex(2_000, { size: 4 }),
-		numberToHex(2_000, { size: 4 }),
+		numberToHex(overrides.executed ?? 2_000, { size: 4 }),
 		numberToHex(1, { size: 4 }),
 		word(origin.usdcAddress),
 		word(HUB_CHAIN.helperAddress!),
@@ -77,7 +78,7 @@ test("CCTP route validation binds the route, amount, wallet, nonce, and label", 
 
 test("the origin receipt links one deposit to one Circle message", () => {
 	const origin = chainByKey("base");
-	const rawMessage = message();
+	const rawMessage = message({ nonce: zeroNonce, executed: 0 });
 	const depositTopics = encodeEventTopics({
 		abi: depositAbi,
 		eventName: "DepositProcessed",
@@ -108,6 +109,17 @@ test("the origin receipt links one deposit to one Circle message", () => {
 			amount: 1_000_000n,
 		},
 	);
-	assert.equal(parsed.message.nonce, nonce);
+	assert.equal(parsed.message.nonce, zeroNonce);
 	assert.equal(parsed.remaining, 250_000n);
+});
+
+test("a final Circle message rejects the origin nonce placeholder", () => {
+	assert.throws(
+		() => validateCctpMessage(message({ nonce: zeroNonce }), {
+			originChainId: chainByKey("base").chainId,
+			wallet,
+			label: "vitalik",
+		}),
+		/nonce placeholder/,
+	);
 });

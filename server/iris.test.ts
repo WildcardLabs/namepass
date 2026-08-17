@@ -10,7 +10,6 @@ const request = {
 	baseUrl: "https://iris-api-sandbox.circle.com",
 	sourceDomain: 6,
 	transactionHash,
-	expectedMessage: message,
 	attempt: 0,
 	initialDelayMs: 5_000,
 	maxDelayMs: 30_000,
@@ -34,7 +33,7 @@ test("Iris treats 404, incomplete, 429, and 5xx as retryable states", async () =
 	}
 });
 
-test("Iris accepts only the exact complete CCTP v2 message", async () => {
+test("Iris accepts one complete CCTP v2 message for the origin transaction", async () => {
 	const result = await pollIris(request, async () =>
 		Response.json({
 			messages: [
@@ -53,10 +52,11 @@ test("Iris accepts only the exact complete CCTP v2 message", async () => {
 		pollIris(request, async () =>
 			Response.json({
 				messages: [
+					{ message, attestation: "0xaabb", status: "complete", cctpVersion: 2 },
 					{ message: "0x0304", attestation: "0xaabb", status: "complete", cctpVersion: 2 },
 				],
 			}),
 		),
-		/no matching CCTP message/,
+		/multiple CCTP messages/,
 	);
 });

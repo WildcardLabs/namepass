@@ -60,6 +60,8 @@ export interface ExpectedCctpRoute {
 	nonce?: Hex;
 }
 
+const ZERO_NONCE = `0x${"0".repeat(64)}`;
+
 export interface OriginBurn {
 	message: CctpMessage;
 	amount: bigint;
@@ -113,7 +115,11 @@ export function parseCctpMessage(raw: Hex): CctpMessage {
 	};
 }
 
-export function validateCctpMessage(raw: Hex, expected: ExpectedCctpRoute): CctpMessage {
+export function validateCctpMessage(
+	raw: Hex,
+	expected: ExpectedCctpRoute,
+	requireFinalMessage = true,
+): CctpMessage {
 	const origin = chainById(expected.originChainId);
 	if (!origin || origin.key === "ethereum" || !origin.tokenMessengerAddress) {
 		fail("origin chain");
@@ -128,9 +134,13 @@ export function validateCctpMessage(raw: Hex, expected: ExpectedCctpRoute): Cctp
 	if (!sameAddress(message.sender, origin.tokenMessengerAddress)) fail("sender");
 	if (!sameAddress(message.recipient, HUB_CHAIN.tokenMessengerAddress)) fail("recipient");
 	if (!sameAddress(message.destinationCaller, HUB_CHAIN.helperAddress)) fail("destination caller");
-	if (message.minFinalityThreshold !== origin.circleFinalityThreshold || message.finalityThresholdExecuted < message.minFinalityThreshold) {
+	if (
+		message.minFinalityThreshold !== origin.circleFinalityThreshold ||
+		(requireFinalMessage && message.finalityThresholdExecuted < message.minFinalityThreshold)
+	) {
 		fail("finality threshold");
 	}
+	if (requireFinalMessage && message.nonce.toLowerCase() === ZERO_NONCE) fail("nonce placeholder");
 	if (!sameAddress(message.burnToken, origin.usdcAddress)) fail("burn token");
 	if (!sameAddress(message.mintRecipient, HUB_CHAIN.helperAddress)) fail("mint recipient");
 	if (!sameAddress(message.messageSender, expected.wallet)) fail("wallet");
@@ -186,10 +196,11 @@ export function parseOriginBurnReceipt(
 	if (!sameAddress(deposit.wallet, expected.wallet)) fail("deposit wallet");
 	if (expected.amount !== undefined && deposit.amount !== expected.amount) fail("deposit amount");
 
-	const message = validateCctpMessage((sent[0].args as { message: Hex }).message, {
-		...expected,
-		amount: deposit.amount,
-	});
+	const message = validateCctpMessage(
+		(sent[0].args as { message: Hex }).message,
+		{ ...expected, amount: deposit.amount },
+		false,
+	);
 	return { message, amount: deposit.amount, remaining: deposit.remaining };
 }
 

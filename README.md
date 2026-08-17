@@ -49,8 +49,9 @@ inbound payments, [Circle's CCTP](https://developers.circle.com/cctp) moves the 
 and the renewal executes in the same transaction that completes the transfer — no manual
 intervention.
 
-The paragraph above describes the design. The contracts run on testnet. The automation exists in
-code, but it is not deployed. Read the next section before you treat it as a running system.
+The paragraph above describes the design. The contracts and supporting services run on testnet.
+The automated renewal path is not yet proven end to end. Read the next section before you treat it
+as a running system.
 
 ## 🎬 A note on what this is
 
@@ -67,9 +68,9 @@ external audit has been done. There is no mainnet deployment.**
 
 **2. The automation backend is implemented in code and partly deployed to stable testnet.**
 
-The schema, public API, Goldsky pipeline definition, and workflow code are in this repository.
-The stable testnet Neon schema and database roles are deployed. The Goldsky pipeline, relayer,
-API, and Vercel environment are not deployed.
+The stable testnet Neon schema, database roles, Vercel API, Workflow environment, and Goldsky
+pipeline are deployed. The relayer key is configured, but the relayer has no recorded test gas.
+No automated renewal has completed across all four testnets.
 
 **3. The app in this repository is a frontend prototype.**
 
@@ -84,7 +85,7 @@ from the deployed factory's own CREATE2 rule — the same value `predictWallet(s
 chain, checked against all four networks. Every rate is read from ENS's rent oracle when the page
 loads. And each name's expiry and whether ENS will renew it come from ENS's registry per name. So
 the address on a card is genuine, the price beside it is ENS's, and the expiry is the real one —
-renewal history appears only when the undeployed backend supplies canonical chain events.
+renewal history appears only when the deployed backend supplies canonical chain events.
 
 ## ✨ Feature tour
 
