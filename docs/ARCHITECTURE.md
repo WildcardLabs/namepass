@@ -1,4 +1,4 @@
-# Architecture — contracts (built) and production system (implemented, not deployed)
+# Architecture — contracts (built) and production system (partly deployed to stable testnet)
 
 **This file covers two parts at two different stages. Check which part you are reading.**
 
@@ -7,12 +7,12 @@
   four testnets**. Both have been run against the deployed ENS and Circle contracts.
   `docs/DEPLOYMENTS.md` records the addresses, the configuration, and the transactions that prove
   each claim. **The contracts have no external audit. There is no mainnet deployment.**
-- **Production system: implemented in code, not deployed.** The repository contains the shared
-  chain registry, Neon schema and migration, API, Goldsky pipeline definition, webhook receiver,
+- **Production system: implemented in code and partly deployed to stable testnet.** The repository
+  contains the shared chain registry, Neon schema and migration, API, Goldsky pipeline definition,
   relayer transaction logic, durable workflows, recovery jobs, and frontend API cutover. The
   sections from "Production system" to the end describe this code and its remaining deployment,
-  testnet, operations, audit, and mainnet gates. There is no deployed backend, database schema,
-  pipeline, or relayer.
+  testnet, operations, audit, and mainnet gates. The stable testnet Neon schema and database roles
+  are deployed. There is no deployed API, Goldsky pipeline, workflow environment, or relayer.
 
 A deposit does not start a renewal today, because the detection and execution services are not
 deployed.
@@ -376,11 +376,11 @@ Details to pin down against Circle's current docs — treat as directional, not 
 
 ## Production system
 
-> **This section is implemented in code but not deployed.** The repository contains the shared
-> chain registry, Neon schema and migration, API, Goldsky pipeline definition, webhook receiver,
+> **This section is implemented in code and partly deployed to stable testnet.** The repository
+> contains the shared chain registry, Neon schema and migration, API, Goldsky pipeline definition,
 > relayer transaction logic, durable workflows, recovery jobs, and frontend API cutover. The
-> contracts above are deployed to four testnets. There is no deployed API, database schema,
-> Goldsky pipeline, relayer, or Vercel Workflow environment.
+> contracts above are deployed to four testnets. The stable testnet Neon schema and database roles
+> are deployed. There is no deployed API, Goldsky pipeline, relayer, or Vercel Workflow environment.
 
 The remaining system uses three managed platforms:
 
@@ -1619,8 +1619,8 @@ Each phase ends with a mergeable PR and an explicit verification gate.
 - Confirm Vercel Pro and Neon Launch for production.
 - Use Goldsky Starter for stable testnet. Defer Scale to the production decision, and require it
   only if `namepass-testnet` and `namepass-mainnet` must run concurrently.
-- Create stable testnet Vercel, Neon, and Goldsky environments.
-- Create least-privilege database roles.
+- Create stable testnet Vercel and Goldsky environments. Use the deployed Neon `testnet` branch.
+- Use the deployed least-privilege database roles.
 - Create test relayer accounts and gas them.
 - Verify exact Goldsky dataset names and versions.
 - Record the commands and owners in a runbook.
@@ -1642,9 +1642,11 @@ exist. The current frontend order, labels, addresses, explorers, tags, and asset
 
 ### Phase 2 — Neon schema and API foundation
 
-**Implemented in code, not deployed:** Drizzle schema and migration, value-free environment
-template, structured API validation, activation and public read endpoints, and local tests exist.
-Database roles and a preview Neon branch are still external gates.
+**Implemented in code and deployed to stable testnet:** the Drizzle schema and migration,
+`namepass_migrator`, `namepass_app`, and `goldsky_reader` exist on the stable Neon `testnet` branch.
+The value-free environment template, structured API validation, activation and public read
+endpoints, and local tests also exist. An isolated preview Neon branch and the Vercel database
+variable are still external gates.
 
 - Add Drizzle, `pg`, and `@vercel/functions`.
 - Add migrations and roles.

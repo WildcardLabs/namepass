@@ -65,10 +65,11 @@ together. [`docs/DEPLOYMENTS.md`](docs/DEPLOYMENTS.md) lists the addresses and t
 hashes. 61 Foundry tests cover the contracts, and several review passes examined them. **No
 external audit has been done. There is no mainnet deployment.**
 
-**2. The automation backend is implemented in code but is not deployed.**
+**2. The automation backend is implemented in code and partly deployed to stable testnet.**
 
 The schema, public API, Goldsky pipeline definition, and workflow code are in this repository.
-They have no deployed database, Goldsky pipeline, relayer, or Vercel environment yet.
+The stable testnet Neon schema and database roles are deployed. The Goldsky pipeline, relayer,
+API, and Vercel environment are not deployed.
 
 **3. The app in this repository is a frontend prototype.**
 
@@ -130,7 +131,7 @@ renewal history appears only when the undeployed backend supplies canonical chai
 | Chain reads | A ~180-line batched `eth_call` client over `fetch` (`lib/rpc.ts`). No web3 library: the app reads four `view` functions once at boot and never signs anything, so a wallet SDK would be several hundred kilobytes of surface area for nothing |
 | ENS names | [`@adraffy/ens-normalize`](https://github.com/adraffy/ens-normalize.js) for ENSIP-15, and [`@noble/hashes`](https://github.com/paulmillr/noble-hashes) for the keccak-256 behind the CREATE2 derivation |
 | Contracts (deployed, testnet) | Solidity 0.8.24 · Foundry · CREATE2 via the Safe Singleton Factory · Circle CCTP v2 · ENS v2 renewers |
-| Automation (implemented, not deployed) | Goldsky Turbo · Neon Postgres · Vercel Functions · Vercel Workflow · Drizzle · viem. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| Automation (partly deployed to stable testnet) | Goldsky Turbo · Neon Postgres · Vercel Functions · Vercel Workflow · Drizzle · viem. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Routing | ~40 lines of hand-rolled `history.pushState` — no router dependency for five pages |
 
 ## 🚀 Getting started
@@ -214,7 +215,7 @@ docs, each with a distinct job:
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) | Working conventions and the load-bearing constraints, in brief |
 | [`docs/FRONTEND.md`](docs/FRONTEND.md) | **How the app works** — public API reads, UI state, and invariants |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The contracts (built, testnet) and the production system (implemented in code, not deployed). CREATE2, CCTP, Goldsky, Neon, and Vercel |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The contracts (built, testnet) and the production system (partly deployed to stable testnet). CREATE2, CCTP, Goldsky, Neon, and Vercel |
 | [`docs/DEPLOYMENTS.md`](docs/DEPLOYMENTS.md) | **Live testnet addresses** and what has been proven on chain |
 | [`PRODUCT.md`](PRODUCT.md) · [`docs/DECISIONS.md`](docs/DECISIONS.md) | What/why, and a dated log of non-obvious calls |
 

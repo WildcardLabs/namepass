@@ -27,9 +27,9 @@ The private operator record must name one primary operator and one backup operat
 | Neon project | `Namepass` (`nameless-paper-91018372`) | Verified |
 | Neon production branch | `production` (`br-bitter-leaf-avog4zs6`) | Verified |
 | Neon stable testnet branch | `testnet` (`br-noisy-bird-avey45an`) | Created and verified |
-| Neon stable testnet migration | Not applied | Operator action required |
-| Neon least-privilege roles | Not created | Operator action required |
-| Vercel server environment variables | None | Incomplete |
+| Neon stable testnet migration | `f0316ff61d800f0e904d327c43bf6794f9eca508adc59c33e2ce7fd5065cfbbe` | Applied 2026-08-17 |
+| Neon testnet roles | `namepass_migrator`, `namepass_app`, `goldsky_reader` | Created and verified |
+| Vercel server environment variables | None | Project-owner permission required |
 | Vercel Firewall rules | Not created | Project-owner permission required |
 | Goldsky project | Not selected | Operator action required |
 | Goldsky stable testnet plan | Starter | Selected; free allowance covers `namepass-testnet` |
@@ -96,6 +96,17 @@ administrator connection string in a preview deployment environment or in a repo
 Create the migration role first. It owns schema changes. After the migration succeeds, create the
 application role with only the table privileges that the API needs. Then create `goldsky_reader`,
 after the migration creates `goldsky.watched_addresses`.
+
+The stable `testnet` branch completed this setup on 2026-08-17. The resource table shows the
+committed migration hash. `namepass_migrator` owns all application tables and the Drizzle migration
+journal. `namepass_app` can read and write application tables. It cannot create database or schema
+objects. It cannot access the Drizzle schema. `goldsky_reader` cannot access public application
+tables. It cannot write `goldsky.watched_addresses`.
+
+Create runtime roles with SQL, not `neon roles create`. The Neon role API grants its managed
+`neon_superuser` membership to a new role. After SQL creates a runtime role, reset its password
+through the Neon Console or API. This registers the password with the Neon proxy without adding
+the managed membership.
 
 Give `goldsky_reader` only these privileges:
 
