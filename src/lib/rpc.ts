@@ -3,7 +3,7 @@
  *
  * Not a web3 library and not the start of one. The app makes one kind of
  * request — a batch of `view` calls — and every return type it decodes is
- * listed in `oracle.ts` and `ensName.ts`. A dependency that can also sign
+ * listed in `oracle.ts`. A dependency that can also sign
  * transactions would be several hundred kilobytes of surface area for a page
  * that never writes anything.
  *

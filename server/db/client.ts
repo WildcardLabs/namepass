@@ -34,9 +34,3 @@ export async function withDatabaseLease<T>(key: number, work: () => Promise<T>):
 		return result.rows[0]?.locked ? work() : undefined;
 	});
 }
-
-export async function closeDatabase(): Promise<void> {
-	await pool?.end();
-	pool = undefined;
-	db = undefined;
-}

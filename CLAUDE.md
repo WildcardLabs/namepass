@@ -94,8 +94,7 @@ proven.** Keep these facts separate:
   **deposit addresses** are real and exact. The Explorer and Leaderboard use
   `src/lib/publicApi.ts` to read the deployed Vercel public APIs. Neon, the webhook receiver,
   Vercel Workflow, and the Goldsky pipeline are deployed. The relayer still needs test gas, and
-  the four-chain automated flow still needs proof. `src/lib/registry.ts` is local demonstration
-  data and must not be imported by a production screen.
+  the four-chain automated flow still needs proof.
 
 The deposit address is the seam between the two halves. `src/lib/namepass.ts` reimplements the
 deployed factory's `predictWallet` derivation, so the address on a card is the address the
@@ -208,24 +207,6 @@ on non-Home pages (only Home shows the Explorer/Search/Cost simulator menu).
   app makes one kind of request (a batch of `view` calls, once, at boot) and every return type it
   decodes is listed in `oracle.ts`. Needing dynamic argument encoding, a transaction, or a revert
   reason is the signal to take a real dependency instead of extending this.
-- `ensName.ts` — per-name ENS state: the real expiry, and `isRenewable` on both renewers for
-  whether ENS will renew it now. Like the oracle, **no address is pinned** — `ETH_REGISTRY()`
-  comes off the renewers, and the two must agree on it.
-  **`ETHRegistrar` and `ETHRenewerV1` are authoritative for both populations, and nothing else is
-  consulted.** In particular `findExpiry` is the expiry for v1 names too, 62 days later than v1's
-  own registrar says. That is not an error to correct: ENS v2 cuts grace 90 → 28 days and applies
-  a one-time +62 day renewal to every v1 name **automatically at the upgrade** (DAO proposal
-  6.43), so from launch it is the operative date and both populations are released at the same
-  instant. Don't "fix" it by reading v1's `BaseRegistrar.nameExpires` — that was tried, and it
-  reintroduces the pre-upgrade clock. **Grace is `expired && renewable`**, which needs no window
-  constant: past grace both renewers return false for `isRenewable`.
-  `getRemainingGracePeriod` supplies how long is left, but is only consulted once `findExpiry`
-  says the name has expired — on testnet today a premigrated name is mid-migration and
-  `ETHRenewerV1` reports grace against the *un-extended* v1 expiry, which would put a name "73
-  days into grace" on a card whose headline says it expires in 46. Two nulls that
-  are not the same thing: a `null` **return** means the read failed (not known), while
-  `{ expiry: null }` is the chain saying the name isn't registered. Rendering the second for the
-  first tells someone their name doesn't exist because an RPC was slow.
 - `oracle.ts` — ENS's live pricing configuration. **The oracle address is not pinned**: the two
   ENS renewer addresses are, and the oracle is read from `rentPriceOracle()` on them, which is
   what the helper does and for the same reason. It requires the two renewers to agree on one
@@ -324,7 +305,7 @@ constraints that are easy to break by accident:
   a wallet transfers or approves to.
 
 **`src/components/magicui/`** holds hand-ported Magic UI–style primitives (`ShineBorder`,
-`AnimatedShinyText`, `NumberTicker`, `DotPattern`), restyled to the single navy brand accent
+`AnimatedShinyText`, `DotPattern`), restyled to the single navy brand accent
 (`rgba(30,50,90,*)`) rather than Magic UI's default colors. When reusing one of these elsewhere,
 reuse the same component/props combination rather than approximating the effect with new CSS —
 visual consistency across instances has mattered more than novelty here.

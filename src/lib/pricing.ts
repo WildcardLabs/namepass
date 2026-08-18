@@ -53,10 +53,6 @@ export function rates(): OracleRates {
 	return loaded;
 }
 
-export function ratesLoaded(): boolean {
-	return loaded !== null;
-}
-
 /**
  * Characters in a label, counted the way the oracle counts them.
  *

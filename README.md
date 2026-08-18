@@ -104,7 +104,7 @@ renewal history appears only when the deployed backend supplies canonical chain 
 | 🧾 **Renewal breakdown** | Expand any renewal to see received, gas allowance, applied, funder, executor, and the available transactions behind it. Each transaction links to the correct block explorer. |
 | 🛡️ **Supported tokens** | The exact USDC contract on each of the four networks, shown in full and linked to its block explorer, because "check the ticker" is how people lose money to bridged `USDC.e`. Deliberately a whitelist — match one of these four exactly or don't send — and honest that anything else sent to a deposit address can't be recovered. |
 | 🧪 **Testnet strip** | A slim marquee above every page saying which networks this deployment actually watches. Not dismissible: "this is a testnet" isn't a notice someone should be able to close and then forget while looking at a deposit address. Pauses under `prefers-reduced-motion`. |
-| 💎 **Shine & shimmer UI** | Hand-ported [Magic UI](https://magicui.design)–style primitives (`ShineBorder`, `AnimatedShinyText`, `NumberTicker`, `DotPattern`) restyled to a single navy accent — restrained, not confetti. |
+| 💎 **Shine & shimmer UI** | Hand-ported [Magic UI](https://magicui.design)–style primitives (`ShineBorder`, `AnimatedShinyText`, `DotPattern`) restyled to a single navy accent — restrained, not confetti. |
 | 🪟 **One consistent shell** | Every page — home, leaderboard, supported tokens, terms, privacy — renders inside the same rounded card with the same header, so navigating between them never feels like leaving the app. |
 
 <div align="center">
@@ -155,7 +155,7 @@ npm run preview   # serve the production build locally
 ```
 src/
 ├── components/
-│   ├── magicui/            ShineBorder, AnimatedShinyText, NumberTicker, DotPattern
+│   ├── magicui/            ShineBorder, AnimatedShinyText, DotPattern
 │   ├── Hero.tsx            Home hero content (badge, headline, CTA cards)
 │   ├── Navbar.tsx          Shared header — logo, glass menu, CTA
 │   ├── PageShell.tsx       The rounded card every page renders inside
@@ -171,12 +171,10 @@ src/
 ├── lib/
 │   ├── pricing.ts          Exact ENS v2 StandardRentPriceOracle math, BigInt end to end
 │   ├── oracle.ts           ENS's live rates, read from the registrar's oracle at boot
-│   ├── ensName.ts          Per-name expiry + renewability, from ENS's registry and renewers
 │   ├── rpc.ts              Minimal batched eth_call client — reads only, never writes
 │   ├── namepass.ts         ENS label → deposit address, the deployed factory's CREATE2 rule
 │   ├── publicApi.ts        Typed public Vercel API adapter
 │   ├── readModel.ts        API-to-Explorer and Leaderboard view mapping
-│   ├── registry.ts         Local demonstration fixtures only
 │   ├── tokens.ts           Real testnet USDC addresses — not mock
 │   ├── fees.ts             The flat $0.10 gas allowance taken per flow
 │   ├── ens.ts              resolvio profile client
