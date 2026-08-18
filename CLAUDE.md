@@ -25,8 +25,8 @@ limit analysis, technical accuracy, or the ability to explain a complex subject.
 
 ## Read these too
 
-- **`README.md`** — the infrastructure entry point: status, system map, setup, verification, and
-  operational boundaries.
+- **`README.md`** — the protocol entry point: contracts, trust boundaries, permissionless use,
+  ENS v2 pricing and migration support, and testnet evidence.
 - **`PRODUCT.md`** — the detailed "what and why": the problem being solved, the core mechanic,
   positioning/tone decisions made through design iteration, and what's explicitly *not* decided
   yet. Read this before making product-facing decisions (copy, new features, framing) that aren't
