@@ -165,8 +165,8 @@ export function getNameActivity(label: string, cursor?: string, limit = 30): Pro
 	return request(`/api/names/${labelPath(label)}/activity?${query}`);
 }
 
-export function getActivity(cursor?: string): Promise<ActivityRead> {
-	const query = new URLSearchParams({ limit: "15" });
+export function getActivity(cursor?: string, limit = 15): Promise<ActivityRead> {
+	const query = new URLSearchParams({ limit: String(limit) });
 	if (cursor) query.set("cursor", cursor);
 	return request(`/api/activity?${query}`);
 }
