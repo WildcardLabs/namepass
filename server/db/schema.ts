@@ -2,9 +2,9 @@ import { sql } from "drizzle-orm";
 import {
 	bigint,
 	boolean,
+	customType,
 	index,
 	integer,
-	jsonb,
 	numeric,
 	pgEnum,
 	pgSchema,
@@ -17,6 +17,37 @@ import {
 	uuid,
 	varchar,
 } from "drizzle-orm/pg-core";
+
+/**
+ * BigInt-safe jsonb. A stored value such as a viem transaction receipt carries
+ * BigInt fields, and the default driver serializer is JSON.stringify, which
+ * throws "Do not know how to serialize a BigInt". Convert BigInts to decimal
+ * strings at the driver boundary so every jsonb column is safe to write.
+ */
+export function serializeJsonb(value: unknown): string {
+	return JSON.stringify(value, (_key, item: unknown) =>
+		typeof item === "bigint" ? item.toString(10) : item,
+	);
+}
+
+const jsonb = customType<{ data: unknown }>({
+	dataType() {
+		return "jsonb";
+	},
+	toDriver(value) {
+		return serializeJsonb(value);
+	},
+	fromDriver(value) {
+		if (typeof value === "string") {
+			try {
+				return JSON.parse(value);
+			} catch {
+				return value;
+			}
+		}
+		return value;
+	},
+});
 
 const amount = (name: string) => numeric(name, { precision: 78, scale: 0 });
 const instant = (name: string) =>
