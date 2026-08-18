@@ -1345,7 +1345,9 @@ Polling is sufficient and has fewer failure modes.
 - The displayed balance comes from a recent native USDC `balanceOf` read.
 - An active flow explains funds that have left the origin address.
 - An `unclaimed` flow must remain visible even though the origin balance is zero.
-- Lifetime received is the sum of canonical native USDC deposit events.
+- Lifetime received is the sum of `amount_received` in canonical `Renewed` events. Pending wallet
+  funds remain a separate live balance. This rule also includes renewals that happened before name
+  activation and balance recoveries that do not have an indexed deposit event.
 - Time delivered and amount applied come from canonical `Renewed` events.
 - A protocol event seen outside a known workflow creates or reconciles an `external` flow.
 - Never infer a completed renewal from an empty deposit address.

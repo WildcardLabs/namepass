@@ -1479,6 +1479,11 @@ The row-level case was different, and that's the distinction to keep in mind: th
 rate and the duration sit on one line and the last two *are* computed from the first, so showing a
 pre-fee number beside them read as broken arithmetic. Independent tiles carry no such implication.
 
+**Superseded on 2026-08-18:** `Total received` now sums `amount_received` from canonical `Renewed`
+events. Deposit-event totals omit funds received before activation and manual balance recoveries.
+The canonical renewal event records the exact amount received for both cases and cannot be counted
+twice. Pending wallet funds remain in the separate pending balance section.
+
 **The Simulator now says its figures are pre-fee**, since the ENS math it shows is exact but the
 amount reaching that math isn't once a bridge takes its cut. First version spelled the whole thing
 out inline and made the panel clunky; cut to one line with the detail behind the shared `Tooltip`,

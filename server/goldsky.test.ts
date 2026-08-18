@@ -51,7 +51,6 @@ class MemoryStore implements GoldskyStore, GoldskyTransaction {
 		depositEventId: string;
 		status: "queued" | "cancelled";
 	}> = [];
-	depositAggregateRefreshes = 0;
 	renewalReconciliations = 0;
 	renewalAggregateRefreshes = 0;
 	expiryRefreshes = 0;
@@ -71,8 +70,6 @@ class MemoryStore implements GoldskyStore, GoldskyTransaction {
 	async upsertDeposit(event: GoldskyEvent): Promise<void> {
 		this.deposits.set(event.eventId, { status: event.gsOp === "c" ? "detected" : "orphaned" });
 	}
-
-	async refreshDepositAggregates(): Promise<void> { this.depositAggregateRefreshes += 1; }
 
 	async reconcileRenewal(): Promise<string | undefined> {
 		this.renewalReconciliations += 1;
@@ -137,7 +134,6 @@ test("a duplicate create upserts one deposit and one active flow", async () => {
 	assert.equal(store.flows[0]?.depositEventId, transfer().event_id);
 	assert.deepEqual(started, ["flow-1", "flow-1"]);
 	assert.equal(store.events.get(transfer().event_id)?.gsOp, "c");
-	assert.equal(store.depositAggregateRefreshes, 2);
 	assert.throws(
 		() => parseGoldskyEvent({ ...transfer(), _gs_op: "u" }),
 		(error: unknown) => error instanceof ApiError && error.code === "invalid_goldsky_event",
