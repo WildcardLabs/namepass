@@ -593,6 +593,27 @@ export const postgresGoldskyStore: GoldskyStore = {
 
 					const projection = externalRenewalProjection(facts, claim);
 					if (!projection) return name.id;
+					if (projection.cctpNonce) {
+						const [rescued] = await tx.select({ id: flows.id }).from(flows).where(and(
+							eq(flows.nameId, name.id),
+							eq(flows.originChainId, projection.originChainId),
+							eq(flows.cctpNonce, projection.cctpNonce),
+						));
+						if (rescued) {
+							await tx.update(flows).set({
+								renewalEventId: renewal.eventId,
+								status: "settled",
+								...projection,
+								...expiryPatch,
+								holdReason: null,
+								lastErrorCode: null,
+								nextActionAt: null,
+								settledAt: renewal.blockTime,
+								updatedAt: new Date(),
+							}).where(eq(flows.id, rescued.id));
+							return name.id;
+						}
+					}
 					const values = {
 						nameId: name.id,
 						renewalEventId: renewal.eventId,

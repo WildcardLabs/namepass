@@ -43,6 +43,12 @@ export function cctpDepositAction(
 	return result === "cancelled" ? "cancelled" : "proceed";
 }
 
+export function cctpClaimAction(
+	result: "ready" | "unclaimed" | "settled",
+): "proceed" | "unclaimed" | "settled" {
+	return result === "ready" ? "proceed" : result;
+}
+
 /** A durable workflow owns one L2 flow and one Circle message. */
 export async function cctpRenewal(
 	flowId: string,
@@ -99,7 +105,8 @@ export async function cctpRenewal(
 	}
 	let claimIntentId = flow.claimIntentId;
 	if (resume !== "claim_receipt") {
-		if ((await simulateCctpClaimStep(flowId)) === "unclaimed") return "unclaimed";
+		const claim = cctpClaimAction(await simulateCctpClaimStep(flowId));
+		if (claim === "unclaimed" || claim === "settled") return claim;
 		claimIntentId = await prepareCctpClaimStep(flowId);
 	}
 	if (!claimIntentId) throw new Error("The CCTP flow has no claim transaction intent.");

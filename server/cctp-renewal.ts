@@ -413,10 +413,12 @@ async function markUnclaimed(flowId: string, reasonCode: string): Promise<void> 
 	);
 }
 
-export async function simulateCctpClaim(flowId: string): Promise<"ready" | "unclaimed"> {
+export async function simulateCctpClaim(flowId: string): Promise<"ready" | "unclaimed" | "settled"> {
 	"use step";
 	const flow = await loadCctpFlow(flowId);
-	if (!flow?.cctpMessage || !flow.cctpAttestation) throw new Error("The attested CCTP message is missing.");
+	if (!flow) throw new Error("The flow does not exist.");
+	if (flow.status === "settled") return "settled";
+	if (!flow.cctpMessage || !flow.cctpAttestation) throw new Error("The attested CCTP message is missing.");
 	if (!(await readEnsState(flow.label)).renewableBy) {
 		await markUnclaimed(flowId, "name_not_renewable");
 		return "unclaimed";
