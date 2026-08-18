@@ -116,6 +116,7 @@ function DiscountTag({ off }: { off: string }) {
    at the expense of every other one; the name's own card carries the full
    "Waiting for Circle attestation" where there's room for it. */
 const FLOW_STAGE: Record<FlowStatus, string> = {
+	confirming: "Confirming",
 	signing: "Preparing",
 	burning: "Burning",
 	attesting: "Attesting",

@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { activeFlows, canTrigger, recentActivity, renewalEvent, syncFeed, syncName } from "./readModel";
+import { activeFlows, recentActivity, renewalEvent, syncFeed, syncName } from "./readModel";
 import { PUBLIC_CHAINS } from "./chains";
 import { setRates } from "./pricing";
 import type { PublicFlow } from "./publicApi";
@@ -146,7 +146,7 @@ test("the global feed exposes active flows without opening a name", () => {
 	expect(activeFlows().map((item) => item.id)).toContain("live-flow");
 });
 
-test("pending balances distinguish minimum, active flow, and reverted transaction states", () => {
+test("pending balances do not count money owned by an active flow twice", () => {
 	setPublicConfig({
 		chains: PUBLIC_CHAINS.map((chain) => ({
 			chainId: chain.chainId,
@@ -171,18 +171,21 @@ test("pending balances distinguish minimum, active flow, and reverted transactio
 		renewals: [],
 		flows: [
 			flow({ id: "active", originChainId: "84532", status: "confirming_deposit" }),
+			flow({ id: "bridging", originChainId: "5042002", status: "waiting_attestation" }),
 			flow({ id: "reverted", originChainId: "11155111", status: "held", holdReason: "origin_reverted" }),
 		],
 		balances: [
 			{ chainId: "421614", amount: "300000" },
 			{ chainId: "84532", amount: "500000" },
+			{ chainId: "5042002", amount: "700000" },
 			{ chainId: "11155111", amount: "500000" },
 		],
 		nextCursor: null,
 	});
 	const reason = (chainId: string) => record.pending.balances.find((balance) => balance.chainId === chainId)?.holdReason;
 	expect(reason("421614")).toBe("below_threshold");
-	expect(reason("84532")).toBe("flow_in_progress");
+	expect(reason("84532")).toBeUndefined();
+	expect(reason("5042002")).toBe("flow_in_progress");
 	expect(reason("11155111")).toBe("flow_failed");
-	expect(canTrigger(record.pending, record.pending.balances.find((balance) => balance.chainId === "84532")!)).toBe(false);
+	expect(record.pending.flows.find((active) => active.id === "active")?.status).toBe("confirming");
 });

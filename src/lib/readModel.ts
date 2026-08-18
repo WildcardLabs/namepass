@@ -7,7 +7,7 @@ import { minTrigger } from "./triggerConfig";
 export { minTrigger, setPublicConfig } from "./triggerConfig";
 
 export type EventKind = "activated" | "deposit" | "renewal";
-export type FlowStatus = "signing" | "burning" | "attesting" | "claiming";
+export type FlowStatus = "confirming" | "signing" | "burning" | "attesting" | "claiming";
 export type HoldReason = "flow_in_progress" | "below_threshold" | "name_inactive" | "not_detected" | "flow_failed" | "unknown";
 
 export interface FlowStep { kind: "deposit" | "burn" | "renewal"; chain: string; tx: string; }
@@ -68,10 +68,30 @@ const records = new Map<string, NameRecord>();
 let feedFlows: ActivityRead["flows"] = [];
 
 function flowStatus(flow: PublicFlow): FlowStatus {
+	if (flow.status === "confirming_deposit") return "confirming";
 	if (flow.status === "waiting_attestation") return "attesting";
 	if (flow.status === "submitting_origin" || flow.status === "waiting_origin") return "burning";
-	if (flow.status === "queued" || flow.status === "confirming_deposit" || flow.status === "checking_name") return "signing";
+	if (flow.status === "queued" || flow.status === "checking_name") return "signing";
 	return "claiming";
+}
+
+const BALANCE_OWNED_FLOW_STATUSES = new Set([
+	"queued",
+	"confirming_deposit",
+	"checking_name",
+	"submitting_origin",
+	"waiting_origin",
+]);
+
+function unclaimedBalance(balance: PublicChainBalance, flows: PublicFlow[]): PublicChainBalance | undefined {
+	const flow = flows.find((candidate) =>
+		candidate.originChainId === balance.chainId
+		&& BALANCE_OWNED_FLOW_STATUSES.has(candidate.status));
+	if (!flow) return balance;
+	if (balance.amount === null) return undefined;
+	const amount = micro(balance.amount) - micro(flow.amountDetected);
+	if (amount <= 0n) return undefined;
+	return { ...balance, amount: amount.toString() };
 }
 
 function holdReason(flow: PublicFlow): HoldReason {
@@ -94,10 +114,13 @@ function setName(name: PublicName, activity?: NameActivityRead): NameRecord {
 	] : current?.events ?? [];
 	const sourceFlows = activity?.flows ?? current?.flows ?? [];
 	const sourceBalances = activity?.balances ?? [];
+	const unclaimedBalances = sourceBalances
+		.map((balance) => unclaimedBalance(balance, sourceFlows))
+		.filter((balance): balance is PublicChainBalance => Boolean(balance));
 	const pending: PendingState = activity ? {
 		renewable: Boolean(name.renewableBy), gasAllowance: 0n,
 		flows: sourceFlows.filter((flow) => !["held", "failed", "settled", "cancelled", "unclaimed"].includes(flow.status)).map((flow) => ({ chain: chainName(flow.originChainId), amount: micro(flow.amountDetected), status: flowStatus(flow), startedAt: milliseconds(flow.createdAt), id: flow.id, api: flow })),
-		balances: sourceBalances
+		balances: unclaimedBalances
 			.filter((balance) => balance.amount === null || micro(balance.amount) > 0n)
 			.map((balance) => {
 				const flow = sourceFlows.find((candidate) =>
