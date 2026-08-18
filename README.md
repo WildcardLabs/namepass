@@ -1,93 +1,110 @@
 <div align="center">
 
-<img src="public/favicon.svg" width="56" height="56" alt="Namepass" />
+<img src="public/favicon.svg" width="64" height="64" alt="Namepass" />
 
 # Namepass
 
-**Every ENS name gets its own renewal address.**
-Send USDC from any chain, the name gets more time — automatically, at the best rate available.
+Permissionless ENS renewal from deterministic USDC deposit wallets.
 
-[![React](https://img.shields.io/badge/React-18-149ECA?logo=react&logoColor=white)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Motion](https://img.shields.io/badge/Motion-12-0055FF?logo=framer&logoColor=white)](https://motion.dev)
-[![ENS](https://img.shields.io/badge/ENS-v2_pricing-5298FF?logo=ethereum&logoColor=white)](https://ens.domains)
-[![Status](https://img.shields.io/badge/status-prototype-orange)](#-a-note-on-what-this-is)
+![Stable testnet](https://img.shields.io/badge/environment-stable_testnet-2E466F)
+![Mainnet disabled](https://img.shields.io/badge/mainnet-disabled-A23B3B)
+![Not audited](https://img.shields.io/badge/audit-not_audited-E67E22)
+![Automation verified](https://img.shields.io/badge/automation-end--to--end_verified-2D7D46)
 
-<img src=".github/assets/hero.png" width="100%" alt="Namepass hero — Keep your name alive" />
+[How it works](#how-it-works) · [Trust model](#trust-model) ·
+[ENS-v2](#ens-v2-ready) · [Pricing](#inverse-ens-price-calculation) ·
+[Contracts](#contracts)
 
 </div>
 
-<br />
+> [!WARNING]
+> Namepass is testnet-only and has not had an external contract audit. There is no mainnet
+> deployment. Do not send mainnet funds to the testnet addresses in this repository.
 
-<details>
-<summary><strong>📋 Table of contents</strong></summary>
+<img src=".github/assets/hero.png" width="100%" alt="Namepass payment interface" />
 
-- [What it does](#-what-it-does)
-- [A note on what this is](#-a-note-on-what-this-is)
-- [Feature tour](#-feature-tour)
-- [Tech stack](#-tech-stack)
-- [Getting started](#-getting-started)
-- [Project structure](#-project-structure)
-- [Under the hood](#-under-the-hood)
-- [License](#license)
+Namepass gives each normalized `.eth` label one deterministic deposit wallet. The wallet has the
+same address on every chain in a deployment set. A funder sends native USDC to that address. The
+funds can only follow the configured route to an ENS renewal on Ethereum.
 
-</details>
+The Namepass website is one client of the protocol. It shows addresses, activity, and renewal
+progress. It also runs automation for users who do not want to submit transactions. The contracts
+do not depend on that website or automation. A funder or an independent executor can derive a
+wallet, start a renewal, and complete a CCTP claim directly.
 
-## 🪪 What it does
+## How it works
 
-Every ENS name expires. Namepass gives it a **permanent, chain-agnostic deposit address** —
-anyone can send USDC to it, from Base, Arbitrum, Arc, or Ethereum, and it's converted into
-renewal time at the exact on-chain rate — no markup on the ENS price, just a flat $0.10 gas
-allowance per renewal toward the mainnet fees Namepass fronts. Ownership isn't required to fund
-one: a name's biggest supporter can keep it alive without ever holding the keys.
+```mermaid
+flowchart LR
+    U[Funder] -->|USDC| W[Deterministic wallet]
+    UI[Namepass UI<br/>optional] -.-> W
+    X[Independent executor] --> F[NamepassFactory.renew]
+    W --> F
+    F -->|Ethereum| H[ENSV2RenewalHelper]
+    F -->|L2 CCTP burn| C[Circle CCTP v2]
+    C -->|Iris attestation| Q[completeCCTP]
+    Q --> H
+    H --> R{ENS renewal contract}
+    R --> V1[ETHRenewerV1]
+    R --> V2[ETHRegistrar]
+```
 
-Each address is derived deterministically with CREATE2 — it exists before anyone claims it, anyone
-can verify it offline, and no custodian holds keys. Under the hood, an indexing pipeline detects
-inbound payments, [Circle's CCTP](https://developers.circle.com/cctp) moves the USDC to Ethereum,
-and the renewal executes in the same transaction that completes the transfer — no manual
-intervention.
+1. Normalize the ENS label and remove `.eth`. `vitalik` is valid input. `vitalik.eth` is not.
+2. Call `NamepassFactory.predictWallet(label)` or use the same CREATE2 calculation locally.
+3. Send the configured USDC token to that wallet on a supported chain.
+4. Anyone can call `NamepassFactory.renew(label)` on the chain that holds the USDC.
+5. On Ethereum, the factory transfers and renews in one transaction. On an L2, the factory burns
+   USDC through CCTP v2. After Circle attests the burn, anyone can call
+   `ENSV2RenewalHelper.completeCCTP(message, attestation)` on Ethereum.
 
-The paragraph above describes the design. The contracts and supporting services run on testnet.
-The automated renewal path is not yet proven end to end. Read the next section before you treat it
-as a running system.
+The executor pays transaction gas. A successful renewal pays the executor a fixed `$0.10` USDC
+allowance. This incentive applies to the direct Ethereum path and the CCTP completion path.
 
-## 🎬 A note on what this is
+If a deposit is larger than Circle's live per-message burn limit, the factory processes one slice.
+Later permissionless calls process the remainder. The factory reads the limit from Circle. A
+Namepass operator does not set it.
 
-This repository has three parts. Each part is at a different stage. Do not give them one status.
+## Trust model
 
-**1. The contracts are built. They run on testnet only.**
+The contracts constrain what Namepass operators can do. The main property is narrow and
+verifiable:
 
-`contracts/` is deployed to four test networks: Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia,
-and Arc Testnet. The full on-chain path has been run against the deployed ENS and Circle contracts.
-The path is: deposit, CCTP burn on an L2, attestation, then one transaction that mints and renews
-together. [`docs/DEPLOYMENTS.md`](docs/DEPLOYMENTS.md) lists the addresses and the transaction
-hashes. 61 Foundry tests cover the contracts, and several review passes examined them. **No
-external audit has been done. There is no mainnet deployment.**
+> [!IMPORTANT]
+> No Namepass admin function can redirect USDC from a deterministic deposit wallet to an arbitrary
+> recipient.
 
-**2. The automation backend is implemented in code and partly deployed to stable testnet.**
+### Fixed after deployment or initialization
 
-The stable testnet Neon schema, database roles, Vercel API, Workflow environment, and Goldsky
-pipeline are deployed. The relayer key is configured, but the relayer has no recorded test gas.
-No automated renewal has completed across all four testnets.
+| Property | Contract rule |
+|---|---|
+| Deposit wallet | CREATE2 derives it from the normalized label, factory address, and fixed wallet bytecode |
+| Wallet runtime | Each wallet is a storage-free ERC-1167 proxy that permanently delegates to the factory |
+| Factory code | The deployed factory is not an upgradeable proxy |
+| USDC token | Initialization sets it once |
+| Circle messenger | Initialization sets it once on L2s |
+| Ethereum helper destination | Initialization sets it once |
+| Executor allowance | The helper fixes it at `$0.10` in contract code |
+| Deposit recovery | There is no owner sweep or arbitrary token recovery path |
 
-**3. The app in this repository is a frontend prototype.**
+The Ethereum transfer and renewal are atomic. The CCTP mint and renewal are also atomic. If the
+renewal fails, the full transaction reverts. An attested CCTP message remains unclaimed and can be
+submitted again.
 
-The app points at the same test networks. The UI and pricing math are exact. The Explorer and
-Leaderboard read the public API. They need the backend deployment before they contain production
-data. The old browser fixtures are local demonstration data only.
+### Mutable controls
 
-Treat the app as a prototype. It is not a production financial product.
+| Control | Authority | Limit |
+|---|---|---|
+| CCTP finality threshold | Factory owner | Changes the Circle timing tier. It cannot change the recipient or fee ceiling. A bad value can impair L2 execution. |
+| Maximum CCTP fee | Caller of `renewWithFee` | Applies to one call. Circle receives its actual fee. No owner can store a fee ceiling. |
+| ENS renewal contracts | ENS governance executor | Updates both ENS v2 renewal pointers during migration. Mainnet is designed to use the ENS DAO Timelock. |
+| ENS referrer | Helper owner | Changes attribution only. It cannot change the price or payment destination. |
+| Helper residue | Helper owner | Can withdraw only USDC at rest in the helper. The atomic flow keeps pending user funds out of the helper. |
 
-The **addresses, prices and expiry dates are real**, though. Every address the app shows is derived
-from the deployed factory's own CREATE2 rule — the same value `predictWallet(string)` returns on
-chain, checked against all four networks. Every rate is read from ENS's rent oracle when the page
-loads. And each name's expiry and whether ENS will renew it come from ENS's registry per name. So
-the address on a card is genuine, the price beside it is ENS's, and the expiry is the real one —
-renewal history appears only when the deployed backend supplies canonical chain events.
-
-## ✨ Feature tour
+This design still depends on Circle, USDC, ENS, and the configured contracts. The current Sepolia
+helper uses a Namepass address as the governance executor because Sepolia has no ENS DAO Timelock.
+That placeholder is testnet-only and does not prove the planned mainnet governance boundary. The
+contracts have not had an external audit, so this README does not make an absolute “unruggable”
+claim.
 
 | | |
 |---|---|
@@ -117,150 +134,98 @@ renewal history appears only when the deployed backend supplies canonical chain 
 </table>
 </div>
 
-## 🧱 Tech stack
+ENS v2 has two renewable name populations during migration. The helper asks ENS which renewal
+contract accepts the label on every renewal.
 
-| Layer | Choice |
+| Name state | ENS contract |
 |---|---|
-| Framework | React 18 + TypeScript, bundled with Vite 7 |
-| Styling | Tailwind CSS v4 (`@theme`, no config file) |
-| Motion | [`motion`](https://motion.dev) (Framer Motion's successor) for every transition, layout animation, and gesture |
-| Icons | [lucide-react](https://lucide.dev) |
-| ENS data | [resolvio](https://api.resolvio.xyz) profile API — cached and deduplicated across components |
-| Chain reads | A ~180-line batched `eth_call` client over `fetch` (`lib/rpc.ts`). No web3 library: the app reads four `view` functions once at boot and never signs anything, so a wallet SDK would be several hundred kilobytes of surface area for nothing |
-| ENS names | [`@adraffy/ens-normalize`](https://github.com/adraffy/ens-normalize.js) for ENSIP-15, and [`@noble/hashes`](https://github.com/paulmillr/noble-hashes) for the keccak-256 behind the CREATE2 derivation |
-| Contracts (deployed, testnet) | Solidity 0.8.24 · Foundry · CREATE2 via the Safe Singleton Factory · Circle CCTP v2 · ENS v2 renewers |
-| Automation (partly deployed to stable testnet) | Goldsky Turbo · Neon Postgres · Vercel Functions · Vercel Workflow · Drizzle · viem. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
-| Routing | ~40 lines of hand-rolled `history.pushState` — no router dependency for five pages |
+| Native or migrated ENS v2 name | `ETHRegistrar` |
+| Premigrated ENS v1 reservation | `ETHRenewerV1` |
 
-## 🚀 Getting started
+The helper does not infer migration state off chain. It calls `isRenewable(label)` and then reads
+the price oracle from the selected ENS renewal contract. ENS governance can update the two renewal
+pointers as the migration changes. It can retire the v1 path by setting that pointer to zero.
+
+Both paths have completed verified renewals on Sepolia. See the transaction evidence in
+[docs/DEPLOYMENTS.md](docs/DEPLOYMENTS.md#proven-on-chain).
+
+## Inverse ENS price calculation
+
+ENS normally calculates a token price for a requested duration. Namepass starts with a USDC
+balance and calculates the longest whole-second duration that the balance can buy.
+
+For ENS payment-token ratio `numerator / denominator`:
+
+```text
+ENS forward price = ceil(standard price × numerator / denominator)
+Namepass budget   = floor(USDC available × denominator / numerator)
+```
+
+The helper then walks the ENS discount tiers from the longest and best tier to the shortest tier.
+For each tier, it solves the exact inverse of ENS's rounded duration formula. It uses the current
+base rate for the label length, the current discount points, and the current USDC ratio from the
+selected ENS oracle.
+
+Before it approves USDC, the helper checks that its inverse quote equals the selected ENS renewal
+contract's forward quote. After renewal, it checks that the actual USDC balance change equals that
+same amount. A mismatch reverts the transaction.
+
+```text
+Namepass inverse quote = ENS forward quote = USDC actually charged
+```
+
+`quote(label, usdcAvailable)` returns the maximum duration and exact cost. `usdcAvailable` must be
+the send amount minus the fixed `$0.10` executor allowance. The frontend mirrors this calculation
+for immediate feedback, but the contract performs the authoritative checks on chain.
+
+<img src=".github/assets/simulator.png" width="100%" alt="Namepass inverse ENS price simulator" />
+
+## Contracts
+
+| Contract | Role | Source |
+|---|---|---|
+| `NamepassFactory` | Derives wallets and starts direct or CCTP renewals | [contracts/NamepassFactory.sol](contracts/NamepassFactory.sol) |
+| `ENSV2RenewalHelper` | Selects the ENS renewal path, prices duration, validates CCTP, and settles renewal | [contracts/ENSV2RenewalHelper.sol](contracts/ENSV2RenewalHelper.sol) |
+| `NamepassResolver` | Optional ENSIP-10 and CCIP-Read interface for `*.namepass.eth` | [contracts/NamepassResolver.sol](contracts/NamepassResolver.sol) |
+
+### Stable testnet deployment
+
+| Contract | Address | Chains |
+|---|---|---|
+| `NamepassFactory` | `0xe0b155Fdb1104824d7E0568aeAFCC52823EDD00F` | Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, Arc Testnet |
+| `ENSV2RenewalHelper` | `0xf1b51552098ffa7dc2cd83d0fb6508e57db8acc1` | Ethereum Sepolia |
+
+The factory has the same address and bytecode on all four chains. A label therefore derives the
+same deposit address on all four chains. Balances remain separate on each chain.
+
+The stable-testnet automation has completed verified end-to-end renewals. Direct Ethereum renewal,
+both ENS v2 name states, and CCTP claims from all three supported L2 testnets have also been proven
+on chain. This evidence is not an audit.
+
+See [docs/DEPLOYMENTS.md](docs/DEPLOYMENTS.md) for USDC addresses, Circle domains, ENS contracts,
+read-back values, and transaction evidence.
+
+## Build and verify
 
 ```bash
-git clone git@github.com:stevegachau/namepass-v2.git namepass
-cd namepass
 npm install
-npm run dev
-```
-
-```bash
-npm run build     # frontend type-check plus Vite, Nitro, and Workflow build
-npm run check:server
-npm run test:frontend
-npm run test:server
-npm run test:workflow
-npm run preview   # serve the production build locally
-```
-
-## 📁 Project structure
-
-```
-src/
-├── components/
-│   ├── magicui/            ShineBorder, AnimatedShinyText, DotPattern
-│   ├── Hero.tsx            Home hero content (badge, headline, CTA cards)
-│   ├── Navbar.tsx          Shared header — logo, glass menu, CTA
-│   ├── PageShell.tsx       The rounded card every page renders inside
-│   ├── Explorer.tsx        Live feed (settled + in-flight) + per-name detail view
-│   ├── Leaderboard.tsx     Ranked list with inline-expandable rows
-│   ├── Simulator.tsx       Cost simulator
-│   ├── PassCard.tsx        QR + deposit address + supported chains + contract check
-│   ├── PendingBalance.tsx  Per-chain funds waiting, with why and a manual retry
-│   ├── Tooltip.tsx         Shared info bubble — portaled, so accordions can't clip it
-│   ├── ChainTag.tsx        Chain name + brand-coloured live dot
-│   ├── SupportedTokens.tsx Native USDC contract per chain, in full, with explorer links
-│   └── Footer.tsx / Terms.tsx / Privacy.tsx
-├── lib/
-│   ├── pricing.ts          Exact ENS v2 StandardRentPriceOracle math, BigInt end to end
-│   ├── oracle.ts           ENS's live rates, read from the registrar's oracle at boot
-│   ├── rpc.ts              Minimal batched eth_call client — reads only, never writes
-│   ├── namepass.ts         ENS label → deposit address, the deployed factory's CREATE2 rule
-│   ├── publicApi.ts        Typed public Vercel API adapter
-│   ├── readModel.ts        API-to-Explorer and Leaderboard view mapping
-│   ├── tokens.ts           Real testnet USDC addresses — not mock
-│   ├── fees.ts             The flat $0.10 gas allowance taken per flow
-│   ├── ens.ts              resolvio profile client
-│   ├── qr.ts               QR matrix encoder
-│   └── format.ts           Date/currency/duration formatting
-└── App.tsx                 ~165 lines of state + routing tying it together
-
-contracts/                  Solidity. Testnet only. Not audited.
-├── NamepassFactory.sol     CREATE2 deposit wallets and the CCTP burn. Also the ERC-1167 impl.
-└── ENSV2RenewalHelper.sol  Ethereum side. Claims the CCTP message and renews in one transaction.
-
-test/                       61 Foundry tests. Pricing runs against ENS's own oracle.
-
-routes/api/                 Nitro HTTP and cron entry points for Vercel.
-server/                     Validation, database, ingestion, reads, and chain operations.
-workflows/                  Durable Ethereum and CCTP workflow entry points and steps.
-drizzle/                    PostgreSQL migration and metadata.
-goldsky/                    Generated testnet Turbo pipeline and generator.
-```
-
-The npm scripts do not build the contracts. Use Foundry:
-
-```bash
-forge build
+npm run build
 forge test
 ```
 
-## 🔬 Under the hood
+The full frontend, server, workflow, chain-registry, and contract verification commands are in
+[CLAUDE.md](CLAUDE.md#commands).
 
-A few decisions worth knowing about before you touch the code. For the full picture there are five
-docs, each with a distinct job:
+## Documentation
 
-| Doc | Covers |
+| Document | Scope |
 |---|---|
-| [`CLAUDE.md`](CLAUDE.md) | Working conventions and the load-bearing constraints, in brief |
-| [`docs/FRONTEND.md`](docs/FRONTEND.md) | **How the app works** — public API reads, UI state, and invariants |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The contracts (built, testnet) and the production system (partly deployed to stable testnet). CREATE2, CCTP, Goldsky, Neon, and Vercel |
-| [`docs/DEPLOYMENTS.md`](docs/DEPLOYMENTS.md) | **Live testnet addresses** and what has been proven on chain |
-| [`PRODUCT.md`](PRODUCT.md) · [`docs/DECISIONS.md`](docs/DECISIONS.md) | What/why, and a dated log of non-obvious calls |
-
-<details>
-<summary><strong>Pricing math is exact, not approximate</strong></summary>
-
-<br />
-
-`src/lib/pricing.ts` mirrors ENS v2's `StandardRentPriceOracle` for 5+ character names, in
-`BigInt` end to end. `divCeil` matches the contract's `Math.Rounding.Ceil`, so every number
-shown matches on-chain to the micro-unit.
-
-| Duration | Threshold | Discount |
-|---|---|---|
-| 1 year | `$8.000021` | — |
-| 2 years | `$14.000037` | 12.5% off |
-| 3 years | `$16.500044` | 31.25% off |
-| 6 years | `$27.000071` | 43.75% off |
-
-Thresholds aren't round numbers — the 3-year rate starts at exactly `$16.500044`, so a payment
-of `$16.50` falls **44 micro-units short** and silently drops to the previous tier.
-`ceilToCent()` rounds every threshold up to the next payable cent so the UI's quick-select
-buttons never suggest an amount that under-shoots.
-
-</details>
-
-<details>
-<summary><strong>Deposit addresses are never truncated</strong></summary>
-
-<br />
-
-The Namepass deposit address is always shown **in full**. Truncation hides the middle of an
-address — exactly where an address-swap attack would land — so a sender can't verify what
-they're actually paying. The ENS profile's *resolved* address is still truncated, since it's
-informational rather than a payment target.
-
-</details>
-
-<details>
-<summary><strong>The header lives inside the page, not above it</strong></summary>
-
-<br />
-
-`PageShell` renders the same rounded card (video background on Home, white elsewhere) with
-`Navbar` as its first child on every route. That's what makes switching between Home,
-Leaderboard, Terms, and Privacy feel like one app instead of four stitched-together pages.
-
-</details>
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Contract invariants, automation, data model, and launch plan |
+| [docs/DEPLOYMENTS.md](docs/DEPLOYMENTS.md) | Testnet addresses and on-chain evidence |
+| [docs/FRONTEND.md](docs/FRONTEND.md) | Optional web client, read model, and interface invariants |
+| [docs/RUNBOOK.md](docs/RUNBOOK.md) | Service deployment, recovery, and monitoring |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Dated architecture and product decisions |
 
 ## License
 
-No license file yet — all rights reserved by default. Ask before reusing.
+No license file is present. All rights are reserved by default.

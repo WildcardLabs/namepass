@@ -35,6 +35,7 @@ The private operator record must name one primary operator and one backup operat
 | Goldsky project | `Namepass` (`project_cmshghhiu0ign01u4b8gm0kqm`) | Active and verified |
 | Goldsky stable testnet plan | Starter | Selected; free allowance covers `namepass-testnet` |
 | Goldsky stable testnet pipeline | `namepass-testnet` | Running 2026-08-17 |
+| Stable-testnet automated renewal | Managed-service path | Verified end to end |
 
 ## Phase 0 checks
 
@@ -182,9 +183,9 @@ secret. Do not target a preview URL.
 ### Relayer
 
 One test-only relayer account exists. Its private key is in the stable testnet Vercel environment.
-Fund its address with native test gas on Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and Arc
-Testnet. Do not use this account outside Namepass. This step remains incomplete until all four gas
-balances and transaction-unit values are recorded.
+It has executed the verified stable-testnet automation path. Do not use this account outside
+Namepass. Check native gas on Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and Arc Testnet
+before more test funding. Record any missing per-chain transaction-unit values separately.
 
 ## Operations
 
