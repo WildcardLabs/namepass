@@ -51,12 +51,16 @@ export async function pollIris(
 	if (payload.messages.length === 0) return pending("incomplete", request, response);
 	if (payload.messages.length !== 1) throw new Error("Circle Iris returned multiple CCTP messages.");
 	const row = payload.messages[0];
-	if (typeof row !== "object" || row === null || typeof (row as Record<string, unknown>).message !== "string") {
-		throw new Error("Circle Iris returned an invalid CCTP message.");
-	}
+	if (typeof row !== "object" || row === null) throw new Error("Circle Iris returned an invalid CCTP message.");
 	const message = row as Record<string, unknown>;
 	if (message.status !== "complete") return pending("incomplete", request, response);
-	if (message.cctpVersion !== 2 || typeof message.attestation !== "string" || !HEX.test(message.attestation)) {
+	if (
+		typeof message.message !== "string"
+		|| !HEX.test(message.message)
+		|| message.cctpVersion !== 2
+		|| typeof message.attestation !== "string"
+		|| !HEX.test(message.attestation)
+	) {
 		throw new Error("Circle Iris returned an invalid complete attestation.");
 	}
 	return {

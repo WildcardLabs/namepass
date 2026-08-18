@@ -8,17 +8,24 @@ The pipeline preserves `_gs_op`. Goldsky documents inserts as `i`, while some CD
 use `c`. The webhook accepts both forms as create operations and accepts `d` as delete. It rejects
 `u` because chain event rows are immutable.
 
-The pipeline has one source pair for each testnet chain:
+The pipeline has one token-transfer and raw-log source for each testnet chain. Arc also has one
+enriched-transaction source because a direct Arc USDC payment is a native-value transaction and
+does not emit an ERC-20 `Transfer` log.
 
-| Chain | Transfer dataset | Raw-log dataset |
+| Chain | Deposit dataset | Raw-log dataset |
 |---|---|---|
 | Ethereum Sepolia | `ethereum_sepolia.erc20_transfers` `1.2.0` | `ethereum_sepolia.raw_logs` `1.0.0` |
 | Base Sepolia | `base_sepolia.erc20_transfers` `1.2.0` | `base_sepolia.raw_logs` `1.0.0` |
 | Arbitrum Sepolia | `arbitrum_sepolia.erc20_transfers` `1.2.0` | `arbitrum_sepolia.raw_logs` `1.0.0` |
-| Arc Testnet | `arc_testnet.erc20_transfers` `1.1.0` | `arc_testnet.raw_logs` `1.1.0` |
+| Arc Testnet | `arc_testnet.erc20_transfers` `1.1.0` and `arc_testnet.receipt_transactions` `1.0.0` | `arc_testnet.raw_logs` `1.1.0` |
 
-Goldsky verified all eight dataset names, versions, and schemas on 2026-08-17. Turbo `0.13.0`
-validated the full pipeline. The `namepass-testnet` pipeline runs in the active `Namepass` project.
+Goldsky verified all nine dataset names, versions, and schemas. The current Turbo CLI validated
+the full pipeline. The `namepass-testnet` pipeline runs in the active `Namepass` project.
+
+Arc transaction `value` has 18 decimals. The Arc USDC system contract uses 6 decimals. The
+pipeline divides native transaction value by `10^12` before it emits the normalized deposit row.
+The workflow then verifies the finalized transaction recipient and the same conversion before it
+uses the deposit.
 
 The raw-log sources include only Namepass contract addresses and the two Ethereum ENS renewers.
 The ENS transform keeps `NameRenewed` only when it has the Namepass referrer from the shared

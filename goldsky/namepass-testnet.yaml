@@ -76,6 +76,15 @@ sources:
     filter: >-
       address = '0x3600000000000000000000000000000000000000'
 
+  arc_testnet_native_usdc:
+    type: dataset
+    dataset_name: arc_testnet.receipt_transactions
+    version: 1.0.0
+    start_at: latest
+    filter: >-
+      receipt_status = 1
+      AND to_address IS NOT NULL
+
   arc_testnet_logs:
     type: dataset
     dataset_name: arc_testnet.raw_logs
@@ -165,6 +174,24 @@ transforms:
         CAST(amount AS STRING) AS amount,
         _gs_op
       FROM arc_testnet_usdc
+      UNION ALL
+      SELECT
+        concat('5042002:native:', id) AS event_id,
+        'deposit' AS event_family,
+        'Transfer' AS event_type,
+        5042002 AS chain_id,
+        block_number,
+        block_timestamp AS block_time,
+        hash AS tx_hash,
+        transaction_index AS log_index,
+        '0x3600000000000000000000000000000000000000' AS token_address,
+        lower(from_address) AS sender_address,
+        lower(to_address) AS recipient_address,
+        u256_to_string(to_u256(value) / to_u256('1000000000000')) AS amount,
+        _gs_op
+      FROM arc_testnet_native_usdc
+      WHERE to_u256(value) >= to_u256('1000000000000')
+        AND to_u256(value) % to_u256('1000000000000') = to_u256('0')
 
   incoming_deposits:
     type: sql

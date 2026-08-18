@@ -7,6 +7,20 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-18 — Arc native deposits use transactions, and incomplete Iris rows are retryable
+
+Arc USDC has two transfer representations. A call through the USDC system contract emits an ERC-20
+`Transfer` event. A direct wallet payment sends USDC as native transaction value and emits no such
+event. The Goldsky pipeline therefore keeps `arc_testnet.erc20_transfers` and adds
+`arc_testnet.receipt_transactions`. The second source converts 18-decimal transaction value to the
+6-decimal USDC contract amount. The workflow verifies a native deposit from the finalized
+transaction recipient and value instead of looking for a missing receipt log.
+
+Circle Iris can return an incomplete message row before it includes the `message` field. Status is
+therefore the first decision. A non-complete row is a normal polling result. The workflow validates
+the message, attestation, and CCTP version only after Iris reports `complete`. Reversing this order
+made a normal Arc pending response fail the workflow and delayed recovery by five minutes.
+
 ### 2026-08-18 — Transaction intents are resume boundaries, and Explorer separates state from history
 
 A workflow restart must not return to deposit balance or ENS eligibility checks after it stores a

@@ -562,8 +562,16 @@ it, and cannot show the correct expiry after a renewal. See "Why the external ev
 
 **Deposit events**
 
-Use each chain's curated `erc20_transfers` dataset. Filter at the source for the native USDC contract.
-Then keep rows whose lowercase `recipient` exists in `goldsky.watched_addresses`.
+On Ethereum, Base, and Arbitrum, use the curated `erc20_transfers` dataset. Filter at the source
+for the native USDC contract. Arc supports that ERC-20-compatible path, but a direct payment uses
+Arc USDC as the transaction value and emits no ERC-20 `Transfer` log. Use Arc's
+`receipt_transactions` dataset for this second path. Keep successful transactions with a non-null
+recipient and a positive value. Convert the 18-decimal transaction value to the 6-decimal USDC
+amount. Then keep rows whose lowercase recipient exists in `goldsky.watched_addresses`.
+
+The workflow verifies an Arc native deposit from the finalized transaction recipient and value.
+It verifies an ERC-20 deposit from the finalized receipt log. The two sources use different event
+ID prefixes, so one representation cannot overwrite the other.
 
 The supported-network check confirms that Goldsky has logs and enriched transaction data for
 Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and Arc Testnet. The implementation must still run
@@ -906,6 +914,7 @@ Use Circle's `GET /v2/messages/{sourceDomainId}` endpoint with the origin transa
 - Use the sandbox host for testnets.
 - Use the mainnet host for mainnet.
 - Treat `404` or an incomplete status as “not ready.”
+- Check the status before requiring `message` or `attestation`. An incomplete row can omit both.
 - Treat `429` and `5xx` as retryable.
 - Use exponential backoff with jitter.
 - Respect Circle's published API limit.

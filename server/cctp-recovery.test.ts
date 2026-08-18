@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { claimIntentAction, matchesRecordedCctpDepositTransfer } from "./cctp-renewal";
+import {
+	claimIntentAction,
+	matchesRecordedArcNativeDeposit,
+	matchesRecordedCctpDepositTransfer,
+} from "./cctp-renewal";
 import { transactionIntentAction } from "./transactions";
 import { cctpClaimAction, cctpDepositAction, cctpResumeStage } from "../workflows/cctp-renewal";
 import type { Address } from "viem";
@@ -37,6 +41,25 @@ test("CCTP event-backed flows require the recorded transfer amount", () => {
 	const wallet = "0x1111111111111111111111111111111111111111" as Address;
 	assert.equal(matchesRecordedCctpDepositTransfer({ to: wallet, value: 1_000_000n }, wallet, "1000000"), true);
 	assert.equal(matchesRecordedCctpDepositTransfer({ to: wallet, value: 999_999n }, wallet, "1000000"), false);
+});
+
+test("Arc native deposits convert 18-decimal transaction value to 6-decimal USDC", () => {
+	const wallet = "0x1111111111111111111111111111111111111111" as Address;
+	assert.equal(matchesRecordedArcNativeDeposit(
+		{ to: wallet, value: 15_000_000_000_000_000_000n },
+		wallet,
+		"15000000",
+	), true);
+	assert.equal(matchesRecordedArcNativeDeposit(
+		{ to: wallet, value: 15_000_000_000_000_000_001n },
+		wallet,
+		"15000000",
+	), false);
+	assert.equal(matchesRecordedArcNativeDeposit(
+		{ to: "0x2222222222222222222222222222222222222222", value: 15_000_000_000_000_000_000n },
+		wallet,
+		"15000000",
+	), false);
 });
 
 test("a reverted CCTP origin retries its logical intent without returning to a burn", () => {

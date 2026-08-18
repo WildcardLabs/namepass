@@ -56,6 +56,7 @@ const HELPER_ABI = parseAbi([
 ]);
 const TRANSFER_ABI = parseAbi(["event Transfer(address indexed from, address indexed to, uint256 value)"]);
 const UNCLAIMED_RETRY_MS = 6 * 60 * 60 * 1_000;
+const ARC_NATIVE_USDC_SCALE = 1_000_000_000_000n;
 export const CCTP_ORIGIN_REVERTED = "origin_reverted";
 
 export type CctpFlow = {
@@ -92,6 +93,19 @@ export function matchesRecordedCctpDepositTransfer(
 	return depositAmount !== null
 		&& getAddress(transfer.to) === getAddress(depositAddress)
 		&& transfer.value === BigInt(depositAmount);
+}
+
+/** Arc transaction value has 18 decimals. The USDC system contract has 6 decimals. */
+export function matchesRecordedArcNativeDeposit(
+	transaction: { to: Address | null; value: bigint },
+	depositAddress: string,
+	depositAmount: string | null,
+): boolean {
+	return transaction.to !== null
+		&& depositAmount !== null
+		&& transaction.value % ARC_NATIVE_USDC_SCALE === 0n
+		&& getAddress(transaction.to) === getAddress(depositAddress)
+		&& transaction.value / ARC_NATIVE_USDC_SCALE === BigInt(depositAmount);
 }
 
 function receiptLogs(logs: readonly unknown[]): ReceiptLog[] {
@@ -170,11 +184,20 @@ export async function confirmCctpDeposit(flowId: string): Promise<"ready" | "wai
 	await setFlowStatus(flowId, "confirming_deposit");
 	const chain = originChain(flow);
 	const rpc = await verifiedChainClient(chain);
-	const [receipt, finalized] = await Promise.all([
+	const [receipt, finalized, transaction] = await Promise.all([
 		rpc.getTransactionReceipt({ hash: flow.depositTxHash }),
 		rpc.getBlock({ blockTag: "finalized" }),
+		chain.key === "arc" ? rpc.getTransaction({ hash: flow.depositTxHash }) : Promise.resolve(undefined),
 	]);
 	if (receipt.status !== "success" || receipt.blockNumber > finalized.number) return "waiting";
+	if (
+		chain.key === "arc"
+		&& transaction
+		&& transaction.blockHash === receipt.blockHash
+		&& matchesRecordedArcNativeDeposit(transaction, flow.depositAddress, flow.depositAmount)
+	) {
+		return "ready";
+	}
 	const log = receipt.logs.find((candidate) => candidate.logIndex === flow.depositLogIndex);
 	if (!log || getAddress(log.address) !== getAddress(chain.usdcAddress)) {
 		await setFlowStatus(flowId, "cancelled", {}, "deposit_not_canonical");

@@ -19,10 +19,11 @@ test("Iris treats 404, incomplete, 429, and 5xx as retryable states", async () =
 	const responses = [
 		new Response(null, { status: 404 }),
 		Response.json({ messages: [{ message, status: "pending", cctpVersion: 2 }] }),
+		Response.json({ messages: [{ status: "pending_confirmations", cctpVersion: 2 }] }),
 		new Response(null, { status: 429, headers: { "retry-after": "7" } }),
 		new Response(null, { status: 503 }),
 	];
-	const reasons = ["not_found", "incomplete", "rate_limited", "server_error"];
+	const reasons = ["not_found", "incomplete", "incomplete", "rate_limited", "server_error"];
 	for (const [index, response] of responses.entries()) {
 		const result = await pollIris(request, async () => response);
 		assert.equal(result.kind, "pending");
@@ -47,6 +48,15 @@ test("Iris accepts one complete CCTP v2 message for the origin transaction", asy
 		attestation: "0xaabb",
 		status: "complete",
 	});
+
+	await assert.rejects(
+		pollIris(request, async () =>
+			Response.json({
+				messages: [{ attestation: "0xaabb", status: "complete", cctpVersion: 2 }],
+			}),
+		),
+		/invalid complete attestation/,
+	);
 
 	await assert.rejects(
 		pollIris(request, async () =>

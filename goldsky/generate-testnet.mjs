@@ -50,7 +50,7 @@ function renderSources() {
 			const logBlockFilter = chain.key === "ethereum"
 				? ` AND block_number >= ${ethereumProtocolStartBlock}`
 				: "";
-			return [
+			const sources = [
 				`${chain.goldskyPrefix}_usdc:
   type: dataset
   dataset_name: ${chain.goldskyPrefix}.erc20_transfers
@@ -58,7 +58,18 @@ function renderSources() {
   start_at: latest
   filter: >-
     address = '${lower(chain.usdcAddress)}'`,
-				`${chain.goldskyPrefix}_logs:
+			];
+			if (chain.key === "arc") {
+				sources.push(`${chain.goldskyPrefix}_native_usdc:
+  type: dataset
+  dataset_name: ${chain.goldskyPrefix}.receipt_transactions
+  version: 1.0.0
+  start_at: latest
+  filter: >-
+    receipt_status = 1
+    AND to_address IS NOT NULL`);
+			}
+			sources.push(`${chain.goldskyPrefix}_logs:
   type: dataset
   dataset_name: ${chain.goldskyPrefix}.raw_logs
   version: ${datasetVersion(chain, "raw_logs")}
@@ -68,8 +79,8 @@ function renderSources() {
   filter: >-
     address IN (
       ${addresses}
-    )${logBlockFilter}`,
-			];
+    )${logBlockFilter}`);
+			return sources;
 		})
 		.map((source) => indent(source, 2))
 		.join("\n\n");
@@ -85,7 +96,7 @@ function addressPredicate(column, addresses) {
 	return `${column} IN (${values.map((address) => `'${address}'`).join(", ")})`;
 }
 
-const transferUnion = renderUnion(
+const erc20TransferUnion = renderUnion(
 	(chain) => `SELECT
   concat('${chain.chainId}:', id) AS event_id,
   'deposit' AS event_family,
@@ -102,6 +113,27 @@ const transferUnion = renderUnion(
   _gs_op
 FROM ${chain.goldskyPrefix}_usdc`,
 );
+
+const arc = chains.find((chain) => chain.key === "arc");
+if (!arc) throw new Error("The stable testnet registry has no Arc chain.");
+const arcNativeTransfer = `SELECT
+  concat('${arc.chainId}:native:', id) AS event_id,
+  'deposit' AS event_family,
+  'Transfer' AS event_type,
+  ${arc.chainId} AS chain_id,
+  block_number,
+  block_timestamp AS block_time,
+  hash AS tx_hash,
+  transaction_index AS log_index,
+  '${lower(arc.usdcAddress)}' AS token_address,
+  lower(from_address) AS sender_address,
+  lower(to_address) AS recipient_address,
+  u256_to_string(to_u256(value) / to_u256('1000000000000')) AS amount,
+  _gs_op
+FROM ${arc.goldskyPrefix}_native_usdc
+WHERE to_u256(value) >= to_u256('1000000000000')
+  AND to_u256(value) % to_u256('1000000000000') = to_u256('0')`;
+const transferUnion = `${erc20TransferUnion}\nUNION ALL\n${arcNativeTransfer}`;
 
 const rawLogsUnion = renderUnion(
 	(chain) => `SELECT
