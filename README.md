@@ -1,269 +1,254 @@
-<div align="center">
-
-<img src="public/favicon.svg" width="56" height="56" alt="Namepass" />
-
 # Namepass
 
-**Every ENS name gets its own renewal address.**
-Send USDC from any chain, the name gets more time — automatically, at the best rate available.
+Namepass is testnet infrastructure for permissionless ENS renewal with native USDC. Each ENS label
+maps to a deterministic CREATE2 deposit wallet. A funder sends USDC to that wallet. Namepass then
+renews the ENS name on Ethereum at the current ENS price.
 
-[![React](https://img.shields.io/badge/React-18-149ECA?logo=react&logoColor=white)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Motion](https://img.shields.io/badge/Motion-12-0055FF?logo=framer&logoColor=white)](https://motion.dev)
-[![ENS](https://img.shields.io/badge/ENS-v2_pricing-5298FF?logo=ethereum&logoColor=white)](https://ens.domains)
-[![Status](https://img.shields.io/badge/status-prototype-orange)](#-a-note-on-what-this-is)
+> [!WARNING]
+> Namepass is testnet-only and has not completed an external contract audit. There is no mainnet
+> deployment. The stable-testnet automation has not completed a verified end-to-end renewal. Do
+> not use this system with mainnet funds.
 
-<img src=".github/assets/hero.png" width="100%" alt="Namepass hero — Keep your name alive" />
+## Deployment status
 
-</div>
-
-<br />
-
-<details>
-<summary><strong>📋 Table of contents</strong></summary>
-
-- [What it does](#-what-it-does)
-- [A note on what this is](#-a-note-on-what-this-is)
-- [Feature tour](#-feature-tour)
-- [Tech stack](#-tech-stack)
-- [Getting started](#-getting-started)
-- [Project structure](#-project-structure)
-- [Under the hood](#-under-the-hood)
-- [License](#license)
-
-</details>
-
-## 🪪 What it does
-
-Every ENS name expires. Namepass gives it a **permanent, chain-agnostic deposit address** —
-anyone can send USDC to it, from Base, Arbitrum, Arc, or Ethereum, and it's converted into
-renewal time at the exact on-chain rate — no markup on the ENS price, just a flat $0.10 gas
-allowance per renewal toward the mainnet fees Namepass fronts. Ownership isn't required to fund
-one: a name's biggest supporter can keep it alive without ever holding the keys.
-
-Each address is derived deterministically with CREATE2 — it exists before anyone claims it, anyone
-can verify it offline, and no custodian holds keys. Under the hood, an indexing pipeline detects
-inbound payments, [Circle's CCTP](https://developers.circle.com/cctp) moves the USDC to Ethereum,
-and the renewal executes in the same transaction that completes the transfer — no manual
-intervention.
-
-The paragraph above describes the design. The contracts and supporting services run on testnet.
-The automated renewal path is not yet proven end to end. Read the next section before you treat it
-as a running system.
-
-## 🎬 A note on what this is
-
-This repository has three parts. Each part is at a different stage. Do not give them one status.
-
-**1. The contracts are built. They run on testnet only.**
-
-`contracts/` is deployed to four test networks: Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia,
-and Arc Testnet. The full on-chain path has been run against the deployed ENS and Circle contracts.
-The path is: deposit, CCTP burn on an L2, attestation, then one transaction that mints and renews
-together. [`docs/DEPLOYMENTS.md`](docs/DEPLOYMENTS.md) lists the addresses and the transaction
-hashes. 61 Foundry tests cover the contracts, and several review passes examined them. **No
-external audit has been done. There is no mainnet deployment.**
-
-**2. The automation backend is implemented in code and partly deployed to stable testnet.**
-
-The stable testnet Neon schema, database roles, Vercel API, Workflow environment, and Goldsky
-pipeline are deployed. The relayer key is configured, but the relayer has no recorded test gas.
-No automated renewal has completed across all four testnets.
-
-**3. The app in this repository is a frontend prototype.**
-
-The app points at the same test networks. The UI and pricing math are exact. The Explorer and
-Leaderboard read the public API. They need the backend deployment before they contain production
-data. The old browser fixtures are local demonstration data only.
-
-Treat the app as a prototype. It is not a production financial product.
-
-The **addresses, prices and expiry dates are real**, though. Every address the app shows is derived
-from the deployed factory's own CREATE2 rule — the same value `predictWallet(string)` returns on
-chain, checked against all four networks. Every rate is read from ENS's rent oracle when the page
-loads. And each name's expiry and whether ENS will renew it come from ENS's registry per name. So
-the address on a card is genuine, the price beside it is ENS's, and the expiry is the real one —
-renewal history appears only when the deployed backend supplies canonical chain events.
-
-## ✨ Feature tour
-
-| | |
+| Layer | Current state |
 |---|---|
-| 🏠 **Hero + live renewal ticker** | The bottom-left card cycles real inbound-payment math — chain, amount, discount tier, and the resulting expiry — computed from the actual pricing oracle, not hardcoded copy. |
-| 🧮 **Cost simulator** | Drag a slider or type any amount and watch it resolve into exact renewal time, live, for 3/4/5+ character names — including the "you're 1 dollar from a better rate" nudge. Every amount is a *send* amount carrying a bridging allowance, so the figure on the button clears its discount tier from any supported chain. |
-| 📈 **Prices straight from ENS** | No rate table ships with the app. Base rates, discount tiers and the USDC conversion are read from the registrar's own oracle at load — the same values the renewal contract prices with. The read takes ~150ms and says nothing about itself: the hero paints immediately and the simulator shows skeletons exactly the size of the numbers they'll become. If it fails, the app says so rather than quoting a price from memory. |
-| 📡 **Explorer** | A public, Etherscan-style feed of live flows and canonical renewals across every activated name, plus a per-name detail view with authoritative ENS expiry, ENS profile, and renewal history. |
-| 🏆 **Leaderboard** | Every Namepass ranked by renewals or time delivered, with inline-expandable rows (no page navigation) showing the QR code and deposit address on the spot, plus a jump straight to that name's activity. Time reads adaptively — days, months, then years and months — since names range from a week of runway to decades. |
-| 🖼️ **ENS avatars everywhere** | Real ENS avatars via the [resolvio](https://api.resolvio.xyz) profile API, gracefully falling back to a deterministic [Dicebear](https://dicebear.com) avatar seeded by name. |
-| 🔎 **Instant search** | Type a complete `.eth` name and it auto-searches after a debounce — no Enter required. No Namepass yet? Activate it inline, right there in the empty state. Names are validated with real [ENSIP-15 normalization](https://docs.ens.domains/ensip/15), not a regex, so emoji and non-Latin names work and names ENS can't hold are turned away *before* anyone sees an address for them. |
-| 🔗 **Real deposit addresses** | The address on every card is the deployed factory's CREATE2 derivation, computed locally from the label — the same one `predictWallet("vitalik")` returns on Sepolia, Base Sepolia, Arbitrum Sepolia and Arc. No RPC, no spinner, and verifiable offline against the constants in [`src/lib/namepass.ts`](src/lib/namepass.ts). |
-| 💰 **Pending balance** | Funds that have arrived but aren't renewal time yet, broken down **per chain** — because a CREATE2 address is the same everywhere but the balances are separate pots that can't be combined. Each chain carries its own reason for waiting, and its own retry for when a transfer got stuck. |
-| 📡 **In-flight renewals** | A CCTP transfer takes 30 seconds to 26 minutes. The time depends on the origin chain; see the measurements in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). The feed therefore shows a renewal while it runs, in three stages: burning, awaiting attestation, and renewing. The projected time shows as `~6.0y` until the renewal completes. |
-| 🧾 **Renewal breakdown** | Expand any renewal to see received, gas allowance, applied, funder, executor, and the available transactions behind it. Each transaction links to the correct block explorer. |
-| 🛡️ **Supported tokens** | The exact USDC contract on each of the four networks, shown in full and linked to its block explorer, because "check the ticker" is how people lose money to bridged `USDC.e`. Deliberately a whitelist — match one of these four exactly or don't send — and honest that anything else sent to a deposit address can't be recovered. |
-| 🧪 **Testnet strip** | A slim marquee above every page saying which networks this deployment actually watches. Not dismissible: "this is a testnet" isn't a notice someone should be able to close and then forget while looking at a deposit address. Pauses under `prefers-reduced-motion`. |
-| 💎 **Shine & shimmer UI** | Hand-ported [Magic UI](https://magicui.design)–style primitives (`ShineBorder`, `AnimatedShinyText`, `DotPattern`) restyled to a single navy accent — restrained, not confetti. |
-| 🪟 **One consistent shell** | Every page — home, leaderboard, supported tokens, terms, privacy — renders inside the same rounded card with the same header, so navigating between them never feels like leaving the app. |
+| Contracts | Deployed and verified on Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and Arc Testnet |
+| Contract path | Direct Ethereum renewal and CCTP claims have been proven on chain |
+| Database | Neon stable-testnet schema and runtime roles are deployed |
+| API and workflows | Vercel stable-testnet API and Workflow environment are deployed |
+| Indexer | The Goldsky `namepass-testnet` pipeline is running |
+| Relayer | The key is configured, but no test-gas funding has been recorded |
+| End-to-end automation | Not yet proven across the complete managed-service path |
+| Mainnet | Blocked by the audit, deployment, canary, recovery, and operations gates |
 
-<div align="center">
-<table>
-<tr>
-<td width="50%"><img src=".github/assets/leaderboard.png" width="100%" alt="Leaderboard" /></td>
-<td width="50%"><img src=".github/assets/leaderboard-expand.png" width="100%" alt="Leaderboard row expanded with QR code" /></td>
-</tr>
-<tr>
-<td width="50%"><img src=".github/assets/simulator.png" width="100%" alt="Cost simulator" /></td>
-<td width="50%"><img src=".github/assets/explorer.png" width="100%" alt="Explorer live feed" /></td>
-</tr>
-</table>
-</div>
+See [deployments](docs/DEPLOYMENTS.md) for contract addresses and chain evidence. See the
+[operations runbook](docs/RUNBOOK.md) for managed-service resources and open gates.
 
-## 🧱 Tech stack
+## System architecture
 
-| Layer | Choice |
+```mermaid
+flowchart LR
+    F[Funder] -->|native USDC| C[Supported chain]
+    C -->|transfers and protocol events| G[Goldsky Turbo]
+    G -->|authenticated webhook| A[Vercel API]
+    A <--> N[(Neon Postgres)]
+    A -->|start or resume| W[Vercel Workflow]
+    W -->|origin transaction| C
+    W -->|message and attestation| I[Circle Iris]
+    W -->|claim and renew| E[Ethereum helper]
+    B[React frontend] -->|public HTTP reads| A
+    N -->|watched addresses| G
+```
+
+### Service boundaries
+
+| Component | Responsibility |
 |---|---|
-| Framework | React 18 + TypeScript, bundled with Vite 7 |
-| Styling | Tailwind CSS v4 (`@theme`, no config file) |
-| Motion | [`motion`](https://motion.dev) (Framer Motion's successor) for every transition, layout animation, and gesture |
-| Icons | [lucide-react](https://lucide.dev) |
-| ENS data | [resolvio](https://api.resolvio.xyz) profile API — cached and deduplicated across components |
-| Chain reads | A ~180-line batched `eth_call` client over `fetch` (`lib/rpc.ts`). No web3 library: the app reads four `view` functions once at boot and never signs anything, so a wallet SDK would be several hundred kilobytes of surface area for nothing |
-| ENS names | [`@adraffy/ens-normalize`](https://github.com/adraffy/ens-normalize.js) for ENSIP-15, and [`@noble/hashes`](https://github.com/paulmillr/noble-hashes) for the keccak-256 behind the CREATE2 derivation |
-| Contracts (deployed, testnet) | Solidity 0.8.24 · Foundry · CREATE2 via the Safe Singleton Factory · Circle CCTP v2 · ENS v2 renewers |
-| Automation (partly deployed to stable testnet) | Goldsky Turbo · Neon Postgres · Vercel Functions · Vercel Workflow · Drizzle · viem. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
-| Routing | ~40 lines of hand-rolled `history.pushState` — no router dependency for five pages |
+| Namepass contracts | Derive deposit wallets, move USDC, validate CCTP messages, and renew ENS names |
+| Goldsky Turbo | Detect chain events and deliver ordered webhook records |
+| Neon Postgres | Store names, canonical events, flows, transitions, nonces, and transaction intents |
+| Vercel Functions | Validate HTTP requests, write application state, start workflows, and serve public reads |
+| Vercel Workflow | Execute durable Ethereum and CCTP renewal sequences |
+| Circle Iris | Return the final CCTP v2 message, nonce, and attestation |
+| React frontend | Render public API read models and derive deterministic deposit addresses |
 
-## 🚀 Getting started
+Neon is the application source of truth. Chain receipts and contract events remain authoritative
+for balances, burns, claims, and renewals. The system does not use Redis, a separate queue, a
+WebSocket service, or a second application database.
+
+## Renewal paths
+
+| Origin | Sequence |
+|---|---|
+| Ethereum | Validate deposit, check ENS and balance, submit `factory.renew`, verify renewal events, record settlement |
+| Base, Arbitrum, or Arc | Validate deposit, check ENS and balance, submit `factory.renew`, verify burn, poll Iris, submit `helper.completeCCTP`, verify claim and renewal events, record settlement |
+
+The origin transaction starts after the deposit receipt is validated. It does not wait for a
+separate deposit-finality stage. Circle applies the required finality after the CCTP burn. Iris
+polling owns that wait.
+
+A stored transaction intent is the workflow resume boundary. A retry reuses prepared transaction
+data or handles a recorded revert. It does not repeat a completed burn. An unclaimed CCTP flow
+keeps the original Circle message and retries the same claim.
+
+## Supported environments
+
+`src/lib/chains.ts` is the shared registry for the frontend, API, workflows, indexer generator, and
+tests.
+
+| Environment | Chains | Status |
+|---|---|---|
+| Stable testnet | Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, Arc Testnet | Active |
+| Initial mainnet | Ethereum, Base, Arbitrum | Planned and disabled |
+
+Arc uses native USDC as its gas token. A direct Arc payment can appear as transaction value without
+an ERC-20 `Transfer` event. The indexer and workflow support both Arc representations.
+
+The deposit address is identical on each chain in one deployment set. The balances are not shared.
+Each chain balance must independently meet the configured trigger amount. Send only the native USDC
+address listed in the chain registry. The contracts do not provide a token sweep.
+
+## Repository layout
+
+| Path | Purpose |
+|---|---|
+| `contracts/` | Solidity factory, renewal helper, and resolver |
+| `test/` | Foundry contract tests and the required ENS v2 test sources |
+| `src/` | React frontend, public API adapter, pricing, and shared chain registry |
+| `routes/api/` | Nitro API, webhook, CCIP-Read, and cron route handlers |
+| `server/` | Database access, ingestion, reads, chain operations, recovery, and transaction intents |
+| `workflows/` | Durable Ethereum and CCTP workflow entry points and steps |
+| `drizzle/` | PostgreSQL migrations and Drizzle metadata |
+| `goldsky/` | Stable-testnet Turbo pipeline and its generator |
+| `scripts/` | Repository consistency checks |
+| `docs/` | Architecture, deployments, operations, frontend details, and decisions |
+
+Nitro owns server routing. Keep API routes in `routes/api/`. Do not add a root `api/` directory or a
+catch-all Vercel rewrite. Either change can shadow or duplicate the generated Nitro routes.
+
+## Local development
+
+### Requirements
+
+- Node.js and npm
+- Foundry for contract work
+- Vercel CLI and a development Postgres branch for API or workflow work
+- Goldsky CLI for pipeline operations
+
+Install dependencies:
 
 ```bash
-git clone git@github.com:stevegachau/namepass-v2.git namepass
-cd namepass
 npm install
+cp .env.example .env.local
+```
+
+Run the frontend only:
+
+```bash
 npm run dev
 ```
 
+Use `vercel dev` when the task requires Nitro API routes or Vercel Workflow. Link only to a
+development or preview environment.
+
+Build and preview the production output:
+
 ```bash
-npm run build     # frontend type-check plus Vite, Nitro, and Workflow build
+npm run build
+npm run preview
+```
+
+### Database setup
+
+Use a pooled URL for application traffic. Use a direct URL for migrations.
+
+```bash
+npx tsx server/db/migrate.ts
+```
+
+For an isolated preview database only:
+
+```bash
+VERCEL_ENV=preview npx tsx server/db/preview-fixtures.ts
+```
+
+The fixture command rejects `VERCEL_ENV=production`. Do not run it against a shared environment.
+
+## Configuration
+
+Copy `.env.example` and supply values outside the repository.
+
+| Variable group | Purpose |
+|---|---|
+| `DATABASE_URL` | Pooled application connection |
+| `DATABASE_URL_UNPOOLED` | Direct migration connection |
+| `*_RPC_URL` | Server RPC endpoint for each active chain |
+| `RELAYER_PRIVATE_KEY` | Test-only transaction signer |
+| `RELAYER_ADDRESS` | Public relayer address; must match the private key |
+| `RELAYER_TRANSACTION_UNIT_WEI_*` | Per-chain relayer gas health thresholds |
+| `GOLDSKY_WEBHOOK_SECRET` | Authenticates Goldsky delivery |
+| `CRON_SECRET` | Authenticates recovery, health, and retention routes |
+| `CIRCLE_IRIS_URL` | Circle Iris base URL for the active environment |
+| `DEPLOYMENT_ENVIRONMENT` | Public environment label used by the service |
+| `VITE_SEPOLIA_RPC` | Public browser RPC used for ENS pricing reads |
+| `VITE_API_BASE_URL` | Optional public API origin; blank means same origin |
+
+Never put a secret in a `VITE_*` variable. Browser variables are public. Keep mainnet, stable
+testnet, preview, and local credentials separate.
+
+## API and scheduled operations
+
+Vercel schedules these operations from `vercel.json`:
+
+| Route | Schedule | Purpose |
+|---|---|---|
+| `/api/cron/recover` | Every minute | Resume safe work and reconcile stale flow ownership |
+| `/api/cron/health` | Every 5 minutes | Check the database, RPC chain IDs, and relayer gas |
+| `/api/cron/retention` | Daily at 03:17 UTC | Remove expired raw payloads in bounded batches |
+
+The [operations runbook](docs/RUNBOOK.md) defines the endpoint contract, rate limits, recovery
+drills, and alert rules.
+
+## Verification
+
+There is no CI workflow. Run the applicable checks locally before each pull request.
+
+```bash
+npm run build
 npm run check:server
 npm run test:frontend
 npm run test:server
 npm run test:workflow
-npm run preview   # serve the production build locally
-```
-
-## 📁 Project structure
-
-```
-src/
-├── components/
-│   ├── magicui/            ShineBorder, AnimatedShinyText, DotPattern
-│   ├── Hero.tsx            Home hero content (badge, headline, CTA cards)
-│   ├── Navbar.tsx          Shared header — logo, glass menu, CTA
-│   ├── PageShell.tsx       The rounded card every page renders inside
-│   ├── Explorer.tsx        Live feed (settled + in-flight) + per-name detail view
-│   ├── Leaderboard.tsx     Ranked list with inline-expandable rows
-│   ├── Simulator.tsx       Cost simulator
-│   ├── PassCard.tsx        QR + deposit address + supported chains + contract check
-│   ├── PendingBalance.tsx  Per-chain funds waiting, with why and a manual retry
-│   ├── Tooltip.tsx         Shared info bubble — portaled, so accordions can't clip it
-│   ├── ChainTag.tsx        Chain name + brand-coloured live dot
-│   ├── SupportedTokens.tsx Native USDC contract per chain, in full, with explorer links
-│   └── Footer.tsx / Terms.tsx / Privacy.tsx
-├── lib/
-│   ├── pricing.ts          Exact ENS v2 StandardRentPriceOracle math, BigInt end to end
-│   ├── oracle.ts           ENS's live rates, read from the registrar's oracle at boot
-│   ├── rpc.ts              Minimal batched eth_call client — reads only, never writes
-│   ├── namepass.ts         ENS label → deposit address, the deployed factory's CREATE2 rule
-│   ├── publicApi.ts        Typed public Vercel API adapter
-│   ├── readModel.ts        API-to-Explorer and Leaderboard view mapping
-│   ├── tokens.ts           Real testnet USDC addresses — not mock
-│   ├── fees.ts             The flat $0.10 gas allowance taken per flow
-│   ├── ens.ts              resolvio profile client
-│   ├── qr.ts               QR matrix encoder
-│   └── format.ts           Date/currency/duration formatting
-└── App.tsx                 ~165 lines of state + routing tying it together
-
-contracts/                  Solidity. Testnet only. Not audited.
-├── NamepassFactory.sol     CREATE2 deposit wallets and the CCTP burn. Also the ERC-1167 impl.
-└── ENSV2RenewalHelper.sol  Ethereum side. Claims the CCTP message and renews in one transaction.
-
-test/                       61 Foundry tests. Pricing runs against ENS's own oracle.
-
-routes/api/                 Nitro HTTP and cron entry points for Vercel.
-server/                     Validation, database, ingestion, reads, and chain operations.
-workflows/                  Durable Ethereum and CCTP workflow entry points and steps.
-drizzle/                    PostgreSQL migration and metadata.
-goldsky/                    Generated testnet Turbo pipeline and generator.
-```
-
-The npm scripts do not build the contracts. Use Foundry:
-
-```bash
-forge build
+node scripts/check-chains.mjs
+node goldsky/generate-testnet.mjs --check
+npx drizzle-kit check --config drizzle.config.ts
 forge test
 ```
 
-## 🔬 Under the hood
+`npm run build` does not compile Solidity. Use `forge build` or `forge test` for contracts.
 
-A few decisions worth knowing about before you touch the code. For the full picture there are five
-docs, each with a distinct job:
+## Deployment and operations
 
-| Doc | Covers |
+Do not deploy from this README. Use the runbook and record the environment-specific evidence.
+
+- Apply database migrations before code that requires the new schema.
+- Deploy Vercel before a Goldsky pipeline targets a new stable endpoint.
+- Validate the generated Goldsky pipeline before `apply`.
+- Keep Goldsky pointed at a stable domain, not an immutable preview URL.
+- Confirm the health and recovery routes after each deployment.
+- Fund the relayer with native gas on every active chain before test funding starts.
+- Do not change `ACTIVE_ENVIRONMENT` or `MAINNET_LAUNCH_APPROVED` without the Phase 8 evidence.
+
+See [docs/RUNBOOK.md](docs/RUNBOOK.md) for release order, roles, secrets, alerts, and recovery.
+
+## Security constraints
+
+- The contracts are testnet-only and not externally audited.
+- Normalize each ENS label before deriving or registering its deposit address.
+- Verify the RPC chain ID before simulation, signing, or broadcast.
+- Store signed transaction bytes before broadcast.
+- Verify receipt status, emitter addresses, route fields, amounts, and expected events.
+- Never mark a flow settled from a transaction hash alone.
+- Keep the relayer key exclusive to this service.
+- Keep database, webhook, cron, and relayer secrets out of the browser and repository.
+- Show deposit addresses in full in any payment interface.
+
+Mainnet remains disabled until the independent audit, reviewed deployment, canaries, recovery
+drills, alert review, and operations gates are complete.
+
+## Documentation
+
+| Document | Scope |
 |---|---|
-| [`CLAUDE.md`](CLAUDE.md) | Working conventions and the load-bearing constraints, in brief |
-| [`docs/FRONTEND.md`](docs/FRONTEND.md) | **How the app works** — public API reads, UI state, and invariants |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The contracts (built, testnet) and the production system (partly deployed to stable testnet). CREATE2, CCTP, Goldsky, Neon, and Vercel |
-| [`docs/DEPLOYMENTS.md`](docs/DEPLOYMENTS.md) | **Live testnet addresses** and what has been proven on chain |
-| [`PRODUCT.md`](PRODUCT.md) · [`docs/DECISIONS.md`](docs/DECISIONS.md) | What/why, and a dated log of non-obvious calls |
-
-<details>
-<summary><strong>Pricing math is exact, not approximate</strong></summary>
-
-<br />
-
-`src/lib/pricing.ts` mirrors ENS v2's `StandardRentPriceOracle` for 5+ character names, in
-`BigInt` end to end. `divCeil` matches the contract's `Math.Rounding.Ceil`, so every number
-shown matches on-chain to the micro-unit.
-
-| Duration | Threshold | Discount |
-|---|---|---|
-| 1 year | `$8.000021` | — |
-| 2 years | `$14.000037` | 12.5% off |
-| 3 years | `$16.500044` | 31.25% off |
-| 6 years | `$27.000071` | 43.75% off |
-
-Thresholds aren't round numbers — the 3-year rate starts at exactly `$16.500044`, so a payment
-of `$16.50` falls **44 micro-units short** and silently drops to the previous tier.
-`ceilToCent()` rounds every threshold up to the next payable cent so the UI's quick-select
-buttons never suggest an amount that under-shoots.
-
-</details>
-
-<details>
-<summary><strong>Deposit addresses are never truncated</strong></summary>
-
-<br />
-
-The Namepass deposit address is always shown **in full**. Truncation hides the middle of an
-address — exactly where an address-swap attack would land — so a sender can't verify what
-they're actually paying. The ENS profile's *resolved* address is still truncated, since it's
-informational rather than a payment target.
-
-</details>
-
-<details>
-<summary><strong>The header lives inside the page, not above it</strong></summary>
-
-<br />
-
-`PageShell` renders the same rounded card (video background on Home, white elsewhere) with
-`Navbar` as its first child on every route. That's what makes switching between Home,
-Leaderboard, Terms, and Privacy feel like one app instead of four stitched-together pages.
-
-</details>
+| [CLAUDE.md](CLAUDE.md) | Repository rules and load-bearing implementation constraints |
+| [PRODUCT.md](PRODUCT.md) | Product scope and current product decisions |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Contracts, data model, workflows, service boundaries, and launch plan |
+| [docs/DEPLOYMENTS.md](docs/DEPLOYMENTS.md) | Testnet addresses and on-chain evidence |
+| [docs/FRONTEND.md](docs/FRONTEND.md) | Frontend read model, state, components, and invariants |
+| [docs/RUNBOOK.md](docs/RUNBOOK.md) | Environment setup, releases, recovery, monitoring, and mainnet gates |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Dated architecture and product decisions |
 
 ## License
 
-No license file yet — all rights reserved by default. Ask before reusing.
+No license file is present. All rights are reserved by default.
