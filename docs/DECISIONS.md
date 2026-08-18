@@ -7,6 +7,30 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-18 — CCIP-Read resolution lazily enrols labels for tracking
+
+`namepass.eth` uses a wildcard resolver (ENSIP-10) that answers an `addr` query with ERC-3668
+`OffchainLookup`. The client calls the gateway at `routes/api/ccip.ts`, which registers the label
+through the existing `activateName` path and returns `abi.encode(true)`. The resolver then
+computes the deposit address itself from the same label bytes. So a name starts being watched the
+first time anyone resolves it, and a funder needs no separate activation step.
+
+The gateway watches the address the resolver returns, so it must derive from the identical bytes.
+The resolver derives from the raw label bytes in the ENS name and cannot run ENSIP-15. The gateway
+therefore registers a label only when the bytes are already canonical (`normalizeLabel(raw) ===
+raw`) and refuses anything else. This keeps the watched address and the returned address identical
+and stops a non-normalized label from ever resolving to a fundable address.
+
+The gateway fails closed and uses the HTTP status as the ERC-3668 retry signal. A refused label is
+a `4xx`, so the read gives up. A transient failure, such as an unavailable ENS RPC, keeps its
+`5xx`, so the read may retry. The gateway returns `200` with `true` only after the watched address
+is persisted, which is the case the resolver's `RegistrationFailed` guard checks. Registration
+writes the watched address before the cross-chain balance scan, so a scan failure still returns
+`true` and the recovery cron finishes the scan.
+
+The gateway is a public, unauthenticated write path, the same class as `/api/names/activate`. It
+needs a Vercel Firewall rate limit before stable-testnet funding. See `docs/RUNBOOK.md`.
+
 ### 2026-08-17 — Circle Iris supplies the final CCTP v2 nonce
 
 The CCTP v2 `MessageSent` event on the origin chain contains a zero nonce placeholder. Circle
