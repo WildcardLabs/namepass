@@ -106,33 +106,10 @@ That placeholder is testnet-only and does not prove the planned mainnet governan
 contracts have not had an external audit, so this README does not make an absolute “unruggable”
 claim.
 
-| | |
-|---|---|
-| 🏠 **Hero + live renewal ticker** | The bottom-left card cycles real inbound-payment math — chain, amount, discount tier, and the resulting expiry — computed from the actual pricing oracle, not hardcoded copy. |
-| 🧮 **Cost simulator** | Drag a slider or type any amount and watch it resolve into exact renewal time, live, for 3/4/5+ character names — including the "you're 1 dollar from a better rate" nudge. Every amount is a *send* amount carrying a bridging allowance, so the figure on the button clears its discount tier from any supported chain. |
-| 📈 **Prices straight from ENS** | No rate table ships with the app. Base rates, discount tiers and the USDC conversion are read from the registrar's own oracle at load — the same values the renewal contract prices with. The read takes ~150ms and says nothing about itself: the hero paints immediately and the simulator shows skeletons exactly the size of the numbers they'll become. If it fails, the app says so rather than quoting a price from memory. |
-| 📡 **Explorer** | A public, Etherscan-style feed of live flows and canonical renewals across every activated name, plus a per-name detail view with authoritative ENS expiry, ENS profile, and renewal history. |
-| 🏆 **Leaderboard** | Names with completed activity ranked by renewals or time delivered. A name with no completed renewal does not appear. Expand a row to see its three latest completed renewal transactions. Use the profile button to open the complete name profile and activity history. Time reads adaptively — days, months, then years and months — since names range from a week of runway to decades. |
-| 🖼️ **ENS avatars everywhere** | Real ENS avatars via the [resolvio](https://api.resolvio.xyz) profile API, gracefully falling back to a deterministic [Dicebear](https://dicebear.com) avatar seeded by name. |
-| 🔎 **Instant search** | Type a complete `.eth` name and it auto-searches after a debounce — no Enter required. No Namepass yet? Activate it inline, right there in the empty state. Names are validated with real [ENSIP-15 normalization](https://docs.ens.domains/ensip/15), not a regex, so emoji and non-Latin names work and names ENS can't hold are turned away *before* anyone sees an address for them. |
-| 🔗 **Real deposit addresses** | The address on every card is the deployed factory's CREATE2 derivation, computed locally from the label — the same one `predictWallet("vitalik")` returns on Sepolia, Base Sepolia, Arbitrum Sepolia and Arc. No RPC, no spinner, and verifiable offline against the constants in [`src/lib/namepass.ts`](src/lib/namepass.ts). |
-| 💰 **Pending balance** | Funds that have arrived but aren't renewal time yet, broken down **per chain** — because a CREATE2 address is the same everywhere but the balances are separate pots that can't be combined. Each chain carries its own reason for waiting, and its own retry for when a transfer got stuck. |
-| 📡 **In-flight renewals** | A CCTP transfer takes 30 seconds to 26 minutes. The time depends on the origin chain; see the measurements in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Cross-chain rows show transfer, Circle attestation, and Ethereum renewal states. Direct Ethereum rows show renewal states only. The projected time shows as `~6.0y` until the renewal completes. |
-| 🧾 **Renewal breakdown** | Expand any renewal to see received, gas allowance, applied, funder, executor, and the available transactions behind it. Each transaction links to the correct block explorer. |
-| 🛡️ **Supported tokens** | The exact USDC contract on each of the four networks, shown in full and linked to its block explorer, because "check the ticker" is how people lose money to bridged `USDC.e`. Deliberately a whitelist — match one of these four exactly or don't send — and honest that anything else sent to a deposit address can't be recovered. |
-| 🧪 **Testnet strip** | A slim marquee above every page saying which networks this deployment actually watches. Not dismissible: "this is a testnet" isn't a notice someone should be able to close and then forget while looking at a deposit address. Pauses under `prefers-reduced-motion`. |
-| 💎 **Shine & shimmer UI** | Hand-ported [Magic UI](https://magicui.design)–style primitives (`ShineBorder`, `AnimatedShinyText`, `DotPattern`) restyled to a single navy accent — restrained, not confetti. |
-| 🪟 **One consistent shell** | Every page — home, leaderboard, supported tokens, terms, privacy — renders inside the same rounded card with the same header, so navigating between them never feels like leaving the app. |
+Sending another token to a deposit wallet does not create a recovery right. The protocol can only
+process its configured USDC token. Other tokens can be permanently lost.
 
-<div align="center">
-<table>
-<tr>
-<td width="33%"><img src=".github/assets/leaderboard.png" width="100%" alt="Leaderboard" /></td>
-<td width="33%"><img src=".github/assets/simulator.png" width="100%" alt="Cost simulator" /></td>
-<td width="33%"><img src=".github/assets/explorer.png" width="100%" alt="Explorer live feed" /></td>
-</tr>
-</table>
-</div>
+## ENS v2 ready
 
 ENS v2 has two renewable name populations during migration. The helper asks ENS which renewal
 contract accepts the label on every renewal.
