@@ -1,7 +1,6 @@
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import {
 	useEffect,
-	useLayoutEffect,
 	useMemo,
 	useReducer,
 	useRef,
@@ -61,7 +60,7 @@ import { LABEL_PROBLEM_TEXT, labelProblem, normalizeLabel } from "../lib/namepas
 import { GAS_ALLOWANCE } from "../lib/fees";
 import { fetchProfile, type EnsProfile } from "../lib/ens";
 import { XIcon } from "./icons";
-import { activateName, getActivity, getFlow, getName, getNameActivity, getPublicConfig, micro, safeInteger, triggerFlow, type PublicFlow } from "../lib/publicApi";
+import { activateName, getActivity, getName, getNameActivity, getPublicConfig, micro, safeInteger, triggerFlow, type ActivityRead, type NameActivityRead, type PublicFlow } from "../lib/publicApi";
 import { chainById, HUB_CHAIN } from "../lib/chains";
 
 /**
@@ -328,31 +327,8 @@ function StatusCell({ row, reduced }: { row: FeedItem; reduced: boolean }) {
 	);
 }
 
-/**
- * Rows on screen at once, in-flight and settled together.
- *
- * Constant so the feed never changes height, which is the only reason the rest
- * of the page stays still while it updates. An arrival at the top is paid for
- * by a departure at the bottom in the same frame, and the two cancel.
- */
-const FEED_ROWS = 14;
-
 /** In-flight rows are capped so a busy moment can't crowd out all the history. */
 const MAX_IN_FLIGHT = 6;
-
-/**
- * Rows the viewport shows. The rest of `FEED_ROWS` sits below the fade as
- * slack, which is what makes the height genuinely fixed rather than nearly
- * fixed: arrivals push the surplus under the edge and departures happen out of
- * sight, so no row count or row height can move the container.
- *
- * Fractional on purpose. Landing exactly on a row boundary makes the last one
- * look cut off by accident; half a row under a fade reads as more to come.
- */
-const VISIBLE_ROWS = 11.5;
-
-/** Height of the fade at the bottom edge, in px. */
-const FADE_PX = 64;
 
 /** What the feed renders, flattened so both states share one shape. */
 type FeedItem = {
@@ -372,41 +348,42 @@ type FeedItem = {
 function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 	const [, tick] = useReducer((n: number) => n + 1, 0);
 	const reduced = useReducedMotion() ?? false;
-	const listRef = useRef<HTMLDivElement>(null);
-	const [rowHeight, setRowHeight] = useState<number | null>(null);
+	const history = useRef<ActivityRead["items"]>([]);
+	const cursor = useRef<string | null>(null);
+	const cursorInitialized = useRef(false);
+	const loading = useRef(false);
+	const [nextCursor, setNextCursor] = useState<string | null>(null);
+	const [loadingOlder, setLoadingOlder] = useState(false);
 	const [loadError, setLoadError] = useState<string | null>(null);
 
-	/* Measured rather than hardcoded, because a row is a single line on desktop
-	   and a stacked card on mobile, and a fixed pixel height would be wrong on
-	   one of them. Averaged over the rendered rows so a row without an applied
-	   sub-line can't skew the unit. Re-measured on resize, which is the only
-	   thing that changes it. */
-	useLayoutEffect(() => {
-		const measure = () => {
-			const el = listRef.current;
-			if (!el || el.children.length === 0) return;
-			const h = el.getBoundingClientRect().height / el.children.length;
-			if (h > 0) setRowHeight(h);
-		};
-		measure();
-		window.addEventListener("resize", measure);
-		return () => window.removeEventListener("resize", measure);
-	}, []);
+	const mergeHistory = (items: ActivityRead["items"]) => {
+		const merged = new Map(history.current.map((item) => [item.renewal.eventId, item]));
+		for (const item of items) merged.set(item.renewal.eventId, item);
+		history.current = [...merged.values()].sort(
+			(a, b) => new Date(b.renewal.blockTime).getTime() - new Date(a.renewal.blockTime).getTime(),
+		);
+	};
 
 	useEffect(() => {
 		let stopped = false;
 		let timer = 0;
 		let failures = 0;
-		let loading = false;
 		const schedule = (delay: number) => {
 			window.clearTimeout(timer);
 			timer = window.setTimeout(() => void load(), delay);
 		};
 		const load = async () => {
-			if (stopped || loading) return;
-			loading = true;
+			if (stopped || loading.current) return;
+			loading.current = true;
 			try {
-				syncFeed(await getActivity());
+				const feed = await getActivity();
+				mergeHistory(feed.items);
+				if (!cursorInitialized.current) {
+					cursorInitialized.current = true;
+					cursor.current = feed.nextCursor;
+					setNextCursor(feed.nextCursor);
+				}
+				syncFeed({ ...feed, items: history.current, nextCursor: cursor.current });
 				failures = 0;
 				setLoadError(null);
 				tick();
@@ -414,7 +391,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 				failures += 1;
 				setLoadError(cause instanceof Error ? cause.message : "Could not load activity.");
 			} finally {
-				loading = false;
+				loading.current = false;
 				if (!stopped) schedule(Math.min(12_000 * 2 ** failures, 60_000));
 			}
 		};
@@ -431,14 +408,28 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 		};
 	}, []);
 
+	const loadOlder = async () => {
+		if (!cursor.current || loading.current) return;
+		loading.current = true;
+		setLoadingOlder(true);
+		try {
+			const feed = await getActivity(cursor.current);
+			mergeHistory(feed.items);
+			cursor.current = feed.nextCursor;
+			setNextCursor(feed.nextCursor);
+			syncFeed({ ...feed, items: history.current });
+			setLoadError(null);
+			tick();
+		} catch (cause) {
+			setLoadError(cause instanceof Error ? cause.message : "Could not load older activity.");
+		} finally {
+			loading.current = false;
+			setLoadingOlder(false);
+		}
+	};
+
 	const inFlight = activeFlows().slice(0, MAX_IN_FLIGHT);
-	/* Backfilled so the total is fixed. This only works because a settling
-	   payment keeps its row: it crosses from the in-flight group into the
-	   settled one as the same element, and the settled limit grows by exactly
-	   the one slot the in-flight group gave up. Nothing enters, nothing
-	   leaves, nothing moves. Back when the two sides had different keys this
-	   same arithmetic shifted three rows at once. */
-	const settled = recentActivity(FEED_ROWS - inFlight.length);
+	const settled = recentActivity(Number.MAX_SAFE_INTEGER);
 
 	/* One list, and the key is the payment rather than the row. A settling
 	   transfer keeps its key, so React moves and re-renders the element it
@@ -486,20 +477,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 				<span className="text-right">Status</span>
 			</div>
 
-			{/* Fixed height, so nothing the feed does can move the page. The
-			    surplus rows live below the fade and absorb every arrival and
-			    departure. `overflowAnchor` off so the browser doesn't
-			    counter-scroll against rows arriving above the viewport. */}
-			<div
-				className="overflow-hidden"
-				style={{
-					height: rowHeight ? rowHeight * VISIBLE_ROWS : undefined,
-					overflowAnchor: "none",
-					maskImage: `linear-gradient(to bottom, black calc(100% - ${FADE_PX}px), transparent 100%)`,
-					WebkitMaskImage: `linear-gradient(to bottom, black calc(100% - ${FADE_PX}px), transparent 100%)`,
-				}}
-			>
-				<div ref={listRef}>
+			<div>
 					<AnimatePresence initial={false}>
 						{items.map((row) => (
 							<FeedRow key={row.key} reduced={reduced}>
@@ -507,9 +485,17 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 							</FeedRow>
 						))}
 					</AnimatePresence>
-				</div>
+					{items.length === 0 && !loadError && (
+						<p className="px-5 py-8 text-center text-[13px] text-[rgba(30,50,90,0.5)]">No renewal activity yet.</p>
+					)}
 			</div>
 			</div>
+			{nextCursor && (
+				<button type="button" onClick={() => void loadOlder()} disabled={loadingOlder} className="mt-4 inline-flex items-center gap-2 rounded-full border border-[rgba(30,50,90,0.18)] px-4 py-2 text-[12.5px] text-[rgba(30,50,90,0.72)] hover:bg-white disabled:opacity-50">
+					{loadingOlder && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+					Load older activity
+				</button>
+			)}
 		</>
 	);
 }
@@ -667,22 +653,6 @@ function UnclaimedFlowCard({ label, flow, renewable, onRetry }: { label: string;
 	);
 }
 
-function SettledFlowCard({ flow }: { flow: PublicFlow }) {
-	const evidence = flow.evidence;
-	const renewal = evidence?.renewalTxHash;
-	const hub = chainById(11155111);
-	return (
-		<div className="mt-4 rounded-2xl border border-[rgba(30,50,90,0.1)] bg-[rgba(30,50,90,0.015)] p-4">
-			<div className="flex items-center justify-between gap-3">
-				<span className="text-[14px] text-[rgba(30,50,90,0.9)]">Renewal settled</span>
-				<span className="text-[12px] tabular-nums text-[rgba(30,50,90,0.6)]">{fmtUsdc(micro(flow.amountProcessed ?? flow.amountDetected))}</span>
-			</div>
-			{renewal && hub && <a href={explorerUrl(hub.name, renewal)} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1.5 font-mono text-[12px] text-[rgba(30,50,90,0.65)] hover:text-[rgba(30,50,90,0.95)]">Renewal transaction {truncTx(renewal)} <ExternalLink className="w-3 h-3" /></a>}
-			{evidence?.executorAddress && <p className="mt-2 text-[12px] text-[rgba(30,50,90,0.6)]" aria-label={`Processed by ${evidence.executorAddress}`}>Processed by {evidence.executorIsRelayer ? "Namepass " : ""}<span className="font-mono">{evidence.executorAddress}</span></p>}
-		</div>
-	);
-}
-
 /* ------------------------------------------------------------------ */
 /* Name detail                                                         */
 /* ------------------------------------------------------------------ */
@@ -692,23 +662,23 @@ function NameDetail({
 	onBack,
 	onSupportedTokens,
 	onRefresh,
+	onLoadOlder,
+	hasOlder,
+	loadingOlder,
 }: {
 	record: NameRecord;
 	onBack: () => void;
 	onSupportedTokens: () => void;
 	onRefresh: () => void;
+	onLoadOlder: () => void;
+	hasOlder: boolean;
+	loadingOlder: boolean;
 }) {
 	/* Which renewal has its transaction breakdown open. One at a time. */
 	const [openEvent, setOpenEvent] = useState<string | null>(null);
 	const events = [...record.events].reverse();
 	const expiry = nameExpiry(record);
 	const daysLeft = Math.round((expiry - Date.now()) / 86_400_000);
-	/* Share of total runway that existed before Namepass was activated. */
-	const span = expiry - record.activatedAt;
-	const basePct = Math.max(
-		4,
-		Math.min(96, ((record.expiryAtActivation - record.activatedAt) / span) * 100),
-	);
 	const [profile, setProfile] = useState<EnsProfile | null>(null);
 	const [profileLoading, setProfileLoading] = useState(true);
 
@@ -873,53 +843,6 @@ function NameDetail({
 						</div>
 					)}
 
-					{/* Runway: how far Namepass has pushed the expiry out.
-					    Attributed explicitly — the expiry above is the name's real one
-					    and the owner may well have renewed elsewhere too, so an
-					    unqualified "+27 years added" would claim credit for it.
-
-					    Hidden unless the expiry is real and still ahead. The bar's
-					    right-hand end *is* the expiry, so with none it draws a runway
-					    to a date that doesn't exist, directly under the words "Not
-					    registered" — and for an already-expired name the left end is
-					    `expiry − time delivered`, which put `nouns.eth`'s activation in
-					    2013, years before ENS existed. */}
-					<div
-						className={`mt-5 ${
-							onchain && (onchain.expiry === null || onchain.expiry <= Date.now())
-								? "hidden"
-								: ""
-						}`}
-					>
-						<div className="flex justify-between text-[11px] text-[rgba(30,50,90,0.5)] mb-2">
-							<span>At activation</span>
-							<span>Now</span>
-						</div>
-						<div className="relative h-1.5 rounded-full bg-[rgba(30,50,90,0.08)] overflow-hidden">
-							<motion.div
-								initial={{ width: 0 }}
-								animate={{ width: `${basePct}%` }}
-								transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-								className="absolute inset-y-0 left-0 bg-[rgba(30,50,90,0.25)]"
-							/>
-							<motion.div
-								initial={{ width: 0 }}
-								animate={{ width: `${100 - basePct}%` }}
-								transition={{ duration: 0.7, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-								className="absolute inset-y-0 bg-[rgba(30,50,90,0.75)]"
-								style={{ left: `${basePct}%` }}
-							/>
-						</div>
-						<div className="mt-2 flex justify-between text-[12px]">
-							<span className="text-[rgba(30,50,90,0.55)]">
-								{fmtDate(record.expiryAtActivation)}
-							</span>
-							<span className="text-[rgba(30,50,90,0.9)]">
-								+{fmtYears(timeDelivered(record))} years via Namepass
-							</span>
-						</div>
-					</div>
-
 					{/* Money that has arrived but isn't renewal time yet — sits above
 					    the profile because it's the actionable half of the card. */}
 					{/* Keyed so switching names resets the card — otherwise an open
@@ -937,10 +860,6 @@ function NameDetail({
 								onRetry={onRefresh}
 							/>
 						))}
-
-					{record.flows.filter((flow) => flow.status === "settled").map((flow) => (
-						<SettledFlowCard key={flow.id} flow={flow} />
-					))}
 
 					{/* ENS records — identity, not payment history */}
 					<div className="mt-5 pt-5 border-t border-[rgba(30,50,90,0.08)] flex-1">
@@ -1221,6 +1140,12 @@ function NameDetail({
 						})}
 					</div>
 				</div>
+				{hasOlder && (
+					<button type="button" onClick={onLoadOlder} disabled={loadingOlder} className="mt-4 inline-flex items-center gap-2 rounded-full border border-[rgba(30,50,90,0.18)] px-4 py-2 text-[12.5px] text-[rgba(30,50,90,0.72)] hover:bg-white disabled:opacity-50">
+						{loadingOlder && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+						Load older activity
+					</button>
+				)}
 			</div>
 		</motion.div>
 	);
@@ -1245,6 +1170,26 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 	const [, reload] = useReducer((value: number) => value + 1, 0);
 	const [requestError, setRequestError] = useState<string | null>(null);
 	const [configVersion, refreshConfig] = useReducer((value: number) => value + 1, 0);
+	const nameHistory = useRef<NameActivityRead["renewals"]>([]);
+	const nameCursor = useRef<string | null>(null);
+	const nameCursorInitialized = useRef(false);
+	const [nameNextCursor, setNameNextCursor] = useState<string | null>(null);
+	const [loadingOlderName, setLoadingOlderName] = useState(false);
+
+	const mergeNameHistory = (renewals: NameActivityRead["renewals"]) => {
+		const merged = new Map(nameHistory.current.map((renewal) => [renewal.eventId, renewal]));
+		for (const renewal of renewals) merged.set(renewal.eventId, renewal);
+		nameHistory.current = [...merged.values()].sort(
+			(a, b) => new Date(b.blockTime).getTime() - new Date(a.blockTime).getTime(),
+		);
+	};
+
+	useEffect(() => {
+		nameHistory.current = [];
+		nameCursor.current = null;
+		nameCursorInitialized.current = false;
+		setNameNextCursor(null);
+	}, [selected]);
 
 	useEffect(() => {
 		let stopped = false;
@@ -1288,10 +1233,14 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 			loading = true;
 			try {
 				const activity = await getNameActivity(selected);
-				const details = await Promise.all(activity.flows.map((flow) => getFlow(flow.id).catch(() => null)));
-				const byId = new Map(details.filter((value): value is { flow: PublicFlow } => Boolean(value)).map(({ flow }) => [flow.id, flow]));
 				if (!stopped) {
-								syncName({ ...activity, flows: activity.flows.map((flow) => byId.get(flow.id) ?? flow) });
+					mergeNameHistory(activity.renewals);
+					if (!nameCursorInitialized.current) {
+						nameCursorInitialized.current = true;
+						nameCursor.current = activity.nextCursor;
+						setNameNextCursor(activity.nextCursor);
+					}
+					syncName({ ...activity, renewals: nameHistory.current, nextCursor: nameCursor.current });
 					setRequestError(null);
 					failures = 0;
 					refresh();
@@ -1319,6 +1268,24 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 			window.removeEventListener("focus", focus);
 		};
 	}, [selected, reload, configVersion]);
+
+	const loadOlderName = async () => {
+		if (!selected || !nameCursor.current || loadingOlderName) return;
+		setLoadingOlderName(true);
+		try {
+			const activity = await getNameActivity(selected, nameCursor.current);
+			mergeNameHistory(activity.renewals);
+			nameCursor.current = activity.nextCursor;
+			setNameNextCursor(activity.nextCursor);
+			syncName({ ...activity, renewals: nameHistory.current });
+			setRequestError(null);
+			refresh();
+		} catch (cause) {
+			setRequestError(cause instanceof Error ? cause.message : "Could not load older activity.");
+		} finally {
+			setLoadingOlderName(false);
+		}
+	};
 
 	const suggestions = useMemo(() => {
 		const q = query.trim().toLowerCase();
@@ -1496,6 +1463,9 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 									onBack={() => onSelect(null)}
 									onSupportedTokens={onSupportedTokens}
 									onRefresh={reload}
+									onLoadOlder={() => void loadOlderName()}
+									hasOlder={nameNextCursor !== null}
+									loadingOlder={loadingOlderName}
 						/>
 					) : (
 						<LiveFeed onSelect={(n) => onSelect(n)} />

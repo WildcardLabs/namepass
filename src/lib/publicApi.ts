@@ -139,6 +139,7 @@ export interface NameActivityRead {
 
 export interface ActivityRead {
 	items: Array<{ name: PublicName; renewal: PublicRenewal }>;
+	flows: Array<{ name: PublicName; flow: PublicFlow }>;
 	nextCursor: string | null;
 }
 
@@ -174,16 +175,20 @@ export function getName(label: string): Promise<NameRead> {
 	return request(`/api/names/${labelPath(label)}`);
 }
 
-export function getNameActivity(label: string): Promise<NameActivityRead> {
-	return request(`/api/names/${labelPath(label)}/activity?limit=30`);
+export function getNameActivity(label: string, cursor?: string): Promise<NameActivityRead> {
+	const query = new URLSearchParams({ limit: "30" });
+	if (cursor) query.set("cursor", cursor);
+	return request(`/api/names/${labelPath(label)}/activity?${query}`);
 }
 
 export function getFlow(id: string): Promise<{ flow: PublicFlow }> {
 	return request(`/api/flows/${encodeURIComponent(id)}`);
 }
 
-export function getActivity(): Promise<ActivityRead> {
-	return request("/api/activity?limit=15");
+export function getActivity(cursor?: string): Promise<ActivityRead> {
+	const query = new URLSearchParams({ limit: "15" });
+	if (cursor) query.set("cursor", cursor);
+	return request(`/api/activity?${query}`);
 }
 
 export function getLeaderboard(): Promise<LeaderboardRead> {

@@ -1,0 +1,1 @@
+ALTER TABLE "flows" ADD COLUMN "expiry_after" timestamp (3) with time zone;

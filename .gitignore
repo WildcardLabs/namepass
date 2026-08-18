@@ -35,3 +35,4 @@ broadcast/
 .swc/
 .workflow-data/
 .workflow-vitest/
+.vercel

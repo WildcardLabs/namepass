@@ -131,6 +131,15 @@ export function externalRenewalProjection(
 	};
 }
 
+function ensExpiry(facts: unknown): Date | null {
+	if (!facts || typeof facts !== "object") return null;
+	const value = String((facts as Record<string, unknown>).new_expiry ?? "");
+	if (!/^\d+$/.test(value)) return null;
+	const milliseconds = BigInt(value) * 1_000n;
+	if (milliseconds > 8_640_000_000_000_000n) return null;
+	return new Date(Number(milliseconds));
+}
+
 export function ensTokenLabelHash(tokenId: string): string {
 	const value = BigInt(tokenId);
 	if (value < 0n || value >= 1n << 256n) throw new Error("The ENS token ID is not uint256.");
@@ -515,6 +524,14 @@ export const postgresGoldskyStore: GoldskyStore = {
 					const wallet = String(facts.wallet_address ?? "");
 					const [name] = await tx.select({ id: names.id }).from(names).where(eq(names.depositAddress, wallet));
 					if (!name) return undefined;
+					const [ensRenewal] = await tx.select({ facts: chainEvents.facts }).from(chainEvents).where(and(
+						eq(chainEvents.txHash, renewal.txHash),
+						eq(chainEvents.eventFamily, "ens"),
+						eq(chainEvents.eventType, "NameRenewed"),
+						eq(chainEvents.canonical, true),
+					));
+					const expiryAfter = ensExpiry(ensRenewal?.facts);
+					const expiryPatch = expiryAfter ? { expiryAfter } : {};
 
 					if (!renewal.canonical) {
 						await tx.update(flows).set({ status: "cancelled", cancelledAt: new Date(), updatedAt: new Date() })
@@ -543,6 +560,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 							gasAllowance: String(facts.gas_allowance),
 							amountApplied: String(facts.amount_applied),
 							durationSeconds: String(facts.duration),
+							...expiryPatch,
 							settledAt: renewal.blockTime,
 							updatedAt: new Date(),
 						})
@@ -574,6 +592,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 						trigger: "external" as const,
 						status: "settled" as const,
 						...projection,
+						...expiryPatch,
 						settledAt: renewal.blockTime,
 					};
 					const [existing] = await tx.select({ id: flows.id }).from(flows)
@@ -616,11 +635,24 @@ export const postgresGoldskyStore: GoldskyStore = {
 						if (!previous) return;
 						facts = previous.facts as Record<string, unknown>;
 					}
-					const expiry = new Date(Number(String(facts.new_expiry)) * 1_000);
-					if (!Number.isFinite(expiry.getTime())) return;
+					const expiry = ensExpiry(facts);
+					if (!expiry) return;
 					const labelHash = ensTokenLabelHash(String(facts.token_id));
 					await tx.update(names).set({ currentExpiry: expiry, ensSyncedAt: event.blockTime })
 						.where(eq(names.labelHash, labelHash));
+					const renewals = await tx.select({ eventId: chainEvents.eventId }).from(chainEvents).where(and(
+						eq(chainEvents.txHash, event.txHash),
+						eq(chainEvents.eventFamily, "namepass"),
+						eq(chainEvents.eventType, "Renewed"),
+						eq(chainEvents.canonical, true),
+					));
+					if (renewals.length) {
+						await tx.update(flows).set({
+							expiryAfter: event.gsOp === "d" ? null : expiry,
+							updatedAt: new Date(),
+						})
+							.where(inArray(flows.renewalEventId, renewals.map((renewal) => renewal.eventId)));
+					}
 				},
 				async ensureFlow(nameId, chainId, amount, depositEventId) {
 					const [created] = await tx

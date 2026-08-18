@@ -1,4 +1,5 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, lt, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
 	decodeEventLog,
 	encodeFunctionData,
@@ -29,8 +30,9 @@ import {
 	transactionIntents,
 } from "./db/schema";
 import { setFlowStatus } from "./flow-state";
+import { parseEnsRenewalExpiry } from "./ens-renewal";
 import {
-	broadcastTransaction,
+	ensureTransactionBroadcast,
 	prepareTransaction,
 	readTransactionReceipt,
 	relayerAccount,
@@ -74,7 +76,9 @@ export type CctpFlow = {
 	amountProcessed: string | null;
 	remainingAmount: string | null;
 	originIntentId: string | null;
+	originIntentStatus: typeof transactionIntents.$inferSelect.status | null;
 	claimIntentId: string | null;
+	claimIntentStatus: typeof transactionIntents.$inferSelect.status | null;
 	cctpNonce: string | null;
 	cctpMessage: Hex | null;
 	cctpAttestation: Hex | null;
@@ -99,12 +103,23 @@ function receiptLogs(logs: readonly unknown[]): ReceiptLog[] {
 
 export async function loadCctpFlow(flowId: string): Promise<CctpFlow | undefined> {
 	"use step";
+	const originIntent = alias(transactionIntents, "cctp_origin_intent");
+	const claimIntent = alias(transactionIntents, "cctp_claim_intent");
 	const [row] = await database()
-		.select({ flow: flows, name: names, deposit: deposits, event: chainEvents })
+		.select({
+			flow: flows,
+			name: names,
+			deposit: deposits,
+			event: chainEvents,
+			originIntentStatus: originIntent.status,
+			claimIntentStatus: claimIntent.status,
+		})
 		.from(flows)
 		.innerJoin(names, eq(flows.nameId, names.id))
 		.leftJoin(deposits, eq(flows.depositEventId, deposits.eventId))
 		.leftJoin(chainEvents, eq(deposits.eventId, chainEvents.eventId))
+		.leftJoin(originIntent, eq(flows.originTxIntentId, originIntent.id))
+		.leftJoin(claimIntent, eq(flows.claimTxIntentId, claimIntent.id))
 		.where(eq(flows.id, flowId));
 	if (!row) return undefined;
 	return {
@@ -125,7 +140,9 @@ export async function loadCctpFlow(flowId: string): Promise<CctpFlow | undefined
 		amountProcessed: row.flow.amountProcessed,
 		remainingAmount: row.flow.remainingAmount,
 		originIntentId: row.flow.originTxIntentId,
+		originIntentStatus: row.originIntentStatus,
 		claimIntentId: row.flow.claimTxIntentId,
+		claimIntentStatus: row.claimIntentStatus,
 		cctpNonce: row.flow.cctpNonce,
 		cctpMessage: (row.flow.cctpMessage as Hex | null) ?? null,
 		cctpAttestation: (row.flow.cctpAttestation as Hex | null) ?? null,
@@ -477,6 +494,10 @@ export async function confirmCctpClaim(
 		amount: BigInt(flow.amountProcessed),
 		nonce: `0x${BigInt(flow.cctpNonce).toString(16).padStart(64, "0")}` as Hex,
 	});
+	const expiryAfter = parseEnsRenewalExpiry(receiptLogs(receipt.logs), {
+		label: flow.label,
+		labelHash: labelHash(flow.label) as Hex,
+	});
 	const now = new Date();
 	await database().transaction(async (tx) => {
 		const [current] = await tx.select({ status: flows.status }).from(flows).where(eq(flows.id, flowId));
@@ -492,12 +513,18 @@ export async function confirmCctpClaim(
 			gasAllowance: settlement.gasAllowance.toString(),
 			amountApplied: settlement.amountApplied.toString(),
 			durationSeconds: settlement.durationSeconds.toString(),
+			expiryAfter,
 			holdReason: null,
 			lastErrorCode: null,
 			nextActionAt: null,
 			settledAt: now,
 			updatedAt: now,
 		}).where(eq(flows.id, flowId));
+		await tx.update(names).set({ currentExpiry: expiryAfter, ensSyncedAt: now })
+			.where(and(
+				eq(names.id, flow.nameId),
+				or(isNull(names.currentExpiry), lt(names.currentExpiry, expiryAfter)),
+			));
 		if (flow.depositEventId) {
 			await tx.update(deposits).set({ status: "finalized" }).where(eq(deposits.eventId, flow.depositEventId));
 		}
@@ -525,5 +552,5 @@ export async function confirmCctpClaim(
 
 export async function broadcastCctpTransaction(intentId: string): Promise<string> {
 	"use step";
-	return broadcastTransaction(intentId);
+	return ensureTransactionBroadcast(intentId);
 }

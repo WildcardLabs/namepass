@@ -1,5 +1,6 @@
 import { labelLength, solve } from "./pricing";
 import { chainById, HUB_CHAIN } from "./chains";
+import { GAS_ALLOWANCE } from "./fees";
 import { micro, milliseconds, safeInteger, type ActivityRead, type LeaderboardRead, type NameActivityRead, type PublicChainBalance, type PublicFlow, type PublicName, type PublicRenewal } from "./publicApi";
 import { minTrigger } from "./triggerConfig";
 
@@ -20,7 +21,7 @@ export interface ChainFlow { chain: string; amount: bigint; status: FlowStatus; 
 export interface PendingState { balances: ChainBalance[]; flows: ChainFlow[]; renewable: boolean; gasAllowance: bigint; }
 export interface NameRecord {
 	name: string; labelLength: number; address: string; onchain: { expiry: number | null; renewable: boolean; graceRemaining: number | null; lapsedFor: number | null } | null;
-	activatedAt: number; expiryAtActivation: number; lifetimeReceived: bigint; timeDeliveredSeconds: bigint; renewalCount: bigint; events: ActivityEvent[]; pending: PendingState; flows: PublicFlow[];
+	activatedAt: number; lifetimeReceived: bigint; timeDeliveredSeconds: bigint; renewalCount: bigint; events: ActivityEvent[]; pending: PendingState; flows: PublicFlow[];
 }
 
 function chainName(chainId: string): string {
@@ -63,12 +64,8 @@ function balanceReason(name: PublicName, flow: PublicFlow | undefined, balance: 
 	return micro(balance.amount) < minimum ? "below_threshold" : "not_detected";
 }
 
-function safeMilliseconds(seconds: bigint): number | undefined {
-	const value = seconds * 1_000n;
-	return value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : undefined;
-}
-
 const records = new Map<string, NameRecord>();
+let feedFlows: ActivityRead["flows"] = [];
 
 function flowStatus(flow: PublicFlow): FlowStatus {
 	if (flow.status === "waiting_attestation") return "attesting";
@@ -93,11 +90,11 @@ function setName(name: PublicName, activity?: NameActivityRead): NameRecord {
 	const current = records.get(name.label);
 	const events: ActivityEvent[] = activity ? [
 		{ id: `activation:${name.label}`, kind: "activated", at: milliseconds(name.activatedAt), chain: "Ethereum", amountDeposited: 0n, gasAllowance: 0n, amountApplied: 0n, seconds: 0n, off: "", nameExpiryAfter: expiry, funder: "", executor: "", executorIsRelayer: false, steps: [] },
-		...activity.renewals.map((renewal) => renewalEvent(renewal, name.label)),
+		...activity.renewals.map((renewal) => renewalEvent(renewal, name.label)).reverse(),
 	] : current?.events ?? [];
-	const sourceFlows = activity?.flows ?? [];
+	const sourceFlows = activity?.flows ?? current?.flows ?? [];
 	const sourceBalances = activity?.balances ?? [];
-	const pending: PendingState = {
+	const pending: PendingState = activity ? {
 		renewable: Boolean(name.renewableBy), gasAllowance: 0n,
 		flows: sourceFlows.filter((flow) => !["held", "failed", "settled", "cancelled", "unclaimed"].includes(flow.status)).map((flow) => ({ chain: chainName(flow.originChainId), amount: micro(flow.amountDetected), status: flowStatus(flow), startedAt: milliseconds(flow.createdAt), id: flow.id, api: flow })),
 		balances: sourceBalances
@@ -108,14 +105,21 @@ function setName(name: PublicName, activity?: NameActivityRead): NameRecord {
 					&& !["settled", "cancelled"].includes(candidate.status));
 				return { chainId: balance.chainId, chain: chainName(balance.chainId), amount: balance.amount === null ? null : micro(balance.amount), holdReason: balanceReason(name, flow, balance) };
 			}),
+	} : current?.pending ?? {
+		renewable: Boolean(name.renewableBy),
+		gasAllowance: 0n,
+		flows: [],
+		balances: [],
 	};
+	pending.renewable = Boolean(name.renewableBy);
 	const timeDeliveredSeconds = micro(name.timeDeliveredSeconds);
-	const record: NameRecord = { name: name.displayName, labelLength: labelLength(name.label), address: name.depositAddress, onchain: { expiry, renewable: Boolean(name.renewableBy), graceRemaining: null, lapsedFor: expiry && expiry < Date.now() ? Date.now() - expiry : null }, activatedAt: milliseconds(name.activatedAt), expiryAtActivation: expiry ? expiry - (safeMilliseconds(timeDeliveredSeconds) ?? 0) : 0, lifetimeReceived: micro(name.lifetimeReceived), timeDeliveredSeconds, renewalCount: micro(name.renewalCount), events, pending, flows: sourceFlows };
+	const record: NameRecord = { name: name.displayName, labelLength: labelLength(name.label), address: name.depositAddress, onchain: { expiry, renewable: Boolean(name.renewableBy), graceRemaining: null, lapsedFor: expiry && expiry < Date.now() ? Date.now() - expiry : null }, activatedAt: milliseconds(name.activatedAt), lifetimeReceived: micro(name.lifetimeReceived), timeDeliveredSeconds, renewalCount: micro(name.renewalCount), events, pending, flows: sourceFlows };
 	records.set(name.label, record);
 	return record;
 }
 
 export function syncFeed(feed: ActivityRead): void {
+	feedFlows = feed.flows ?? [];
 	const received = new Set(feed.items.map((item) => item.renewal.eventId));
 	for (const item of feed.items) {
 		const record = setName(item.name);
@@ -146,7 +150,26 @@ export function timeDelivered(record: NameRecord): bigint { return record.timeDe
 export function totalReceived(record: NameRecord): bigint { return record.lifetimeReceived; }
 export function renewalCount(record: NameRecord): bigint { return record.renewalCount; }
 export function recentActivity(limit = 40): Array<ActivityEvent & { name: string }> { return allNames().flatMap((record) => record.events.filter((event) => event.kind === "renewal").map((event) => ({ ...event, name: record.name }))).sort((a, b) => b.at - a.at).slice(0, limit); }
-export function activeFlows(): Array<{ id: string; name: string; chain: string; amount: bigint; status: FlowStatus; seconds: bigint; off: string; startedAt: number }> { return allNames().flatMap((record) => record.pending.flows.map((flow) => ({ id: flow.id, name: record.name, chain: flow.chain, amount: flow.amount, status: flow.status, seconds: 0n, off: "", startedAt: flow.startedAt }))).sort((a, b) => b.startedAt - a.startedAt); }
+export function activeFlows(): Array<{ id: string; name: string; chain: string; amount: bigint; status: FlowStatus; seconds: bigint; off: string; startedAt: number }> {
+	return feedFlows.map(({ name, flow }) => {
+		const amount = micro(flow.amountDetected);
+		const allowance = flow.gasAllowance === null ? GAS_ALLOWANCE : micro(flow.gasAllowance);
+		const applied = flow.amountApplied === null
+			? amount > allowance ? amount - allowance : 0n
+			: micro(flow.amountApplied);
+		const quote = solve(applied, labelLength(name.label));
+		return {
+			id: flow.id,
+			name: name.displayName,
+			chain: chainName(flow.originChainId),
+			amount,
+			status: flowStatus(flow),
+			seconds: flow.durationSeconds === null ? quote.seconds : micro(flow.durationSeconds),
+			off: quote.off,
+			startedAt: milliseconds(flow.createdAt),
+		};
+	}).sort((a, b) => b.startedAt - a.startedAt);
+}
 export function hasActiveFlow(record: NameRecord): boolean { return record.flows.some((flow) => !["settled", "cancelled", "failed"].includes(flow.status)); }
 export function canTrigger(pending: PendingState, balance: ChainBalance): boolean {
 	const minimum = minTrigger(balance.chainId);

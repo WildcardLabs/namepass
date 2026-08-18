@@ -11,6 +11,16 @@ import { CHAIN_TRIGGER_CONFIG, configuredRelayerAddress } from "./config";
 import { readNativeUsdcBalances } from "./chain";
 
 const PUBLIC_CACHE = { "cache-control": "public, s-maxage=30, stale-while-revalidate=60" };
+const LIVE_FLOW_STATUSES = [
+	"queued",
+	"confirming_deposit",
+	"checking_name",
+	"submitting_origin",
+	"waiting_origin",
+	"waiting_attestation",
+	"submitting_claim",
+	"waiting_claim",
+] as Array<typeof flows.$inferSelect.status>;
 
 export { PUBLIC_CACHE };
 
@@ -23,9 +33,19 @@ export async function publicBalances(depositAddress: string) {
 }
 
 export async function activity(limit: number, cursor?: ActivityCursor) {
-	const result = await renewalActivity(limit, cursor);
+	const [result, active] = await Promise.all([
+		renewalActivity(limit, cursor),
+		database()
+			.select({ flow: flows, name: names })
+			.from(flows)
+			.innerJoin(names, eq(flows.nameId, names.id))
+			.where(inArray(flows.status, LIVE_FLOW_STATUSES))
+			.orderBy(desc(flows.createdAt))
+			.limit(6),
+	]);
 	return {
 		items: result.items.map(({ renewal, name }) => ({ renewal, name })),
+		flows: active.map(({ flow, name }) => ({ flow: publicFlowView(flow), name: publicNameView(name) })),
 		nextCursor: result.nextCursor,
 	};
 }
@@ -186,6 +206,9 @@ export function publicRenewalView(
 		? String((ensFacts as Record<string, unknown>).new_expiry ?? "")
 		: "";
 	const expiryMilliseconds = /^\d+$/.test(expiry) ? BigInt(expiry) * 1_000n : null;
+	const indexedExpiry = expiryMilliseconds !== null && expiryMilliseconds <= 8_640_000_000_000_000n
+		? new Date(Number(expiryMilliseconds)).toISOString()
+		: null;
 	return {
 		eventId: event.eventId,
 		flowId: flow.id,
@@ -197,9 +220,7 @@ export function publicRenewalView(
 		gasAllowance: String(facts.gas_allowance),
 		amountApplied: String(facts.amount_applied),
 		durationSeconds: String(facts.duration),
-		expiryAfter: expiryMilliseconds !== null && expiryMilliseconds <= 8_640_000_000_000_000n
-			? new Date(Number(expiryMilliseconds)).toISOString()
-			: null,
+		expiryAfter: indexedExpiry ?? flow.expiryAfter?.toISOString() ?? null,
 		fromCctp: facts.from_cctp === "true",
 		depositTxHash: deposit?.txHash ?? null,
 		originTxHash,

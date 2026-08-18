@@ -1,8 +1,9 @@
 import { and, desc, eq, notInArray } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import { readEnsState, readNativeUsdcBalances, ensNamehash, labelHash } from "./chain";
 import { database } from "./db/client";
-import { flows, names, watchedAddresses } from "./db/schema";
+import { flows, names, transactionIntents, watchedAddresses } from "./db/schema";
 import { minimumTriggerAmount } from "./config";
 import { ApiError } from "./http";
 import type { ActivityCursor } from "./http";
@@ -123,17 +124,34 @@ export async function nameActivity(label: string, limit: number, cursor?: Activi
 	const [name] = await db.select().from(names).where(eq(names.normalizedLabel, normalized));
 	if (!name) throw new ApiError(404, "name_not_found", "This name is not activated.");
 	const renewals = await renewalActivity(limit, cursor, name.id);
+	const originIntent = alias(transactionIntents, "name_activity_origin_intent");
+	const claimIntent = alias(transactionIntents, "name_activity_claim_intent");
 	const activityFlows = await db
-		.select()
+		.select({
+			flow: flows,
+			originTxHash: originIntent.currentTxHash,
+			claimTxHash: claimIntent.currentTxHash,
+		})
 		.from(flows)
-		.where(eq(flows.nameId, name.id))
+		.leftJoin(originIntent, eq(flows.originTxIntentId, originIntent.id))
+		.leftJoin(claimIntent, eq(flows.claimTxIntentId, claimIntent.id))
+		.where(and(
+			eq(flows.nameId, name.id),
+			notInArray(flows.status, ["settled", "cancelled"]),
+		))
 		.orderBy(desc(flows.createdAt))
 		.limit(limit);
 	const balances = await publicBalances(name.depositAddress);
 	return {
 		name: publicNameView(name),
 		renewals: renewals.items.map((item) => item.renewal),
-		flows: activityFlows.map((flow) => publicFlowView(flow)),
+		flows: activityFlows.map(({ flow, originTxHash, claimTxHash }) => publicFlowView(flow, {
+			originTxHash,
+			claimTxHash,
+			renewalTxHash: null,
+			executorAddress: null,
+			executorIsRelayer: false,
+		})),
 		balances,
 		nextCursor: renewals.nextCursor,
 	};

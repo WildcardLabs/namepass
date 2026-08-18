@@ -1,4 +1,5 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, lt, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
 	decodeEventLog,
 	encodeFunctionData,
@@ -12,8 +13,9 @@ import { labelHash, readEnsState } from "./chain";
 import { database } from "./db/client";
 import { chainEvents, deposits, flows, flowTransitions, names } from "./db/schema";
 import { setFlowStatus } from "./flow-state";
+import { parseEnsRenewalExpiry } from "./ens-renewal";
 import {
-	broadcastTransaction,
+	ensureTransactionBroadcast,
 	prepareTransaction,
 	readTransactionReceipt,
 	relayerAccount,
@@ -37,6 +39,7 @@ const RENEWED = parseAbi([
 
 export type EthereumFlow = {
 	id: string;
+	nameId: string;
 	status: string;
 	label: string;
 	depositAddress: string;
@@ -47,6 +50,7 @@ export type EthereumFlow = {
 	depositStatus: string | null;
 	depositAmount: string | null;
 	originIntentId: string | null;
+	originIntentStatus: typeof transactionIntents.$inferSelect.status | null;
 };
 
 export type ReceiptSettlement = {
@@ -157,17 +161,26 @@ async function setStatus(
 
 export async function loadEthereumFlow(flowId: string): Promise<EthereumFlow | undefined> {
 	"use step";
+	const originIntent = alias(transactionIntents, "ethereum_origin_intent");
 	const rows = await database()
-		.select({ flow: flows, name: names, deposit: deposits, event: chainEvents })
+		.select({
+			flow: flows,
+			name: names,
+			deposit: deposits,
+			event: chainEvents,
+			originIntentStatus: originIntent.status,
+		})
 		.from(flows)
 		.innerJoin(names, eq(flows.nameId, names.id))
 		.leftJoin(deposits, eq(flows.depositEventId, deposits.eventId))
 		.leftJoin(chainEvents, eq(deposits.eventId, chainEvents.eventId))
+		.leftJoin(originIntent, eq(flows.originTxIntentId, originIntent.id))
 		.where(eq(flows.id, flowId));
 	const row = rows[0];
 	if (!row) return undefined;
 	return {
 		id: row.flow.id,
+		nameId: row.flow.nameId,
 		status: row.flow.status,
 		label: row.name.normalizedLabel,
 		depositAddress: row.name.depositAddress,
@@ -178,6 +191,7 @@ export async function loadEthereumFlow(flowId: string): Promise<EthereumFlow | u
 		depositStatus: row.deposit?.status ?? null,
 		depositAmount: row.deposit?.amount ?? null,
 		originIntentId: row.flow.originTxIntentId,
+		originIntentStatus: row.originIntentStatus,
 	};
 }
 
@@ -293,7 +307,7 @@ export async function prepareEthereumRenewal(flowId: string): Promise<string> {
 
 export async function broadcastEthereumRenewal(intentId: string): Promise<string> {
 	"use step";
-	return broadcastTransaction(intentId);
+	return ensureTransactionBroadcast(intentId);
 }
 
 async function markEthereumOriginReverted(
@@ -339,13 +353,21 @@ export async function confirmEthereumRenewal(flowId: string, intentId: string): 
 		label: flow.label,
 		labelHash: labelHash(flow.label) as Hex,
 	});
+	const expiryAfter = parseEnsRenewalExpiry(receipt.logs as ReceiptLog[], {
+		label: flow.label,
+		labelHash: labelHash(flow.label) as Hex,
+	});
 	const db = database();
 	await db.transaction(async (tx) => {
 		const [current] = await tx.select({ status: flows.status }).from(flows).where(eq(flows.id, flowId));
 		if (!current || current.status === "settled") return;
 		const now = new Date();
 		await tx.update(transactionIntents).set({ status: "confirmed", confirmedAt: now, receipt: receipt as unknown as Record<string, unknown>, updatedAt: now }).where(eq(transactionIntents.id, intentId));
-		await tx.update(flows).set({ status: "settled", amountProcessed: settlement.amountProcessed, remainingAmount: settlement.remainingAmount, gasAllowance: settlement.gasAllowance, amountApplied: settlement.amountApplied, durationSeconds: settlement.durationSeconds, settledAt: now, updatedAt: now }).where(eq(flows.id, flowId));
+		await tx.update(flows).set({ status: "settled", amountProcessed: settlement.amountProcessed, remainingAmount: settlement.remainingAmount, gasAllowance: settlement.gasAllowance, amountApplied: settlement.amountApplied, durationSeconds: settlement.durationSeconds, expiryAfter, settledAt: now, updatedAt: now }).where(eq(flows.id, flowId));
+		await tx.update(names).set({ currentExpiry: expiryAfter, ensSyncedAt: now }).where(and(
+			eq(names.id, flow.nameId),
+			or(isNull(names.currentExpiry), lt(names.currentExpiry, expiryAfter)),
+		));
 		if (flow.depositEventId) {
 			await tx.update(deposits).set({ status: "finalized" }).where(eq(deposits.eventId, flow.depositEventId));
 		}

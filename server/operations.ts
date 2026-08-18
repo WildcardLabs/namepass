@@ -14,6 +14,16 @@ const RECOVERY_LIMIT = 10;
 const RETENTION_LIMIT = 500;
 export const STARTING_STALE_MS = 5 * 60 * 1_000;
 const STARTING = "starting:";
+const RESUMABLE_FLOW_STATUSES = [
+	"queued",
+	"confirming_deposit",
+	"checking_name",
+	"submitting_origin",
+	"waiting_origin",
+	"waiting_attestation",
+	"submitting_claim",
+	"waiting_claim",
+] as Array<typeof flows.$inferSelect.status>;
 
 export type GasLevel = "ok" | "warning" | "critical" | "unavailable";
 
@@ -30,7 +40,7 @@ export function relayerGasLevel(balance: bigint, unit: bigint | undefined): GasL
 }
 
 export interface RecoveryBatch {
-	readonly queuedFlowIds: readonly string[];
+	readonly resumableFlowIds: readonly string[];
 	readonly overdueUnclaimedFlowIds: readonly string[];
 	readonly unscannedNames: ReadonlyArray<{ id: string; depositAddress: string; chainIds: readonly number[] }>;
 	readonly unbroadcastIntents: ReadonlyArray<{ id: string; flowId: string; chainId: number }>;
@@ -44,7 +54,9 @@ export interface RecoveryActions {
 
 export interface RecoveryReport {
 	skipped: boolean;
+	/** Kept for monitoring clients that used the original response field. */
 	queuedFlows: number;
+	resumableFlows: number;
 	overdueUnclaimedFlows: number;
 	unscannedNames: number;
 	unbroadcastIntents: number;
@@ -57,7 +69,7 @@ export async function processRecoveryBatch(
 	actions: RecoveryActions,
 ): Promise<Omit<RecoveryReport, "skipped">> {
 	let failed = 0;
-	const flowIds = new Set([...batch.queuedFlowIds, ...batch.overdueUnclaimedFlowIds]);
+	const flowIds = new Set([...batch.resumableFlowIds, ...batch.overdueUnclaimedFlowIds]);
 	for (const flowId of flowIds) {
 		try {
 			await actions.startFlow(flowId);
@@ -87,7 +99,8 @@ export async function processRecoveryBatch(
 		}
 	}
 	return {
-		queuedFlows: batch.queuedFlowIds.length,
+		queuedFlows: batch.resumableFlowIds.length,
+		resumableFlows: batch.resumableFlowIds.length,
 		overdueUnclaimedFlows: batch.overdueUnclaimedFlowIds.length,
 		unscannedNames: batch.unscannedNames.length,
 		unbroadcastIntents: batch.unbroadcastIntents.length,
@@ -126,9 +139,20 @@ async function scanUnscannedName(name: { id: string; depositAddress: string; cha
 	return created;
 }
 
-export function queuedRecoveryCandidate(now: Date) {
+export function resumableRecoveryCandidate(now: Date) {
 	return and(
-		eq(flows.status, "queued"),
+		or(
+			inArray(flows.status, RESUMABLE_FLOW_STATUSES),
+			and(
+				eq(flows.status, "cancelled"),
+				isNull(flows.renewalEventId),
+				sql`exists (
+					select 1 from ${transactionIntents}
+					where ${transactionIntents.flowId} = ${flows.id}
+						and ${transactionIntents.status} <> 'reverted'
+				)`,
+			),
+		),
 		or(
 			isNull(flows.workflowRunId),
 			lte(flows.updatedAt, new Date(now.getTime() - STARTING_STALE_MS)),
@@ -149,8 +173,8 @@ export function overdueUnclaimedRecoveryCandidate(now: Date) {
 
 async function recoveryBatch(now: Date): Promise<RecoveryBatch> {
 	const db = database();
-	const [queued, overdueUnclaimed, unscanned, unbroadcast] = await Promise.all([
-		db.select({ id: flows.id }).from(flows).where(queuedRecoveryCandidate(now)).limit(RECOVERY_LIMIT),
+	const [resumable, overdueUnclaimed, unscanned, unbroadcast] = await Promise.all([
+		db.select({ id: flows.id }).from(flows).where(resumableRecoveryCandidate(now)).limit(RECOVERY_LIMIT),
 		db.select({ id: flows.id }).from(flows).where(overdueUnclaimedRecoveryCandidate(now)).limit(RECOVERY_LIMIT),
 		db.select({ id: names.id, depositAddress: names.depositAddress, chainIds: names.unscannedChainIds })
 			.from(names)
@@ -163,7 +187,7 @@ async function recoveryBatch(now: Date): Promise<RecoveryBatch> {
 		)).limit(RECOVERY_LIMIT),
 	]);
 	return {
-		queuedFlowIds: queued.map((row) => row.id),
+		resumableFlowIds: resumable.map((row) => row.id),
 		overdueUnclaimedFlowIds: overdueUnclaimed.map((row) => row.id),
 		unscannedNames: unscanned.map((row) => ({
 			id: row.id,
@@ -177,18 +201,18 @@ async function recoveryBatch(now: Date): Promise<RecoveryBatch> {
 /** A marker is not a Workflow run ID. Clear only markers old enough for the next cron to reclaim. */
 async function clearStaleStartingMarkers(batch: RecoveryBatch, now: Date): Promise<void> {
 	const staleBefore = new Date(now.getTime() - STARTING_STALE_MS);
-	const clear = async (flowIds: readonly string[], status: typeof flows.$inferSelect.status) => {
+	const clear = async (flowIds: readonly string[], statuses: readonly (typeof flows.$inferSelect.status)[]) => {
 		if (!flowIds.length) return;
 		await database().update(flows).set({ workflowRunId: null, updatedAt: now }).where(and(
 			inArray(flows.id, [...flowIds]),
-			eq(flows.status, status),
+			inArray(flows.status, [...statuses]),
 			like(flows.workflowRunId, `${STARTING}%`),
 			lte(flows.updatedAt, staleBefore),
 		));
 	};
 	await Promise.all([
-		clear(batch.queuedFlowIds, "queued"),
-		clear(batch.overdueUnclaimedFlowIds, "unclaimed"),
+		clear(batch.resumableFlowIds, [...RESUMABLE_FLOW_STATUSES, "cancelled"]),
+		clear(batch.overdueUnclaimedFlowIds, ["unclaimed"]),
 	]);
 }
 
@@ -207,6 +231,7 @@ export async function recoverOperations(now = new Date()): Promise<RecoveryRepor
 	return report ?? {
 		skipped: true,
 		queuedFlows: 0,
+		resumableFlows: 0,
 		overdueUnclaimedFlows: 0,
 		unscannedNames: 0,
 		unbroadcastIntents: 0,

@@ -86,6 +86,21 @@ Apply migrations to the stable `testnet` branch before production:
 npx tsx server/db/migrate.ts
 ```
 
+For the 2026-08-18 explorer repair, use this release order:
+
+1. Apply `0001_flow_expiry_after.sql`.
+2. Deploy the API and workflow code.
+3. Call `/api/cron/recover` until `resumableFlows` is zero. This reconciles old cancelled flows
+   that still have successful transaction intents.
+4. Replay the Goldsky raw-log source from a block before the earliest missing renewal. Do this with
+   a bounded provider replay or a temporary backfill pipeline. Do not insert `chain_events` by hand.
+5. Confirm that every successful Namepass receipt has one canonical `Renewed` row and one
+   `NameRenewed` row. Then confirm the global activity feed, per-name totals, and expiry values.
+
+The workflow recovery repairs flow state. The Goldsky replay repairs canonical history and
+aggregates. Both steps are required for renewals that settled before the pipeline started at
+`latest`.
+
 For an isolated local or preview branch, load the deterministic preview records after the
 migration:
 
@@ -184,7 +199,9 @@ balance, raw Goldsky payload, or signed transaction.
 | `/api/cron/retention` | Daily at 03:17 UTC | Clears at most 500 expired raw payloads. It keeps normalized chain-event data. |
 
 The recovery job has a transaction-scoped PostgreSQL advisory lock. It takes at most 10 rows from
-each recovery category. It checks stale workflow IDs through Vercel Workflow. It restarts a flow
+each recovery category. It checks stale workflow IDs through Vercel Workflow. It restarts any
+resumable workflow stage and reconciles a cancelled row that still owns a non-reverted transaction
+intent. It restarts a flow
 only when the stored run is missing or terminal. It does not replace a pending or running
 Workflow run. The CCTP workflow owns its active Iris polling.
 
@@ -248,6 +265,8 @@ Run all drills on the stable testnet environment first. Do not edit production r
 2. **Stored transaction:** use a testnet flow that has signed bytes but no broadcast time. Call the
    recovery endpoint. Confirm that the stored transaction hash is broadcast. Confirm the receipt
    before a flow becomes settled.
+   Repeat with a successful receipt whose flow row says `cancelled`. Confirm that recovery checks
+   the stored receipt instead of the now-empty deposit wallet and changes the same row to `settled`.
 3. **Iris outage:** cause Iris to return a retryable response in a test environment. Confirm that
    the active workflow backs off. Confirm that the recovery job does not start another active run.
    When the flow becomes `unclaimed`, confirm that its due retry resumes the same Circle message.

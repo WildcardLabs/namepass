@@ -1,7 +1,7 @@
 # Architecture — frontend (what actually exists)
 
-`docs/ARCHITECTURE.md` covers two things. The contracts are **deployed to testnet**. The automation
-backend is **implemented in code but not deployed**. This file describes the app that is **built**.
+`docs/ARCHITECTURE.md` covers the contracts and automation backend. Both are deployed to the stable
+testnet environment. This file describes the app that is built.
 It gives enough detail to change the app without re-reading the code.
 
 The app derives each deposit address to match the deployed factory. The Explorer and Leaderboard
@@ -17,8 +17,9 @@ configuration, and activation.
 `readModel.ts` adapts those responses to the existing visual components. It keeps USDC values as
 decimal strings or `bigint`. It does not create simulated activity.
 
-The activity endpoints return canonical `Renewed` events. A payment event is not shown as a
-completed renewal. Each renewal keeps `Funded by` separate from `Processed by`. The first value
+The activity endpoints return canonical `Renewed` events. The global endpoint also returns up to
+six live workflow rows so a fresh Explorer load can show in-flight work. A payment event is not
+shown as a completed renewal. Each renewal keeps `Funded by` separate from `Processed by`. The first value
 comes only from an exact linked deposit. The second value comes from the permanent `Renewed`
 executor fact. A recent canonical delete removes the row on the next poll.
 
@@ -31,6 +32,8 @@ never returns the relayer private key.
 
 The live feed polls every 12 seconds. A selected name polls every 4 seconds while it has an active
 flow and every 15 seconds while idle. Both refetch on window focus and back off after errors.
+The live feed consumes the activity cursor through `Load older activity`. The per-name flow list
+contains only pending, held, unclaimed, or failed work. Settled renewals appear only in activity.
 Funding controls appear only after activation returns from the API. `registry.ts` remains an
 explicit local demonstration fixture. Production screens must not import it.
 
@@ -392,7 +395,7 @@ App                       page + selected state, routing
 ├── Explorer
 │   ├── LiveFeed          in-flight rows (tinted, staged) above settled rows
 │   └── NameDetail
-│       ├── expiry panel + runway bar ("+X years via Namepass")
+│       ├── authoritative ENS expiry panel
 │       ├── PendingBalance    collapsed summary → per-chain rows
 │       ├── PassCard          QR, full address, accepted chains
 │       ├── aggregate tiles   time delivered / total received / renewals
@@ -404,6 +407,10 @@ App                       page + selected state, routing
 Shared primitives — reuse, don't reimplement: `Tooltip` (portaled to `document.body`, because it
 sits inside `overflow-hidden` accordions), `ChainTag` (chain name + brand-coloured live dot),
 `NameAvatar`, and `components/magicui/*`.
+
+The production read model does not contain `expiryAtActivation`. The backend never recorded that
+fact. Do not derive it by subtracting Namepass-delivered time from the current ENS expiry because
+an owner or ENS migration can also change the expiry.
 
 ---
 

@@ -136,3 +136,27 @@ test("public renewal data uses permanent facts after raw payload expiry", () => 
 	assert.equal(result.expiryAfter, "2033-05-18T03:33:20.000Z");
 	assert.equal(result.executorAddress, "0x0000000000000000000000000000000000000001");
 });
+
+test("public renewal data uses the receipt expiry when the indexer event is late", () => {
+	const now = new Date("2026-08-11T12:00:00.000Z");
+	const event = {
+		eventId: "11155111:renewed:2",
+		txHash: `0x${"3".repeat(64)}`,
+		blockTime: now,
+		facts: {
+			executor_address: "0x0000000000000000000000000000000000000001",
+			amount_received: "5000000",
+			gas_allowance: "100000",
+			amount_applied: "4900000",
+			duration: "31536000",
+			from_cctp: "false",
+		},
+	} as typeof chainEvents.$inferSelect;
+	const flow = {
+		id: "00000000-0000-4000-8000-000000000002",
+		originChainId: "11155111",
+		expiryAfter: new Date("2033-05-18T03:33:20.000Z"),
+	} as typeof flows.$inferSelect;
+
+	assert.equal(publicRenewalView(event, flow, null, null, null, null).expiryAfter, "2033-05-18T03:33:20.000Z");
+});

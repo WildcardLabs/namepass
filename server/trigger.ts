@@ -13,6 +13,16 @@ import { startRenewalWorkflow } from "./workflows";
 
 const ERC20_ABI = parseAbi(["function balanceOf(address) view returns (uint256)"]);
 const TERMINAL = ["settled", "cancelled", "failed"] as Array<typeof flows.$inferSelect.status>;
+const RESUMABLE = [
+	"queued",
+	"confirming_deposit",
+	"checking_name",
+	"submitting_origin",
+	"waiting_origin",
+	"waiting_attestation",
+	"submitting_claim",
+	"waiting_claim",
+] as Array<typeof flows.$inferSelect.status>;
 
 export interface TriggerResult {
 	flowId: string;
@@ -25,12 +35,12 @@ export function manualTriggerAction(
 	renewable: boolean,
 	balanceEligible: boolean | undefined,
 ): "read_balance" | "create" | "same" | "resume" | "resume_unclaimed" | "conflict" | "name_ineligible" | "balance_ineligible" {
+	if (status && RESUMABLE.includes(status)) return "same";
 	if (!renewable) return "name_ineligible";
 	if (status === "unclaimed") return "resume_unclaimed";
 	if (balanceEligible === undefined) return "read_balance";
 	if (!balanceEligible) return "balance_ineligible";
 	if (!status) return "create";
-	if (status === "queued") return "same";
 	if (status === "held") return "resume";
 	return "conflict";
 }
@@ -65,9 +75,9 @@ async function queueExisting(flow: typeof flows.$inferSelect): Promise<TriggerRe
 		await start(flow.id);
 		return { flowId: flow.id, status: "unclaimed", httpStatus };
 	}
-	if (flow.status === "queued") {
+	if (RESUMABLE.includes(flow.status)) {
 		await start(flow.id);
-		return { flowId: flow.id, status: "queued", httpStatus: 200 };
+		return { flowId: flow.id, status: flow.status, httpStatus: 200 };
 	}
 	if (flow.status !== "held") {
 		throw new ApiError(409, "flow_active", "A non-resumable flow is active.", {
@@ -125,6 +135,7 @@ export async function triggerFlow(name: string, chainId: number): Promise<Trigge
 		throw new ApiError(active?.status === "unclaimed" ? 409 : 422, "name_not_renewable", "This name cannot be renewed now.", active ? { flowId: active.id, status: active.status } : undefined);
 	}
 	if (action === "resume_unclaimed") return queueExisting(active!);
+	if (action === "same") return queueExisting(active!);
 
 	const balance = await (await verifiedChainClient(chain)).readContract({
 		address: chain.usdcAddress as Address,

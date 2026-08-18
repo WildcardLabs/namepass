@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { canTrigger, recentActivity, renewalEvent, syncFeed, syncName } from "./readModel";
+import { activeFlows, canTrigger, recentActivity, renewalEvent, syncFeed, syncName } from "./readModel";
 import { PUBLIC_CHAINS } from "./chains";
 import { setRates } from "./pricing";
 import type { PublicFlow } from "./publicApi";
@@ -121,10 +121,29 @@ test("the browser removes a recent renewal after a canonical delete", () => {
 		renewalCount: "1",
 	};
 
-	syncFeed({ items: [{ name, renewal }], nextCursor: null });
+	syncFeed({ items: [{ name, renewal }], flows: [], nextCursor: null });
 	expect(recentActivity().some((event) => event.id === renewal.eventId)).toBe(true);
-	syncFeed({ items: [], nextCursor: null });
+	syncFeed({ items: [], flows: [], nextCursor: null });
 	expect(recentActivity().some((event) => event.id === renewal.eventId)).toBe(false);
+});
+
+test("the global feed exposes active flows without opening a name", () => {
+	const name = {
+		label: "live-test",
+		displayName: "live-test.eth",
+		depositAddress: "0x0000000000000000000000000000000000000005",
+		activatedAt: "2026-08-10T00:00:00.000Z",
+		currentExpiry: null,
+		renewableBy: "registrar" as const,
+		ensSyncedAt: "2026-08-10T00:00:00.000Z",
+		unscannedChainIds: [],
+		lifetimeReceived: "0",
+		lifetimeApplied: "0",
+		timeDeliveredSeconds: "0",
+		renewalCount: "0",
+	};
+	syncFeed({ items: [], flows: [{ name, flow: flow({ id: "live-flow" }) }], nextCursor: null });
+	expect(activeFlows().map((item) => item.id)).toContain("live-flow");
 });
 
 test("pending balances distinguish minimum, active flow, and reverted transaction states", () => {

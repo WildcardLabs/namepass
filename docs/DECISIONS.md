@@ -7,6 +7,26 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-18 — Transaction intents are resume boundaries, and Explorer separates state from history
+
+A workflow restart must not return to deposit balance or ENS eligibility checks after it stores a
+transaction intent. A successful transaction can empty the wallet and make the old preflight facts
+false. Repeating those checks can then cancel a renewal that already settled on chain. Ethereum
+and CCTP workflows now resume from the stored intent status: retry a mined revert, broadcast only
+prepared bytes, or inspect the existing receipt. Recovery covers every resumable stage and also
+reconciles cancelled rows with a non-reverted intent.
+
+The Explorer now has two explicit sources. Live workflow rows come from `flows`; completed history
+comes from canonical `Renewed` events. `GET /api/activity` returns both, without public caching, and
+the browser consumes the renewal cursor when a person loads older activity. Per-name activity does
+not return settled or cancelled flows, so a completed renewal cannot appear as a status card in the
+name profile.
+
+`expiryAtActivation` was removed from the production read model. Subtracting Namepass-delivered time
+from the current ENS expiry invents a historical value when an owner or ENS migration also changed
+the expiry. Settlement instead validates `NameRenewed` in the receipt, stores `flows.expiry_after`,
+and updates the current name expiry. Goldsky remains the canonical event and reorg source.
+
 ### 2026-08-18 — CCIP-Read resolution lazily enrols labels for tracking
 
 `namepass.eth` uses a wildcard resolver (ENSIP-10) that answers an `addr` query with ERC-3668

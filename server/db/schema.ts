@@ -217,6 +217,7 @@ export const flows = pgTable(
 		gasAllowance: amount("gas_allowance"),
 		amountApplied: amount("amount_applied"),
 		durationSeconds: amount("duration_seconds"),
+		expiryAfter: instant("expiry_after"),
 		cctpNonce: amount("cctp_nonce"),
 		cctpMessage: text("cctp_message"),
 		cctpAttestation: text("cctp_attestation"),

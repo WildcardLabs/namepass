@@ -4,11 +4,12 @@ import test from "node:test";
 import triggerHandler from "../routes/api/flows/trigger";
 import { manualTriggerAction, unclaimedTriggerStatus } from "./trigger";
 
-test("manual trigger policy covers create, resume, conflict, and ineligible states", () => {
+test("manual trigger policy resumes every active workflow stage", () => {
 	assert.equal(manualTriggerAction(undefined, true, true), "create");
 	assert.equal(manualTriggerAction("queued", true, true), "same");
 	assert.equal(manualTriggerAction("held", true, true), "resume");
-	assert.equal(manualTriggerAction("waiting_origin", true, true), "conflict");
+	assert.equal(manualTriggerAction("waiting_origin", true, true), "same");
+	assert.equal(manualTriggerAction("waiting_claim", false, undefined), "same");
 	assert.equal(manualTriggerAction(undefined, true, false), "balance_ineligible");
 	assert.equal(manualTriggerAction(undefined, false, undefined), "name_ineligible");
 	assert.equal(manualTriggerAction("unclaimed", true, undefined), "resume_unclaimed");

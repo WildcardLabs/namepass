@@ -18,11 +18,22 @@ export function cctpResumeStage(flow: {
 	status: string;
 	cctpMessage: string | null;
 	cctpAttestation: string | null;
-}): "done" | "origin" | "attestation" | "claim" {
-	if (["settled", "held", "cancelled"].includes(flow.status)) return "done";
-	if (!flow.cctpMessage) return "origin";
-	if (!flow.cctpAttestation) return "attestation";
-	return "claim";
+	originIntentId?: string | null;
+	originIntentStatus?: string | null;
+	claimIntentId?: string | null;
+	claimIntentStatus?: string | null;
+}): "done" | "origin" | "origin_retry" | "origin_receipt" | "attestation" | "claim" | "claim_receipt" {
+	if (["settled", "held", "failed"].includes(flow.status)) return "done";
+	if (flow.claimIntentId) {
+		return flow.claimIntentStatus === "reverted" ? "claim" : "claim_receipt";
+	}
+	if (flow.cctpMessage && flow.cctpAttestation) return "claim";
+	if (flow.cctpMessage) return "attestation";
+	if (flow.originIntentId) {
+		return flow.originIntentStatus === "reverted" ? "origin_retry" : "origin_receipt";
+	}
+	if (flow.status === "cancelled") return "done";
+	return "origin";
 }
 
 export function cctpDepositAction(
@@ -35,26 +46,33 @@ export function cctpDepositAction(
 /** A durable workflow owns one L2 flow and one Circle message. */
 export async function cctpRenewal(
 	flowId: string,
-): Promise<"settled" | "held" | "unclaimed" | "cancelled"> {
+): Promise<"settled" | "held" | "unclaimed" | "cancelled" | "failed"> {
 	"use workflow";
 	let flow = await loadCctpFlowStep(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
-	if (cctpResumeStage(flow) === "done") {
-		return flow.status as "settled" | "held" | "cancelled";
+	let resume = cctpResumeStage(flow);
+	if (resume === "done") {
+		return flow.status as "settled" | "held" | "cancelled" | "failed";
 	}
 
 	// A stored Circle message proves that the origin burn already happened.
-	if (cctpResumeStage(flow) === "origin") {
-		let deposit = cctpDepositAction(await confirmCctpDepositStep(flowId));
-		while (deposit === "wait") {
-			await sleep("30s");
-			deposit = cctpDepositAction(await confirmCctpDepositStep(flowId));
+	if (resume === "origin" || resume === "origin_retry" || resume === "origin_receipt") {
+		if (resume === "origin") {
+			let deposit = cctpDepositAction(await confirmCctpDepositStep(flowId));
+			while (deposit === "wait") {
+				await sleep("30s");
+				deposit = cctpDepositAction(await confirmCctpDepositStep(flowId));
+			}
+			if (deposit === "cancelled") return "cancelled";
+			const eligibility = await checkCctpEligibilityStep(flowId);
+			if (eligibility !== "ready") return eligibility;
 		}
-		if (deposit === "cancelled") return "cancelled";
-		const eligibility = await checkCctpEligibilityStep(flowId);
-		if (eligibility !== "ready") return eligibility;
-		await simulateCctpOriginStep(flowId);
-		const originIntentId = await prepareCctpOriginStep(flowId);
+		let originIntentId = flow.originIntentId;
+		if (resume !== "origin_receipt") {
+			await simulateCctpOriginStep(flowId);
+			originIntentId = await prepareCctpOriginStep(flowId);
+		}
+		if (!originIntentId) throw new Error("The CCTP flow has no origin transaction intent.");
 		await broadcastCctpTransactionStep(originIntentId);
 		for (;;) {
 			const result = await confirmCctpOriginStep(flowId, originIntentId);
@@ -63,18 +81,28 @@ export async function cctpRenewal(
 			await sleep("5s");
 		}
 		flow = (await loadCctpFlowStep(flowId))!;
+		resume = cctpResumeStage(flow);
 	}
 
-	if (cctpResumeStage(flow) === "attestation") {
+	if (resume === "attestation") {
 		for (let attempt = 0; ; attempt += 1) {
 			const iris = await pollCctpAttestationStep(flowId, attempt);
 			if (iris.kind === "complete") break;
 			await sleep(iris.retryAfterMs);
 		}
+		flow = (await loadCctpFlowStep(flowId))!;
+		resume = cctpResumeStage(flow);
 	}
 
-	if ((await simulateCctpClaimStep(flowId)) === "unclaimed") return "unclaimed";
-	const claimIntentId = await prepareCctpClaimStep(flowId);
+	if (resume === "done") {
+		return flow.status as "settled" | "held" | "cancelled" | "failed";
+	}
+	let claimIntentId = flow.claimIntentId;
+	if (resume !== "claim_receipt") {
+		if ((await simulateCctpClaimStep(flowId)) === "unclaimed") return "unclaimed";
+		claimIntentId = await prepareCctpClaimStep(flowId);
+	}
+	if (!claimIntentId) throw new Error("The CCTP flow has no claim transaction intent.");
 	await broadcastCctpTransactionStep(claimIntentId);
 	for (;;) {
 		const result = await confirmCctpClaimStep(flowId, claimIntentId);

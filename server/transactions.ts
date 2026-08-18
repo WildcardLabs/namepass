@@ -262,6 +262,24 @@ export async function broadcastTransaction(intentId: string): Promise<string> {
 	return intent.currentTxHash;
 }
 
+/** Broadcast prepared bytes once. A resumed workflow reuses an existing transaction hash. */
+export async function ensureTransactionBroadcast(intentId: string): Promise<string> {
+	"use step";
+	const [intent] = await database()
+		.select({
+			status: transactionIntents.status,
+			broadcastAt: transactionIntents.broadcastAt,
+			currentTxHash: transactionIntents.currentTxHash,
+		})
+		.from(transactionIntents)
+		.where(eq(transactionIntents.id, intentId));
+	if (!intent?.currentTxHash) throw new Error("The transaction intent has no transaction hash.");
+	if (intent.status === "prepared" && intent.broadcastAt === null) {
+		return broadcastTransaction(intentId);
+	}
+	return intent.currentTxHash;
+}
+
 export async function readTransactionReceipt(intentId: string): Promise<TransactionReceipt | undefined> {
 	"use step";
 	const [intent] = await database().select().from(transactionIntents).where(eq(transactionIntents.id, intentId));

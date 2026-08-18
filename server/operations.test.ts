@@ -7,7 +7,7 @@ import * as schema from "./db/schema";
 import {
 	overdueUnclaimedRecoveryCandidate,
 	processRecoveryBatch,
-	queuedRecoveryCandidate,
+	resumableRecoveryCandidate,
 	relayerGasLevel,
 	retentionBatchLimit,
 	STARTING_STALE_MS,
@@ -33,7 +33,7 @@ test("recovery repairs queued, overdue, unscanned, and unbroadcast rows without 
 		async broadcastIntent(id: string) { broadcasts.push(id); },
 	};
 	const batch = {
-		queuedFlowIds: ["queued", "shared"],
+		resumableFlowIds: ["queued", "shared"],
 		overdueUnclaimedFlowIds: ["overdue", "shared"],
 		unscannedNames: [{ id: "name-1", depositAddress: "0x0", chainIds: [84532] }],
 		unbroadcastIntents: [{ id: "intent-1", flowId: "queued", chainId: 84532 }],
@@ -70,15 +70,18 @@ test("cron authorization rejects missing and wrong secrets", () => {
 	assert.equal(cronAuthorized("Bearer test", "test"), true);
 });
 
-test("recovery checks stale queued and due unclaimed workflow owners", () => {
+test("recovery checks every stale resumable stage and due unclaimed workflow owners", () => {
 	const now = new Date("2026-08-11T12:00:00.000Z");
 	const db = drizzle.mock({ schema });
-	const queued = db.select().from(schema.flows).where(queuedRecoveryCandidate(now)).toSQL();
+	const resumable = db.select().from(schema.flows).where(resumableRecoveryCandidate(now)).toSQL();
 	const unclaimed = db.select().from(schema.flows).where(overdueUnclaimedRecoveryCandidate(now)).toSQL();
 	const stale = new Date(now.getTime() - STARTING_STALE_MS).toISOString();
-	assert.ok(queued.params.includes("queued"));
+	assert.ok(resumable.params.includes("queued"));
+	assert.ok(resumable.params.includes("waiting_origin"));
+	assert.ok(resumable.params.includes("waiting_claim"));
+	assert.ok(resumable.params.includes("cancelled"));
 	assert.ok(unclaimed.params.includes("unclaimed"));
-	assert.ok(queued.params.includes(stale));
+	assert.ok(resumable.params.includes(stale));
 	assert.ok(unclaimed.params.includes(stale));
 	assert.ok(unclaimed.params.includes(now.toISOString()));
 });

@@ -831,17 +831,21 @@ One workflow run owns one `flows` row. The workflow function only controls seque
 network, database, signing, or parsing operation is a `use step` function.
 
 A step can run more than once. Every step must therefore be idempotent from its input and the Neon
-row.
+row. A stored transaction intent is the resume boundary. If it exists, the workflow ensures that
+prepared bytes were broadcast once and then checks the stored hash receipt. It does not repeat the
+deposit balance or ENS eligibility checks for that transaction.
 
 ### Common first steps
 
-1. **Load flow.** Stop successfully if the flow is already settled or cancelled.
+1. **Load flow.** Stop successfully if the flow is terminal and has no transaction to reconcile.
+   If an intent exists, resume at its broadcast or receipt stage.
 2. **Confirm deposit.** Wait for canonical finality. Cancel if the deposit is orphaned.
 3. **Recheck name.** Read both ENS renewers. Park the flow if neither can renew the label.
 4. **Read balance.** Read native USDC `balanceOf` at the deterministic wallet.
 5. **Simulate origin call.** Simulate `renew(label)` or `renewWithFee(label, maxFeeBps)`.
 6. **Prepare transaction.** Create a durable transaction intent and reserve a relayer nonce.
-7. **Broadcast transaction.** Send the stored signed bytes. Re-sending the same bytes is safe.
+7. **Broadcast transaction.** Send prepared bytes once. A resumed broadcast or confirmed intent
+   keeps its existing hash.
 8. **Confirm receipt.** Wait for the receipt and parse `DepositProcessed`.
 
 The simulation is a safety check, not a guarantee. State can change before inclusion. A revert keeps
@@ -986,6 +990,11 @@ therefore stores nonce state.
 If the process stops after step 9, recovery rebroadcasts the same bytes. If the RPC reports “already
 known,” continue receipt polling. If a transaction is stuck, sign a higher-fee replacement with the
 same nonce and link it to the same intent.
+
+On a successful receipt, the workflow also validates the matching ENS `NameRenewed` log. It stores
+`flows.expiry_after` and updates `names.current_expiry` in the settlement transaction. Goldsky still
+indexes the same event for permissionless activity and reorg reconciliation. Public reads use the
+receipt value while the indexer event is late.
 
 The database never stores the private key. Vercel stores it as a sensitive production environment
 variable. Preview deployments receive test-only keys and cannot read production secrets.
@@ -1278,13 +1287,15 @@ after its API routes. A Vercel catch-all rewrite runs first and sends `/api/*` t
 - `GET /api/flows/:id`
 - `GET /api/config/public`
 
-Use cursor pagination for activity. Cap page sizes. Set short public cache headers for aggregate
-reads. Do not cache flow detail or per-name reads. Per-name reads contain live balances and active
-flow state for the frontend's fast polling loop.
+Use cursor pagination for activity. Cap page sizes. Do not cache the global activity response
+because it also contains live flow state. Do not cache flow detail or per-name reads. Per-name
+reads contain live balances and active flow state for the frontend's fast polling loop.
 
-Both activity endpoints return canonical `Renewed` rows. They do not treat a deposit as a completed
-renewal. The receiver recomputes name totals from canonical events after every create, delete, or
-replay, so duplicate delivery and reorgs cannot add totals twice.
+Both activity endpoints return canonical `Renewed` rows. The global response also includes live,
+nonterminal flow rows. The per-name activity response excludes settled and cancelled flows from its
+flow list. It does not treat a deposit as a completed renewal. The receiver recomputes name totals
+from canonical events after every create, delete, or replay, so duplicate delivery and reorgs
+cannot add totals twice.
 
 ### Public sender identity
 
@@ -1338,12 +1349,13 @@ indexer.
 It uses a transaction-scoped database advisory lock. It finds at most 10 rows from each recovery
 category per run:
 
-- queued flows with no workflow run ID or a stale workflow owner
+- any resumable workflow stage with no workflow run ID or a stale workflow owner
+- cancelled flows that have a non-reverted transaction intent but no linked renewal event
 - unclaimed CCTP flows whose next action time passed and have no workflow run ID or a stale owner
 - signed transactions that were never broadcast
 - names with a non-empty `unscanned_chain_ids`
 
-For a queued or due unclaimed flow, it starts the same idempotent workflow. A stale database owner
+For a resumable, reconcilable cancelled, or due unclaimed flow, it starts the same idempotent workflow. A stale database owner
 does not prove that the Workflow run is dead. The starter checks `getRun(runId).exists` and
 `getRun(runId).status`. It replaces the owner only when Vercel reports that the run is missing or
 terminal. It never replaces a pending or running Workflow run. The workflow itself owns
