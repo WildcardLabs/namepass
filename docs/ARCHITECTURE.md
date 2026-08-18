@@ -446,7 +446,6 @@ Each chain entry contains:
 - Circle source domain
 - block explorer URL
 - RPC environment-variable name
-- deposit finality policy
 - workflow polling policy
 
 The registry contains no secrets. RPC URLs and signer keys stay in Vercel environment variables.
@@ -569,9 +568,9 @@ Arc USDC as the transaction value and emits no ERC-20 `Transfer` log. Use Arc's
 recipient and a positive value. Convert the 18-decimal transaction value to the 6-decimal USDC
 amount. Then keep rows whose lowercase recipient exists in `goldsky.watched_addresses`.
 
-The workflow verifies an Arc native deposit from the finalized transaction recipient and value.
-It verifies an ERC-20 deposit from the finalized receipt log. The two sources use different event
-ID prefixes, so one representation cannot overwrite the other.
+The workflow verifies an Arc native deposit from the mined transaction recipient and value. It
+verifies an ERC-20 deposit from the mined receipt log. The two sources use different event ID
+prefixes, so one representation cannot overwrite the other.
 
 The supported-network check confirms that Goldsky has logs and enriched transaction data for
 Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and Arc Testnet. The implementation must still run
@@ -719,9 +718,11 @@ Do not give it application-table write access. Use a direct Neon connection stri
 
 Detection is not permission to spend.
 
-The webhook records a detected deposit immediately. The workflow then waits for the configured
-deposit finality policy before it calls `renew`. Prefer an RPC `finalized` block check when the chain
-supports it. Otherwise, use a reviewed confirmation depth in the shared chain registry.
+The webhook records a detected deposit immediately. The workflow verifies the successful receipt,
+the exact transfer, the live wallet balance, and name eligibility before it calls `renew`. It does
+not wait for separate deposit finality. The origin transaction can succeed only in a chain state
+where the deposit exists. For a CCTP flow, Circle applies the configured finality threshold to the
+origin burn before Iris returns a complete attestation.
 
 Before the first origin transaction, the workflow verifies all of these facts:
 
@@ -767,8 +768,8 @@ background callback finishes.
 
 Evaluate each name and chain separately. Funds on different chains never combine.
 
-The webhook queues work as soon as it has a canonical detected deposit. The workflow, not the
-webhook request, waits for finality.
+The webhook queues work as soon as it has a canonical detected deposit. For a CCTP flow, Iris
+polling waits for the origin burn to reach Circle's configured finality threshold.
 
 The first production queueing policy is:
 
@@ -780,11 +781,12 @@ eligible =
   AND subsidy policy permits the transaction
 ~~~
 
-The workflow waits for deposit finality and then rechecks name renewability immediately before it
-submits the origin transaction. If the name is not renewable, the workflow moves to `held` and
-keeps the funds at the deposit address. This split is necessary because Goldsky sends the transfer
-event before a later finality transition. Waiting to create a flow would leave no event that starts
-the work.
+Both workflows validate the successful receipt and exact transfer, then submit the origin
+transaction without a separate deposit-finality wait. The origin transaction can succeed only
+while that USDC exists in the same chain state. Both paths recheck name renewability immediately
+before submission. If the name is not renewable, the workflow moves to `held` and keeps the funds
+at the deposit address. Goldsky sends the transfer event before a later finality transition, so
+waiting to create a flow would leave no event that starts the work.
 
 The contract uses the wallet's live balance. The database does not attempt to allocate exact
 deposit rows to a flow. Deposits are contribution history. The `DepositProcessed` event is the
@@ -1560,7 +1562,7 @@ Alert on:
 Initial service-level objectives are operational targets, not user guarantees:
 
 - webhook accepted within 10 seconds of Goldsky delivery
-- finalized eligible deposit queued within 30 seconds
+- eligible deposit queued within 30 seconds
 - Ethereum renewal submitted within 60 seconds after eligibility
 - L2 claim submitted within 60 seconds after Iris reports a complete attestation
 - recovery job repairs an orphaned queued action within its next two runs
@@ -1698,12 +1700,14 @@ delivery.
 
 ### Phase 4 — Ethereum workflow
 
-**Implemented in code, not proven end to end:** the Ethereum workflow checks finality,
-renewability, balance, simulation, durable nonce ownership, stored signed bytes, receipt status,
-and exact settlement events. Recovery can rebroadcast a prepared transaction. Local tests cover
-the step logic and ownership guards. The Workflow runtime probe covers compiler output, durable
-step persistence, and targeted sleep resume. It does not cover Namepass workflow composition or
-retry behavior. A real automatic Sepolia run and Workflow runtime retry tests remain gates.
+**Implemented and proven on stable testnet:** the Ethereum workflow validates the deposit receipt
+and exact transfer, then checks renewability, balance, simulation, durable nonce ownership, stored
+signed bytes, renewal receipt status, and exact settlement events. Automatic Sepolia renewals have
+settled through this workflow. The same-chain path now submits without a separate deposit-finality
+wait and needs one more canary for that timing change. Recovery can rebroadcast a prepared
+transaction. Local tests cover the step logic and ownership guards. The Workflow runtime probe
+covers compiler output, durable step persistence, and targeted sleep resume. It does not cover
+Namepass workflow composition or retry behavior.
 
 - Add Workflow to the Vite project.
 - Add the flow state machine.

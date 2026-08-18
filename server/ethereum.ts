@@ -195,8 +195,8 @@ export async function loadEthereumFlow(flowId: string): Promise<EthereumFlow | u
 	};
 }
 
-/** Return false until both the database event and the final RPC block prove the transfer. */
-export async function confirmEthereumDeposit(flowId: string): Promise<"ready" | "waiting" | "cancelled"> {
+/** Validate the mined transfer before the same-chain renewal spends it. */
+export async function confirmEthereumDeposit(flowId: string): Promise<"ready" | "cancelled"> {
 	"use step";
 	const flow = await loadEthereumFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
@@ -210,11 +210,11 @@ export async function confirmEthereumDeposit(flowId: string): Promise<"ready" | 
 	}
 	await setStatus(flowId, "confirming_deposit");
 	const rpc = await verifiedChainClient(HUB_CHAIN);
-	const [receipt, finalized] = await Promise.all([
-		rpc.getTransactionReceipt({ hash: flow.depositTxHash as Hex }),
-		rpc.getBlock({ blockTag: "finalized" }),
-	]);
-	if (receipt.status !== "success" || receipt.blockNumber > finalized.number) return "waiting";
+	const receipt = await rpc.getTransactionReceipt({ hash: flow.depositTxHash as Hex });
+	if (receipt.status !== "success") {
+		await setStatus(flowId, "cancelled", "deposit_not_canonical");
+		return "cancelled";
+	}
 	const log = receipt.logs.find((candidate) => candidate.logIndex === flow.depositLogIndex);
 	if (!log || getAddress(log.address) !== getAddress(HUB_CHAIN.usdcAddress)) {
 		await setStatus(flowId, "cancelled", "deposit_not_canonical");

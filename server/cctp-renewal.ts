@@ -171,7 +171,7 @@ function originChain(flow: CctpFlow) {
 	return chain;
 }
 
-export async function confirmCctpDeposit(flowId: string): Promise<"ready" | "waiting" | "cancelled"> {
+export async function confirmCctpDeposit(flowId: string): Promise<"ready" | "cancelled"> {
 	"use step";
 	const flow = await loadCctpFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
@@ -184,12 +184,14 @@ export async function confirmCctpDeposit(flowId: string): Promise<"ready" | "wai
 	await setFlowStatus(flowId, "confirming_deposit");
 	const chain = originChain(flow);
 	const rpc = await verifiedChainClient(chain);
-	const [receipt, finalized, transaction] = await Promise.all([
+	const [receipt, transaction] = await Promise.all([
 		rpc.getTransactionReceipt({ hash: flow.depositTxHash }),
-		rpc.getBlock({ blockTag: "finalized" }),
 		chain.key === "arc" ? rpc.getTransaction({ hash: flow.depositTxHash }) : Promise.resolve(undefined),
 	]);
-	if (receipt.status !== "success" || receipt.blockNumber > finalized.number) return "waiting";
+	if (receipt.status !== "success") {
+		await setFlowStatus(flowId, "cancelled", {}, "deposit_not_canonical");
+		return "cancelled";
+	}
 	if (
 		chain.key === "arc"
 		&& transaction

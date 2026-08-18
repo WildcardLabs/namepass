@@ -32,7 +32,6 @@ test("duplicate execution stops after settlement", () => {
 });
 
 test("a cancelled deposit stops before CCTP eligibility and burn", () => {
-	assert.equal(cctpDepositAction("waiting"), "wait");
 	assert.equal(cctpDepositAction("ready"), "proceed");
 	assert.equal(cctpDepositAction("cancelled"), "cancelled");
 });

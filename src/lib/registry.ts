@@ -49,9 +49,9 @@ export type HoldReason =
 	   itself. `not_detected` is a deposit the pipeline never delivered;
 	   `flow_failed` is a burn that was attempted and didn't go out.
 	 *
-	 * There is deliberately no "awaiting confirmation" state: the pipeline
-	 * delivers finalized deposits only, so there is no moment where the app
-	 * knows money is coming but not yet arrived. */
+	 * There is deliberately no balance-level "awaiting confirmation" state.
+	 * Once the backend detects a deposit, it represents confirmation as a flow
+	 * stage instead of a reason that funds remain unclaimed. */
 	| "not_detected"
 	| "flow_failed";
 

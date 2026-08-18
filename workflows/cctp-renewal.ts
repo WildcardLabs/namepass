@@ -37,9 +37,8 @@ export function cctpResumeStage(flow: {
 }
 
 export function cctpDepositAction(
-	result: "ready" | "waiting" | "cancelled",
-): "proceed" | "wait" | "cancelled" {
-	if (result === "waiting") return "wait";
+	result: "ready" | "cancelled",
+): "proceed" | "cancelled" {
 	return result === "cancelled" ? "cancelled" : "proceed";
 }
 
@@ -64,11 +63,7 @@ export async function cctpRenewal(
 	// A stored Circle message proves that the origin burn already happened.
 	if (resume === "origin" || resume === "origin_retry" || resume === "origin_receipt") {
 		if (resume === "origin") {
-			let deposit = cctpDepositAction(await confirmCctpDepositStep(flowId));
-			while (deposit === "wait") {
-				await sleep("30s");
-				deposit = cctpDepositAction(await confirmCctpDepositStep(flowId));
-			}
+			const deposit = cctpDepositAction(await confirmCctpDepositStep(flowId));
 			if (deposit === "cancelled") return "cancelled";
 			const eligibility = await checkCctpEligibilityStep(flowId);
 			if (eligibility !== "ready") return eligibility;

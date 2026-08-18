@@ -24,8 +24,8 @@ the full pipeline. The `namepass-testnet` pipeline runs in the active `Namepass`
 
 Arc transaction `value` has 18 decimals. The Arc USDC system contract uses 6 decimals. The
 pipeline divides native transaction value by `10^12` before it emits the normalized deposit row.
-The workflow then verifies the finalized transaction recipient and the same conversion before it
-uses the deposit.
+The workflow then verifies the mined transaction recipient and the same conversion before it uses
+the deposit. Circle applies the configured finality requirement after the origin burn.
 
 The raw-log sources include only Namepass contract addresses and the two Ethereum ENS renewers.
 The ENS transform keeps `NameRenewed` only when it has the Namepass referrer from the shared

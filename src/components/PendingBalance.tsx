@@ -42,7 +42,7 @@ function holdLabel(reason: HoldReason, minimum: bigint | undefined): string {
 }
 
 const FLOW_COPY: Record<FlowStatus, string> = {
-	confirming: "Waiting for deposit finality",
+	confirming: "Confirming the deposit",
 	signing: "Preparing the transfer",
 	burning: "Burning for transfer",
 	/* Names the wait explicitly: Circle's attestation is the slow step, and

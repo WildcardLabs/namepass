@@ -34,7 +34,7 @@ export async function ethereumRenewal(
 	if (resume === "done") return flow.status as "settled" | "held" | "cancelled" | "failed";
 
 	if (resume === "origin") {
-		while ((await confirmEthereumDepositStep(flowId)) === "waiting") await sleep("30s");
+		if ((await confirmEthereumDepositStep(flowId)) === "cancelled") return "cancelled";
 		const eligibility = await checkEthereumEligibilityStep(flowId);
 		if (eligibility !== "ready") return eligibility;
 	}

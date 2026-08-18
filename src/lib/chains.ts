@@ -37,7 +37,6 @@ export interface ChainDefinition {
 	circleFinalityThreshold: number;
 	explorerUrl: string;
 	rpcEnv: string;
-	depositFinality: { method: "rpc-tag"; tag: "finalized" };
 	polling: {
 		receiptMs: number;
 		attestation: { initialMs: number; maxMs: number } | null;
@@ -83,7 +82,6 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		circleFinalityThreshold: 2000,
 		explorerUrl: "https://sepolia.basescan.org",
 		rpcEnv: "BASE_SEPOLIA_RPC_URL",
-		depositFinality: { method: "rpc-tag", tag: "finalized" },
 		polling: {
 			receiptMs: 5_000,
 			attestation: { initialMs: 30_000, maxMs: 120_000 },
@@ -110,7 +108,6 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		circleFinalityThreshold: 2000,
 		explorerUrl: "https://sepolia.arbiscan.io",
 		rpcEnv: "ARBITRUM_SEPOLIA_RPC_URL",
-		depositFinality: { method: "rpc-tag", tag: "finalized" },
 		polling: {
 			receiptMs: 5_000,
 			attestation: { initialMs: 30_000, maxMs: 120_000 },
@@ -141,7 +138,6 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		circleFinalityThreshold: 0,
 		explorerUrl: "https://sepolia.etherscan.io",
 		rpcEnv: "ETHEREUM_SEPOLIA_RPC_URL",
-		depositFinality: { method: "rpc-tag", tag: "finalized" },
 		polling: { receiptMs: 5_000, attestation: null },
 	},
 	{
@@ -167,7 +163,6 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		circleFinalityThreshold: 2000,
 		explorerUrl: "https://testnet.arcscan.app",
 		rpcEnv: "ARC_TESTNET_RPC_URL",
-		depositFinality: { method: "rpc-tag", tag: "finalized" },
 		polling: {
 			receiptMs: 5_000,
 			attestation: { initialMs: 5_000, maxMs: 30_000 },
@@ -193,7 +188,6 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		circleFinalityThreshold: 0,
 		explorerUrl: "https://etherscan.io",
 		rpcEnv: "ETHEREUM_RPC_URL",
-		depositFinality: { method: "rpc-tag", tag: "finalized" },
 		polling: { receiptMs: 5_000, attestation: null },
 	},
 	{
@@ -216,7 +210,6 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		circleFinalityThreshold: 2000,
 		explorerUrl: "https://basescan.org",
 		rpcEnv: "BASE_RPC_URL",
-		depositFinality: { method: "rpc-tag", tag: "finalized" },
 		polling: {
 			receiptMs: 5_000,
 			attestation: { initialMs: 30_000, maxMs: 120_000 },
@@ -242,7 +235,6 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		circleFinalityThreshold: 2000,
 		explorerUrl: "https://arbiscan.io",
 		rpcEnv: "ARBITRUM_RPC_URL",
-		depositFinality: { method: "rpc-tag", tag: "finalized" },
 		polling: {
 			receiptMs: 5_000,
 			attestation: { initialMs: 30_000, maxMs: 120_000 },
@@ -300,7 +292,6 @@ export const SERVER_CHAINS = ACTIVE_CHAINS.map((chain) => ({
 	circleDomain: chain.circleDomain,
 	circleFinalityThreshold: chain.circleFinalityThreshold,
 	rpcEnv: chain.rpcEnv,
-	depositFinality: chain.depositFinality,
 	polling: chain.polling,
 }));
 
@@ -355,7 +346,6 @@ export function assertChainRegistry(): void {
 		"circleFinalityThreshold",
 		"explorerUrl",
 		"rpcEnv",
-		"depositFinality",
 		"polling",
 	];
 	for (const chain of CHAIN_REGISTRY) {

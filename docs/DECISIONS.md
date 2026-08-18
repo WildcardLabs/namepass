@@ -7,14 +7,27 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-18 — Origin transactions do not wait for separate deposit finality
+
+An origin transaction can spend only USDC that exists in its chain execution state. A
+reorganization that removes the deposit also prevents or removes the dependent origin transaction.
+Waiting for the deposit to finalize before submission adds delay without adding a separate safety
+property. Both workflows now validate the mined receipt and exact transfer, then submit the origin
+transaction immediately.
+
+For cross-chain flows, the required finality boundary comes after the burn. Circle applies the
+configured finality threshold to that burn and Iris returns a complete attestation only after the
+threshold is satisfied. Waiting before the burn made deposit finality and burn finality sequential
+when only the second boundary controls cross-chain consumption.
+
 ### 2026-08-18 — Arc native deposits use transactions, and incomplete Iris rows are retryable
 
 Arc USDC has two transfer representations. A call through the USDC system contract emits an ERC-20
 `Transfer` event. A direct wallet payment sends USDC as native transaction value and emits no such
 event. The Goldsky pipeline therefore keeps `arc_testnet.erc20_transfers` and adds
 `arc_testnet.receipt_transactions`. The second source converts 18-decimal transaction value to the
-6-decimal USDC contract amount. The workflow verifies a native deposit from the finalized
-transaction recipient and value instead of looking for a missing receipt log.
+6-decimal USDC contract amount. The workflow verifies a native deposit from the mined transaction
+recipient and value instead of looking for a missing receipt log.
 
 Circle Iris can return an incomplete message row before it includes the `message` field. Status is
 therefore the first decision. A non-complete row is a normal polling result. The workflow validates
@@ -215,8 +228,9 @@ The platform boundary is strict:
   transaction intents, and public read data.
 - **Vercel Functions serve HTTP.** They validate requests, commit database transactions, and start
   workflows.
-- **Vercel Workflow executes renewals.** It waits for deposit finality, sends origin transactions,
-  polls Circle Iris, sends Ethereum claims, and resumes after failures.
+- **Vercel Workflow executes renewals.** It validates deposit receipts, sends origin transactions,
+  polls Circle Iris for burn finality and attestation, sends Ethereum claims, and resumes after
+  failures. The original separate deposit-finality wait was removed on 2026-08-18.
 - **The chain remains authoritative.** A database row does not prove a balance, receipt, CCTP
   route, or ENS renewal.
 
