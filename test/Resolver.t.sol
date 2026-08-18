@@ -20,7 +20,8 @@ contract ResolverTest is Test {
     address constant APEX = address(0xA9E1);
     string constant GATEWAY = "https://namepass.example/api/ccip";
 
-    bytes4 constant ADDR = 0xf1cb7e06; // addr(bytes32,uint256)
+    bytes4 constant ADDR = 0x3b3b57de; // addr(bytes32)
+    bytes4 constant ADDR_MULTICOIN = 0xf1cb7e06; // addr(bytes32,uint256)
     bytes4 constant TEXT = 0x59d1d43c; // text(bytes32,string)
     uint256 constant COIN_ETH = 60;
 
@@ -50,8 +51,12 @@ contract ResolverTest is Test {
         );
     }
 
-    function _addr(uint256 coinType) internal pure returns (bytes memory) {
-        return abi.encodeWithSelector(ADDR, bytes32(0), coinType);
+    function _addr() internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(ADDR, bytes32(0));
+    }
+
+    function _addrMulticoin(uint256 coinType) internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(ADDR_MULTICOIN, bytes32(0), coinType);
     }
 
     function _text(string memory key) internal pure returns (bytes memory) {
@@ -73,18 +78,22 @@ contract ResolverTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_apexReturnsConfiguredAddress() public view {
-        assertEq(_decodeAddress(resolver.resolve(_apex(), _addr(COIN_ETH))), APEX);
+        assertEq(abi.decode(resolver.resolve(_apex(), _addr()), (address)), APEX);
+    }
+
+    function test_apexReturnsConfiguredAddressForEthCoinType() public view {
+        assertEq(_decodeAddress(resolver.resolve(_apex(), _addrMulticoin(COIN_ETH))), APEX);
     }
 
     function test_apexAnswersEvmChainCoinTypes() public view {
         // ENSIP-11 cointype `0x80000000 | chainId`. The deposit address is the
         // same on every EVM chain, so the apex answers all of them.
         uint256 baseCoin = 0x80000000 | uint256(8453);
-        assertEq(_decodeAddress(resolver.resolve(_apex(), _addr(baseCoin))), APEX);
+        assertEq(_decodeAddress(resolver.resolve(_apex(), _addrMulticoin(baseCoin))), APEX);
     }
 
     function test_apexIgnoresNonEvmCoinTypes() public view {
-        assertTrue(_isEmpty(resolver.resolve(_apex(), _addr(0))), "bitcoin cointype");
+        assertTrue(_isEmpty(resolver.resolve(_apex(), _addrMulticoin(0))), "bitcoin cointype");
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -103,12 +112,30 @@ contract ResolverTest is Test {
             bytes("vitalik")
         );
         vm.expectRevert(expected);
-        resolver.resolve(_sub("vitalik"), _addr(COIN_ETH));
+        resolver.resolve(_sub("vitalik"), _addrMulticoin(COIN_ETH));
+    }
+
+    function test_subnameLegacyAddrUsesAddressCallback() public {
+        string[] memory urls = new string[](1);
+        urls[0] = GATEWAY;
+        bytes memory expected = abi.encodeWithSelector(
+            NamepassResolver.OffchainLookup.selector,
+            address(resolver),
+            urls,
+            bytes("vitalik"),
+            NamepassResolver.resolveAddressCallback.selector,
+            bytes("vitalik")
+        );
+        vm.expectRevert(expected);
+        resolver.resolve(_sub("vitalik"), _addr());
     }
 
     function test_subnameIgnoresNonEvmCoinBeforeLookup() public view {
         // A non-EVM cointype returns empty rather than triggering a gateway call.
-        assertTrue(_isEmpty(resolver.resolve(_sub("vitalik"), _addr(0))), "should not look up");
+        assertTrue(
+            _isEmpty(resolver.resolve(_sub("vitalik"), _addrMulticoin(0))),
+            "should not look up"
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -124,6 +151,13 @@ contract ResolverTest is Test {
         assertEq(_callback("nick"), 0x64EfF4dd0A4c287832A6cDB3Eb94618b78AC0276);
         assertEq(_callback("namepass"), 0xAF34cB930f362bE3fD07FbC837BE56ee2F257dDd);
         assertEq(_callback("abc"), 0x21aA96d7fCac40Fe916A9d82BD1DF72eC8C64Be5);
+    }
+
+    function test_addressCallbackDerivesTheDepositWallet() public view {
+        assertEq(
+            abi.decode(resolver.resolveAddressCallback(abi.encode(true), bytes("vitalik")), (address)),
+            0x043c184003266644372bA5fA4946777b3f1cFC3D
+        );
     }
 
     function test_callbackRejectsUnconfirmedRegistration() public {
@@ -162,6 +196,6 @@ contract ResolverTest is Test {
         assertTrue(resolver.supportsInterface(0x9061b923), "ENSIP-10 resolve");
         assertTrue(resolver.supportsInterface(0x01ffc9a7), "ERC-165");
         assertFalse(resolver.supportsInterface(0xffffffff), "sentinel");
-        assertFalse(resolver.supportsInterface(0x3b3b57de), "legacy addr(bytes32)");
+        assertTrue(resolver.supportsInterface(0x3b3b57de), "addr(bytes32)");
     }
 }
