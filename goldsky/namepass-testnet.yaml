@@ -17,7 +17,9 @@ sources:
     type: dataset
     dataset_name: ethereum_sepolia.raw_logs
     version: 1.0.0
-    start_at: latest
+    # Contract-address filters make replay bounded by deployment history. Replaying
+    # prevents a pipeline recreation from permanently losing earlier renewals.
+    start_at: earliest
     filter: >-
       address IN (
         '0xe0b155fdb1104824d7e0568aeafcc52823edd00f',
@@ -38,7 +40,9 @@ sources:
     type: dataset
     dataset_name: base_sepolia.raw_logs
     version: 1.0.0
-    start_at: latest
+    # Contract-address filters make replay bounded by deployment history. Replaying
+    # prevents a pipeline recreation from permanently losing earlier renewals.
+    start_at: earliest
     filter: >-
       address IN (
         '0xe0b155fdb1104824d7e0568aeafcc52823edd00f'
@@ -56,7 +60,9 @@ sources:
     type: dataset
     dataset_name: arbitrum_sepolia.raw_logs
     version: 1.0.0
-    start_at: latest
+    # Contract-address filters make replay bounded by deployment history. Replaying
+    # prevents a pipeline recreation from permanently losing earlier renewals.
+    start_at: earliest
     filter: >-
       address IN (
         '0xe0b155fdb1104824d7e0568aeafcc52823edd00f'
@@ -74,7 +80,9 @@ sources:
     type: dataset
     dataset_name: arc_testnet.raw_logs
     version: 1.1.0
-    start_at: latest
+    # Contract-address filters make replay bounded by deployment history. Replaying
+    # prevents a pipeline recreation from permanently losing earlier renewals.
+    start_at: earliest
     filter: >-
       address IN (
         '0xe0b155fdb1104824d7e0568aeafcc52823edd00f'

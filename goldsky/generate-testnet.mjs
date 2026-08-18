@@ -56,7 +56,9 @@ function renderSources() {
   type: dataset
   dataset_name: ${chain.goldskyPrefix}.raw_logs
   version: ${datasetVersion(chain, "raw_logs")}
-  start_at: latest
+  # Contract-address filters make replay bounded by deployment history. Replaying
+  # prevents a pipeline recreation from permanently losing earlier renewals.
+  start_at: earliest
   filter: >-
     address IN (
       ${addresses}
