@@ -305,8 +305,9 @@ an owner or ENS migration can also change the expiry.
 6. Amounts in the breakdown panel use `fmtUsdcExact`; a tier can turn on a micro-unit.
 7. `chains.ts` defines Base, Arbitrum, Arc, and Ethereum. **No Optimism.**
 8. UI enablement derives from `canTrigger()`.
-9. Aggregate tiles mix bases on purpose: `total received` is lifetime USDC at the address,
-    `time delivered` is what the API recorded. They are not expected to reconcile.
+9. Aggregate tiles use canonical renewals: `total received` is the sum received by completed
+    renewals, and `time delivered` is the time those renewals added. Pending wallet funds remain in
+    the separate pending balance section.
 10. **No price is ever shown from memory.** `pricing.ts` holds no default rates and no cached
     copy; it throws until `setRates()` has run. Adding a fallback so the Simulator can paint
     sooner reintroduces the exact failure the gate exists to prevent.

@@ -98,7 +98,6 @@ export interface GoldskyTransaction {
 	upsertEvent(event: GoldskyEvent): Promise<void>;
 	nameIdForAddress(address: string): Promise<string | undefined>;
 	upsertDeposit(event: GoldskyEvent, nameId: string): Promise<void>;
-	refreshDepositAggregates(nameId: string): Promise<void>;
 	reconcileRenewal(event: GoldskyEvent): Promise<string | undefined>;
 	refreshRenewalAggregates(nameId: string): Promise<void>;
 	refreshEnsExpiry(event: GoldskyEvent): Promise<void>;
@@ -347,7 +346,6 @@ export async function ingestGoldskyEvent(
 			throw new ApiError(503, "watched_address_missing", "The watched address is not available.");
 		}
 		await tx.upsertDeposit(event, nameId);
-		await tx.refreshDepositAggregates(nameId);
 		if (event.gsOp === "d") {
 			await tx.cancelUnbroadcastFlow(nameId, event.chainId);
 			return undefined;
@@ -484,24 +482,6 @@ export const postgresGoldskyStore: GoldskyStore = {
 							target: deposits.eventId,
 							set: { status: event.gsOp === "c" ? "detected" : "orphaned" },
 						});
-				},
-				/* Build these rollups with the query builder, not a raw `set ${names.col}`
-				   template. Postgres rejects a table-qualified SET target
-				   (`set "names"."lifetime_received"`); the target column must be bare. */
-				async refreshDepositAggregates(nameId) {
-					await tx
-						.update(names)
-						.set({
-							lifetimeReceived: sql`coalesce((
-								select sum(${deposits.amount})
-								from ${deposits}
-								join ${chainEvents} on ${chainEvents.eventId} = ${deposits.eventId}
-								where ${deposits.nameId} = ${nameId}
-									and ${chainEvents.canonical} = true
-									and ${deposits.status} in ('detected', 'finalized')
-							), 0)`,
-						})
-						.where(eq(names.id, nameId));
 				},
 				async reconcileRenewal(event) {
 					const [renewal] = event.eventType === "Renewed"
@@ -641,6 +621,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 					await tx
 						.update(names)
 						.set({
+							lifetimeReceived: sql`coalesce((select sum((${chainEvents.facts}->>'amount_received')::numeric) from ${chainEvents} where ${isRenewedForName}), 0)`,
 							lifetimeApplied: sql`coalesce((select sum((${chainEvents.facts}->>'amount_applied')::numeric) from ${chainEvents} where ${isRenewedForName}), 0)`,
 							timeDeliveredSeconds: sql`coalesce((select sum((${chainEvents.facts}->>'duration')::numeric) from ${chainEvents} where ${isRenewedForName}), 0)`,
 							renewalCount: sql`(select count(*) from ${chainEvents} where ${isRenewedForName})`,
