@@ -51,6 +51,14 @@ export function handler(method: "GET" | "POST", route: Route) {
 					);
 				}
 				logOperation("api.error", { requestId, step: "request", errorCode: "internal_error" });
+				/* logOperation cannot carry a message or stack. Surface them here so an
+				   internal error is diagnosable in the logs instead of an opaque 500. */
+				console.error(JSON.stringify({
+					event: "api.internal_error",
+					requestId,
+					message: error instanceof Error ? error.message : String(error),
+					stack: error instanceof Error ? error.stack : undefined,
+				}));
 				return json(
 					{ error: { code: "internal_error", message: "The request failed." }, requestId },
 					500,
