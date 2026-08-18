@@ -159,8 +159,8 @@ export function getName(label: string): Promise<NameRead> {
 	return request(`/api/names/${labelPath(label)}`);
 }
 
-export function getNameActivity(label: string, cursor?: string): Promise<NameActivityRead> {
-	const query = new URLSearchParams({ limit: "30" });
+export function getNameActivity(label: string, cursor?: string, limit = 30): Promise<NameActivityRead> {
+	const query = new URLSearchParams({ limit: String(limit) });
 	if (cursor) query.set("cursor", cursor);
 	return request(`/api/names/${labelPath(label)}/activity?${query}`);
 }

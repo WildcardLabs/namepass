@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { activeFlows, recentActivity, renewalEvent, syncFeed, syncName } from "./readModel";
+import { activeFlows, flowAmount, hasActiveFlow, leaderboardNames, recentActivity, renewalEvent, syncFeed, syncLeaderboard, syncName } from "./readModel";
 import { PUBLIC_CHAINS } from "./chains";
 import { setRates } from "./pricing";
 import type { PublicFlow } from "./publicApi";
@@ -187,5 +187,60 @@ test("pending balances do not count money owned by an active flow twice", () => 
 	expect(reason("84532")).toBeUndefined();
 	expect(reason("5042002")).toBe("flow_in_progress");
 	expect(reason("11155111")).toBe("flow_failed");
-	expect(record.pending.flows.find((active) => active.id === "active")?.status).toBe("confirming");
+	expect(record.pending.flows.find((active) => active.id === "active")?.status).toBe("confirming_deposit");
+});
+
+test("post-origin flow displays use the amount proven by the origin receipt", () => {
+	expect(flowAmount(flow({ amountDetected: "500000", amountProcessed: null }))).toBe(500000n);
+	expect(flowAmount(flow({ amountDetected: "500000", amountProcessed: "700000" }))).toBe(700000n);
+});
+
+test("held and unclaimed flows do not keep the fast active-flow poll", () => {
+	const record = syncName({
+		name: {
+			label: "poll-test",
+			displayName: "poll-test.eth",
+			depositAddress: "0x0000000000000000000000000000000000000006",
+			activatedAt: "2026-08-10T00:00:00.000Z",
+			currentExpiry: "2027-08-10T00:00:00.000Z",
+			renewableBy: "registrar",
+			ensSyncedAt: "2026-08-11T00:00:00.000Z",
+			unscannedChainIds: [],
+			lifetimeReceived: "0",
+			lifetimeApplied: "0",
+			timeDeliveredSeconds: "0",
+			renewalCount: "0",
+		},
+		renewals: [],
+		flows: [flow({ status: "unclaimed" })],
+		balances: [],
+		nextCursor: null,
+	});
+	expect(hasActiveFlow(record)).toBe(false);
+	record.flows = [flow({ status: "waiting_attestation" })];
+	expect(hasActiveFlow(record)).toBe(true);
+});
+
+test("leaderboard names contain only the latest leaderboard response", () => {
+	const base = {
+		depositAddress: "0x0000000000000000000000000000000000000007",
+		activatedAt: "2026-08-10T00:00:00.000Z",
+		currentExpiry: null,
+		renewableBy: "registrar" as const,
+		ensSyncedAt: "2026-08-10T00:00:00.000Z",
+		unscannedChainIds: [],
+		lifetimeReceived: "0",
+		lifetimeApplied: "0",
+		timeDeliveredSeconds: "0",
+		renewalCount: "1",
+	};
+	syncLeaderboard({ items: [{ ...base, label: "first", displayName: "first.eth" }] });
+	expect(leaderboardNames().map((record) => record.name)).toEqual(["first.eth"]);
+	syncLeaderboard({ items: [{ ...base, label: "second", displayName: "second.eth" }] });
+	expect(leaderboardNames().map((record) => record.name)).toEqual(["second.eth"]);
+	syncLeaderboard({ items: [
+		{ ...base, label: "ranked", displayName: "ranked.eth" },
+		{ ...base, label: "empty", displayName: "empty.eth", renewalCount: "0" },
+	] });
+	expect(leaderboardNames().map((record) => record.name)).toEqual(["ranked.eth"]);
 });

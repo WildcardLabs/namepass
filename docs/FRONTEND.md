@@ -30,11 +30,28 @@ validates the complete set before it enables a manual renewal. It shows the floo
 until this read succeeds. The endpoint can also return the optional public relayer address. It
 never returns the relayer private key.
 
-The live feed polls every 12 seconds. A selected name polls every 4 seconds while it has an active
-flow and every 15 seconds while idle. Both refetch on window focus and back off after errors.
+The live feed polls every 12 seconds. A selected name polls every 4 seconds while it has one of the
+eight active workflow states and every 15 seconds while idle. A held, unclaimed, failed, settled,
+or cancelled flow does not keep the fast poll active. Both views refetch on window focus and back
+off after errors.
 The live feed consumes the activity cursor through `Load older activity`. The per-name flow list
 contains only pending, held, unclaimed, or failed work. Settled renewals appear only in activity.
 Funding controls appear only after activation returns from the API.
+
+The browser preserves each active backend flow status. `flowPresentation.ts` supplies only the
+user-facing copy. It also uses the origin chain. `submitting_origin` and `waiting_origin` describe
+an Ethereum renewal when the origin is Ethereum. The same states describe a Circle transfer for
+Base, Arbitrum, or Arc. A direct Ethereum renewal must not show transfer or burn copy. After an
+origin receipt is available, flow cards show `amountProcessed` instead of the earlier detected
+amount. A reverted Ethereum origin says that the renewal did not go through. A reverted source-chain
+origin says that the Circle transfer did not go through.
+
+The Leaderboard contains only names with at least one completed renewal. The server applies this
+rule before its limit, and the browser applies the same rule at its response boundary. The
+Leaderboard keeps a separate list of labels from its latest API response. Records loaded by the
+Explorer cannot appear in the ranking by accident. Expanding one leaderboard row requests the
+three latest renewals for that name. The expansion shows these transactions only. Its profile
+button opens the selected-name Explorer, which contains the full profile and activity history.
 
 ---
 
@@ -90,7 +107,7 @@ of `/leaderboard` 404s.
 
 `App.tsx` also owns `selected: string | null` — the ENS name whose profile the Explorer is showing.
 `goToName(name)` sets it, navigates Home if needed, and scrolls to the Explorer; it backs both
-post-activation landing and the Leaderboard's "View activity" link.
+post-activation landing and the Leaderboard's "View profile" link.
 
 ### Boot
 
@@ -263,7 +280,7 @@ App                       page + selected state, routing
 │       ├── PassCard          QR, full address, accepted chains
 │       ├── aggregate tiles   time delivered / total received / renewals
 │       └── activity table    expandable → RenewalBreakdown
-├── Leaderboard           ranked rows → PassCard + "View activity"
+├── Leaderboard           ranked rows → three latest transactions + "View profile"
 └── Footer / Terms / Privacy
 ```
 

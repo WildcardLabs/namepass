@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useState } from "react";
 import { ChevronDown, Loader2, Wallet } from "lucide-react";
 import { canTrigger, minTrigger, totalHeld, totalInFlight, type ChainBalance, type FlowStatus, type HoldReason, type NameRecord } from "../lib/readModel";
+import { flowFailurePresentation, flowPresentation } from "../lib/flowPresentation";
 import { triggerFlow } from "../lib/publicApi";
 import { chainByName } from "../lib/chains";
 import { fmtUsdc } from "../lib/format";
@@ -11,7 +12,7 @@ import ChainTag from "./ChainTag";
 /* Each reason gets its own sentence. "We tried and it failed" must never read
    the same as "waiting for the name to become renewable" — they need
    different things from whoever is looking at them. */
-function holdCopy(reason: HoldReason, minimum: bigint | undefined): string {
+function holdCopy(reason: HoldReason, minimum: bigint | undefined, chainId: string): string {
 	const floor = minimum === undefined ? "The chain minimum is not available yet." : `A renewal needs at least ${fmtUsdc(minimum)} on one chain. Balances on different chains can't be combined, so this one goes out as soon as more arrives on the same chain.`;
 	return {
 	flow_in_progress:
@@ -21,36 +22,24 @@ function holdCopy(reason: HoldReason, minimum: bigint | undefined): string {
 	below_threshold: floor,
 	not_detected:
 		"This payment wasn't picked up automatically, which shouldn't happen. Normally a renewal starts the moment funds arrive. Anyone can push it through.",
-	flow_failed:
-		"A renewal was started for these funds and the transfer didn't go out. The money never left this address. Anyone can retry it.",
+	flow_failed: flowFailurePresentation(chainId).detail,
 	unknown:
 		"The current balance or chain minimum is not available. It is not treated as zero and will be checked again.",
 	}[reason];
 }
 
 /* Scannable version of the same fact — the sentence lives in the tooltip. */
-function holdLabel(reason: HoldReason, minimum: bigint | undefined): string {
+function holdLabel(reason: HoldReason, minimum: bigint | undefined, chainId: string): string {
 	return {
 	flow_in_progress: "Queued behind the current renewal",
 	name_inactive: "Name isn't registered right now",
 	/* States the number — "too small" alone leaves nobody able to act on it. */
 	below_threshold: minimum === undefined ? "Chain minimum unavailable" : `Under the ${fmtUsdc(minimum)} minimum on this chain`,
 	not_detected: "Wasn't picked up automatically",
-	flow_failed: "Transfer didn't go out",
+	flow_failed: flowFailurePresentation(chainId).label,
 	unknown: "Balance or minimum unavailable",
 	}[reason];
 }
-
-const FLOW_COPY: Record<FlowStatus, string> = {
-	confirming: "Confirming the deposit",
-	signing: "Preparing the transfer",
-	burning: "Burning for transfer",
-	/* Names the wait explicitly: Circle's attestation is the slow step, and
-	   someone watching a spinner for a quarter of an hour deserves to know
-	   what it's waiting on. */
-	attesting: "Waiting for Circle attestation",
-	claiming: "Renewing on Ethereum",
-};
 
 interface Props {
 	record: NameRecord;
@@ -151,7 +140,7 @@ export default function PendingBalance({ record, onSettled }: Props) {
 										key={chain}
 										chain={chain}
 										flow={flow}
-									balance={balance}
+										balance={balance}
 										triggerable={balance ? canTrigger(p, balance) : false}
 										onTrigger={() => {
 											const entry = chainByName(chain);
@@ -191,11 +180,15 @@ function ChainRow({
 	onTrigger,
 }: {
 	chain: string;
-	flow?: { amount: bigint; status: FlowStatus };
+	flow?: { amount: bigint; status: FlowStatus; originChainId: string };
 	balance?: ChainBalance;
 	triggerable: boolean;
 	onTrigger: () => void;
 }) {
+	const minimum = balance ? minTrigger(balance.chainId) : undefined;
+	const balanceLabel = balance
+		? holdLabel(balance.holdReason, minimum, balance.chainId)
+		: "";
 	return (
 		<div className="flex items-start justify-between gap-3">
 			<div className="min-w-0 flex-1">
@@ -206,24 +199,24 @@ function ChainRow({
 				{flow && (
 					<div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-[rgba(30,50,90,0.65)]">
 						<Loader2 className="w-3 h-3 animate-spin shrink-0" />
-						{fmtUsdc(flow.amount)} · {FLOW_COPY[flow.status]}
+						{fmtUsdc(flow.amount)} · {flowPresentation(flow.status, flow.originChainId).detail}
 					</div>
 				)}
 
 				{balance && (
 					<div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-[rgba(30,50,90,0.55)]">
 						<span>
-							{balance.amount === null ? holdLabel(balance.holdReason, minTrigger(balance.chainId)) : `${fmtUsdc(balance.amount)} · ${holdLabel(balance.holdReason, minTrigger(balance.chainId))}`}
+							{balance.amount === null ? balanceLabel : `${fmtUsdc(balance.amount)} · ${balanceLabel}`}
 						</span>
 						<Tooltip
-							text={holdCopy(balance.holdReason, minTrigger(balance.chainId))}
+							text={holdCopy(balance.holdReason, minimum, balance.chainId)}
 							label={`Why are these funds on ${chain} here?`}
 						/>
 					</div>
 				)}
 			</div>
 
-			{/* Manual push, for when the delivery or the burn didn't happen.
+			{/* Manual push, for when the origin transaction did not succeed.
 			    Normal accumulation happens on its own, so this stays out of the
 			    way unless this chain is actually stuck. */}
 			{triggerable && (
