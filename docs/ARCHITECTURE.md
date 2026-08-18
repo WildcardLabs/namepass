@@ -13,10 +13,10 @@
   sections from "Production system" to the end describe this code and its remaining deployment,
   testnet, operations, audit, and mainnet gates. The stable testnet Neon schema, database roles,
   Vercel API, Workflow environment, and Goldsky pipeline are deployed. The relayer key is
-  configured, but the relayer has no recorded test gas. No automated renewal is proven end to end.
+  configured. A stable-testnet automated renewal is proven end to end.
 
-Do not send test USDC yet. The relayer needs gas, and the complete automated flow needs a canary on
-each testnet.
+Use the runbook before additional test funding. Track any remaining per-chain canaries separately
+from the verified end-to-end path.
 The on-chain path works. `renew(label)` is permissionless, so any person can push a deposit through
 it manually. The testnet flows below were run this way.
 
@@ -147,10 +147,9 @@ someone else. Use `@adraffy/ens-normalize`.
 
 ## The flow
 
-**The on-chain steps are built and proven. The service code that connects them is not deployed.**
+**The on-chain steps and the managed-service path are deployed and proven on stable testnet.**
 Steps 1, 3, and 5 below are contract behavior. They have been run from all three L2s on testnet;
-see `docs/DEPLOYMENTS.md`. The repository implements step 2 and the polling in step 4. A person
-still performs those steps against the deployed testnet contracts today.
+see `docs/DEPLOYMENTS.md`. Goldsky, Vercel, Neon, Workflow, and Circle Iris automate steps 2 and 4.
 
 ```
   deposit         burn + hook      attestation        mint + renewal
@@ -382,7 +381,7 @@ Details to pin down against Circle's current docs — treat as directional, not 
 > relayer transaction logic, durable workflows, recovery jobs, and frontend API cutover. The
 > contracts above are deployed to four testnets. The stable testnet Neon schema, database roles,
 > Vercel API, Workflow environment, and `namepass-testnet` pipeline are deployed. The relayer key
-> is configured but unfunded. The automated flow is not proven end to end.
+> is configured. A stable-testnet automated renewal is proven end to end.
 
 The remaining system uses three managed platforms:
 
@@ -1718,15 +1717,14 @@ Namepass workflow composition or retry behavior.
 
 ### Phase 5 — CCTP workflow
 
-**Implemented in code, not proven end to end:** the L2 workflow parses the origin burn receipt,
+**Implemented in code and proven on stable testnet:** the L2 workflow parses the origin burn receipt,
 polls Circle Iris v2, validates the complete CCTP route and message fields, stores the message and
 attestation before the claim, and submits the Ethereum claim through a durable transaction intent.
 The origin receipt can contain Circle's zero nonce placeholder. The final Iris message must contain
 a nonzero nonce, and the workflow stores that final nonce before the claim.
 An unclaimed flow keeps one Circle message and retries only that claim. A non-zero origin remainder
 queues a new recovery flow. Local checks cover Iris retry responses, route mismatch, claim retry,
-duplicate execution, and workflow-owner scoping. The three real L2 testnet runs remain an external
-gate.
+duplicate execution, and workflow-owner scoping. Track remaining per-chain canaries in the runbook.
 
 - Add origin burn receipt parsing.
 - Add Circle Iris polling.
@@ -1740,8 +1738,8 @@ remains recoverable.
 
 ### Phase 6 — frontend cutover
 
-**Implemented in code, not deployed:** production screens read the public API. They do not import
-the local registry fixture. The browser loads the per-chain trigger floors from public
+**Implemented and deployed to stable testnet:** production screens read the public API. The browser
+loads the per-chain trigger floors from public
 configuration. It does not use a fallback floor. It keeps public monetary values as decimal text
 or `bigint`, polls active flows, and renders public sender, executor, evidence, and retry data.
 
@@ -1757,8 +1755,8 @@ or `bigint`, polls active flows, and renders public sender, executor, evidence, 
 
 ### Phase 7 — operations and hardening
 
-**Partially implemented in code, not deployed:** authenticated Vercel recovery, health, and
-retention crons exist. Recovery uses a bounded transaction-scoped lease. It repairs unowned or
+**Partially implemented and deployed to stable testnet:** authenticated Vercel recovery, health,
+and retention crons exist. Recovery uses a bounded transaction-scoped lease. It repairs unowned or
 stale-owned queued flows, due unclaimed CCTP flows, unscanned activation chains, and prepared
 unbroadcast transactions. The health check returns database and per-chain gas status only. It does
 not return keys, URLs, addresses, balances, raw payloads, or signed transactions. Raw payload deletion is

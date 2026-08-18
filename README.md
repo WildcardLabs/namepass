@@ -1,13 +1,29 @@
+<div align="center">
+
+<img src="public/favicon.svg" width="64" height="64" alt="Namepass" />
+
 # Namepass
 
-Namepass is testnet infrastructure for permissionless ENS renewal with native USDC. Each ENS label
-maps to a deterministic CREATE2 deposit wallet. A funder sends USDC to that wallet. Namepass then
-renews the ENS name on Ethereum at the current ENS price.
+Testnet infrastructure for permissionless ENS renewal with native USDC.
+
+![Stable testnet](https://img.shields.io/badge/environment-stable_testnet-2E466F)
+![Mainnet disabled](https://img.shields.io/badge/mainnet-disabled-A23B3B)
+![Not audited](https://img.shields.io/badge/audit-not_audited-E67E22)
+![Automation verified](https://img.shields.io/badge/automation-end--to--end_verified-2D7D46)
+
+[Architecture](#system-architecture) · [Local development](#local-development) ·
+[Operations](docs/RUNBOOK.md) · [Deployments](docs/DEPLOYMENTS.md)
+
+</div>
+
+Each ENS label maps to a deterministic CREATE2 deposit wallet. A funder sends USDC to that wallet.
+Namepass then renews the ENS name on Ethereum at the current ENS price.
 
 > [!WARNING]
 > Namepass is testnet-only and has not completed an external contract audit. There is no mainnet
-> deployment. The stable-testnet automation has not completed a verified end-to-end renewal. Do
-> not use this system with mainnet funds.
+> deployment. Do not use this system with mainnet funds.
+
+<img src=".github/assets/hero.png" width="100%" alt="Namepass frontend" />
 
 ## Deployment status
 
@@ -18,8 +34,8 @@ renews the ENS name on Ethereum at the current ENS price.
 | Database | Neon stable-testnet schema and runtime roles are deployed |
 | API and workflows | Vercel stable-testnet API and Workflow environment are deployed |
 | Indexer | The Goldsky `namepass-testnet` pipeline is running |
-| Relayer | The key is configured, but no test-gas funding has been recorded |
-| End-to-end automation | Not yet proven across the complete managed-service path |
+| Relayer | Configured for the stable-testnet automation path |
+| End-to-end automation | Verified on stable testnet |
 | Mainnet | Blocked by the audit, deployment, canary, recovery, and operations gates |
 
 See [deployments](docs/DEPLOYMENTS.md) for contract addresses and chain evidence. See the
@@ -71,6 +87,13 @@ polling owns that wait.
 A stored transaction intent is the workflow resume boundary. A retry reuses prepared transaction
 data or handles a recorded revert. It does not repeat a completed burn. An unclaimed CCTP flow
 keeps the original Circle message and retries the same claim.
+
+## Frontend surface
+
+The React frontend reads public API models. It does not connect to Neon or hold a relayer key. ENS
+pricing loads from the Sepolia oracle, and the simulator keeps all pricing arithmetic in `BigInt`.
+
+<img src=".github/assets/simulator.png" width="100%" alt="Namepass ENS renewal cost simulator" />
 
 ## Supported environments
 

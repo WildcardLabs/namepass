@@ -25,25 +25,24 @@ limit analysis, technical accuracy, or the ability to explain a complex subject.
 
 ## Read these too
 
-- **`README.md`** — the product pitch, feature tour, and tech stack, written for a human visiting
-  the repo.
+- **`README.md`** — the infrastructure entry point: status, system map, setup, verification, and
+  operational boundaries.
 - **`PRODUCT.md`** — the detailed "what and why": the problem being solved, the core mechanic,
   positioning/tone decisions made through design iteration, and what's explicitly *not* decided
   yet. Read this before making product-facing decisions (copy, new features, framing) that aren't
   already covered below.
 - **`docs/FRONTEND.md`** — **the long version of this file.** How the app works: the `lib/`
-  boundaries, the public API read model, the legacy local fixture, the state model, the component
-  map, the invariants list, and how to verify a change. Read it before any non-trivial change; it's
-  written so you don't have to re-derive the mechanics from the code.
+  boundaries, the public API read model, the state model, the component map, the invariants list,
+  and how to verify a change. Read it before any non-trivial change; it is written so you do not
+  have to re-derive the mechanics from the code.
 - **`docs/ARCHITECTURE.md`** — CREATE2-derived addresses, Circle CCTP with a hook that renews on the
   mint, and the planned Goldsky + Neon + Vercel production system. **This file has a mixed status
   and marks each part.** The contracts are deployed to four testnets and proven on chain. The
   shared chain registry, Neon schema/API, Goldsky pipeline definition, webhook receiver, relayer,
   durable workflows, recovery jobs, and frontend cutover exist in the repository. The stable
   testnet Neon schema and database roles are deployed. The stable Vercel API and Workflow
-  environment are deployed. The `namepass-testnet` Goldsky pipeline is running. The relayer is
-  configured but has no recorded test gas. No automated renewal has completed end to end. Read
-  this file before you change
+  environment are deployed. The `namepass-testnet` Goldsky pipeline is running. A stable-testnet
+  automated renewal has completed end to end. Read this file before you change
   anything that models activation, deposits, flows, pending balances, or backend services.
 - **`docs/DEPLOYMENTS.md`** — live contract addresses, the salt and creation-code hashes behind
   them, per-chain configuration, and what has actually been proven on chain. Read it before
@@ -85,16 +84,16 @@ product uses Goldsky Turbo to detect payments, Neon Postgres to store applicatio
 Vercel Workflow to move the USDC through Circle CCTP. The renewal executes in the same transaction
 that completes the transfer.
 
-**The contracts and stable-testnet services are deployed, but automated renewal is not yet
-proven.** Keep these facts separate:
+**The contracts and stable-testnet services are deployed. The automated renewal path is verified
+on stable testnet.** Keep these facts separate:
 
 - `contracts/` is live on four testnets, tested, and verified against ENS's and Circle's deployed
   contracts. Addresses and what has been proven on chain are in `docs/DEPLOYMENTS.md`.
 - **The deployed app is still a stable-testnet prototype.** The UI, routing, pricing math, and
   **deposit addresses** are real and exact. The Explorer and Leaderboard use
   `src/lib/publicApi.ts` to read the deployed Vercel public APIs. Neon, the webhook receiver,
-  Vercel Workflow, and the Goldsky pipeline are deployed. The relayer still needs test gas, and
-  the four-chain automated flow still needs proof.
+  Vercel Workflow, and the Goldsky pipeline are deployed. At least one automated renewal has
+  completed end to end. Keep any remaining per-chain canaries separate from that verified path.
 
 The deposit address is the seam between the two halves. `src/lib/namepass.ts` reimplements the
 deployed factory's `predictWallet` derivation, so the address on a card is the address the
