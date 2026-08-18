@@ -368,7 +368,25 @@ export function goldskyHandler(
 		if (!equalSecret(request.headers.get("authorization") ?? "", expected)) {
 			throw new ApiError(401, "invalid_webhook_auth", "The webhook authorization is invalid.");
 		}
-		const event = parseGoldskyEvent(await readObject(request, ALL_FIELDS));
+		const object = await readObject(request, ALL_FIELDS);
+		let event: GoldskyEvent;
+		try {
+			event = parseGoldskyEvent(object);
+		} catch (error) {
+			/* TEMPORARY testnet diagnostic. A rejected event must never return a
+			   non-retriable 4xx: Goldsky treats that as fatal and crash-loops the whole
+			   pipeline on the one bad row. Log the real payload shape so we can fix the
+			   parser, then 200-ack so the indexer keeps moving. Remove the raw payload
+			   log before mainnet. */
+			console.info(JSON.stringify({
+				event: "goldsky.rejected_payload",
+				code: error instanceof ApiError ? error.code : "parse_error",
+				message: error instanceof Error ? error.message : String(error),
+				keys: Object.keys(object),
+				payload: object,
+			}));
+			return json({ accepted: false, skipped: true }, 200);
+		}
 		const flowId = await ingestGoldskyEvent(store, event);
 		if (flowId) await startFlow(flowId);
 		return json({ accepted: true });
