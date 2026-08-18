@@ -7,6 +7,9 @@ const webhookUrl = "https://demo-five-gray-37.vercel.app/api/webhooks/goldsky";
 const chains = [...STABLE_TESTNET_CHAINS].sort(
 	(a, b) => Number(Boolean(b.helperAddress)) - Number(Boolean(a.helperAddress)),
 );
+// This block predates the 2026-08-10 Sepolia deployment. It bounds replay and
+// also versions the source when a downstream decoding rule needs a backfill.
+const ethereumProtocolStartBlock = 11_450_000;
 
 for (const chain of chains) {
 	if (!chain.factoryAddress || !chain.usdcAddress || !chain.goldskyPrefix) {
@@ -44,6 +47,9 @@ function renderSources() {
 			const addresses = rawLogAddresses(chain)
 				.map((address) => `'${lower(address)}'`)
 				.join(",\n      ");
+			const logBlockFilter = chain.key === "ethereum"
+				? ` AND block_number >= ${ethereumProtocolStartBlock}`
+				: "";
 			return [
 				`${chain.goldskyPrefix}_usdc:
   type: dataset
@@ -62,7 +68,7 @@ function renderSources() {
   filter: >-
     address IN (
       ${addresses}
-    )`,
+    )${logBlockFilter}`,
 			];
 		})
 		.map((source) => indent(source, 2))

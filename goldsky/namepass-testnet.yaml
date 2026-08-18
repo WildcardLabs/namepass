@@ -26,7 +26,7 @@ sources:
         '0xf1b51552098ffa7dc2cd83d0fb6508e57db8acc1',
         '0xa88553f454b77203b0d036a05c894d555eaaa2cc',
         '0x4ad56feb5fc7b8298db06e88fd5cbc41d64602fa'
-      )
+      ) AND block_number >= 11450000
 
   base_sepolia_usdc:
     type: dataset
