@@ -457,19 +457,23 @@ export const postgresGoldskyStore: GoldskyStore = {
 							set: { status: event.gsOp === "c" ? "detected" : "orphaned" },
 						});
 				},
+				/* Build these rollups with the query builder, not a raw `set ${names.col}`
+				   template. Postgres rejects a table-qualified SET target
+				   (`set "names"."lifetime_received"`); the target column must be bare. */
 				async refreshDepositAggregates(nameId) {
-					await tx.execute(sql`
-						update ${names}
-						set ${names.lifetimeReceived} = coalesce((
-							select sum(${deposits.amount})
-							from ${deposits}
-							join ${chainEvents} on ${chainEvents.eventId} = ${deposits.eventId}
-							where ${deposits.nameId} = ${nameId}
-								and ${chainEvents.canonical} = true
-								and ${deposits.status} in ('detected', 'finalized')
-						), 0)
-						where ${names.id} = ${nameId}
-					`);
+					await tx
+						.update(names)
+						.set({
+							lifetimeReceived: sql`coalesce((
+								select sum(${deposits.amount})
+								from ${deposits}
+								join ${chainEvents} on ${chainEvents.eventId} = ${deposits.eventId}
+								where ${deposits.nameId} = ${nameId}
+									and ${chainEvents.canonical} = true
+									and ${deposits.status} in ('detected', 'finalized')
+							), 0)`,
+						})
+						.where(eq(names.id, nameId));
 				},
 				async reconcileRenewal(event) {
 					const [renewal] = event.eventType === "Renewed"
@@ -571,35 +575,18 @@ export const postgresGoldskyStore: GoldskyStore = {
 					return name.id;
 				},
 				async refreshRenewalAggregates(nameId) {
-					await tx.execute(sql`
-						update ${names}
-						set
-							${names.lifetimeApplied} = coalesce((
-								select sum((${chainEvents.facts}->>'amount_applied')::numeric)
-								from ${chainEvents}
-								where ${chainEvents.canonical} = true
-									and ${chainEvents.eventFamily} = 'namepass'
-									and ${chainEvents.eventType} = 'Renewed'
-									and lower(${chainEvents.facts}->>'label_hash') = lower(${names.labelHash})
-							), 0),
-							${names.timeDeliveredSeconds} = coalesce((
-								select sum((${chainEvents.facts}->>'duration')::numeric)
-								from ${chainEvents}
-								where ${chainEvents.canonical} = true
-									and ${chainEvents.eventFamily} = 'namepass'
-									and ${chainEvents.eventType} = 'Renewed'
-									and lower(${chainEvents.facts}->>'label_hash') = lower(${names.labelHash})
-							), 0),
-							${names.renewalCount} = (
-								select count(*)
-								from ${chainEvents}
-								where ${chainEvents.canonical} = true
-									and ${chainEvents.eventFamily} = 'namepass'
-									and ${chainEvents.eventType} = 'Renewed'
-									and lower(${chainEvents.facts}->>'label_hash') = lower(${names.labelHash})
-							)
-						where ${names.id} = ${nameId}
-					`);
+					const isRenewedForName = sql`${chainEvents.canonical} = true
+						and ${chainEvents.eventFamily} = 'namepass'
+						and ${chainEvents.eventType} = 'Renewed'
+						and lower(${chainEvents.facts}->>'label_hash') = lower(${names.labelHash})`;
+					await tx
+						.update(names)
+						.set({
+							lifetimeApplied: sql`coalesce((select sum((${chainEvents.facts}->>'amount_applied')::numeric) from ${chainEvents} where ${isRenewedForName}), 0)`,
+							timeDeliveredSeconds: sql`coalesce((select sum((${chainEvents.facts}->>'duration')::numeric) from ${chainEvents} where ${isRenewedForName}), 0)`,
+							renewalCount: sql`(select count(*) from ${chainEvents} where ${isRenewedForName})`,
+						})
+						.where(eq(names.id, nameId));
 				},
 				async refreshEnsExpiry(event) {
 					let facts = event.facts;
