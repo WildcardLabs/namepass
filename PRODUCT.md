@@ -56,8 +56,7 @@ gave them one status and became inaccurate. Keep them separate.
   a flow today. `docs/ARCHITECTURE.md` describes both the implemented code and the external gates.
 - **The frontend is a prototype.** The addresses and pricing math are real. The Explorer and
   Leaderboard read the public API, but that API needs a backend deployment before it can supply
-  production data. `src/lib/registry.ts` contains local demonstration fixtures only. See
-  `docs/FRONTEND.md`.
+  production data. See `docs/FRONTEND.md`.
 
 Do not write copy that says the contracts are hypothetical. Do not write copy that says the app
 is a deployed automation service.

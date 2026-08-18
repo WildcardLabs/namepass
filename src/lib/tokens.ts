@@ -20,6 +20,3 @@ export const SUPPORTED_TOKENS: SupportedToken[] = TOKEN_CHAINS.map((chain) => ({
 	explorer: `${chain.explorerUrl}/token/${chain.usdcAddress}`,
 	note: chain.tokenNote,
 }));
-
-/** USDC is a 6-decimal token on every supported chain. */
-export const USDC_DECIMALS = 6;

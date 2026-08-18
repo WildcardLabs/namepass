@@ -827,10 +827,9 @@ Keep the mechanism this section already specifies: store it as server configurat
 a chain with different economics can move without a deployment, and keep it out of the contracts.
 $0.50 is the value every chain starts at, not a constant that removes the per-chain setting.
 
-The API returns the configured minimum so the frontend does not copy it. Until the frontend cutover
-in Phase 6 the simulation holds it as `MIN_TRIGGER` in `src/lib/registry.ts`, which is the number
-the pending-balance card states today. That constant is the thing the API replaces, not a second
-source to keep in step.
+The API returns the configured minimum so the frontend does not copy it. The browser does not use
+a fallback value. The pending-balance card waits for the public configuration before it enables a
+manual renewal.
 
 At a $0.10 allowance the floor is exactly 20%, so a funder sending the minimum spends a fifth of it
 on gas and buys about 18 days on a five-character name.
@@ -1746,8 +1745,7 @@ the local registry fixture. The browser loads the per-chain trigger floors from 
 configuration. It does not use a fallback floor. It keeps public monetary values as decimal text
 or `bigint`, polls active flows, and renders public sender, executor, evidence, and retry data.
 
-- Replace `registry.ts` reads with API adapters.
-- Keep mock fixtures only for local and preview demonstration modes.
+- Read production state through API adapters.
 - Activate a name before showing its funding controls.
 - Poll active flows.
 - Render held, in-flight, unclaimed, failed, and settled states from API data.

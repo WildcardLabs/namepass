@@ -83,20 +83,6 @@ export interface PublicFlow {
 	evidence?: FlowEvidence;
 }
 
-export interface PublicDeposit {
-	eventId: string;
-	chainId: string;
-	tokenAddress: string;
-	senderAddress: string | null;
-	amount: string;
-	txHash: string;
-	logIndex: number;
-	blockNumber: string;
-	blockTime: string;
-	source: "goldsky" | "balance_recovery";
-	status: "detected" | "finalized" | "orphaned";
-}
-
 export interface PublicRenewal {
 	eventId: string;
 	flowId: string;
@@ -147,8 +133,6 @@ export interface LeaderboardRead {
 	items: PublicName[];
 }
 
-export type { PublicConfigRead } from "./triggerConfig";
-
 type ApiErrorBody = { error?: { message?: unknown } };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -179,10 +163,6 @@ export function getNameActivity(label: string, cursor?: string): Promise<NameAct
 	const query = new URLSearchParams({ limit: "30" });
 	if (cursor) query.set("cursor", cursor);
 	return request(`/api/names/${labelPath(label)}/activity?${query}`);
-}
-
-export function getFlow(id: string): Promise<{ flow: PublicFlow }> {
-	return request(`/api/flows/${encodeURIComponent(id)}`);
 }
 
 export function getActivity(cursor?: string): Promise<ActivityRead> {

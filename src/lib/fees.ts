@@ -1,5 +1,5 @@
 import { decodeUint, ethCallBatch } from "./rpc";
-import { FUNDING_CHAINS, HUB_CHAIN } from "./chains";
+import { HUB_CHAIN } from "./chains";
 
 /**
  * What a renewal costs on top of the ENS price.
@@ -23,9 +23,6 @@ import { FUNDING_CHAINS, HUB_CHAIN } from "./chains";
  * dollars of gas, not cents; Namepass covers the difference.
  */
 export const GAS_ALLOWANCE = 100000n;
-
-/** Chains a payment can arrive on, in the order the UI lists them. */
-export const FEE_CHAINS = FUNDING_CHAINS.map((chain) => chain.name);
 
 /**
  * The renewal helper on Sepolia — `docs/DEPLOYMENTS.md`. Not deterministic,

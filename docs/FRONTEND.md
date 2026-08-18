@@ -34,8 +34,7 @@ The live feed polls every 12 seconds. A selected name polls every 4 seconds whil
 flow and every 15 seconds while idle. Both refetch on window focus and back off after errors.
 The live feed consumes the activity cursor through `Load older activity`. The per-name flow list
 contains only pending, held, unclaimed, or failed work. Settled renewals appear only in activity.
-Funding controls appear only after activation returns from the API. `registry.ts` remains an
-explicit local demonstration fixture. Production screens must not import it.
+Funding controls appear only after activation returns from the API.
 
 ---
 
@@ -43,12 +42,12 @@ explicit local demonstration fixture. Production screens must not import it.
 
 | Real | Demo-only |
 |---|---|
-| ENS v2 pricing math, exact to the micro-unit (`lib/pricing.ts`) | `lib/registry.ts` fixtures for an explicit local demonstration only |
-| ENS's rates, read from its oracle at boot (`lib/oracle.ts`) | Transaction hashes in those fixtures only |
+| ENS v2 pricing math, exact to the micro-unit (`lib/pricing.ts`) | The hero ticker's sample activity |
+| ENS's rates, read from its oracle at boot (`lib/oracle.ts`) | The hero ticker's amounts and its `START_EXPIRY` base date |
 | Deposit addresses (`lib/namepass.ts` — the deployed factory's own derivation) | None on production screens |
 | Activation, canonical renewals, flows, and leaderboard values (`lib/publicApi.ts`) | The hero ticker is product illustration, not activity data |
 | ENS profile data — avatars, socials, addresses (`lib/ens.ts` → resolvio API) | None on production screens |
-| Chain and deployment configuration (`lib/chains.ts`) | The hero ticker's amounts and its `START_EXPIRY` base date |
+| Chain and deployment configuration (`lib/chains.ts`) | None on production screens |
 | QR encoding (`lib/qr.ts`) | None on production screens |
 
 There is no wallet connection or browser database credential. Activation and public reads use the
@@ -232,7 +231,6 @@ Two things here are correctness, not politeness:
 
 **`publicApi.ts`** validates the browser response boundary. **`readModel.ts`** maps canonical
 renewal facts and flow state into the existing Explorer and Leaderboard component contracts.
-`registry.ts` is local demonstration data only and is not part of the production frontend.
 
 **`ens.ts` — real network calls** to the resolvio profile API. Cached and deduplicated, and
 deliberately **not** abortable — see the note in the file. Because requests are shared between
@@ -249,142 +247,7 @@ ignore late results instead.
 
 ---
 
-## 4. Legacy local fixture model
-
-This section documents `registry.ts` only. It is not the production read model. The API read model
-is defined in `docs/ARCHITECTURE.md` under “API and frontend reads”.
-
-```
-NameRecord
-├── name, labelLength, pass, address       identity
-├── activatedAt, expiryAtActivation        runway start
-├── events: ActivityEvent[]                history, oldest first
-└── pending: PendingState                  money that isn't renewal time yet
-```
-
-**`ActivityEvent`** — one settled renewal (or the `activated` marker). Carries **three** amounts,
-never collapse them: `amountDeposited` (what the funder sent) − `gasAllowance` = `amountApplied`
-(what bought time). `seconds` and `off` are always solved from `amountApplied`. `steps: FlowStep[]`
-is the transaction chain — 3 for an L2 payment (`deposit`, `burn`, `renewal`), 2 for Ethereum-origin
-(no burn).
-
-**`PendingState`** — the part most easily got wrong:
-
-```ts
-{
-  balances: ChainBalance[]   // resting money, one entry per funded chain
-  flows: ChainFlow[]         // renewals in motion, at most one per chain
-  renewable: boolean         // can the ENS name be renewed at all
-  gasAllowance: bigint       // what each flow will carry
-}
-```
-
-Two invariants encoded in the types:
-
-1. **Balances are per chain and never merge.** The CREATE2 address is identical everywhere, but $5
-   on Base and $8 on Arbitrum are two pots that each have to clear the minimum alone. A single
-   `held: bigint` was the original design and it was wrong.
-2. **`holdReason` is non-nullable.** A deposit address is a pass-through, so resting money is always
-   blocked or broken. An unexplained balance tells the funder the automation stalled and needs them.
-
-| `holdReason` | Triggerable | Meaning |
-|---|---|---|
-| `not_detected` | ✅ | Webhook never fired — an anomaly |
-| `flow_failed` | ✅ | Burn was attempted and didn't go out; funds never left |
-| `flow_in_progress` | ❌ | Queued behind this chain's own active flow |
-| `name_inactive` | ❌ | Expired, in premium auction, or never registered — one state on purpose |
-| `below_threshold` | ❌ | Under `minTrigger()`, **$0.50** |
-
-`canTrigger(pending, balance)` is the **only** gate — never re-derive its conditions in a component.
-It requires a recoverable reason, a renewable name, no flow on that chain, and clearing the floor.
-
-`minTrigger()` returns `MIN_TRIGGER`, a flat **$0.50** per chain, decided 2026-08-11. It replaced a
-ratio (`MAX_FEE_BPS = 1500`, giving `$0.666667`) that was a placeholder for an undecided business
-number. The UI must **state** this figure; "too small" alone leaves nobody able to act.
-
-The production frontend gets the configured minimum from `GET /api/config/public`. This legacy
-fixture keeps `MIN_TRIGGER` only for local demonstration data.
-
----
-
-## 5. Legacy simulation fixture
-
-All pending state is grown, never seeded. Every address starts empty — a seeded balance has no story
-for why it's there.
-
-**Entry point:** `tickSimulation()`, called on an interval by `LiveFeed`.
-
-```
-tickSimulation()
-├── for each name, for each flow:
-│     advanceFlow()  ──true──►  next stage, done for this tick
-│                    ──false─►  6%: failFlow()      → balance, flow_failed
-│                               94%: settleRenewal() → ActivityEvent
-└── 55%: paymentArrives()
-```
-
-**`paymentArrives()`** picks a name from `SEED_NAMES` only — a Namepass a visitor just activated has
-genuinely had nothing happen to it. 60% of the time it targets a chain already stuck
-`below_threshold` (otherwise the accumulation path is statistically invisible); 25% of payments are
-dust ($0.15–$0.60).
-
-**`applyPayment(rec, chain, amount)`** is the ingestion handler's logic. It judges the chain's **whole
-balance**, not the arriving amount — which is what makes accumulation work for free:
-
-```
-total = existing balance on this chain + amount
-  !renewable            → park as name_inactive
-  flow on this chain    → park as flow_in_progress
-  !clearsFloor(total)   → park as below_threshold
-  4% chance            → park as not_detected
-  otherwise            → start a flow with the whole total   ← the ordinary path
-```
-
-**Flow stages** (`advanceFlow`): `signing → burning → attesting → claiming`. Ethereum-origin flows
-skip `burning` and `attesting` — nothing to bridge.
-
-**`settleRenewal(rec, chain)`** computes `applied = flow.amount − gasAllowance`, solves the duration
-from `applied`, appends an `ActivityEvent`, removes the flow, then **immediately starts the next flow
-from any balance queued on that chain** — the backend wouldn't leave money resting once the chain is
-free, and doing otherwise would need a null `holdReason`.
-
-**`activeFlows()`** returns in-flight flows **newest first** (`startedAt` descending). Registry
-order is seed order, so without the sort a payment that started seconds ago rendered below one that
-had been bridging for a quarter of an hour. It flattens every in-flight flow across every name for
-the live feed, with the
-duration each will buy once it lands.
-
----
-
-## 6. Legacy fixture state ownership
-
-`registry.ts` holds a **module-level mutable array**. Mutating it does not trigger React — so
-components that drive it force their own re-render with `useReducer((n) => n + 1, 0)` and call the
-dispatch after mutating. This is the one genuinely un-React-y thing in the codebase; it exists
-because the mock is a stand-in for a server.
-
-Two independent drivers, and they are **mutually exclusive by construction**:
-
-- `LiveFeed` (Explorer, rendered only when no name is selected) — `tickSimulation()` every 2600ms.
-- `PendingBalance` (inside `NameDetail`, only when a name *is* selected) — advances that name's own
-  flows every 2000ms.
-
-So flows never get double-advanced. `PendingBalance` is keyed `key={record.name}` so switching names
-remounts it, resetting its timers and any open tooltip.
-
-Consequences worth knowing before debugging:
-
-- The demo compresses ~15 real minutes into ~8 seconds, so seeded in-flight states settle almost
-  immediately. Reproducing a mid-flow state usually means triggering one deliberately.
-- A dynamic `import('/src/lib/registry.ts')` from the browser console gets a **separate module
-  instance** from the app's, with pristine seeded state. Fine for pure functions, useless for
-  inspecting live state — read the DOM for that.
-- `pending` must be built by `emptyPending()`, not spread from a shared literal. A shallow spread
-  copies the array *references* and every name ends up pushing into the same two arrays.
-
----
-
-## 7. Component map
+## 4. Component map
 
 ```
 App                       page + selected state, routing
@@ -414,7 +277,7 @@ an owner or ENS migration can also change the expiry.
 
 ---
 
-## 8. Invariants that must not break
+## 5. Invariants that must not break
 
 1. Deposit addresses are shown **in full, never truncated** (`PassCard`) — truncation hides where an
    address-swap attack lands. The ENS profile's *resolved* address is informational and may be.
@@ -423,18 +286,17 @@ an owner or ENS migration can also change the expiry.
 4. One flow per `(name, chain)` — a stuck Base transfer must not block a fresh Ethereum payment.
 5. `seconds` and `off` always solved from `amountApplied`, never the deposited amount.
 6. Amounts in the breakdown panel use `fmtUsdcExact`; a tier can turn on a micro-unit.
-7. `SEED_NAMES` labels are 3+ characters.
-8. `chains.ts` defines Base, Arbitrum, Arc, and Ethereum. **No Optimism.**
-9. UI enablement derives from `canTrigger()`.
-10. Aggregate tiles mix bases on purpose: `total received` is lifetime USDC at the address,
+7. `chains.ts` defines Base, Arbitrum, Arc, and Ethereum. **No Optimism.**
+8. UI enablement derives from `canTrigger()`.
+9. Aggregate tiles mix bases on purpose: `total received` is lifetime USDC at the address,
     `time delivered` is what the API recorded. They are not expected to reconcile.
-11. **No price is ever shown from memory.** `pricing.ts` holds no default rates and no cached
+10. **No price is ever shown from memory.** `pricing.ts` holds no default rates and no cached
     copy; it throws until `setRates()` has run. Adding a fallback so the Simulator can paint
     sooner reintroduces the exact failure the gate exists to prevent.
 
 ---
 
-## 9. Verifying a change
+## 6. Verifying a change
 
 `npm run build` type-checks the browser and builds the Vite, Nitro, and Workflow output. Run
 `npm run check:server` for the server TypeScript check. Run `npm run test:frontend` for the browser
@@ -445,9 +307,6 @@ Foundry tests. Run them with `forge test`; `npm run build` does not build `contr
 Run `node scripts/check-chains.mjs` after a chain registry change. It checks completeness, unique
 identifiers, generated views, and logo assets.
 
-Beyond that, the useful technique is asserting invariants against the real modules in the browser
-console while the dev server runs:
-
 The strongest check available for pricing is the deployed helper itself — `quote(label, amount)`
 answers what the contract would actually charge, and `solve()` must match it to the second:
 
@@ -456,21 +315,3 @@ const pricing = await import('/src/lib/pricing.ts');
 pricing.solve(8000000n, 7).seconds;   // 31535917n
 // cast call $HELPER 'quote(string,uint256)(uint64,uint256)' vitalik 8000000
 ```
-
-Beyond that:
-
-```js
-const reg = await import('/src/lib/registry.ts');
-
-let unexplained = 0;
-for (let i = 0; i < 500; i++) {
-  reg.tickSimulation();
-  for (const r of reg.allNames())
-    for (const b of r.pending.balances) if (!b.holdReason) unexplained++;
-}
-unexplained;   // must be 0
-```
-
-This caught the shared-array bug, confirmed 0 tier undershoots across all label/tier/chain
-combinations, and verified the accumulation path fires. Remember the separate-instance caveat in
-section 6: this is for logic, not for reading what's currently on screen.
