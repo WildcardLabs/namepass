@@ -205,13 +205,15 @@ test("a queued flow is not acknowledged when Workflow cannot start", async () =>
 	assert.equal(store.flows.length, 1);
 });
 
-test("the receiver rejects a token outside the chain allowlist", async () => {
+test("the receiver skips an invalid event with 200 so it cannot crash the pipeline", async () => {
 	const store = new MemoryStore();
 	const route = goldskyHandler(store, async () => {}, () => secret);
 	const body = { ...transfer(), token_address: "0x0000000000000000000000000000000000000000" };
 	const response = await route.fetch(request(JSON.stringify(body)));
-	assert.equal(response.status, 400);
-	assert.equal((await response.json()).error.code, "invalid_goldsky_event");
+	// A non-retriable 4xx makes Goldsky treat the row as a poison pill and crash the
+	// whole pipeline. An invalid event is acknowledged (200) and skipped, not ingested.
+	assert.equal(response.status, 200);
+	assert.equal((await response.json()).skipped, true);
 	assert.equal(store.events.size, 0);
 });
 
