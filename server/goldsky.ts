@@ -168,6 +168,18 @@ function decimalField(object: Record<string, unknown>, key: string): string {
 	return patternField(object, key, DECIMAL, 78);
 }
 
+/**
+ * A bytes32 value from a decoded event parameter. Goldsky's `_gs_log_decode`
+ * returns addresses with a `0x` prefix but bytes32 values as bare 64-hex, so
+ * accept either and normalize to `0x`-prefixed lowercase — the form that
+ * `names.labelHash` and `BigInt(nonce)` both require.
+ */
+function hashField(object: Record<string, unknown>, key: string): string {
+	const value = stringField(object, key, 66).toLowerCase().replace(/^0x/, "");
+	if (!/^[0-9a-f]{64}$/.test(value)) invalid(key);
+	return `0x${value}`;
+}
+
 function blockTimeField(object: Record<string, unknown>): Date {
 	const value = object.block_time;
 	const date =
@@ -248,16 +260,16 @@ export function parseGoldskyEvent(object: Record<string, unknown>): GoldskyEvent
 		parsed.recipientAddress = patternField(object, "recipient_address", ADDRESS);
 		parsed.amount = decimalField(object, "amount");
 	} else if (key === "namepass:WalletDeployed") {
-		patternField(object, "label_key", HASH);
+		parsed.facts.label_key = hashField(object, "label_key");
 		patternField(object, "wallet_address", ADDRESS);
 		stringField(object, "label", 255);
 	} else if (key === "namepass:DepositProcessed") {
-		patternField(object, "label_key", HASH);
+		parsed.facts.label_key = hashField(object, "label_key");
 		patternField(object, "wallet_address", ADDRESS);
 		decimalField(object, "amount");
 		decimalField(object, "remaining_amount");
 	} else if (key === "namepass:CCTPClaimed") {
-		patternField(object, "nonce", HASH);
+		parsed.facts.nonce = hashField(object, "nonce");
 		patternField(object, "wallet_address", ADDRESS);
 		const sourceDomain = decimalField(object, "source_domain");
 		if (
@@ -272,7 +284,7 @@ export function parseGoldskyEvent(object: Record<string, unknown>): GoldskyEvent
 		decimalField(object, "fee_executed");
 		decimalField(object, "minted_amount");
 	} else if (key === "namepass:Renewed") {
-		patternField(object, "label_hash", HASH);
+		parsed.facts.label_hash = hashField(object, "label_hash");
 		patternField(object, "wallet_address", ADDRESS);
 		patternField(object, "executor_address", ADDRESS);
 		stringField(object, "label", 255);
@@ -287,7 +299,7 @@ export function parseGoldskyEvent(object: Record<string, unknown>): GoldskyEvent
 		if (patternField(object, "payment_token", ADDRESS) !== chain.usdcAddress.toLowerCase()) {
 			invalid("payment_token");
 		}
-		patternField(object, "referrer", HASH);
+		parsed.facts.referrer = hashField(object, "referrer");
 		decimalField(object, "amount");
 	}
 	return parsed;

@@ -381,3 +381,53 @@ test("external renewal projection requires an exact CCTP source domain", () => {
 	assert.equal(projection?.amountProcessed, "4900000");
 	assert.equal(externalRenewalProjection({ ...facts, from_cctp: "false" })?.originChainId, "11155111");
 });
+
+test("bytes32 event fields accept Goldsky's bare hex and normalize to 0x", () => {
+	// Real payloads captured from the Goldsky webhook: `_gs_log_decode` returns
+	// bytes32 params (label_hash, nonce) as bare 64-hex, while addresses keep 0x.
+	const renewed = parseGoldskyEvent({
+		event_id: "11155111:log_0xfd28bdbfca5529d2789eff8bfd08760357e7c6051090b1f1b94e242124de59b8_94",
+		event_family: "namepass",
+		event_type: "Renewed",
+		chain_id: 11155111,
+		block_number: 11514817,
+		block_time: 1787052840,
+		tx_hash: "0x5b564d19f06f8ad36bd3e682bc5502d041514f818b74cf61d223548a80309dbc",
+		log_index: 94,
+		contract_address: "0xf1b51552098ffa7dc2cd83d0fb6508e57db8acc1",
+		label_hash: "e9cc90d595d428aa07c91e6ff64a1eb5ccd8cb9490ebba9e4d30eb20e822c443",
+		wallet_address: "0xaf34cb930f362be3fd07fbc837be56ee2f257ddd",
+		executor_address: "0xd3f6f8f45f1cc6dca75b918311302e852d268d9c",
+		label: "namepass",
+		duration: "114102683",
+		amount_received: "20000000",
+		gas_allowance: "100000",
+		amount_applied: "19900000",
+		remainder: "0",
+		from_cctp: "true",
+		_gs_op: "i",
+	});
+	assert.equal(renewed.facts.label_hash, "0xe9cc90d595d428aa07c91e6ff64a1eb5ccd8cb9490ebba9e4d30eb20e822c443");
+
+	const claimed = parseGoldskyEvent({
+		event_id: "11155111:log_0x2f4bf716db37503cbc71aa56bf279604031ffe48b67c185cf118c660680d5588_288",
+		event_family: "namepass",
+		event_type: "CCTPClaimed",
+		chain_id: 11155111,
+		block_number: 11514925,
+		block_time: 1787054196,
+		tx_hash: "0x2f4bf716db37503cbc71aa56bf279604031ffe48b67c185cf118c660680d5588",
+		log_index: 288,
+		contract_address: "0xf1b51552098ffa7dc2cd83d0fb6508e57db8acc1",
+		nonce: "9c56f340be94d5291d773298b09f7a5b18c4fff2802b3a35bddf6d3609e6843c",
+		wallet_address: "0xaf34cb930f362be3fd07fbc837be56ee2f257ddd",
+		source_domain: "6",
+		burn_amount: "10000000",
+		fee_executed: "0",
+		minted_amount: "10000000",
+		_gs_op: "i",
+	});
+	assert.equal(claimed.facts.nonce, "0x9c56f340be94d5291d773298b09f7a5b18c4fff2802b3a35bddf6d3609e6843c");
+	// The normalized nonce must be BigInt-parseable (externalRenewalProjection needs it).
+	assert.equal(BigInt(String(claimed.facts.nonce)) > 0n, true);
+});
