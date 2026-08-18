@@ -7,6 +7,27 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-18 — Flow copy keeps chain meaning, and leaderboard rows preview transactions
+
+The frontend keeps each active backend flow status. It does not compress the statuses into generic
+signing, burning, attesting, and claiming states. User-facing copy also receives the origin chain.
+For an Ethereum origin, `submitting_origin` and `waiting_origin` are renewal states. For Base,
+Arbitrum, or Arc, they are Circle transfer states. The UI uses transfer copy for those chains and
+never calls a direct Ethereum renewal a burn. After the origin receipt, the UI uses
+`amount_processed`, which is the amount proved by that receipt.
+
+Held and unclaimed flows are not active workflow execution. They now use the idle profile poll.
+A failed cross-chain flow with a successful origin receipt stays visible even when the deposit
+address balance is zero. The card states that the transfer needs repair. This prevents moved funds
+from disappearing from the profile.
+
+The Leaderboard accordion previews the three latest completed renewal transactions. It does not
+duplicate the name profile, QR code, or deposit address. The button opens the complete profile and
+activity history. A name must have at least one completed renewal before it enters the ranking.
+The server filters before the result limit, and the browser checks the same rule. The ranking also
+keeps the exact label list from the latest leaderboard API response. Names loaded by another
+screen cannot leak into it through the shared record cache.
+
 ### 2026-08-18 — Origin transactions do not wait for separate deposit finality
 
 An origin transaction can spend only USDC that exists in its chain execution state. A
