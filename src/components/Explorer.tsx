@@ -10,6 +10,7 @@ import {
 import {
 	Search,
 	ArrowLeft,
+	ArrowRight,
 	Clock,
 	Globe,
 	Link as LinkIcon,
@@ -30,7 +31,7 @@ import {
 	hasActiveFlow,
 	minTrigger,
 	nameExpiry,
-	recentActivity,
+	renewalEvent,
 	renewalCount,
 	timeDelivered,
 	totalReceived,
@@ -324,6 +325,43 @@ function StatusCell({ row, reduced }: { row: FeedItem; reduced: boolean }) {
 
 /** In-flight rows are capped so a busy moment can't crowd out all the history. */
 const MAX_IN_FLIGHT = 6;
+const ACTIVITY_PAGE_SIZE = 10;
+
+function ActivityPagination({
+	page,
+	hasPrevious,
+	hasNext,
+	loadingNext,
+	onPrevious,
+	onNext,
+}: {
+	page: number;
+	hasPrevious: boolean;
+	hasNext: boolean;
+	loadingNext: boolean;
+	onPrevious: () => void;
+	onNext: () => void;
+}) {
+	if (!hasPrevious && !hasNext) return null;
+	return (
+		<div className="mt-6 flex items-center justify-between">
+			<span className="text-[12.5px] text-[rgba(30,50,90,0.5)] tabular-nums">
+				Page {page + 1}
+			</span>
+			<div className="flex items-center gap-2">
+				<button type="button" onClick={onPrevious} disabled={!hasPrevious} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[rgba(30,50,90,0.12)] text-[13px] text-[rgba(30,50,90,0.7)] hover:border-[rgba(30,50,90,0.3)] transition-colors disabled:opacity-35 disabled:pointer-events-none">
+					<ArrowLeft className="w-3.5 h-3.5" />
+					Previous
+				</button>
+				<button type="button" onClick={onNext} disabled={!hasNext || loadingNext} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[rgba(30,50,90,0.12)] text-[13px] text-[rgba(30,50,90,0.7)] hover:border-[rgba(30,50,90,0.3)] transition-colors disabled:opacity-35 disabled:pointer-events-none">
+					{loadingNext && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+					Next
+					{!loadingNext && <ArrowRight className="w-3.5 h-3.5" />}
+				</button>
+			</div>
+		</div>
+	);
+}
 
 /** What the feed renders, flattened so both states share one shape. */
 type FeedItem = {
@@ -350,6 +388,8 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 	const [nextCursor, setNextCursor] = useState<string | null>(null);
 	const [loadingOlder, setLoadingOlder] = useState(false);
 	const [loadError, setLoadError] = useState<string | null>(null);
+	const [pageIndex, setPageIndex] = useState(0);
+	const tableRef = useRef<HTMLDivElement>(null);
 
 	const mergeHistory = (items: ActivityRead["items"]) => {
 		const merged = new Map(history.current.map((item) => [item.renewal.eventId, item]));
@@ -371,7 +411,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 			if (stopped || loading.current) return;
 			loading.current = true;
 			try {
-				const feed = await getActivity();
+				const feed = await getActivity(undefined, ACTIVITY_PAGE_SIZE);
 				mergeHistory(feed.items);
 				if (!cursorInitialized.current) {
 					cursorInitialized.current = true;
@@ -403,20 +443,23 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 		};
 	}, []);
 
-	const loadOlder = async () => {
-		if (!cursor.current || loading.current) return;
+	const loadOlder = async (): Promise<boolean> => {
+		if (!cursor.current || loading.current) return false;
 		loading.current = true;
 		setLoadingOlder(true);
+		const previousLength = history.current.length;
 		try {
-			const feed = await getActivity(cursor.current);
+			const feed = await getActivity(cursor.current, ACTIVITY_PAGE_SIZE);
 			mergeHistory(feed.items);
 			cursor.current = feed.nextCursor;
 			setNextCursor(feed.nextCursor);
 			syncFeed({ ...feed, items: history.current });
 			setLoadError(null);
 			tick();
+			return history.current.length > previousLength;
 		} catch (cause) {
 			setLoadError(cause instanceof Error ? cause.message : "Could not load older activity.");
+			return false;
 		} finally {
 			loading.current = false;
 			setLoadingOlder(false);
@@ -424,13 +467,34 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 	};
 
 	const inFlight = activeFlows().slice(0, MAX_IN_FLIGHT);
-	const settled = recentActivity(Number.MAX_SAFE_INTEGER);
+	const settled = history.current.map(({ name, renewal }) => ({
+		...renewalEvent(renewal, name.label),
+		name: name.displayName,
+	}));
+	const pageStart = pageIndex * ACTIVITY_PAGE_SIZE;
+	const settledPage = settled.slice(pageStart, pageStart + ACTIVITY_PAGE_SIZE);
+	const nextPageStart = pageStart + ACTIVITY_PAGE_SIZE;
+	const hasCachedNextPage = settled.length > nextPageStart;
+	const hasNext = hasCachedNextPage || nextCursor !== null;
+	const goToPage = (next: number) => {
+		setPageIndex(next);
+		tableRef.current?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+	};
+	const nextPage = async () => {
+		const cachedNextPage = settled.length > nextPageStart;
+		if (cursor.current && settled.length < nextPageStart + ACTIVITY_PAGE_SIZE) {
+			const loaded = await loadOlder();
+			if (cachedNextPage || loaded) goToPage(pageIndex + 1);
+			return;
+		}
+		if (cachedNextPage) goToPage(pageIndex + 1);
+	};
 
 	/* One list, and the key is the payment rather than the row. A settling
 	   transfer keeps its key, so React moves and re-renders the element it
 	   already has instead of unmounting one row and mounting another. */
 	const items: FeedItem[] = [
-		...inFlight.map((f) => ({
+		...(pageIndex === 0 ? inFlight : []).map((f) => ({
 			key: f.id,
 			name: f.name,
 			chain: f.chain,
@@ -444,7 +508,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 			originChainId: f.originChainId,
 			at: f.startedAt,
 		})),
-		...settled.map((e) => ({
+		...settledPage.map((e) => ({
 			key: e.id,
 			name: e.name,
 			chain: e.chain,
@@ -461,7 +525,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 	return (
 		<>
 			{loadError && <p role="alert" className="mb-3 text-[12.5px] text-red-700">{loadError}</p>}
-			<div className="border border-[rgba(30,50,90,0.1)] rounded-2xl overflow-hidden">
+			<div ref={tableRef} className="scroll-mt-6 border border-[rgba(30,50,90,0.1)] rounded-2xl overflow-hidden">
 			{/* Desktop column headers, hidden on mobile where rows become cards */}
 			<div className="hidden md:grid grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)] gap-4 px-5 py-3 bg-[rgba(30,50,90,0.03)] border-b border-[rgba(30,50,90,0.1)] text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
 				<span>ENS name</span>
@@ -485,12 +549,14 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 					)}
 			</div>
 			</div>
-			{nextCursor && (
-				<button type="button" onClick={() => void loadOlder()} disabled={loadingOlder} className="mt-4 inline-flex items-center gap-2 rounded-full border border-[rgba(30,50,90,0.18)] px-4 py-2 text-[12.5px] text-[rgba(30,50,90,0.72)] hover:bg-white disabled:opacity-50">
-					{loadingOlder && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-					Load older activity
-				</button>
-			)}
+			<ActivityPagination
+				page={pageIndex}
+				hasPrevious={pageIndex > 0}
+				hasNext={hasNext}
+				loadingNext={loadingOlder}
+				onPrevious={() => goToPage(Math.max(0, pageIndex - 1))}
+				onNext={() => void nextPage()}
+			/>
 		</>
 	);
 }
@@ -679,25 +745,45 @@ function NameDetail({
 	onBack,
 	onSupportedTokens,
 	onRefresh,
-	onLoadOlder,
-	hasOlder,
-	loadingOlder,
+	activityPage,
+	hasPreviousActivity,
+	hasNextActivity,
+	loadingNextActivity,
+	onPreviousActivity,
+	onNextActivity,
 }: {
 	record: NameRecord;
 	onBack: () => void;
 	onSupportedTokens: () => void;
 	onRefresh: () => void;
-	onLoadOlder: () => void;
-	hasOlder: boolean;
-	loadingOlder: boolean;
+	activityPage: number;
+	hasPreviousActivity: boolean;
+	hasNextActivity: boolean;
+	loadingNextActivity: boolean;
+	onPreviousActivity: () => void;
+	onNextActivity: () => void;
 }) {
 	/* Which renewal has its transaction breakdown open. One at a time. */
 	const [openEvent, setOpenEvent] = useState<string | null>(null);
-	const events = [...record.events].reverse();
+	const allEvents = [...record.events].reverse();
+	const renewalEvents = allEvents.filter((event) => event.kind === "renewal");
+	const activationEvent = allEvents.find((event) => event.kind === "activated");
+	const activityStart = activityPage * ACTIVITY_PAGE_SIZE;
+	const events = renewalEvents.slice(activityStart, activityStart + ACTIVITY_PAGE_SIZE);
+	if (!hasNextActivity && activationEvent) events.push(activationEvent);
+	const activityRef = useRef<HTMLDivElement>(null);
+	const previousActivityPage = useRef(activityPage);
 	const expiry = nameExpiry(record);
 	const daysLeft = Math.round((expiry - Date.now()) / 86_400_000);
 	const [profile, setProfile] = useState<EnsProfile | null>(null);
 	const [profileLoading, setProfileLoading] = useState(true);
+
+	useEffect(() => {
+		if (previousActivityPage.current === activityPage) return;
+		previousActivityPage.current = activityPage;
+		setOpenEvent(null);
+		activityRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+	}, [activityPage]);
 
 	/* Ignore a late result rather than cancel the request — `fetchProfile`
 	   dedupes, so the promise is shared and cancelling it would blank the
@@ -997,12 +1083,12 @@ function NameDetail({
 			</div>
 
 			{/* Activity table */}
-			<div className="mt-10">
+			<div ref={activityRef} className="mt-10 scroll-mt-6">
 				<div className="flex items-baseline justify-between mb-4">
 					<span className="text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
 						Activity
 					</span>
-					{events.length <= 1 && (
+					{allEvents.length <= 1 && (
 						<span className="text-[12px] text-[rgba(30,50,90,0.5)]">
 							Waiting for the first payment
 						</span>
@@ -1165,12 +1251,14 @@ function NameDetail({
 						})}
 					</div>
 				</div>
-				{hasOlder && (
-					<button type="button" onClick={onLoadOlder} disabled={loadingOlder} className="mt-4 inline-flex items-center gap-2 rounded-full border border-[rgba(30,50,90,0.18)] px-4 py-2 text-[12.5px] text-[rgba(30,50,90,0.72)] hover:bg-white disabled:opacity-50">
-						{loadingOlder && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-						Load older activity
-					</button>
-				)}
+				<ActivityPagination
+					page={activityPage}
+					hasPrevious={hasPreviousActivity}
+					hasNext={hasNextActivity}
+					loadingNext={loadingNextActivity}
+					onPrevious={onPreviousActivity}
+					onNext={onNextActivity}
+				/>
 			</div>
 		</motion.div>
 	);
@@ -1200,6 +1288,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 	const nameCursorInitialized = useRef(false);
 	const [nameNextCursor, setNameNextCursor] = useState<string | null>(null);
 	const [loadingOlderName, setLoadingOlderName] = useState(false);
+	const [namePageIndex, setNamePageIndex] = useState(0);
 
 	const mergeNameHistory = (renewals: NameActivityRead["renewals"]) => {
 		const merged = new Map(nameHistory.current.map((renewal) => [renewal.eventId, renewal]));
@@ -1214,6 +1303,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 		nameCursor.current = null;
 		nameCursorInitialized.current = false;
 		setNameNextCursor(null);
+		setNamePageIndex(0);
 	}, [selected]);
 
 	useEffect(() => {
@@ -1257,7 +1347,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 			if (stopped || loading) return;
 			loading = true;
 			try {
-				const activity = await getNameActivity(selected);
+				const activity = await getNameActivity(selected, undefined, ACTIVITY_PAGE_SIZE);
 				if (!stopped) {
 					mergeNameHistory(activity.renewals);
 					if (!nameCursorInitialized.current) {
@@ -1294,19 +1384,22 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 		};
 	}, [selected, reload, configVersion]);
 
-	const loadOlderName = async () => {
-		if (!selected || !nameCursor.current || loadingOlderName) return;
+	const loadOlderName = async (): Promise<boolean> => {
+		if (!selected || !nameCursor.current || loadingOlderName) return false;
 		setLoadingOlderName(true);
+		const previousLength = nameHistory.current.length;
 		try {
-			const activity = await getNameActivity(selected, nameCursor.current);
+			const activity = await getNameActivity(selected, nameCursor.current, ACTIVITY_PAGE_SIZE);
 			mergeNameHistory(activity.renewals);
 			nameCursor.current = activity.nextCursor;
 			setNameNextCursor(activity.nextCursor);
 			syncName({ ...activity, renewals: nameHistory.current });
 			setRequestError(null);
 			refresh();
+			return nameHistory.current.length > previousLength;
 		} catch (cause) {
 			setRequestError(cause instanceof Error ? cause.message : "Could not load older activity.");
+			return false;
 		} finally {
 			setLoadingOlderName(false);
 		}
@@ -1319,6 +1412,22 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 			.filter((r) => r.name.includes(q))
 			.slice(0, 6);
 	}, [query]);
+
+	const loadedNameRenewals = record?.events.filter((event) => event.kind === "renewal").length ?? 0;
+	const hasActivationEvent = record?.events.some((event) => event.kind === "activated") ?? false;
+	const loadedNameActivity = loadedNameRenewals + (nameNextCursor === null && hasActivationEvent ? 1 : 0);
+	const nextNamePageStart = (namePageIndex + 1) * ACTIVITY_PAGE_SIZE;
+	const hasCachedNextNamePage = loadedNameActivity > nextNamePageStart;
+	const hasNextNamePage = hasCachedNextNamePage || nameNextCursor !== null;
+	const nextNamePage = async () => {
+		const cachedNextPage = loadedNameActivity > nextNamePageStart;
+		if (nameCursor.current && loadedNameActivity < nextNamePageStart + ACTIVITY_PAGE_SIZE) {
+			const loaded = await loadOlderName();
+			if (cachedNextPage || loaded) setNamePageIndex((page) => page + 1);
+			return;
+		}
+		if (cachedNextPage) setNamePageIndex((page) => page + 1);
+	};
 
 	async function submit(raw = query) {
 		const value = raw.trim();
@@ -1485,12 +1594,15 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 					{record ? (
 						<NameDetail
 							record={record}
-									onBack={() => onSelect(null)}
-									onSupportedTokens={onSupportedTokens}
-									onRefresh={reload}
-									onLoadOlder={() => void loadOlderName()}
-									hasOlder={nameNextCursor !== null}
-									loadingOlder={loadingOlderName}
+							onBack={() => onSelect(null)}
+							onSupportedTokens={onSupportedTokens}
+							onRefresh={reload}
+							activityPage={namePageIndex}
+							hasPreviousActivity={namePageIndex > 0}
+							hasNextActivity={hasNextNamePage}
+							loadingNextActivity={loadingOlderName}
+							onPreviousActivity={() => setNamePageIndex((page) => Math.max(0, page - 1))}
+							onNextActivity={() => void nextNamePage()}
 						/>
 					) : (
 						<LiveFeed onSelect={(n) => onSelect(n)} />
