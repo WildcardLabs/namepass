@@ -667,7 +667,13 @@ export const postgresGoldskyStore: GoldskyStore = {
 					if (!expiry) return;
 					const label = ensRenewalLabel(facts);
 					if (!label) return;
-					await tx.update(names).set({ currentExpiry: expiry, ensSyncedAt: event.blockTime })
+					const aggregate = event.gsOp === "d"
+						? { currentExpiry: expiry, ensSyncedAt: event.blockTime }
+						: {
+							currentExpiry: sql<Date>`greatest(coalesce(${names.currentExpiry}, ${expiry}), ${expiry})`,
+							ensSyncedAt: sql<Date>`greatest(${names.ensSyncedAt}, ${event.blockTime})`,
+						};
+					await tx.update(names).set(aggregate)
 						.where(eq(names.normalizedLabel, label));
 					const renewals = await tx.select({ eventId: chainEvents.eventId }).from(chainEvents).where(and(
 						eq(chainEvents.txHash, event.txHash),
