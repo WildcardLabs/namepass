@@ -26,6 +26,7 @@ import {
 	activeFlows,
 	allNames,
 	findName,
+	flowAmount,
 	hasActiveFlow,
 	minTrigger,
 	nameExpiry,
@@ -41,6 +42,7 @@ import {
 	syncName,
 	setPublicConfig,
 } from "../lib/readModel";
+import { flowPresentation } from "../lib/flowPresentation";
 import {
 	explorerUrl,
 	fmtAgo,
@@ -60,7 +62,7 @@ import { LABEL_PROBLEM_TEXT, labelProblem, normalizeLabel } from "../lib/namepas
 import { GAS_ALLOWANCE } from "../lib/fees";
 import { fetchProfile, type EnsProfile } from "../lib/ens";
 import { XIcon } from "./icons";
-import { activateName, getActivity, getName, getNameActivity, getPublicConfig, micro, safeInteger, triggerFlow, type ActivityRead, type NameActivityRead, type PublicFlow } from "../lib/publicApi";
+import { activateName, getActivity, getName, getNameActivity, getPublicConfig, safeInteger, triggerFlow, type ActivityRead, type NameActivityRead, type PublicFlow } from "../lib/publicApi";
 import { chainById, HUB_CHAIN } from "../lib/chains";
 
 /**
@@ -111,17 +113,6 @@ function DiscountTag({ off }: { off: string }) {
 /* ------------------------------------------------------------------ */
 /* Live feed — Etherscan-style table                                   */
 /* ------------------------------------------------------------------ */
-
-/* One word each. The feed is a dense table and a long phrase widens its column
-   at the expense of every other one; the name's own card carries the full
-   "Waiting for Circle attestation" where there's room for it. */
-const FLOW_STAGE: Record<FlowStatus, string> = {
-	confirming: "Confirming",
-	signing: "Preparing",
-	burning: "Burning",
-	attesting: "Attesting",
-	claiming: "Renewing",
-};
 
 /* One shared motion language for the feed.
 
@@ -304,6 +295,9 @@ function FeedRowContent({
  */
 function StatusCell({ row, reduced }: { row: FeedItem; reduced: boolean }) {
 	const fade = reduced ? { duration: 0 } : { duration: 0.3, ease: "easeInOut" as const };
+	const pendingLabel = row.pending
+		? flowPresentation(row.status, row.originChainId).feed
+		: "Renewing";
 	return (
 		<span className="grid justify-items-end [&>*]:col-start-1 [&>*]:row-start-1">
 			<motion.span
@@ -313,7 +307,7 @@ function StatusCell({ row, reduced }: { row: FeedItem; reduced: boolean }) {
 				className="inline-flex items-center gap-1.5 whitespace-nowrap text-[rgba(30,50,90,0.55)]"
 			>
 				<Loader2 className="w-3 h-3 animate-spin shrink-0" />
-				{FLOW_STAGE[row.status]}
+				{pendingLabel}
 			</motion.span>
 
 			<motion.span
@@ -342,8 +336,8 @@ type FeedItem = {
 	seconds: bigint;
 	off: string;
 } & (
-	| { pending: true; status: FlowStatus; at: number }
-	| { pending: false; status: FlowStatus; at: number }
+	| { pending: true; status: FlowStatus; originChainId: string; at: number }
+	| { pending: false; at: number }
 );
 
 function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
@@ -447,6 +441,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 			off: f.off,
 			pending: true as const,
 			status: f.status,
+			originChainId: f.originChainId,
 			at: f.startedAt,
 		})),
 		...settled.map((e) => ({
@@ -459,7 +454,6 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 			seconds: e.seconds,
 			off: e.off,
 			pending: false as const,
-			status: "claiming" as FlowStatus,
 			at: e.at,
 		})),
 	];
@@ -641,7 +635,7 @@ function UnclaimedFlowCard({ label, flow, renewable, onRetry }: { label: string;
 			<h4 className="text-[15px] text-[rgba(30,50,90,0.95)]">Waiting to renew</h4>
 			<p className="mt-1.5 text-[13px] leading-relaxed text-[rgba(30,50,90,0.65)]">The USDC left {chain?.name ?? "the origin chain"} and is secured in a Circle message. This name cannot be renewed now. Namepass will retry when renewal is possible.</p>
 			<dl className="mt-3 space-y-1 text-[12px] text-[rgba(30,50,90,0.6)]">
-				<div className="flex justify-between gap-4"><dt>Amount</dt><dd>{fmtUsdcExact(micro(flow.amountDetected))}</dd></div>
+				<div className="flex justify-between gap-4"><dt>Amount</dt><dd>{fmtUsdcExact(flowAmount(flow))}</dd></div>
 				<div className="flex justify-between gap-4"><dt>Origin chain</dt><dd>{chain?.name ?? flow.originChainId}</dd></div>
 				<div className="flex justify-between gap-4"><dt>Circle nonce</dt><dd className="font-mono truncate">{flow.cctpNonce ?? "Not available"}</dd></div>
 				<div className="flex justify-between gap-4"><dt>Latest retry</dt><dd>{flow.nextActionAt ? fmtDate(new Date(flow.nextActionAt).getTime()) : "Not scheduled"}</dd></div>
@@ -650,6 +644,28 @@ function UnclaimedFlowCard({ label, flow, renewable, onRetry }: { label: string;
 			<p className="mt-3 text-[12px] leading-relaxed text-[rgba(30,50,90,0.5)]">This transfer cannot return to {chain?.name ?? "the origin chain"}. A retry uses the same Circle message.</p>
 			{renewable && <button type="button" onClick={() => void retry()} disabled={retrying} className="mt-3 inline-flex items-center gap-2 rounded-full border border-[rgba(30,50,90,0.25)] px-3 py-1.5 text-[12px] text-[rgba(30,50,90,0.8)] hover:bg-white disabled:opacity-50">{retrying && <Loader2 className="w-3 h-3 animate-spin" />}Retry renewal</button>}
 			{error && <p role="alert" className="mt-2 text-[12px] text-red-700">{error}</p>}
+		</div>
+	);
+}
+
+function FailedCctpFlowCard({ flow }: { flow: PublicFlow }) {
+	const chain = chainById(safeInteger(flow.originChainId) ?? -1);
+	const originTxHash = flow.evidence?.originTxHash;
+	return (
+		<div className="mt-5 rounded-2xl border border-red-900/20 bg-red-950/[0.025] p-4">
+			<h4 className="text-[15px] text-[rgba(30,50,90,0.95)]">Renewal needs attention</h4>
+			<p className="mt-1.5 text-[13px] leading-relaxed text-[rgba(30,50,90,0.65)]">
+				The USDC left {chain?.name ?? "the origin chain"} through Circle, but the Ethereum renewal did not complete. This flow needs repair by Namepass. The funds are not waiting at the deposit address.
+			</p>
+			<dl className="mt-3 space-y-1 text-[12px] text-[rgba(30,50,90,0.6)]">
+				<div className="flex justify-between gap-4"><dt>Amount</dt><dd>{fmtUsdcExact(flowAmount(flow))}</dd></div>
+				<div className="flex justify-between gap-4"><dt>Origin chain</dt><dd>{chain?.name ?? flow.originChainId}</dd></div>
+			</dl>
+			{originTxHash && chain && (
+				<a href={explorerUrl(chain.name, originTxHash)} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 font-mono text-[12px] text-[rgba(30,50,90,0.65)] hover:text-[rgba(30,50,90,0.95)]">
+					Origin transaction {truncTx(originTxHash)} <ExternalLink className="w-3 h-3" />
+				</a>
+			)}
 		</div>
 	);
 }
@@ -848,7 +864,7 @@ function NameDetail({
 					    the profile because it's the actionable half of the card. */}
 					{/* Keyed so switching names resets the card — otherwise an open
 					    tooltip and a running flow timer carry over to the next one. */}
-						<PendingBalance key={record.name} record={record} onSettled={onRefresh} />
+					<PendingBalance key={record.name} record={record} onSettled={onRefresh} />
 
 					{record.flows
 						.filter((flow) => flow.status === "unclaimed")
@@ -861,6 +877,14 @@ function NameDetail({
 								onRetry={onRefresh}
 							/>
 						))}
+
+					{record.flows
+						.filter((flow) =>
+							flow.status === "failed"
+							&& flow.originChainId !== String(HUB_CHAIN.chainId)
+							&& flow.amountProcessed !== null,
+						)
+						.map((flow) => <FailedCctpFlowCard key={flow.id} flow={flow} />)}
 
 					{/* ENS records — identity, not payment history */}
 					<div className="mt-5 pt-5 border-t border-[rgba(30,50,90,0.08)] flex-1">

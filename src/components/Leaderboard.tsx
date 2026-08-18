@@ -1,14 +1,14 @@
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useMemo, useReducer, useState } from "react";
-import { ArrowLeft, ArrowRight, ChevronDown } from "lucide-react";
-import { allNames, renewalCount, syncLeaderboard, timeDelivered } from "../lib/readModel";
-import { getLeaderboard } from "../lib/publicApi";
-import { fmtDelivered, fmtYears } from "../lib/format";
+import { ArrowLeft, ArrowRight, ChevronDown, ExternalLink, Loader2 } from "lucide-react";
+import { leaderboardNames, renewalCount, renewalEvent, syncLeaderboard, timeDelivered, type ActivityEvent, type NameRecord } from "../lib/readModel";
+import { getLeaderboard, getNameActivity } from "../lib/publicApi";
+import { explorerUrl, fmtDate, fmtDelivered, fmtDuration, fmtUsdc, fmtYears, truncTx } from "../lib/format";
 import DotPattern from "./magicui/DotPattern";
 import ShineBorder from "./magicui/ShineBorder";
 import AnimatedShinyText from "./magicui/AnimatedShinyText";
 import NameAvatar from "./NameAvatar";
-import PassCard from "./PassCard";
+import ChainTag from "./ChainTag";
 
 const PAGE_SIZE = 15;
 
@@ -58,22 +58,77 @@ function compareBigints(a: bigint, b: bigint): number {
 
 interface Props {
 	onBack: () => void;
-	/** Open this name on the home Explorer, so its activity can be read. */
+	/** Open the full name profile on the home Explorer. */
 	onViewName: (name: string) => void;
-	/** Navigate to the supported-tokens page. */
-	onSupportedTokens: () => void;
 }
 
-export default function Leaderboard({ onBack, onViewName, onSupportedTokens }: Props) {
+type RecentTransactions = {
+	loading: boolean;
+	error: string | null;
+	events: ActivityEvent[];
+};
+
+function LatestTransactions({ state }: { state: RecentTransactions | undefined }) {
+	if (!state || state.loading) {
+		return (
+			<div className="flex items-center gap-2 py-5 text-[13px] text-[rgba(30,50,90,0.55)]">
+				<Loader2 className="w-4 h-4 animate-spin" />
+				Loading latest transactions
+			</div>
+		);
+	}
+	if (state.error) {
+		return <p role="alert" className="py-4 text-[13px] text-red-700">{state.error}</p>;
+	}
+	if (state.events.length === 0) {
+		return <p className="py-4 text-[13px] text-[rgba(30,50,90,0.55)]">No completed renewal transactions yet.</p>;
+	}
+	return (
+		<ol className="divide-y divide-[rgba(30,50,90,0.07)]">
+			{state.events.map((event) => {
+				const renewal = [...event.steps].reverse().find((step) => step.kind === "renewal");
+				return (
+					<li key={event.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 py-3.5 first:pt-2">
+						<div className="min-w-0">
+							<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px]">
+								<ChainTag chain={event.chain} />
+								<span className="text-[rgba(30,50,90,0.45)] tabular-nums">{fmtDate(event.at)}</span>
+							</div>
+							{renewal && (
+								<a
+									href={explorerUrl(renewal.chain, renewal.tx)}
+									target="_blank"
+									rel="noopener noreferrer"
+									className="mt-1.5 inline-flex items-center gap-1.5 font-mono text-[11.5px] text-[rgba(30,50,90,0.5)] hover:text-[rgba(30,50,90,0.9)] transition-colors"
+								>
+									{truncTx(renewal.tx)}
+									<ExternalLink className="w-2.5 h-2.5" />
+								</a>
+							)}
+						</div>
+						<div className="text-right tabular-nums">
+							<div className="text-[14px] text-[rgba(30,50,90,0.9)]">{fmtUsdc(event.amountDeposited)}</div>
+							<div className="mt-0.5 text-[11.5px] text-[rgba(30,50,90,0.48)]">{fmtDuration(event.seconds)}</div>
+						</div>
+					</li>
+				);
+			})}
+		</ol>
+	);
+}
+
+export default function Leaderboard({ onBack, onViewName }: Props) {
 	const [mode, setMode] = useState<Mode>("renewals");
 	const [expanded, setExpanded] = useState<string | null>(null);
 	const [pageIndex, setPageIndex] = useState(0);
 	const [version, refresh] = useReducer((value: number) => value + 1, 0);
 	const [loadError, setLoadError] = useState<string | null>(null);
+	const [loaded, setLoaded] = useState(false);
+	const [recent, setRecent] = useState<Record<string, RecentTransactions>>({});
 
 	const ranked = useMemo(() => {
 		const metric = mode === "renewals" ? renewalCount : timeDelivered;
-		return [...allNames()].sort((a, b) => compareBigints(metric(a), metric(b)));
+		return [...leaderboardNames()].sort((a, b) => compareBigints(metric(a), metric(b)));
 	}, [mode, version]);
 
 	useEffect(() => {
@@ -98,6 +153,7 @@ export default function Leaderboard({ onBack, onViewName, onSupportedTokens }: P
 				setLoadError(cause instanceof Error ? cause.message : "Could not load the leaderboard.");
 			} finally {
 				loading = false;
+				setLoaded(true);
 				if (!stopped) schedule(Math.min(15_000 * 2 ** failures, 60_000));
 			}
 		};
@@ -119,7 +175,51 @@ export default function Leaderboard({ onBack, onViewName, onSupportedTokens }: P
 
 	useEffect(() => {
 		setPageIndex(0);
+		setExpanded(null);
 	}, [mode]);
+
+	useEffect(() => {
+		setPageIndex((current) => Math.min(current, pageCount - 1));
+	}, [pageCount]);
+
+	const loadRecent = async (record: NameRecord) => {
+		setRecent((current) => ({
+			...current,
+			[record.name]: {
+				loading: true,
+				error: null,
+				events: current[record.name]?.events ?? [],
+			},
+		}));
+		try {
+			const activity = await getNameActivity(record.name, undefined, 3);
+			const events = activity.renewals
+				.map((renewal) => renewalEvent(renewal, activity.name.label))
+				.sort((a, b) => b.at - a.at);
+			setRecent((current) => ({
+				...current,
+				[record.name]: { loading: false, error: null, events },
+			}));
+		} catch (cause) {
+			setRecent((current) => ({
+				...current,
+				[record.name]: {
+					loading: false,
+					error: cause instanceof Error ? cause.message : "Could not load recent transactions.",
+					events: current[record.name]?.events ?? [],
+				},
+			}));
+		}
+	};
+
+	const toggleRow = (record: NameRecord) => {
+		if (expanded === record.name) {
+			setExpanded(null);
+			return;
+		}
+		setExpanded(record.name);
+		void loadRecent(record);
+	};
 
 	return (
 		<div className="relative w-full px-5 md:px-10 pt-4 pb-20 md:pb-28">
@@ -153,8 +253,8 @@ export default function Leaderboard({ onBack, onViewName, onSupportedTokens }: P
 							Ranked by impact.
 						</h1>
 						<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(30,50,90,0.6)] max-w-xl leading-relaxed">
-							Every Namepass, ranked by how much runway it's earned. Sort by total
-							renewals or by years of registration delivered.
+							Names with completed renewals, ranked by how much runway they earned.
+							Sort by total renewals or by years of registration delivered.
 						</p>
 					</div>
 				</div>
@@ -164,6 +264,11 @@ export default function Leaderboard({ onBack, onViewName, onSupportedTokens }: P
 				</div>
 
 				<div className="mt-6 border border-[rgba(30,50,90,0.1)] rounded-2xl overflow-hidden divide-y divide-[rgba(30,50,90,0.07)]">
+					{loaded && !loadError && page.length === 0 && (
+						<p role="status" className="px-5 py-10 text-center text-[13px] text-[rgba(30,50,90,0.55)]">
+							No completed renewals yet.
+						</p>
+					)}
 					{page.map((r, i) => {
 						const rank = pageIndex * PAGE_SIZE + i + 1;
 						const isOpen = expanded === r.name;
@@ -177,7 +282,8 @@ export default function Leaderboard({ onBack, onViewName, onSupportedTokens }: P
 						return (
 							<div key={r.name}>
 								<button
-									onClick={() => setExpanded(isOpen ? null : r.name)}
+									onClick={() => toggleRow(r)}
+									aria-expanded={isOpen}
 									className={`relative w-full flex items-center gap-3 md:gap-4 px-4 md:px-5 py-4 hover:bg-[rgba(30,50,90,0.02)] transition-colors text-left ${
 										rank === 1 ? "bg-[rgba(30,50,90,0.035)]" : ""
 									}`}
@@ -230,20 +336,15 @@ export default function Leaderboard({ onBack, onViewName, onSupportedTokens }: P
 											className="overflow-hidden"
 										>
 											<div className="px-4 md:px-5 py-5 bg-[rgba(30,50,90,0.015)] border-t border-[rgba(30,50,90,0.06)]">
-								<PassCard
-									name={r.name}
-									address={r.address}
-													onSupportedTokens={onSupportedTokens}
-												/>
-												{/* The address is here; the history isn't. Radius, border
-												    and white surface match PassCard's own fields so this
-												    reads as part of the card rather than sitting on the
-												    grey panel behind it. */}
+												<div className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
+													Latest transactions
+												</div>
+												<LatestTransactions state={recent[r.name]} />
 												<button
 													onClick={() => onViewName(r.name)}
-													className="mt-4 w-full flex items-center justify-center gap-2 rounded-[1.4rem] border border-[rgba(30,50,90,0.1)] bg-white py-3 text-[13.5px] text-[rgba(30,50,90,0.8)] hover:border-[rgba(30,50,90,0.25)] transition-colors"
+													className="mt-3 w-full flex items-center justify-center gap-2 rounded-[1.4rem] border border-[rgba(30,50,90,0.1)] bg-white py-3 text-[13.5px] text-[rgba(30,50,90,0.8)] hover:border-[rgba(30,50,90,0.25)] transition-colors"
 												>
-													View {r.name} activity
+													View {r.name} profile
 													<ArrowRight className="w-3.5 h-3.5" />
 												</button>
 											</div>
@@ -263,7 +364,10 @@ export default function Leaderboard({ onBack, onViewName, onSupportedTokens }: P
 						</span>
 						<div className="flex items-center gap-2">
 							<button
-								onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+								onClick={() => {
+									setExpanded(null);
+									setPageIndex((p) => Math.max(0, p - 1));
+								}}
 								disabled={pageIndex === 0}
 								className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[rgba(30,50,90,0.12)] text-[13px] text-[rgba(30,50,90,0.7)] hover:border-[rgba(30,50,90,0.3)] transition-colors disabled:opacity-35 disabled:pointer-events-none"
 							>
@@ -271,7 +375,10 @@ export default function Leaderboard({ onBack, onViewName, onSupportedTokens }: P
 								Prev
 							</button>
 							<button
-								onClick={() => setPageIndex((p) => Math.min(pageCount - 1, p + 1))}
+								onClick={() => {
+									setExpanded(null);
+									setPageIndex((p) => Math.min(pageCount - 1, p + 1));
+								}}
 								disabled={pageIndex >= pageCount - 1}
 								className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[rgba(30,50,90,0.12)] text-[13px] text-[rgba(30,50,90,0.7)] hover:border-[rgba(30,50,90,0.3)] transition-colors disabled:opacity-35 disabled:pointer-events-none"
 							>
