@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import { database } from "./db/client";
@@ -130,6 +130,7 @@ export async function leaderboard(limit: number) {
 	const rows = await database()
 		.select()
 		.from(names)
+		.where(gt(names.renewalCount, 0n))
 		.orderBy(desc(names.timeDeliveredSeconds), desc(names.lifetimeReceived))
 		.limit(limit);
 	return { items: rows.map(publicNameView) };

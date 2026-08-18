@@ -213,7 +213,6 @@ export default function App() {
 							<Leaderboard
 								onBack={goHome}
 								onViewName={goToName}
-								onSupportedTokens={goSupported}
 							/>
 						)}
 						{boot.status === "error" && (

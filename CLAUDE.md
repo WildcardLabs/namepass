@@ -265,7 +265,9 @@ on non-Home pages (only Home shows the Explorer/Search/Cost simulator menu).
   strings until a view converts them to `bigint`. Do not query Neon or chain RPC from a component.
 - `readModel.ts` — maps public API responses into the existing Explorer and Leaderboard view
   contracts. It is not a source of facts and must not invent a renewal, sender, executor, or
-  transaction hash.
+  transaction hash. Keep backend flow states exact. `flowPresentation.ts` owns user-facing flow
+  copy and must also receive the origin chain. An Ethereum `submitting_origin` or `waiting_origin`
+  state is a renewal. The same state on a supported source chain is a Circle transfer.
 - `registry.ts` — seeded local demonstration data only. Do not import it from a production screen.
   The frontend uses the public API for activated names, public activity, flows, and leaderboard
   data. Balances remain separate by chain. An `unclaimed` CCTP flow is not a balance at its origin
