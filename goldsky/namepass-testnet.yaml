@@ -373,7 +373,10 @@ transforms:
         ens._gs_op
       FROM decoded_logs AS ens
       WHERE ens.decoded.event_signature = 'NameRenewed'
-        AND ens.decoded.event_params[6] = '0x0000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac6'
+        AND ens.decoded.event_params[6] IN (
+          '0x0000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac6',
+          '0000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac6'
+        )
         AND ens.contract_address IN (
           '0xa88553f454b77203b0d036a05c894d555eaaa2cc',
           '0x4ad56feb5fc7b8298db06e88fd5cbc41d64602fa'

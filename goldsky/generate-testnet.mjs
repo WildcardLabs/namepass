@@ -387,7 +387,10 @@ ${indent(rawLogsUnion, 6)}
         ens._gs_op
       FROM decoded_logs AS ens
       WHERE ens.decoded.event_signature = 'NameRenewed'
-        AND ens.decoded.event_params[6] = '${hub.ensReferrer}'
+        AND ens.decoded.event_params[6] IN (
+          '${lower(hub.ensReferrer)}',
+          '${lower(hub.ensReferrer).slice(2)}'
+        )
         AND ens.contract_address IN (
           '${lower(hub.ensRegistrarAddress)}',
           '${lower(hub.ensRenewerV1Address)}'
