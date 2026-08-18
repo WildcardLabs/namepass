@@ -496,7 +496,6 @@ export async function confirmCctpClaim(
 	});
 	const expiryAfter = parseEnsRenewalExpiry(receiptLogs(receipt.logs), {
 		label: flow.label,
-		labelHash: labelHash(flow.label) as Hex,
 	});
 	const now = new Date();
 	await database().transaction(async (tx) => {

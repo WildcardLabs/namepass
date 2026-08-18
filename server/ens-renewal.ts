@@ -11,7 +11,7 @@ type ReceiptLog = { address: Address; data: Hex; topics: readonly Hex[] };
 /** Read the authoritative ENS expiry from the same receipt as a Namepass renewal. */
 export function parseEnsRenewalExpiry(
 	logs: readonly ReceiptLog[],
-	expected: { label: string; labelHash: Hex },
+	expected: { label: string },
 ): Date {
 	const renewers = [HUB_CHAIN.ensRegistrarAddress, HUB_CHAIN.ensRenewerV1Address]
 		.filter((address): address is string => Boolean(address))
@@ -41,8 +41,7 @@ export function parseEnsRenewalExpiry(
 		referrer: Hex;
 	};
 	if (
-		args.tokenId !== BigInt(expected.labelHash)
-		|| args.label !== expected.label
+		args.label !== expected.label
 		|| getAddress(args.paymentToken) !== getAddress(HUB_CHAIN.usdcAddress)
 		|| args.referrer.toLowerCase() !== HUB_CHAIN.ensReferrer?.toLowerCase()
 	) {

@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 
 import { HUB_CHAIN, SERVER_CHAINS } from "../src/lib/chains";
+import { normalizeLabel } from "../src/lib/namepass";
 import { minimumTriggerAmount } from "./config";
 import { database } from "./db/client";
 import { chainEvents, deposits, flows, names, transactionIntents } from "./db/schema";
@@ -140,10 +141,16 @@ function ensExpiry(facts: unknown): Date | null {
 	return new Date(Number(milliseconds));
 }
 
-export function ensTokenLabelHash(tokenId: string): string {
-	const value = BigInt(tokenId);
-	if (value < 0n || value >= 1n << 256n) throw new Error("The ENS token ID is not uint256.");
-	return `0x${value.toString(16).padStart(64, "0")}`;
+export function ensRenewalLabel(facts: unknown): string | undefined {
+	if (!facts || typeof facts !== "object") return undefined;
+	const label = (facts as Record<string, unknown>).label;
+	if (typeof label !== "string") return undefined;
+	try {
+		const normalized = normalizeLabel(label);
+		return normalized === label ? normalized : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 function invalid(field: string): never {
@@ -637,9 +644,10 @@ export const postgresGoldskyStore: GoldskyStore = {
 					}
 					const expiry = ensExpiry(facts);
 					if (!expiry) return;
-					const labelHash = ensTokenLabelHash(String(facts.token_id));
+					const label = ensRenewalLabel(facts);
+					if (!label) return;
 					await tx.update(names).set({ currentExpiry: expiry, ensSyncedAt: event.blockTime })
-						.where(eq(names.labelHash, labelHash));
+						.where(eq(names.normalizedLabel, label));
 					const renewals = await tx.select({ eventId: chainEvents.eventId }).from(chainEvents).where(and(
 						eq(chainEvents.txHash, event.txHash),
 						eq(chainEvents.eventFamily, "namepass"),

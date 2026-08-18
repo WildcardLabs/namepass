@@ -355,7 +355,6 @@ export async function confirmEthereumRenewal(flowId: string, intentId: string): 
 	});
 	const expiryAfter = parseEnsRenewalExpiry(receipt.logs as ReceiptLog[], {
 		label: flow.label,
-		labelHash: labelHash(flow.label) as Hex,
 	});
 	const db = database();
 	await db.transaction(async (tx) => {

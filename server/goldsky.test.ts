@@ -3,7 +3,7 @@ import test from "node:test";
 
 import {
 	goldskyHandler,
-	ensTokenLabelHash,
+	ensRenewalLabel,
 	externalRenewalProjection,
 	parseGoldskyEvent,
 	type GoldskyEvent,
@@ -354,9 +354,10 @@ test("protocol events route to renewal and ENS projections", async () => {
 	assert.equal(store.expiryRefreshes, 1);
 });
 
-test("ENS renewal projection identifies the name by token ID", () => {
-	assert.equal(ensTokenLabelHash("1"), `0x${"1".padStart(64, "0")}`);
-	assert.throws(() => ensTokenLabelHash((1n << 256n).toString()), /uint256/);
+test("ENS renewal projection identifies the name by canonical label, not mutable token ID", () => {
+	assert.equal(ensRenewalLabel({ label: "vitalik", token_id: "1" }), "vitalik");
+	assert.equal(ensRenewalLabel({ label: "VITALIK", token_id: "2" }), undefined);
+	assert.equal(ensRenewalLabel({ label: "sub.vitalik", token_id: "3" }), undefined);
 });
 
 test("external renewal projection requires an exact CCTP source domain", () => {
