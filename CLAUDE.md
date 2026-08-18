@@ -149,6 +149,11 @@ There is no lint script and no `npm test` alias. Server tests use Node's test ru
 `npm run test:server`. Frontend adapter tests and the Workflow runtime probe use Vitest.
 Use the exact scripts above.
 
+## Git workflow
+
+Create a `codex/` branch before you edit files. Commit and push changes only to that branch. Do not
+commit or push directly to `main`.
+
 **The contracts do have tests**, in Foundry:
 
 ```bash
