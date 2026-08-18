@@ -63,6 +63,9 @@ Before stable-testnet funding, add Vercel Firewall rate limits for these public 
 
 - `POST /api/names/activate`: 10 requests per minute for one source IP.
 - `POST /api/flows/trigger`: 20 requests per minute for one source IP.
+- `POST /api/ccip` and `GET /api/ccip/*` (the CCIP-Read gateway): 30 requests per minute for one
+  source IP. A resolution enrols a new label for tracking on first sight, so this is a public
+  write path. A known name takes the fast path and does not write.
 - `GET /api/names/[label]`: 120 requests per minute for one source IP. One active name polls 15
   times per minute. The limit gives that polling rate eight times the required capacity.
 
