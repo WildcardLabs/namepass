@@ -3,6 +3,7 @@ import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 
 import { HUB_CHAIN, SERVER_CHAINS } from "../src/lib/chains";
 import { normalizeLabel } from "../src/lib/namepass";
+import { readNativeUsdcBalances } from "./chain";
 import { minimumTriggerAmount } from "./config";
 import { database } from "./db/client";
 import { chainEvents, deposits, flows, names, transactionIntents } from "./db/schema";
@@ -101,7 +102,7 @@ export interface GoldskyTransaction {
 	reconcileRenewal(event: GoldskyEvent): Promise<string | undefined>;
 	refreshRenewalAggregates(nameId: string): Promise<void>;
 	refreshEnsExpiry(event: GoldskyEvent): Promise<void>;
-	ensureFlow(nameId: string, chainId: number, amount: string, depositEventId: string): Promise<string>;
+	ensureFlow(nameId: string, chainId: number, amount: string, depositEventId: string | null): Promise<string>;
 	cancelUnbroadcastFlow(nameId: string, chainId: number): Promise<void>;
 }
 
@@ -323,6 +324,7 @@ export function parseGoldskyEvent(object: Record<string, unknown>): GoldskyEvent
 export async function ingestGoldskyEvent(
 	store: GoldskyStore,
 	event: GoldskyEvent,
+	observedBalance?: string,
 ): Promise<string | undefined> {
 	return store.transaction(async (tx) => {
 		await tx.upsertEvent(event);
@@ -350,8 +352,16 @@ export async function ingestGoldskyEvent(
 			await tx.cancelUnbroadcastFlow(nameId, event.chainId);
 			return undefined;
 		}
-		return BigInt(amount) >= minimumTriggerAmount(event.chainId)
-			? tx.ensureFlow(nameId, event.chainId, amount, event.eventId)
+		const eventAmount = BigInt(amount);
+		const balance = observedBalance === undefined ? eventAmount : BigInt(observedBalance);
+		const amountDetected = balance > eventAmount ? balance : eventAmount;
+		return amountDetected >= minimumTriggerAmount(event.chainId)
+			? tx.ensureFlow(
+				nameId,
+				event.chainId,
+				amountDetected.toString(),
+				amountDetected === eventAmount ? event.eventId : null,
+			)
 			: undefined;
 	});
 }
@@ -385,6 +395,8 @@ export function goldskyHandler(
 	store: GoldskyStore = postgresGoldskyStore,
 	startFlow: (flowId: string) => Promise<void> = startGoldskyFlow,
 	secret: () => string | undefined = () => process.env.GOLDSKY_WEBHOOK_SECRET,
+	readBalance: (address: string, chainId: number) => Promise<string | undefined> = async (address, chainId) =>
+		(await readNativeUsdcBalances(address, [chainId]))[0]?.amount,
 ) {
 	return handler("POST", async (request) => {
 		const expected = secret();
@@ -413,7 +425,26 @@ export function goldskyHandler(
 			}));
 			return json({ accepted: false, skipped: true }, 200);
 		}
-		const flowId = await ingestGoldskyEvent(store, event);
+		let observedBalance: string | undefined;
+		if (
+			event.eventFamily === "deposit"
+			&& event.gsOp === "c"
+			&& event.recipientAddress
+			&& event.amount !== undefined
+			&& BigInt(event.amount) < minimumTriggerAmount(event.chainId)
+		) {
+			try {
+				observedBalance = await readBalance(event.recipientAddress, event.chainId);
+			} catch {
+				logOperation("goldsky.balance_unavailable", {
+					chainId: event.chainId,
+					step: "balance_read",
+					errorCode: "rpc_unavailable",
+					eventId: event.eventId,
+				});
+			}
+		}
+		const flowId = await ingestGoldskyEvent(store, event, observedBalance);
 		if (flowId) await startFlow(flowId);
 		return json({ accepted: true });
 	});

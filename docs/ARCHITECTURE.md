@@ -770,6 +770,11 @@ Evaluate each name and chain separately. Funds on different chains never combine
 The webhook queues work as soon as it has a canonical detected deposit. For a CCTP flow, Iris
 polling waits for the origin burn to reach Circle's configured finality threshold.
 
+If one deposit is below the configured minimum, the webhook reads that wallet's live balance on
+the same chain. It queues a flow when the accumulated balance reaches the minimum. It does not add
+deposit rows to calculate the balance. An accumulated-balance flow has no single
+`deposit_event_id`, because no one transfer represents all funds in that flow.
+
 The first production queueing policy is:
 
 ~~~text

@@ -7,6 +7,19 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-19 — Small deposits trigger from the accumulated chain balance
+
+The Goldsky webhook used each transfer amount as the automatic trigger amount. Two separate $0.25
+transfers therefore left a $0.50 wallet balance without a flow. The webhook now reads the live
+single-chain wallet balance when a transfer is below the configured minimum. It starts one flow
+when that balance reaches the minimum. The chain remains the balance authority. The service does
+not add deposit amounts in the database.
+
+An accumulated-balance flow leaves `deposit_event_id` empty. Linking the flow to the last transfer
+would falsely attribute the full renewal to that sender and transaction. The individual transfers
+remain in contribution history. The canonical `Renewed` event records the amount that the contract
+processed.
+
 ### 2026-08-19 — Pending flows show confirmed transactions, not optimistic steps
 
 An ongoing CCTP flow can wait for Circle for many minutes after its deposit and burn have already

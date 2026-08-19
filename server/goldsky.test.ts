@@ -48,7 +48,8 @@ class MemoryStore implements GoldskyStore, GoldskyTransaction {
 		id: string;
 		nameId: string;
 		chainId: number;
-		depositEventId: string;
+		amount: string;
+		depositEventId: string | null;
 		status: "queued" | "cancelled";
 	}> = [];
 	renewalReconciliations = 0;
@@ -83,15 +84,15 @@ class MemoryStore implements GoldskyStore, GoldskyTransaction {
 	async ensureFlow(
 		nameId: string,
 		chainId: number,
-		_amount: string,
-		depositEventId: string,
+		amount: string,
+		depositEventId: string | null,
 	): Promise<string> {
 		const existing = this.flows.find(
 			(flow) => flow.nameId === nameId && flow.chainId === chainId && flow.status === "queued",
 		);
 		if (existing) return existing.id;
 		const id = `flow-${this.flows.length + 1}`;
-		this.flows.push({ id, nameId, chainId, depositEventId, status: "queued" });
+		this.flows.push({ id, nameId, chainId, amount, depositEventId, status: "queued" });
 		return id;
 	}
 
@@ -151,7 +152,12 @@ test("the receiver accepts Goldsky ISO block timestamps", () => {
 test("automatic flow creation starts at the configured minimum", async () => {
 	const store = new MemoryStore();
 	const started: string[] = [];
-	const route = goldskyHandler(store, async (flowId) => void started.push(flowId), () => secret);
+	const route = goldskyHandler(
+		store,
+		async (flowId) => void started.push(flowId),
+		() => secret,
+		async () => undefined,
+	);
 	const below = { ...transfer(), event_id: "84532:below", amount: "499999" };
 	const threshold = {
 		...transfer(),
@@ -165,6 +171,38 @@ test("automatic flow creation starts at the configured minimum", async () => {
 	assert.equal(store.flows.length, 0);
 	assert.equal((await route.fetch(request(JSON.stringify(threshold)))).status, 200);
 	assert.equal(store.flows.length, 1);
+	assert.deepEqual(started, ["flow-1"]);
+});
+
+test("two small deposits start one flow when their wallet balance reaches the minimum", async () => {
+	const store = new MemoryStore();
+	const started: string[] = [];
+	const balances = ["250000", "500000"];
+	const route = goldskyHandler(
+		store,
+		async (flowId) => void started.push(flowId),
+		() => secret,
+		async (address, chainId) => {
+			assert.equal(address, recipient);
+			assert.equal(chainId, 84532);
+			return balances.shift();
+		},
+	);
+	const first = { ...transfer(), event_id: "84532:small-1", amount: "250000" };
+	const second = {
+		...transfer(),
+		event_id: "84532:small-2",
+		tx_hash: `0x${"4".repeat(64)}`,
+		log_index: 2,
+		amount: "250000",
+	};
+
+	assert.equal((await route.fetch(request(JSON.stringify(first)))).status, 200);
+	assert.equal(store.flows.length, 0);
+	assert.equal((await route.fetch(request(JSON.stringify(second)))).status, 200);
+	assert.equal(store.flows.length, 1);
+	assert.equal(store.flows[0]?.amount, "500000");
+	assert.equal(store.flows[0]?.depositEventId, null);
 	assert.deepEqual(started, ["flow-1"]);
 });
 
