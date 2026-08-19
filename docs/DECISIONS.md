@@ -7,6 +7,21 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-19 — A new balance is preparing before it is stuck
+
+The selected-name API reads the deposit wallet balance and the workflow row from different sources.
+The balance can appear one poll before Goldsky delivery creates the flow. The frontend previously
+classified this normal gap as `not_detected`, enabled the manual trigger, and briefly said that the
+renewal needed a retry. A live Ethereum Sepolia test reproduced the false warning immediately before
+the renewal completed normally.
+
+An eligible unmatched balance now gets a browser-local detection grace. The card says `preparing
+renewal` and hides the manual trigger until the balance remains unmatched for two reads and at least
+20 seconds. The two conditions prevent one fast re-render from consuming the grace. The time limit
+prevents the 15-second idle poll from making a normal balance look failed after its first read.
+Explicit backend flow failures stay immediately retryable. This is a presentation grace only. It
+does not delay detection, workflow execution, or API polling.
+
 ### 2026-08-18 — Flow copy keeps chain meaning, and leaderboard rows preview transactions
 
 The frontend keeps each active backend flow status. It does not compress the statuses into generic

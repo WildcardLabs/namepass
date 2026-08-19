@@ -1,8 +1,9 @@
 import { motion, AnimatePresence } from "motion/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Loader2, Wallet } from "lucide-react";
 import { canTrigger, minTrigger, totalHeld, totalInFlight, type ChainBalance, type FlowStatus, type HoldReason, type NameRecord } from "../lib/readModel";
 import { flowFailurePresentation, flowPresentation } from "../lib/flowPresentation";
+import { DETECTION_GRACE_MS, isDetectionPending, updateDetectionObservations, type DetectionObservations } from "../lib/detectionGrace";
 import { triggerFlow } from "../lib/publicApi";
 import { chainByName } from "../lib/chains";
 import { fmtUsdc } from "../lib/format";
@@ -51,7 +52,32 @@ export default function PendingBalance({ record, onSettled }: Props) {
 	const [open, setOpen] = useState(false);
 	const [triggering, setTriggering] = useState<string | null>(null);
 	const [triggerError, setTriggerError] = useState<string | null>(null);
+	const [detectionObservations, setDetectionObservations] = useState<DetectionObservations>({});
+	const [, setGraceClock] = useState(() => Date.now());
+	const lastObservedRecord = useRef<NameRecord | null>(null);
 	const p = record.pending;
+	const now = Date.now();
+
+	useEffect(() => {
+		if (lastObservedRecord.current === record) return;
+		lastObservedRecord.current = record;
+		const unmatched = p.balances
+			.filter((balance) => balance.holdReason === "not_detected" && canTrigger(p, balance))
+			.map((balance) => balance.chainId);
+		setDetectionObservations((current) => updateDetectionObservations(current, unmatched, Date.now()));
+	}, [p, record]);
+
+	useEffect(() => {
+		const currentTime = Date.now();
+		const nextExpiry = Object.values(detectionObservations)
+			.filter((observation) => observation.reads >= 2)
+			.map((observation) => observation.firstSeenAt + DETECTION_GRACE_MS)
+			.filter((expiry) => expiry > currentTime)
+			.sort((a, b) => a - b)[0];
+		if (nextExpiry === undefined) return;
+		const timer = window.setTimeout(() => setGraceClock(Date.now()), nextExpiry - currentTime);
+		return () => window.clearTimeout(timer);
+	}, [detectionObservations]);
 
 	const held = totalHeld(p);
 	const inFlight = totalInFlight(p);
@@ -64,10 +90,16 @@ export default function PendingBalance({ record, onSettled }: Props) {
 		...new Set([...p.flows.map((f) => f.chain), ...p.balances.map((b) => b.chain)]),
 	];
 
-	/* Only what a person can actually clear right now. Filtering on the reason
-	   alone promised "needs a retry" for balances whose name can't be renewed,
-	   where no button ever appears — so it asks canTrigger, same as the rows. */
-	const stuck = p.balances.filter((b) => canTrigger(p, b));
+	/* Only what a person can actually clear right now. A newly visible balance
+	   gets time to acquire its automatic flow before it becomes retryable. */
+	const detecting = p.balances.filter((balance) => isDetectionPending(
+		balance.holdReason,
+		canTrigger(p, balance),
+		detectionObservations[balance.chainId],
+		now,
+	));
+	const detectingChainIds = new Set(detecting.map((balance) => balance.chainId));
+	const stuck = p.balances.filter((balance) => canTrigger(p, balance) && !detectingChainIds.has(balance.chainId));
 
 	/* Collapsed line surfaces the most urgent thing: something a person could
 	   fix, then something moving, then something merely waiting. */
@@ -87,6 +119,13 @@ export default function PendingBalance({ record, onSettled }: Props) {
 			<>
 				{p.flows.length} renewal{p.flows.length === 1 ? "" : "s"} in progress ·{" "}
 				{held > 0n ? `${fmtUsdc(held)} also waiting` : fmtUsdc(inFlight)}
+			</>
+		);
+	} else if (detecting.length > 0) {
+		summary = (
+			<>
+				{fmtUsdc(detecting.reduce((sum, balance) => sum + (balance.amount ?? 0n), 0n))} detected on{" "}
+				{detecting.map((balance) => balance.chain).join(" and ")} · preparing renewal
 			</>
 		);
 	} else {
@@ -111,7 +150,7 @@ export default function PendingBalance({ record, onSettled }: Props) {
 				</span>
 				<span className="mt-2 flex items-center justify-between gap-3">
 					<span className="flex items-center gap-2 text-[15px] text-[rgba(30,50,90,0.95)]">
-						{p.flows.length > 0 && stuck.length === 0 && (
+						{(p.flows.length > 0 || detecting.length > 0) && stuck.length === 0 && (
 							<Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-[rgba(30,50,90,0.5)]" />
 						)}
 						{summary}
@@ -141,7 +180,8 @@ export default function PendingBalance({ record, onSettled }: Props) {
 										chain={chain}
 										flow={flow}
 										balance={balance}
-										triggerable={balance ? canTrigger(p, balance) : false}
+										detecting={balance ? detectingChainIds.has(balance.chainId) : false}
+										triggerable={balance ? canTrigger(p, balance) && !detectingChainIds.has(balance.chainId) : false}
 										onTrigger={() => {
 											const entry = chainByName(chain);
 											if (!entry || triggering) return;
@@ -176,18 +216,20 @@ function ChainRow({
 	chain,
 	flow,
 	balance,
+	detecting,
 	triggerable,
 	onTrigger,
 }: {
 	chain: string;
 	flow?: { amount: bigint; status: FlowStatus; originChainId: string };
 	balance?: ChainBalance;
+	detecting: boolean;
 	triggerable: boolean;
 	onTrigger: () => void;
 }) {
 	const minimum = balance ? minTrigger(balance.chainId) : undefined;
 	const balanceLabel = balance
-		? holdLabel(balance.holdReason, minimum, balance.chainId)
+		? detecting ? "Payment detected · preparing renewal" : holdLabel(balance.holdReason, minimum, balance.chainId)
 		: "";
 	return (
 		<div className="flex items-start justify-between gap-3">
@@ -209,7 +251,9 @@ function ChainRow({
 							{balance.amount === null ? balanceLabel : `${fmtUsdc(balance.amount)} · ${balanceLabel}`}
 						</span>
 						<Tooltip
-							text={holdCopy(balance.holdReason, minimum, balance.chainId)}
+							text={detecting
+								? "The payment balance arrived before its automatic renewal appeared. Namepass is checking for the flow."
+								: holdCopy(balance.holdReason, minimum, balance.chainId)}
 							label={`Why are these funds on ${chain} here?`}
 						/>
 					</div>
