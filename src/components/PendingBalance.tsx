@@ -1,12 +1,13 @@
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Loader2, Wallet } from "lucide-react";
-import { canTrigger, minTrigger, totalHeld, totalInFlight, type ChainBalance, type FlowStatus, type HoldReason, type NameRecord } from "../lib/readModel";
+import { CheckCircle2, ChevronDown, ExternalLink, Loader2, Wallet } from "lucide-react";
+import { canTrigger, minTrigger, totalHeld, totalInFlight, type ChainBalance, type ChainFlow, type HoldReason, type NameRecord } from "../lib/readModel";
 import { flowFailurePresentation, flowPresentation } from "../lib/flowPresentation";
+import { completedFlowTransactions } from "../lib/flowTransactions";
 import { DETECTION_GRACE_MS, isDetectionPending, updateDetectionObservations, type DetectionObservations } from "../lib/detectionGrace";
 import { triggerFlow } from "../lib/publicApi";
 import { chainByName } from "../lib/chains";
-import { fmtUsdc } from "../lib/format";
+import { explorerUrl, fmtUsdc, truncTx } from "../lib/format";
 import Tooltip from "./Tooltip";
 import ChainTag from "./ChainTag";
 
@@ -221,7 +222,7 @@ function ChainRow({
 	onTrigger,
 }: {
 	chain: string;
-	flow?: { amount: bigint; status: FlowStatus; originChainId: string };
+	flow?: ChainFlow;
 	balance?: ChainBalance;
 	detecting: boolean;
 	triggerable: boolean;
@@ -231,6 +232,7 @@ function ChainRow({
 	const balanceLabel = balance
 		? detecting ? "Payment detected · preparing renewal" : holdLabel(balance.holdReason, minimum, balance.chainId)
 		: "";
+	const transactions = flow ? completedFlowTransactions(flow.api) : [];
 	return (
 		<div className="flex items-start justify-between gap-3">
 			<div className="min-w-0 flex-1">
@@ -239,10 +241,33 @@ function ChainRow({
 				</div>
 
 				{flow && (
-					<div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-[rgba(30,50,90,0.65)]">
-						<Loader2 className="w-3 h-3 animate-spin shrink-0" />
-						{fmtUsdc(flow.amount)} · {flowPresentation(flow.status, flow.originChainId).detail}
-					</div>
+					<>
+						<div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-[rgba(30,50,90,0.65)]">
+							<Loader2 className="w-3 h-3 animate-spin shrink-0" />
+							{fmtUsdc(flow.amount)} · {flowPresentation(flow.status, flow.originChainId).detail}
+						</div>
+						{transactions.length > 0 && (
+							<ol className="mt-2 space-y-1.5">
+								{transactions.map((transaction) => (
+									<li key={`${transaction.label}:${transaction.tx}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px]">
+										<span className="inline-flex items-center gap-1.5 text-[rgba(30,50,90,0.55)]">
+											<CheckCircle2 className="w-3 h-3 shrink-0 text-emerald-600" />
+											{transaction.label}
+										</span>
+										<a
+											href={explorerUrl(transaction.chain, transaction.tx)}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="inline-flex items-center gap-1 font-mono text-[rgba(30,50,90,0.5)] hover:text-[rgba(30,50,90,0.9)] transition-colors"
+										>
+											{truncTx(transaction.tx)}
+											<ExternalLink className="w-2.5 h-2.5 shrink-0" />
+										</a>
+									</li>
+								))}
+							</ol>
+						)}
+					</>
 				)}
 
 				{balance && (

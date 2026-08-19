@@ -42,6 +42,7 @@ export interface PublicName {
 }
 
 export interface FlowEvidence {
+	depositTxHash: string | null;
 	originTxHash: string | null;
 	claimTxHash: string | null;
 	renewalTxHash: string | null;

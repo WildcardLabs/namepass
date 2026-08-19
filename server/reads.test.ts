@@ -40,6 +40,7 @@ test("public flow data excludes internal execution and error detail", () => {
 	assert.equal("lastErrorDetail" in result, false);
 	assert.equal("currentRawTransaction" in result, false);
 	assert.deepEqual(result.evidence, {
+		depositTxHash: null,
 		originTxHash: null,
 		claimTxHash: null,
 		renewalTxHash: null,
@@ -51,12 +52,14 @@ test("public flow data excludes internal execution and error detail", () => {
 test("public flow evidence contains only public transaction and executor data", () => {
 	const flow = { id: "00000000-0000-4000-8000-000000000001" } as typeof flows.$inferSelect;
 	const result = publicFlowView(flow, {
+		depositTxHash: `0x${"0".repeat(64)}`,
 		originTxHash: `0x${"1".repeat(64)}`,
 		claimTxHash: null,
 		renewalTxHash: `0x${"2".repeat(64)}`,
 		executorAddress: "0x0000000000000000000000000000000000000001",
 		executorIsRelayer: false,
 	});
+	assert.equal(result.evidence.depositTxHash, `0x${"0".repeat(64)}`);
 	assert.equal(result.evidence.executorAddress, "0x0000000000000000000000000000000000000001");
 	assert.equal(result.evidence.executorIsRelayer, false);
 	assert.equal("currentRawTransaction" in result.evidence, false);

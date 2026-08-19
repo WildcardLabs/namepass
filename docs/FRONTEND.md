@@ -48,7 +48,10 @@ user-facing copy. It also uses the origin chain. `submitting_origin` and `waitin
 an Ethereum renewal when the origin is Ethereum. The same states describe a Circle transfer for
 Base, Arbitrum, or Arc. A direct Ethereum renewal must not show transfer or burn copy. After an
 origin receipt is available, flow cards show `amountProcessed` instead of the earlier detected
-amount. A reverted Ethereum origin says that the renewal did not go through. A reverted source-chain
+amount. An expanded pending card also shows confirmed transaction evidence with explorer links.
+It shows the detected deposit first and adds the Circle burn only after its receipt succeeds. It
+does not present a submitted transaction as complete. A reverted Ethereum origin says that the
+renewal did not go through. A reverted source-chain
 origin says that the Circle transfer did not go through.
 
 The Leaderboard contains only names with at least one completed renewal. The server applies this

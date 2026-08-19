@@ -155,8 +155,9 @@ export async function publicFlow(id: string) {
 	const originIntent = alias(transactionIntents, "origin_intent");
 	const claimIntent = alias(transactionIntents, "claim_intent");
 	const [row] = await database()
-		.select({ flow: flows, origin: originIntent, claim: claimIntent })
+		.select({ flow: flows, depositTxHash: deposits.txHash, origin: originIntent, claim: claimIntent })
 		.from(flows)
+		.leftJoin(deposits, eq(flows.depositEventId, deposits.eventId))
 		.leftJoin(originIntent, eq(flows.originTxIntentId, originIntent.id))
 		.leftJoin(claimIntent, eq(flows.claimTxIntentId, claimIntent.id))
 		.where(eq(flows.id, id));
@@ -183,6 +184,7 @@ export async function publicFlow(id: string) {
 	const relayer = configuredRelayerAddress();
 	return {
 		flow: publicFlowView(row.flow, {
+			depositTxHash: row.depositTxHash,
 			originTxHash: row.origin?.currentTxHash ?? null,
 			claimTxHash: row.claim?.currentTxHash ?? null,
 			renewalTxHash: renewal?.txHash ?? null,
@@ -262,6 +264,7 @@ export function publicNameView(name: typeof names.$inferSelect) {
 }
 
 export type PublicFlowEvidence = {
+	depositTxHash: string | null;
 	originTxHash: string | null;
 	claimTxHash: string | null;
 	renewalTxHash: string | null;
@@ -272,6 +275,7 @@ export type PublicFlowEvidence = {
 export function publicFlowView(
 	flow: typeof flows.$inferSelect,
 	evidence: PublicFlowEvidence = {
+		depositTxHash: null,
 		originTxHash: null,
 		claimTxHash: null,
 		renewalTxHash: null,
