@@ -79,10 +79,15 @@ export function fmtDelivered(seconds: bigint): string {
 	return m > 0n ? `${yPart} ${m} month${m === 1n ? "" : "s"}` : yPart;
 }
 
-/** "+6.0y" or "+228d" for sub-year durations. */
+/** "+6.0y", "+228d", "+12h", or "+1m" for compact renewal durations. */
 export function fmtDuration(seconds: bigint): string {
 	const tenths = (seconds * 10n + YEAR_SECONDS / 2n) / YEAR_SECONDS;
 	if (tenths >= 10n) return `+${tenths / 10n}.${tenths % 10n}y`;
+	if (seconds < 3_600n) {
+		const minutes = seconds === 0n ? 0n : (seconds + 59n) / 60n;
+		return `+${minutes}m`;
+	}
+	if (seconds < 86_400n) return `+${seconds / 3_600n}h`;
 	return `+${seconds / 86_400n}d`;
 }
 
