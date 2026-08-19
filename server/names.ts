@@ -3,7 +3,7 @@ import { alias } from "drizzle-orm/pg-core";
 
 import { readEnsState, readNativeUsdcBalances, ensNamehash, labelHash } from "./chain";
 import { database } from "./db/client";
-import { flows, names, transactionIntents, watchedAddresses } from "./db/schema";
+import { deposits, flows, names, transactionIntents, watchedAddresses } from "./db/schema";
 import { minimumTriggerAmount } from "./config";
 import { ApiError } from "./http";
 import type { ActivityCursor } from "./http";
@@ -107,15 +107,36 @@ export async function publicName(label: string) {
 	const db = database();
 	const [name] = await db.select().from(names).where(eq(names.normalizedLabel, normalized));
 	if (!name) throw new ApiError(404, "name_not_found", "This name is not activated.");
+	const originIntent = alias(transactionIntents, "name_origin_intent");
+	const claimIntent = alias(transactionIntents, "name_claim_intent");
 	const [activeFlows, balances] = await Promise.all([
 		db
-			.select()
+			.select({
+				flow: flows,
+				depositTxHash: deposits.txHash,
+				originTxHash: originIntent.currentTxHash,
+				claimTxHash: claimIntent.currentTxHash,
+			})
 			.from(flows)
+			.leftJoin(deposits, eq(flows.depositEventId, deposits.eventId))
+			.leftJoin(originIntent, eq(flows.originTxIntentId, originIntent.id))
+			.leftJoin(claimIntent, eq(flows.claimTxIntentId, claimIntent.id))
 			.where(and(eq(flows.nameId, name.id), notInArray(flows.status, ["settled", "cancelled", "failed"])))
 			.orderBy(desc(flows.createdAt)),
 		publicBalances(name.depositAddress),
 	]);
-	return { name: publicNameView(name), activeFlows: activeFlows.map((flow) => publicFlowView(flow)), balances };
+	return {
+		name: publicNameView(name),
+		activeFlows: activeFlows.map(({ flow, depositTxHash, originTxHash, claimTxHash }) => publicFlowView(flow, {
+			depositTxHash,
+			originTxHash,
+			claimTxHash,
+			renewalTxHash: null,
+			executorAddress: null,
+			executorIsRelayer: false,
+		})),
+		balances,
+	};
 }
 
 export async function nameActivity(label: string, limit: number, cursor?: ActivityCursor) {
@@ -129,10 +150,12 @@ export async function nameActivity(label: string, limit: number, cursor?: Activi
 	const activityFlows = await db
 		.select({
 			flow: flows,
+			depositTxHash: deposits.txHash,
 			originTxHash: originIntent.currentTxHash,
 			claimTxHash: claimIntent.currentTxHash,
 		})
 		.from(flows)
+		.leftJoin(deposits, eq(flows.depositEventId, deposits.eventId))
 		.leftJoin(originIntent, eq(flows.originTxIntentId, originIntent.id))
 		.leftJoin(claimIntent, eq(flows.claimTxIntentId, claimIntent.id))
 		.where(and(
@@ -145,7 +168,8 @@ export async function nameActivity(label: string, limit: number, cursor?: Activi
 	return {
 		name: publicNameView(name),
 		renewals: renewals.items.map((item) => item.renewal),
-		flows: activityFlows.map(({ flow, originTxHash, claimTxHash }) => publicFlowView(flow, {
+		flows: activityFlows.map(({ flow, depositTxHash, originTxHash, claimTxHash }) => publicFlowView(flow, {
+			depositTxHash,
 			originTxHash,
 			claimTxHash,
 			renewalTxHash: null,

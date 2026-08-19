@@ -7,6 +7,18 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-19 — Pending flows show confirmed transactions, not optimistic steps
+
+An ongoing CCTP flow can wait for Circle for many minutes after its deposit and burn have already
+succeeded. The pending card now shows those confirmed transactions with source-chain explorer
+links. This gives verifiable progress without changing the workflow status copy.
+
+The card adds the deposit when the flow has a linked Goldsky deposit event. It adds the Circle burn
+only after the workflow has validated a successful origin receipt. A transaction hash can exist
+before its receipt, so a submitted hash is not enough to display a step as complete. Claim and
+renewal transactions remain in completed Activity after settlement because the pending card closes
+when that final receipt succeeds.
+
 ### 2026-08-19 — A new balance is preparing before it is stuck
 
 The selected-name API reads the deposit wallet balance and the workflow row from different sources.
