@@ -30,6 +30,10 @@ validates the complete set before it enables a manual renewal. It shows the floo
 until this read succeeds. The endpoint can also return the optional public relayer address. It
 never returns the relayer private key.
 
+An eligible balance can become visible before its automatic flow row. The pending card shows this
+gap as `preparing renewal`. It does not offer a manual retry until the balance remains unmatched for
+two reads and at least 20 seconds. An explicit flow failure remains immediately retryable.
+
 The live feed polls every 12 seconds. A selected name polls every 4 seconds while it has one of the
 eight active workflow states and every 15 seconds while idle. A held, unclaimed, failed, settled,
 or cancelled flow does not keep the fast poll active. Both views refetch on window focus and back
@@ -305,7 +309,8 @@ an owner or ENS migration can also change the expiry.
 5. `seconds` and `off` always solved from `amountApplied`, never the deposited amount.
 6. Amounts in the breakdown panel use `fmtUsdcExact`; a tier can turn on a micro-unit.
 7. `chains.ts` defines Base, Arbitrum, Arc, and Ethereum. **No Optimism.**
-8. UI enablement derives from `canTrigger()`.
+8. A manual renewal requires `canTrigger()` and, for an unmatched balance, an expired detection
+   grace period. Explicit flow failures do not use the grace period.
 9. Aggregate tiles use canonical renewals: `total received` is the sum received by completed
     renewals, and `time delivered` is the time those renewals added. Pending wallet funds remain in
     the separate pending balance section.
