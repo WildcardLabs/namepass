@@ -20,7 +20,8 @@ decimal strings or `bigint`. It does not create simulated activity.
 The activity endpoints return canonical `Renewed` events. The global endpoint also returns up to
 six live workflow rows so a fresh Explorer load can show in-flight work. A payment event is not
 shown as a completed renewal. Each renewal keeps `Funded by` separate from `Processed by`. The first value
-comes only from an exact linked deposit. The second value comes from the permanent `Renewed`
+comes from an exact linked deposit or one unique recovered deposit match. An ambiguous recovery
+states why the sender is unavailable. The second value comes from the permanent `Renewed`
 executor fact. A recent canonical delete removes the row on the next poll.
 
 The selected-name endpoints return one native-USDC balance per active chain. An `amount: null`
@@ -32,7 +33,8 @@ never returns the relayer private key.
 
 An eligible balance can become visible before its automatic flow row. The pending card shows this
 gap as `preparing renewal`. It does not offer a manual retry until the balance remains unmatched for
-two reads and at least 20 seconds. An explicit flow failure remains immediately retryable.
+two reads and at least 20 seconds. A recent stopped flow with eligible funds shows its safe error
+code and deposit evidence. It is immediately retryable.
 
 The live feed polls every 12 seconds. A selected name polls every 4 seconds while it has one of the
 eight active workflow states and every 15 seconds while idle. A held, unclaimed, failed, settled,
@@ -40,7 +42,7 @@ or cancelled flow does not keep the fast poll active. Both views refetch on wind
 off after errors.
 The live feed and per-name activity use ten-row pages with `Previous` and `Next` controls. They
 consume the activity cursor only when the user opens an older page. The per-name flow list contains
-only pending, held, unclaimed, or failed work. Settled renewals appear only in activity. Funding
+pending, held, unclaimed, failed, and actionable stopped work. Settled renewals appear only in activity. Funding
 controls appear only after activation returns from the API.
 
 The browser preserves each active backend flow status. `flowPresentation.ts` supplies only the

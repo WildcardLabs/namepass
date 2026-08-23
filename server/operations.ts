@@ -1,13 +1,18 @@
-import { and, eq, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, like, lte, notInArray, or, sql } from "drizzle-orm";
 
 import { readNativeUsdcBalances } from "./chain";
 import { minimumTriggerAmount } from "./config";
 import { withDatabaseLease, database } from "./db/client";
-import { chainEvents, flows, names, transactionIntents } from "./db/schema";
+import { chainEvents, deposits, flows, names, transactionIntents } from "./db/schema";
 import { logOperation } from "./log";
 import { broadcastTransaction, relayerAccount, verifiedChainClient } from "./transactions";
 import { startRenewalWorkflow } from "./workflows";
 import { chainById, SERVER_CHAINS, type ChainKey } from "../src/lib/chains";
+import {
+	queueStoppedFlow,
+	stoppedDepositFlowCandidate,
+	stoppedFlowRecoveryAction,
+} from "./stopped-flows";
 
 const RECOVERY_LEASE = 0x4e414d45;
 const RECOVERY_LIMIT = 10;
@@ -152,12 +157,73 @@ export function resumableRecoveryCandidate(now: Date) {
 						and ${transactionIntents.status} <> 'reverted'
 				)`,
 			),
+			and(
+				stoppedDepositFlowCandidate(),
+				sql`exists (
+					select 1 from ${deposits}
+					join ${chainEvents} on ${chainEvents.eventId} = ${deposits.eventId}
+					where ${deposits.eventId} = ${flows.depositEventId}
+						and ${deposits.status} in ('detected', 'finalized')
+						and ${chainEvents.canonical} = true
+				)`,
+			),
 		),
 		or(
 			isNull(flows.workflowRunId),
 			lte(flows.updatedAt, new Date(now.getTime() - STARTING_STALE_MS)),
 		),
 	);
+}
+
+async function recoverFlow(flowId: string): Promise<void> {
+	const [row] = await database().select({
+		flow: flows,
+		depositAmount: deposits.amount,
+		depositStatus: deposits.status,
+		canonical: chainEvents.canonical,
+		depositAddress: names.depositAddress,
+	}).from(flows)
+		.innerJoin(names, eq(flows.nameId, names.id))
+		.leftJoin(deposits, eq(flows.depositEventId, deposits.eventId))
+		.leftJoin(chainEvents, eq(deposits.eventId, chainEvents.eventId))
+		.where(eq(flows.id, flowId));
+	if (!row) return;
+	if (!["cancelled", "failed"].includes(row.flow.status) || row.flow.originTxIntentId) {
+		await startRenewalWorkflow(flowId);
+		return;
+	}
+	if (!row.depositAmount || !row.canonical || !["detected", "finalized"].includes(row.depositStatus ?? "")) {
+		return;
+	}
+	const chainId = Number(row.flow.originChainId);
+	const [balanceRead] = await readNativeUsdcBalances(row.depositAddress, [chainId]);
+	if (balanceRead?.amount === undefined) return;
+	const balance = BigInt(balanceRead.amount);
+	const action = stoppedFlowRecoveryAction({
+		chainId,
+		balance,
+		amountDetected: row.flow.amountDetected,
+		depositAmount: row.depositAmount,
+	});
+	if (action === "none") return;
+	if (action === "resume_original") {
+		if (await queueStoppedFlow(row.flow, "cron")) await startRenewalWorkflow(row.flow.id);
+		return;
+	}
+	const [created] = await database().insert(flows).values({
+		nameId: row.flow.nameId,
+		originChainId: row.flow.originChainId,
+		trigger: "recovery",
+		status: "queued",
+		holdReason: "multiple_or_unlinked_deposits",
+		amountDetected: balance.toString(),
+	}).onConflictDoNothing().returning({ id: flows.id });
+	const [winner] = created ? [created] : await database().select({ id: flows.id }).from(flows).where(and(
+		eq(flows.nameId, row.flow.nameId),
+		eq(flows.originChainId, row.flow.originChainId),
+		notInArray(flows.status, ["settled", "cancelled", "failed"]),
+	));
+	if (winner) await startRenewalWorkflow(winner.id);
 }
 
 export function overdueUnclaimedRecoveryCandidate(now: Date) {
@@ -222,7 +288,7 @@ export async function recoverOperations(now = new Date()): Promise<RecoveryRepor
 		const batch = await recoveryBatch(now);
 		await clearStaleStartingMarkers(batch, now);
 		const repaired = await processRecoveryBatch(batch, {
-			startFlow: startRenewalWorkflow,
+			startFlow: recoverFlow,
 			scanName: scanUnscannedName,
 			broadcastIntent: broadcastTransaction,
 		});

@@ -30,6 +30,7 @@ import {
 	transactionIntents,
 } from "./db/schema";
 import { setFlowStatus } from "./flow-state";
+import { automaticDepositBalanceBlock, depositBalanceAction } from "./deposit-eligibility";
 import { parseEnsRenewalExpiry } from "./ens-renewal";
 import {
 	ensureTransactionBroadcast,
@@ -69,6 +70,8 @@ export type CctpFlow = {
 	depositEventId: string | null;
 	depositTxHash: Hex | null;
 	depositLogIndex: number | null;
+	depositBlockNumber: string | null;
+	eligibilityBlockNumber: string | null;
 	depositCanonical: boolean | null;
 	depositStatus: typeof deposits.$inferSelect.status | null;
 	depositAmount: string | null;
@@ -136,6 +139,13 @@ export async function loadCctpFlow(flowId: string): Promise<CctpFlow | undefined
 		.leftJoin(claimIntent, eq(flows.claimTxIntentId, claimIntent.id))
 		.where(eq(flows.id, flowId));
 	if (!row) return undefined;
+	const eligibilityBlockNumber = await automaticDepositBalanceBlock({
+		trigger: row.flow.trigger,
+		nameId: row.flow.nameId,
+		chainId: row.flow.originChainId,
+		createdAt: row.flow.createdAt,
+		linkedBlockNumber: row.deposit?.blockNumber ?? null,
+	});
 	return {
 		id: row.flow.id,
 		nameId: row.flow.nameId,
@@ -146,6 +156,8 @@ export async function loadCctpFlow(flowId: string): Promise<CctpFlow | undefined
 		depositEventId: row.flow.depositEventId,
 		depositTxHash: (row.deposit?.txHash as Hex | undefined) ?? null,
 		depositLogIndex: row.deposit?.logIndex ?? null,
+		depositBlockNumber: row.deposit?.blockNumber ?? null,
+		eligibilityBlockNumber,
 		depositCanonical: row.event?.canonical ?? null,
 		depositStatus: row.deposit?.status ?? null,
 		depositAmount: row.deposit?.amount ?? null,
@@ -188,7 +200,10 @@ export async function confirmCctpDeposit(flowId: string): Promise<"ready" | "can
 		rpc.getTransactionReceipt({ hash: flow.depositTxHash }),
 		chain.key === "arc" ? rpc.getTransaction({ hash: flow.depositTxHash }) : Promise.resolve(undefined),
 	]);
-	if (receipt.status !== "success") {
+	if (
+		receipt.status !== "success"
+		|| (flow.depositBlockNumber !== null && receipt.blockNumber !== BigInt(flow.depositBlockNumber))
+	) {
 		await setFlowStatus(flowId, "cancelled", {}, "deposit_not_canonical");
 		return "cancelled";
 	}
@@ -230,6 +245,9 @@ export async function checkCctpEligibility(flowId: string): Promise<"ready" | "h
 	await setFlowStatus(flowId, "checking_name");
 	const chain = originChain(flow);
 	const rpc = await verifiedChainClient(chain);
+	const balanceBlock = flow.eligibilityBlockNumber !== null
+		? BigInt(flow.eligibilityBlockNumber)
+		: undefined;
 	const [ens, balance] = await Promise.all([
 		readEnsState(flow.label),
 		rpc.readContract({
@@ -238,13 +256,18 @@ export async function checkCctpEligibility(flowId: string): Promise<"ready" | "h
 			functionName: "balanceOf",
 			args: [flow.depositAddress],
 			authorizationList: undefined,
+			blockNumber: balanceBlock,
 		}),
 	]);
 	if (!ens.renewableBy) {
 		await setFlowStatus(flowId, "held", { holdReason: "name_not_renewable" }, "name_not_renewable");
 		return "held";
 	}
-	if (balance === 0n) {
+	const balanceAction = depositBalanceAction(balance, balanceBlock);
+	if (balanceAction !== "ready") {
+		if (balanceAction === "retry") {
+			throw new Error("The deposit block does not contain the verified wallet balance.");
+		}
 		await setFlowStatus(flowId, "cancelled", {}, "empty_wallet");
 		return "cancelled";
 	}

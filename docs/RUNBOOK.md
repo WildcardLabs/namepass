@@ -202,7 +202,9 @@ balance, raw Goldsky payload, or signed transaction.
 The recovery job has a transaction-scoped PostgreSQL advisory lock. It takes at most 10 rows from
 each recovery category. It checks stale workflow IDs through Vercel Workflow. It restarts any
 resumable workflow stage and reconciles a cancelled row that still owns a non-reverted transaction
-intent. It restarts a flow
+intent. It also checks a stopped `empty_wallet` flow that has one canonical deposit. If the live
+balance is eligible and equals that deposit, it queues the same flow and keeps the deposit
+evidence. If several deposits fund the balance, it creates an unlinked recovery flow. It restarts a flow
 only when the stored run is missing or terminal. It does not replace a pending or running
 Workflow run. The CCTP workflow owns its active Iris polling.
 
@@ -274,7 +276,12 @@ Run all drills on the stable testnet environment first. Do not edit production r
 4. **Activation scan:** make one testnet RPC unavailable during activation. Restore it and call the
    recovery endpoint. Confirm that only the recorded chain is read and then removed from
    `unscanned_chain_ids`.
-5. **Neon restore:** create a disposable Neon branch from the required restore point. Apply the
+5. **Stopped deposit:** use an eligible canonical deposit and stop its Workflow run before an
+   origin transaction exists. Confirm that the public name response shows `empty_wallet`, the
+   deposit transaction, and a retry. Call the recovery endpoint. Confirm that it checks the live
+   balance, replaces only a missing or terminal Workflow owner, and settles the same flow ID.
+   Repeat with two deposits. Confirm that activity reports multiple deposits instead of one sender.
+6. **Neon restore:** create a disposable Neon branch from the required restore point. Apply the
    migration and fixtures there. Verify row counts, one canonical event, one flow, and one
    transaction intent. Do not point Vercel or Goldsky at the restored branch. The database operator
    records the result and deletes the drill branch after review.

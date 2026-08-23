@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { publicDepositView, publicFlowView, publicNameView, publicRenewalView } from "./reads";
+import { publicDepositView, publicFlowView, publicNameView, publicRenewalView, recoveredDepositMatches } from "./reads";
 import type { chainEvents, deposits, flows, names } from "./db/schema";
 
 test("public flow data excludes internal execution and error detail", () => {
@@ -138,6 +138,28 @@ test("public renewal data uses permanent facts after raw payload expiry", () => 
 	assert.equal(result.amountApplied, "4900000");
 	assert.equal(result.expiryAfter, "2033-05-18T03:33:20.000Z");
 	assert.equal(result.executorAddress, "0x0000000000000000000000000000000000000001");
+	assert.equal(result.funderUnavailableReason, "deposit_not_linked");
+	const accumulated = publicRenewalView(
+		{
+			eventId: "11155111:renewed:accumulated",
+			txHash: `0x${"4".repeat(64)}`,
+			blockTime: now,
+			facts: {
+				executor_address: "0x0000000000000000000000000000000000000001",
+				amount_received: "5000000",
+				gas_allowance: "100000",
+				amount_applied: "4900000",
+				duration: "31536000",
+				from_cctp: "false",
+			},
+		} as typeof chainEvents.$inferSelect,
+		{ id: "accumulated", originChainId: "11155111", trigger: "automatic", depositEventId: null } as typeof flows.$inferSelect,
+		null,
+		null,
+		null,
+		null,
+	);
+	assert.equal(accumulated.funderUnavailableReason, "multiple_deposits");
 });
 
 test("public renewal data uses the receipt expiry when the indexer event is late", () => {
@@ -162,4 +184,25 @@ test("public renewal data uses the receipt expiry when the indexer event is late
 	} as typeof flows.$inferSelect;
 
 	assert.equal(publicRenewalView(event, flow, null, null, null, null).expiryAfter, "2033-05-18T03:33:20.000Z");
+});
+
+test("recovered activity accepts only one exact stopped deposit", () => {
+	const target = {
+		flowId: "manual",
+		nameId: "name",
+		originChainId: "84532",
+		amountReceived: "20000000",
+		createdAt: new Date("2026-08-21T12:05:00.000Z"),
+	};
+	const candidate = {
+		flowId: "automatic",
+		nameId: "name",
+		originChainId: "84532",
+		amountDetected: "20000000",
+		depositAmount: "20000000",
+		createdAt: new Date("2026-08-21T12:00:00.000Z"),
+	};
+	assert.equal(recoveredDepositMatches(target, candidate), true);
+	assert.equal(recoveredDepositMatches(target, { ...candidate, depositAmount: "10000000" }), false);
+	assert.equal(recoveredDepositMatches(target, { ...candidate, originChainId: "421614" }), false);
 });

@@ -17,7 +17,7 @@ export interface ActivityEvent {
 	gasAllowance: bigint; amountApplied: bigint; seconds: bigint; off: string;
 	nameExpiryAfter: number | null; funder: string; executor: string; executorIsRelayer: boolean; steps: FlowStep[];
 }
-export interface ChainBalance { chainId: string; chain: string; amount: bigint | null; holdReason: HoldReason; }
+export interface ChainBalance { chainId: string; chain: string; amount: bigint | null; holdReason: HoldReason; flowErrorCode?: string | null; }
 export interface ChainFlow { chain: string; originChainId: string; amount: bigint; status: FlowStatus; startedAt: number; id: string; api: PublicFlow; }
 export interface PendingState { balances: ChainBalance[]; flows: ChainFlow[]; renewable: boolean; gasAllowance: bigint; }
 export interface NameRecord {
@@ -49,7 +49,9 @@ export function renewalEvent(renewal: PublicRenewal, label: string): ActivityEve
 		seconds: micro(renewal.durationSeconds),
 		off: solve(amountApplied, labelLength(label)).off,
 		nameExpiryAfter: renewal.expiryAfter ? milliseconds(renewal.expiryAfter) : null,
-		funder: renewal.funderAddress ?? "Sender unavailable",
+		funder: renewal.funderAddress ?? (renewal.funderUnavailableReason === "multiple_deposits"
+			? "Sender unavailable — multiple deposits"
+			: "Sender unavailable — deposit not linked"),
 		executor: renewal.executorAddress,
 		executorIsRelayer: renewal.executorIsRelayer,
 		steps,
@@ -94,7 +96,7 @@ function unclaimedBalance(balance: PublicChainBalance, flows: PublicFlow[]): Pub
 
 function holdReason(flow: PublicFlow): HoldReason {
 	if (flow.status === "unclaimed") return "flow_in_progress";
-	if (flow.status === "failed") return "flow_failed";
+	if (["cancelled", "failed"].includes(flow.status)) return "flow_failed";
 	if (flow.holdReason === "origin_reverted") return "flow_failed";
 	if (flow.holdReason === "balance_recovery") return "not_detected";
 	if (flow.holdReason === "amount_below_policy") return "below_threshold";
@@ -125,8 +127,14 @@ function setName(name: PublicName, activity?: NameActivityRead): NameRecord {
 			.map((balance) => {
 				const flow = sourceFlows.find((candidate) =>
 					candidate.originChainId === balance.chainId
-					&& !["settled", "cancelled"].includes(candidate.status));
-				return { chainId: balance.chainId, chain: chainName(balance.chainId), amount: balance.amount === null ? null : micro(balance.amount), holdReason: balanceReason(name, flow, balance) };
+					&& candidate.status !== "settled");
+				return {
+					chainId: balance.chainId,
+					chain: chainName(balance.chainId),
+					amount: balance.amount === null ? null : micro(balance.amount),
+					holdReason: balanceReason(name, flow, balance),
+					flowErrorCode: flow?.lastErrorCode,
+				};
 			}),
 	} : current?.pending ?? {
 		renewable: Boolean(name.renewableBy),

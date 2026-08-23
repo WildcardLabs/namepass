@@ -14,6 +14,7 @@ import {
 	transactionUnitWei,
 } from "./operations";
 import { RAW_PAYLOAD_RETENTION_MS, rawPayloadExpiresAt } from "./retention";
+import { stoppedFlowRecoveryAction } from "./stopped-flows";
 
 test("raw payload expiry is exactly 30 days", () => {
 	const now = new Date("2026-08-11T12:00:00.000Z");
@@ -80,8 +81,30 @@ test("recovery checks every stale resumable stage and due unclaimed workflow own
 	assert.ok(resumable.params.includes("waiting_origin"));
 	assert.ok(resumable.params.includes("waiting_claim"));
 	assert.ok(resumable.params.includes("cancelled"));
+	assert.ok(resumable.params.includes("empty_wallet"));
 	assert.ok(unclaimed.params.includes("unclaimed"));
 	assert.ok(resumable.params.includes(stale));
 	assert.ok(unclaimed.params.includes(stale));
 	assert.ok(unclaimed.params.includes(now.toISOString()));
+});
+
+test("stopped-flow recovery keeps exact deposit evidence and rejects false attribution", () => {
+	assert.equal(stoppedFlowRecoveryAction({
+		chainId: 84532,
+		balance: 20_000_000n,
+		amountDetected: "20000000",
+		depositAmount: "20000000",
+	}), "resume_original");
+	assert.equal(stoppedFlowRecoveryAction({
+		chainId: 84532,
+		balance: 30_000_000n,
+		amountDetected: "20000000",
+		depositAmount: "20000000",
+	}), "create_unlinked");
+	assert.equal(stoppedFlowRecoveryAction({
+		chainId: 84532,
+		balance: 100_000n,
+		amountDetected: "20000000",
+		depositAmount: "20000000",
+	}), "none");
 });

@@ -34,9 +34,12 @@ export async function setFlowStatus(
 		const [flow] = await tx.select({ status: flows.status }).from(flows).where(eq(flows.id, flowId));
 		if (!flow) throw new Error("The flow does not exist.");
 		const now = new Date();
+		const terminalError = reasonCode && (toStatus === "cancelled" || toStatus === "failed")
+			? { lastErrorCode: reasonCode }
+			: {};
 		await tx
 			.update(flows)
-			.set({ ...patch, ...statusTime(toStatus, now), status: toStatus, updatedAt: now })
+			.set({ ...terminalError, ...patch, ...statusTime(toStatus, now), status: toStatus, updatedAt: now })
 			.where(eq(flows.id, flowId));
 		if (flow.status !== toStatus) {
 			await tx.insert(flowTransitions).values({

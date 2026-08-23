@@ -6,11 +6,12 @@ import { normalizeLabel } from "../src/lib/namepass";
 import { readNativeUsdcBalances } from "./chain";
 import { minimumTriggerAmount } from "./config";
 import { database } from "./db/client";
-import { chainEvents, deposits, flows, names, transactionIntents } from "./db/schema";
+import { chainEvents, deposits, flows, flowTransitions, names, transactionIntents } from "./db/schema";
 import { ApiError, handler, json, readObject } from "./http";
 import { logOperation } from "./log";
 import { startRenewalWorkflow } from "./workflows";
 import { rawPayloadExpiresAt } from "./retention";
+import { STOPPED_DEPOSIT_ERROR, stoppedFlowReason } from "./stopped-flows";
 
 const COMMON_FIELDS = [
 	"event_id",
@@ -715,6 +716,46 @@ export const postgresGoldskyStore: GoldskyStore = {
 						.onConflictDoNothing()
 						.returning({ id: flows.id });
 					if (created) return created.id;
+					if (depositEventId) {
+						const [linked] = await tx.select({
+							flow: flows,
+							reasonCode: stoppedFlowReason(),
+						}).from(flows).where(eq(flows.depositEventId, depositEventId));
+						if (linked) {
+							const [active] = await tx.select({ id: flows.id }).from(flows).where(and(
+								eq(flows.nameId, nameId),
+								eq(flows.originChainId, String(chainId)),
+								notInArray(flows.status, ["settled", "cancelled", "failed"]),
+							));
+							if (active) return active.id;
+							const safeToResume = [STOPPED_DEPOSIT_ERROR, "deposit_orphaned"].includes(linked.reasonCode ?? "")
+								&& ["cancelled", "failed"].includes(linked.flow.status)
+								&& linked.flow.originTxIntentId === null
+								&& linked.flow.renewalEventId === null;
+							if (safeToResume) {
+								const now = new Date();
+								await tx.update(flows).set({
+									status: "queued",
+									holdReason: null,
+									lastErrorCode: null,
+									lastErrorDetail: null,
+									nextActionAt: null,
+									queuedAt: now,
+									cancelledAt: null,
+									failedAt: null,
+									updatedAt: now,
+								}).where(eq(flows.id, linked.flow.id));
+								await tx.insert(flowTransitions).values({
+									flowId: linked.flow.id,
+									fromStatus: linked.flow.status,
+									toStatus: "queued",
+									actor: "webhook",
+									reasonCode: "duplicate_deposit_resume",
+								});
+							}
+							return linked.flow.id;
+						}
+					}
 					const [existing] = await tx
 						.select({ id: flows.id })
 						.from(flows)
@@ -729,9 +770,9 @@ export const postgresGoldskyStore: GoldskyStore = {
 					return existing.id;
 				},
 				async cancelUnbroadcastFlow(nameId, chainId) {
-					await tx
+					const cancelled = await tx
 						.update(flows)
-						.set({ status: "cancelled", cancelledAt: new Date(), updatedAt: new Date() })
+						.set({ status: "cancelled", lastErrorCode: "deposit_orphaned", cancelledAt: new Date(), updatedAt: new Date() })
 						.where(
 							and(
 								eq(flows.nameId, nameId),
@@ -739,7 +780,16 @@ export const postgresGoldskyStore: GoldskyStore = {
 								isNull(flows.originTxIntentId),
 								inArray(flows.status, ["queued", "confirming_deposit", "checking_name", "held"]),
 							),
-						);
+						)
+						.returning({ id: flows.id });
+					for (const flow of cancelled) {
+						await tx.insert(flowTransitions).values({
+							flowId: flow.id,
+							toStatus: "cancelled",
+							actor: "webhook",
+							reasonCode: "deposit_orphaned",
+						});
+					}
 				},
 			}),
 		),

@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNotNull, lt, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import { database } from "./db/client";
@@ -9,6 +9,7 @@ import { PUBLIC_CHAINS } from "../src/lib/chains";
 import { checksumAddress } from "../src/lib/namepass";
 import { CHAIN_TRIGGER_CONFIG, configuredRelayerAddress } from "./config";
 import { readNativeUsdcBalances } from "./chain";
+import { stoppedDepositFlowCandidate, stoppedFlowReason } from "./stopped-flows";
 
 const PUBLIC_CACHE = { "cache-control": "public, s-maxage=30, stale-while-revalidate=60" };
 const LIVE_FLOW_STATUSES = [
@@ -106,13 +107,14 @@ export async function renewalActivity(
 		.orderBy(desc(chainEvents.blockTime), desc(chainEvents.eventId))
 		.limit(limit + 1);
 	const page = rows.slice(0, limit);
+	const recoveredDeposits = await recoveredActivityDeposits(page);
 	const last = page[page.length - 1]?.event;
 	return {
 		items: page.map(({ event, name, flow, deposit, ensFacts, originTxHash, claimTxHash }) => ({
 			renewal: publicRenewalView(
 				event,
 				flow,
-				deposit,
+				deposit ?? recoveredDeposits.get(flow.id) ?? null,
 				ensFacts,
 				originTxHash,
 				claimTxHash,
@@ -124,6 +126,104 @@ export async function renewalActivity(
 				? { blockTime: last.blockTime, eventId: last.eventId }
 				: undefined,
 	};
+}
+
+type RecoveryTarget = {
+	flowId: string;
+	nameId: string;
+	originChainId: string;
+	amountReceived: string;
+	createdAt: Date;
+};
+
+type RecoveryCandidate = {
+	flowId: string;
+	nameId: string;
+	originChainId: string;
+	amountDetected: string;
+	depositAmount: string;
+	createdAt: Date;
+};
+
+export function recoveredDepositMatches(target: RecoveryTarget, candidate: RecoveryCandidate): boolean {
+	const delay = target.createdAt.getTime() - candidate.createdAt.getTime();
+	return target.nameId === candidate.nameId
+		&& target.originChainId === candidate.originChainId
+		&& target.amountReceived === candidate.amountDetected
+		&& candidate.amountDetected === candidate.depositAmount
+		&& delay >= 0
+		&& delay <= 24 * 60 * 60 * 1_000;
+}
+
+async function recoveredActivityDeposits(
+	rows: ReadonlyArray<{
+		event: typeof chainEvents.$inferSelect;
+		name: typeof names.$inferSelect;
+		flow: typeof flows.$inferSelect;
+		deposit: typeof deposits.$inferSelect | null;
+	}>,
+): Promise<Map<string, typeof deposits.$inferSelect>> {
+	const missing = rows.filter((row) => row.deposit === null && row.flow.depositEventId === null);
+	if (!missing.length) return new Map();
+	const candidates = await database().select({
+		flow: flows,
+		deposit: deposits,
+	}).from(flows)
+		.innerJoin(deposits, eq(flows.depositEventId, deposits.eventId))
+		.innerJoin(chainEvents, eq(deposits.eventId, chainEvents.eventId))
+		.where(and(
+			inArray(flows.nameId, [...new Set(missing.map((row) => row.name.id))]),
+			stoppedDepositFlowCandidate(),
+			inArray(deposits.status, ["detected", "finalized"]),
+			eq(chainEvents.canonical, true),
+		));
+	const targets = missing.map((row) => ({
+		flowId: row.flow.id,
+		nameId: row.name.id,
+		originChainId: row.flow.originChainId,
+		amountReceived: String((row.event.facts as Record<string, unknown>).amount_received),
+		createdAt: row.flow.createdAt,
+	}));
+	const candidateViews = candidates.map((candidate) => ({
+		flowId: candidate.flow.id,
+		nameId: candidate.flow.nameId,
+		originChainId: candidate.flow.originChainId,
+		amountDetected: candidate.flow.amountDetected,
+		depositAmount: candidate.deposit.amount,
+		createdAt: candidate.flow.createdAt,
+	}));
+	if (!candidateViews.length) return new Map();
+	const earliestCandidate = new Date(Math.min(...candidateViews.map((candidate) => candidate.createdAt.getTime())));
+	const latestTarget = new Date(
+		Math.max(...candidateViews.map((candidate) => candidate.createdAt.getTime())) + 24 * 60 * 60 * 1_000,
+	);
+	const allTargetRows = await database().select({ flow: flows, event: chainEvents })
+		.from(flows)
+		.innerJoin(chainEvents, eq(flows.renewalEventId, chainEvents.eventId))
+		.where(and(
+			inArray(flows.nameId, [...new Set(missing.map((row) => row.name.id))]),
+			isNotNull(flows.renewalEventId),
+			eq(chainEvents.canonical, true),
+			gte(flows.createdAt, earliestCandidate),
+			lte(flows.createdAt, latestTarget),
+		));
+	const allTargets = allTargetRows.map((row) => ({
+		flowId: row.flow.id,
+		nameId: row.flow.nameId,
+		originChainId: row.flow.originChainId,
+		amountReceived: String((row.event.facts as Record<string, unknown>).amount_received),
+		createdAt: row.flow.createdAt,
+	}));
+	const result = new Map<string, typeof deposits.$inferSelect>();
+	for (const target of targets) {
+		const matches = candidateViews.filter((candidate) => recoveredDepositMatches(target, candidate));
+		if (matches.length !== 1) continue;
+		const candidate = matches[0]!;
+		if (allTargets.filter((other) => recoveredDepositMatches(other, candidate)).length !== 1) continue;
+		const deposit = candidates.find((row) => row.flow.id === candidate.flowId)?.deposit;
+		if (deposit) result.set(target.flowId, deposit);
+	}
+	return result;
 }
 
 export async function leaderboard(limit: number) {
@@ -155,7 +255,13 @@ export async function publicFlow(id: string) {
 	const originIntent = alias(transactionIntents, "origin_intent");
 	const claimIntent = alias(transactionIntents, "claim_intent");
 	const [row] = await database()
-		.select({ flow: flows, depositTxHash: deposits.txHash, origin: originIntent, claim: claimIntent })
+		.select({
+			flow: flows,
+			depositTxHash: deposits.txHash,
+			origin: originIntent,
+			claim: claimIntent,
+			reasonCode: stoppedFlowReason(),
+		})
 		.from(flows)
 		.leftJoin(deposits, eq(flows.depositEventId, deposits.eventId))
 		.leftJoin(originIntent, eq(flows.originTxIntentId, originIntent.id))
@@ -183,7 +289,10 @@ export async function publicFlow(id: string) {
 	const executor = typeof facts?.executor_address === "string" ? checksumAddress(facts.executor_address) : null;
 	const relayer = configuredRelayerAddress();
 	return {
-		flow: publicFlowView(row.flow, {
+		flow: publicFlowView({
+			...row.flow,
+			lastErrorCode: row.flow.lastErrorCode ?? row.reasonCode,
+		}, {
 			depositTxHash: row.depositTxHash,
 			originTxHash: row.origin?.currentTxHash ?? null,
 			claimTxHash: row.claim?.currentTxHash ?? null,
@@ -217,6 +326,12 @@ export function publicRenewalView(
 		flowId: flow.id,
 		originChainId: flow.originChainId,
 		funderAddress: deposit?.senderAddress ? checksumAddress(deposit.senderAddress) : null,
+		funderUnavailableReason: deposit
+			? null
+			: (flow.holdReason === "multiple_or_unlinked_deposits"
+				|| (flow.trigger === "automatic" && flow.depositEventId === null))
+				? "multiple_deposits"
+				: "deposit_not_linked",
 		executorAddress,
 		executorIsRelayer: relayer !== null && executorAddress === relayer,
 		amountReceived: String(facts.amount_received),
