@@ -405,10 +405,11 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 		let failures = 0;
 		const schedule = (delay: number) => {
 			window.clearTimeout(timer);
+			if (document.hidden) return;
 			timer = window.setTimeout(() => void load(), delay);
 		};
 		const load = async () => {
-			if (stopped || loading.current) return;
+			if (stopped || document.hidden || loading.current) return;
 			loading.current = true;
 			try {
 				const feed = await getActivity(undefined, ACTIVITY_PAGE_SIZE);
@@ -432,14 +433,20 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 		};
 		const focus = () => {
 			window.clearTimeout(timer);
-			void load();
+			if (!document.hidden) void load();
+		};
+		const visibility = () => {
+			window.clearTimeout(timer);
+			if (!document.hidden) void load();
 		};
 		void load();
 		window.addEventListener("focus", focus);
+		document.addEventListener("visibilitychange", visibility);
 		return () => {
 			stopped = true;
 			window.clearTimeout(timer);
 			window.removeEventListener("focus", focus);
+			document.removeEventListener("visibilitychange", visibility);
 		};
 	}, []);
 
@@ -1341,10 +1348,11 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 		let loading = false;
 		const schedule = (delay: number) => {
 			window.clearTimeout(timer);
+			if (document.hidden) return;
 			timer = window.setTimeout(() => void load(), delay);
 		};
 		const load = async () => {
-			if (stopped || loading) return;
+			if (stopped || document.hidden || loading) return;
 			loading = true;
 			try {
 				const activity = await getNameActivity(selected, undefined, ACTIVITY_PAGE_SIZE);
@@ -1373,14 +1381,20 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 		};
 		const focus = () => {
 			window.clearTimeout(timer);
-			void load();
+			if (!document.hidden) void load();
+		};
+		const visibility = () => {
+			window.clearTimeout(timer);
+			if (!document.hidden) void load();
 		};
 		void load();
 		window.addEventListener("focus", focus);
+		document.addEventListener("visibilitychange", visibility);
 		return () => {
 			stopped = true;
 			window.clearTimeout(timer);
 			window.removeEventListener("focus", focus);
+			document.removeEventListener("visibilitychange", visibility);
 		};
 	}, [selected, reload, configVersion]);
 

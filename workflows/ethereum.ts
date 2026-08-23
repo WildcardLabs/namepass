@@ -9,6 +9,7 @@ import {
 	prepareEthereumRenewalStep,
 	simulateEthereumRenewalStep,
 } from "./ethereum-steps";
+import { receiptPollDelay } from "./receipt-polling";
 
 export function ethereumResumeStage(flow: {
 	status: string;
@@ -45,9 +46,9 @@ export async function ethereumRenewal(
 	}
 	if (!intentId) throw new Error("The Ethereum flow has no transaction intent.");
 	await broadcastEthereumRenewalStep(intentId);
-	for (;;) {
+	for (let attempt = 0; ; attempt += 1) {
 		const result = await confirmEthereumRenewalStep(flowId, intentId);
 		if (result !== "waiting") return result;
-		await sleep("5s");
+		await sleep(receiptPollDelay(attempt));
 	}
 }
