@@ -138,10 +138,11 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 		let loading = false;
 		const schedule = (delay: number) => {
 			window.clearTimeout(timer);
+			if (document.hidden) return;
 			timer = window.setTimeout(() => void load(), delay);
 		};
 		const load = async () => {
-			if (stopped || loading) return;
+			if (stopped || document.hidden || loading) return;
 			loading = true;
 			try {
 				syncLeaderboard(await getLeaderboard());
@@ -159,14 +160,20 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 		};
 		const focus = () => {
 			window.clearTimeout(timer);
-			void load();
+			if (!document.hidden) void load();
+		};
+		const visibility = () => {
+			window.clearTimeout(timer);
+			if (!document.hidden) void load();
 		};
 		void load();
 		window.addEventListener("focus", focus);
+		document.addEventListener("visibilitychange", visibility);
 		return () => {
 			stopped = true;
 			window.clearTimeout(timer);
 			window.removeEventListener("focus", focus);
+			document.removeEventListener("visibilitychange", visibility);
 		};
 	}, []);
 

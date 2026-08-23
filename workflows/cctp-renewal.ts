@@ -13,6 +13,7 @@ import {
 	simulateCctpClaimStep,
 	simulateCctpOriginStep,
 } from "./cctp-steps";
+import { receiptPollDelay } from "./receipt-polling";
 
 export function cctpResumeStage(flow: {
 	status: string;
@@ -75,11 +76,11 @@ export async function cctpRenewal(
 		}
 		if (!originIntentId) throw new Error("The CCTP flow has no origin transaction intent.");
 		await broadcastCctpTransactionStep(originIntentId);
-		for (;;) {
+		for (let attempt = 0; ; attempt += 1) {
 			const result = await confirmCctpOriginStep(flowId, originIntentId);
 			if (result === "held") return "held";
 			if (result === "attestation") break;
-			await sleep("5s");
+			await sleep(receiptPollDelay(attempt));
 		}
 		flow = (await loadCctpFlowStep(flowId))!;
 		resume = cctpResumeStage(flow);
@@ -106,9 +107,9 @@ export async function cctpRenewal(
 	}
 	if (!claimIntentId) throw new Error("The CCTP flow has no claim transaction intent.");
 	await broadcastCctpTransactionStep(claimIntentId);
-	for (;;) {
+	for (let attempt = 0; ; attempt += 1) {
 		const result = await confirmCctpClaimStep(flowId, claimIntentId);
 		if (result !== "waiting") return result;
-		await sleep("5s");
+		await sleep(receiptPollDelay(attempt));
 	}
 }

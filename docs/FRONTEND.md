@@ -37,7 +37,8 @@ two reads and at least 20 seconds. An explicit flow failure remains immediately 
 The live feed polls every 12 seconds. A selected name polls every 4 seconds while it has one of the
 eight active workflow states and every 15 seconds while idle. A held, unclaimed, failed, settled,
 or cancelled flow does not keep the fast poll active. Both views refetch on window focus and back
-off after errors.
+off after errors. The live feed, selected name, and Leaderboard stop polling while the browser tab
+is hidden. They refresh when the tab becomes visible.
 The live feed and per-name activity use ten-row pages with `Previous` and `Next` controls. They
 consume the activity cursor only when the user opens an older page. The per-name flow list contains
 only pending, held, unclaimed, or failed work. Settled renewals appear only in activity. Funding
