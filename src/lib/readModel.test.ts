@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { activeFlows, activityEmptyState, canTrigger, flowAmount, hasActiveFlow, leaderboardNames, recentActivity, renewalEvent, syncFeed, syncLeaderboard, syncName } from "./readModel";
+import { activeFlows, activityEmptyState, canRecheckName, canTrigger, flowAmount, hasActiveFlow, leaderboardNames, recentActivity, renewalEvent, syncFeed, syncLeaderboard, syncName } from "./readModel";
 import { PUBLIC_CHAINS } from "./chains";
 import { setRates } from "./pricing";
 import type { PublicFlow } from "./publicApi";
@@ -191,6 +191,9 @@ test("pending balances do not count money owned by an active flow twice", () => 
 });
 
 test("an inactive name never presents a held balance as queued behind a renewal", () => {
+	setPublicConfig({
+		chains: PUBLIC_CHAINS.map((chain) => ({ chainId: chain.chainId, minimumTriggerAmount: "500000" })),
+	});
 	const record = syncName({
 		name: {
 			label: "inactive-test",
@@ -221,6 +224,16 @@ test("an inactive name never presents a held balance as queued behind a renewal"
 		flowErrorCode: null,
 	}]);
 	expect(activityEmptyState(record)).toBe("no_completed_renewals");
+	expect(canRecheckName(record.pending.balances[0]!)).toBe(true);
+});
+
+test("an inactive balance must meet its chain minimum before ENS can be rechecked", () => {
+	expect(canRecheckName({
+		chainId: "11155111",
+		chain: "Ethereum",
+		amount: 499999n,
+		holdReason: "name_inactive",
+	})).toBe(false);
 });
 
 test("historical renewals remain activity when the name becomes inactive and receives more funds", () => {

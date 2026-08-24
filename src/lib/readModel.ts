@@ -222,5 +222,12 @@ export function canTrigger(pending: PendingState, balance: ChainBalance): boolea
 	const minimum = minTrigger(balance.chainId);
 	return minimum !== undefined && balance.amount !== null && pending.renewable && balance.amount >= minimum && ["not_detected", "flow_failed"].includes(balance.holdReason);
 }
+export function canRecheckName(balance: ChainBalance): boolean {
+	const minimum = minTrigger(balance.chainId);
+	return minimum !== undefined
+		&& balance.amount !== null
+		&& balance.amount >= minimum
+		&& balance.holdReason === "name_inactive";
+}
 export function totalHeld(pending: PendingState): bigint { return pending.balances.reduce((total, balance) => total + (balance.amount ?? 0n), 0n); }
 export function totalInFlight(pending: PendingState): bigint { return pending.flows.reduce((total, flow) => total + flow.amount, 0n); }
