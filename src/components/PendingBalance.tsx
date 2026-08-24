@@ -130,12 +130,15 @@ export default function PendingBalance({ record, onSettled }: Props) {
 			</>
 		);
 	} else {
-		summary = (
-			<>
-				{held > 0n ? `${fmtUsdc(held)} waiting` : "Balance unavailable"} on {chains.length} chain
-				{chains.length === 1 ? "" : "s"}
-			</>
-		);
+		const onlyBalance = p.balances.length === 1 ? p.balances[0] : undefined;
+		summary = onlyBalance && onlyBalance.amount !== null
+			? <>{fmtUsdc(onlyBalance.amount)} · {holdLabel(onlyBalance.holdReason, minTrigger(onlyBalance.chainId), onlyBalance.chainId)}</>
+			: (
+				<>
+					{held > 0n ? `${fmtUsdc(held)} waiting` : "Balance unavailable"} on {chains.length} chain
+					{chains.length === 1 ? "" : "s"}
+				</>
+			);
 	}
 
 	return (

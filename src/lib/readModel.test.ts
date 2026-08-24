@@ -190,6 +190,38 @@ test("pending balances do not count money owned by an active flow twice", () => 
 	expect(record.pending.flows.find((active) => active.id === "active")?.status).toBe("confirming_deposit");
 });
 
+test("an inactive name never presents a held balance as queued behind a renewal", () => {
+	const record = syncName({
+		name: {
+			label: "inactive-test",
+			displayName: "inactive-test.eth",
+			depositAddress: "0x0000000000000000000000000000000000000008",
+			activatedAt: "2026-08-10T00:00:00.000Z",
+			currentExpiry: null,
+			renewableBy: null,
+			ensSyncedAt: "2026-08-10T00:00:00.000Z",
+			unscannedChainIds: [],
+			lifetimeReceived: "0",
+			lifetimeApplied: "0",
+			timeDeliveredSeconds: "0",
+			renewalCount: "0",
+		},
+		renewals: [],
+		flows: [flow({ status: "held", holdReason: null, originChainId: "11155111" })],
+		balances: [{ chainId: "11155111", amount: "510000" }],
+		nextCursor: null,
+	});
+
+	expect(record.pending.flows).toEqual([]);
+	expect(record.pending.balances).toEqual([{
+		chainId: "11155111",
+		chain: "Ethereum",
+		amount: 510000n,
+		holdReason: "name_inactive",
+		flowErrorCode: null,
+	}]);
+});
+
 test("post-origin flow displays use the amount proven by the origin receipt", () => {
 	expect(flowAmount(flow({ amountDetected: "500000", amountProcessed: null }))).toBe(500000n);
 	expect(flowAmount(flow({ amountDetected: "500000", amountProcessed: "700000" }))).toBe(700000n);

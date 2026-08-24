@@ -60,8 +60,8 @@ export function renewalEvent(renewal: PublicRenewal, label: string): ActivityEve
 
 function balanceReason(name: PublicName, flow: PublicFlow | undefined, balance: PublicChainBalance): HoldReason {
 	if (balance.amount === null) return "unknown";
-	if (flow) return holdReason(flow);
 	if (!name.renewableBy) return "name_inactive";
+	if (flow) return holdReason(flow);
 	const minimum = minTrigger(balance.chainId);
 	if (minimum === undefined) return "unknown";
 	return micro(balance.amount) < minimum ? "below_threshold" : "not_detected";

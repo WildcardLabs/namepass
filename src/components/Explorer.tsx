@@ -775,6 +775,11 @@ function NameDetail({
 	const allEvents = [...record.events].reverse();
 	const renewalEvents = allEvents.filter((event) => event.kind === "renewal");
 	const activationEvent = allEvents.find((event) => event.kind === "activated");
+	const hasPendingPayment = record.pending.balances.some(
+		(balance) => balance.amount !== null && balance.amount > 0n,
+	) || record.flows.some(
+		(flow) => flow.status !== "cancelled" && flowAmount(flow) > 0n,
+	);
 	const activityStart = activityPage * ACTIVITY_PAGE_SIZE;
 	const events = renewalEvents.slice(activityStart, activityStart + ACTIVITY_PAGE_SIZE);
 	if (!hasNextActivity && activationEvent) events.push(activationEvent);
@@ -1097,7 +1102,7 @@ function NameDetail({
 					</span>
 					{allEvents.length <= 1 && (
 						<span className="text-[12px] text-[rgba(30,50,90,0.5)]">
-							Waiting for the first payment
+							{hasPendingPayment ? "No completed renewals yet" : "Waiting for the first payment"}
 						</span>
 					)}
 				</div>
