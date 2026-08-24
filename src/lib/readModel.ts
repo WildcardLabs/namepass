@@ -10,6 +10,7 @@ export { minTrigger, setPublicConfig } from "./triggerConfig";
 export type EventKind = "activated" | "deposit" | "renewal";
 export type FlowStatus = ActiveFlowStatus;
 export type HoldReason = "flow_in_progress" | "below_threshold" | "name_inactive" | "not_detected" | "flow_failed" | "unknown";
+export type ActivityEmptyState = "no_completed_renewals" | "waiting_first_payment" | null;
 
 export interface FlowStep { kind: "deposit" | "burn" | "renewal"; chain: string; tx: string; }
 export interface ActivityEvent {
@@ -181,6 +182,15 @@ export function syncName(activity: NameActivityRead): NameRecord { return setNam
 export function allNames(): NameRecord[] { return [...records.values()]; }
 export function leaderboardNames(): NameRecord[] { return leaderboardLabels.flatMap((label) => records.get(label) ?? []); }
 export function findName(query: string): NameRecord | undefined { const label = query.trim().replace(/\.eth$/i, "").toLowerCase(); return records.get(label); }
+export function activityEmptyState(record: NameRecord): ActivityEmptyState {
+	if (record.events.some((event) => event.kind === "renewal")) return null;
+	const hasWaitingPayment = record.pending.balances.some(
+		(balance) => balance.amount !== null && balance.amount > 0n,
+	) || record.flows.some(
+		(flow) => flow.status !== "cancelled" && flowAmount(flow) > 0n,
+	);
+	return hasWaitingPayment ? "no_completed_renewals" : "waiting_first_payment";
+}
 export function nameExpiry(record: NameRecord): number { return record.onchain?.expiry ?? 0; }
 export function timeDelivered(record: NameRecord): bigint { return record.timeDeliveredSeconds; }
 export function totalReceived(record: NameRecord): bigint { return record.lifetimeReceived; }
