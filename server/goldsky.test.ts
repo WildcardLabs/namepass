@@ -87,6 +87,13 @@ class MemoryStore implements GoldskyStore, GoldskyTransaction {
 		amount: string,
 		depositEventId: string | null,
 	): Promise<string> {
+		const linked = depositEventId
+			? this.flows.find((flow) => flow.depositEventId === depositEventId)
+			: undefined;
+		if (linked) {
+			linked.status = "queued";
+			return linked.id;
+		}
 		const existing = this.flows.find(
 			(flow) => flow.nameId === nameId && flow.chainId === chainId && flow.status === "queued",
 		);
@@ -206,7 +213,7 @@ test("two small deposits start one flow when their wallet balance reaches the mi
 	assert.deepEqual(started, ["flow-1"]);
 });
 
-test("delete is idempotent and replay creates one replacement flow", async () => {
+test("delete is idempotent and replay resumes the same deposit flow", async () => {
 	const store = new MemoryStore();
 	const route = goldskyHandler(store, async () => {}, () => secret);
 
@@ -218,8 +225,8 @@ test("delete is idempotent and replay creates one replacement flow", async () =>
 	assert.equal(store.deposits.get(transfer().event_id)?.status, "orphaned");
 
 	assert.equal((await route.fetch(request(JSON.stringify(transfer("c"))))).status, 200);
-	assert.equal(store.flows.length, 2);
-	assert.deepEqual(store.flows.map((flow) => flow.status), ["cancelled", "queued"]);
+	assert.equal(store.flows.length, 1);
+	assert.deepEqual(store.flows.map((flow) => flow.status), ["queued"]);
 	assert.equal(store.deposits.get(transfer().event_id)?.status, "detected");
 	assert.equal(store.events.get(transfer().event_id)?.gsOp, "c");
 });

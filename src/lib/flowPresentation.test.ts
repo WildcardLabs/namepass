@@ -36,5 +36,6 @@ describe("flow presentation", () => {
 			"Renewal did not go through",
 		);
 		expect(flowFailurePresentation("84532").label).toBe("Transfer did not go through");
+		expect(flowFailurePresentation("84532", "empty_wallet").label).toBe("Automatic processing stopped");
 	});
 });

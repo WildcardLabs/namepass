@@ -1,4 +1,4 @@
-import { and, eq, notInArray } from "drizzle-orm";
+import { and, desc, eq, inArray, notInArray } from "drizzle-orm";
 import { parseAbi, type Address } from "viem";
 
 import { chainById } from "../src/lib/chains";
@@ -6,10 +6,15 @@ import { InvalidLabelError, normalizeLabel } from "../src/lib/namepass";
 import { readEnsState } from "./chain";
 import { minimumTriggerAmount } from "./config";
 import { database } from "./db/client";
-import { flows, flowTransitions, names } from "./db/schema";
+import { chainEvents, deposits, flows, flowTransitions, names } from "./db/schema";
 import { ApiError } from "./http";
 import { verifiedChainClient } from "./transactions";
 import { startRenewalWorkflow } from "./workflows";
+import {
+	queueStoppedFlow,
+	stoppedDepositFlowCandidate,
+	stoppedFlowRecoveryAction,
+} from "./stopped-flows";
 
 const ERC20_ABI = parseAbi(["function balanceOf(address) view returns (uint256)"]);
 const TERMINAL = ["settled", "cancelled", "failed"] as Array<typeof flows.$inferSelect.status>;
@@ -124,11 +129,28 @@ export async function triggerFlow(name: string, chainId: number): Promise<Trigge
 	const [nameRow] = await database().select().from(names).where(eq(names.normalizedLabel, label));
 	if (!nameRow) throw new ApiError(422, "name_not_active", "Activate this name before you trigger a renewal.");
 
-	const [active] = await database().select().from(flows).where(and(
-		eq(flows.nameId, nameRow.id),
-		eq(flows.originChainId, String(chainId)),
-		notInArray(flows.status, TERMINAL),
-	));
+	const [[active], [stopped]] = await Promise.all([
+		database().select().from(flows).where(and(
+			eq(flows.nameId, nameRow.id),
+			eq(flows.originChainId, String(chainId)),
+			notInArray(flows.status, TERMINAL),
+		)),
+		database().select({
+			flow: flows,
+			depositAmount: deposits.amount,
+		}).from(flows)
+			.innerJoin(deposits, eq(flows.depositEventId, deposits.eventId))
+			.innerJoin(chainEvents, eq(deposits.eventId, chainEvents.eventId))
+			.where(and(
+				eq(flows.nameId, nameRow.id),
+				eq(flows.originChainId, String(chainId)),
+				stoppedDepositFlowCandidate(),
+				inArray(deposits.status, ["detected", "finalized"]),
+				eq(chainEvents.canonical, true),
+			))
+			.orderBy(desc(flows.updatedAt))
+			.limit(1),
+	]);
 	const ens = await readEnsState(label);
 	let action = manualTriggerAction(active?.status, Boolean(ens.renewableBy), undefined);
 	if (action === "name_ineligible") {
@@ -153,11 +175,24 @@ export async function triggerFlow(name: string, chainId: number): Promise<Trigge
 		throw new ApiError(422, "balance_ineligible", "The chain balance is below the trigger minimum.");
 	}
 	if (action !== "create") return queueExisting(active!);
+	const recoveryAction = stopped ? stoppedFlowRecoveryAction({
+		chainId,
+		balance,
+		amountDetected: stopped.flow.amountDetected,
+		depositAmount: stopped.depositAmount,
+	}) : "create_unlinked";
+	if (stopped && recoveryAction === "resume_original") {
+		if (await queueStoppedFlow(stopped.flow, "api")) {
+			await start(stopped.flow.id);
+			return { flowId: stopped.flow.id, status: "queued", httpStatus: 202 };
+		}
+	}
 
 	const [created] = await database().insert(flows).values({
 		nameId: nameRow.id,
 		originChainId: String(chainId),
 		trigger: "manual",
+		holdReason: stopped ? "multiple_or_unlinked_deposits" : null,
 		amountDetected: balance.toString(),
 	}).onConflictDoNothing().returning({ id: flows.id, status: flows.status });
 	if (created) {

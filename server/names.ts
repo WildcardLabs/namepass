@@ -1,4 +1,4 @@
-import { and, desc, eq, notInArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, notInArray, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import { readEnsState, readNativeUsdcBalances, ensNamehash, labelHash } from "./chain";
@@ -12,6 +12,65 @@ import { publicBalances, publicFlowView, publicNameView, renewalActivity } from 
 import { reconcileStoredRenewals } from "./goldsky";
 import { SERVER_CHAINS } from "../src/lib/chains";
 import { depositAddress, InvalidLabelError, normalizeLabel } from "../src/lib/namepass";
+import { STOPPED_FLOW_STATUSES, stoppedFlowReason } from "./stopped-flows";
+
+const TERMINAL_FLOW_STATUSES = ["settled", "cancelled", "failed"] as Array<typeof flows.$inferSelect.status>;
+const STOPPED_FLOW_VISIBILITY_MS = 30 * 24 * 60 * 60 * 1_000;
+
+export type NameFlowRow = {
+	flow: typeof flows.$inferSelect;
+	depositTxHash: string | null;
+	originTxHash: string | null;
+	claimTxHash: string | null;
+	reasonCode: string | null;
+};
+
+async function recentNameFlows(nameId: string): Promise<NameFlowRow[]> {
+	const originIntent = alias(transactionIntents, "visible_name_origin_intent");
+	const claimIntent = alias(transactionIntents, "visible_name_claim_intent");
+	return database().select({
+		flow: flows,
+		depositTxHash: deposits.txHash,
+		originTxHash: originIntent.currentTxHash,
+		claimTxHash: claimIntent.currentTxHash,
+		reasonCode: stoppedFlowReason(),
+	}).from(flows)
+		.leftJoin(deposits, eq(flows.depositEventId, deposits.eventId))
+		.leftJoin(originIntent, eq(flows.originTxIntentId, originIntent.id))
+		.leftJoin(claimIntent, eq(flows.claimTxIntentId, claimIntent.id))
+		.where(and(
+			eq(flows.nameId, nameId),
+			or(
+				notInArray(flows.status, TERMINAL_FLOW_STATUSES),
+				and(
+					inArray(flows.status, [...STOPPED_FLOW_STATUSES]),
+					gte(flows.updatedAt, new Date(Date.now() - STOPPED_FLOW_VISIBILITY_MS)),
+				),
+			),
+		))
+		.orderBy(desc(flows.createdAt))
+		.limit(32);
+}
+
+export function visibleNameFlows(
+	rows: readonly NameFlowRow[],
+	balances: readonly { chainId: string; amount: string | null }[],
+): NameFlowRow[] {
+	const activeChains = new Set(rows
+		.filter((row) => !TERMINAL_FLOW_STATUSES.includes(row.flow.status))
+		.map((row) => row.flow.originChainId));
+	const stoppedChains = new Set<string>();
+	return rows.flatMap((row) => {
+		if (!STOPPED_FLOW_STATUSES.includes(row.flow.status as "cancelled" | "failed")) return [row];
+		const chainId = row.flow.originChainId;
+		const balance = balances.find((item) => item.chainId === chainId)?.amount;
+		const eligible = balance !== null && balance !== undefined
+			&& BigInt(balance) >= minimumTriggerAmount(Number(chainId));
+		if (!eligible || !row.reasonCode || activeChains.has(chainId) || stoppedChains.has(chainId)) return [];
+		stoppedChains.add(chainId);
+		return [{ ...row, flow: { ...row.flow, lastErrorCode: row.flow.lastErrorCode ?? row.reasonCode } }];
+	});
+}
 
 export function normalizedLabel(input: string): string {
 	try {
@@ -107,24 +166,11 @@ export async function publicName(label: string) {
 	const db = database();
 	const [name] = await db.select().from(names).where(eq(names.normalizedLabel, normalized));
 	if (!name) throw new ApiError(404, "name_not_found", "This name is not activated.");
-	const originIntent = alias(transactionIntents, "name_origin_intent");
-	const claimIntent = alias(transactionIntents, "name_claim_intent");
-	const [activeFlows, balances] = await Promise.all([
-		db
-			.select({
-				flow: flows,
-				depositTxHash: deposits.txHash,
-				originTxHash: originIntent.currentTxHash,
-				claimTxHash: claimIntent.currentTxHash,
-			})
-			.from(flows)
-			.leftJoin(deposits, eq(flows.depositEventId, deposits.eventId))
-			.leftJoin(originIntent, eq(flows.originTxIntentId, originIntent.id))
-			.leftJoin(claimIntent, eq(flows.claimTxIntentId, claimIntent.id))
-			.where(and(eq(flows.nameId, name.id), notInArray(flows.status, ["settled", "cancelled", "failed"])))
-			.orderBy(desc(flows.createdAt)),
+	const [flowRows, balances] = await Promise.all([
+		recentNameFlows(name.id),
 		publicBalances(name.depositAddress),
 	]);
+	const activeFlows = visibleNameFlows(flowRows, balances);
 	return {
 		name: publicNameView(name),
 		activeFlows: activeFlows.map(({ flow, depositTxHash, originTxHash, claimTxHash }) => publicFlowView(flow, {
@@ -145,26 +191,11 @@ export async function nameActivity(label: string, limit: number, cursor?: Activi
 	const [name] = await db.select().from(names).where(eq(names.normalizedLabel, normalized));
 	if (!name) throw new ApiError(404, "name_not_found", "This name is not activated.");
 	const renewals = await renewalActivity(limit, cursor, name.id);
-	const originIntent = alias(transactionIntents, "name_activity_origin_intent");
-	const claimIntent = alias(transactionIntents, "name_activity_claim_intent");
-	const activityFlows = await db
-		.select({
-			flow: flows,
-			depositTxHash: deposits.txHash,
-			originTxHash: originIntent.currentTxHash,
-			claimTxHash: claimIntent.currentTxHash,
-		})
-		.from(flows)
-		.leftJoin(deposits, eq(flows.depositEventId, deposits.eventId))
-		.leftJoin(originIntent, eq(flows.originTxIntentId, originIntent.id))
-		.leftJoin(claimIntent, eq(flows.claimTxIntentId, claimIntent.id))
-		.where(and(
-			eq(flows.nameId, name.id),
-			notInArray(flows.status, ["settled", "cancelled"]),
-		))
-		.orderBy(desc(flows.createdAt))
-		.limit(limit);
-	const balances = await publicBalances(name.depositAddress);
+	const [flowRows, balances] = await Promise.all([
+		recentNameFlows(name.id),
+		publicBalances(name.depositAddress),
+	]);
+	const activityFlows = visibleNameFlows(flowRows, balances).slice(0, limit);
 	return {
 		name: publicNameView(name),
 		renewals: renewals.items.map((item) => item.renewal),

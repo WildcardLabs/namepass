@@ -14,7 +14,7 @@ import ChainTag from "./ChainTag";
 /* Each reason gets its own sentence. "We tried and it failed" must never read
    the same as "waiting for the name to become renewable" — they need
    different things from whoever is looking at them. */
-function holdCopy(reason: HoldReason, minimum: bigint | undefined, chainId: string): string {
+function holdCopy(reason: HoldReason, minimum: bigint | undefined, chainId: string, errorCode?: string | null): string {
 	const floor = minimum === undefined ? "The chain minimum is not available yet." : `A renewal needs at least ${fmtUsdc(minimum)} on one chain. Balances on different chains can't be combined, so this one goes out as soon as more arrives on the same chain.`;
 	return {
 	flow_in_progress:
@@ -24,21 +24,21 @@ function holdCopy(reason: HoldReason, minimum: bigint | undefined, chainId: stri
 	below_threshold: floor,
 	not_detected:
 		"This payment wasn't picked up automatically, which shouldn't happen. Normally a renewal starts the moment funds arrive. Anyone can push it through.",
-	flow_failed: flowFailurePresentation(chainId).detail,
+	flow_failed: flowFailurePresentation(chainId, errorCode).detail,
 	unknown:
 		"The current balance or chain minimum is not available. It is not treated as zero and will be checked again.",
 	}[reason];
 }
 
 /* Scannable version of the same fact — the sentence lives in the tooltip. */
-function holdLabel(reason: HoldReason, minimum: bigint | undefined, chainId: string): string {
+function holdLabel(reason: HoldReason, minimum: bigint | undefined, chainId: string, errorCode?: string | null): string {
 	return {
 	flow_in_progress: "Queued behind the current renewal",
 	name_inactive: "Name isn't registered right now",
 	/* States the number — "too small" alone leaves nobody able to act on it. */
 	below_threshold: minimum === undefined ? "Chain minimum unavailable" : `Under the ${fmtUsdc(minimum)} minimum on this chain`,
 	not_detected: "Wasn't picked up automatically",
-	flow_failed: flowFailurePresentation(chainId).label,
+	flow_failed: flowFailurePresentation(chainId, errorCode).label,
 	unknown: "Balance or minimum unavailable",
 	}[reason];
 }
@@ -230,7 +230,7 @@ function ChainRow({
 }) {
 	const minimum = balance ? minTrigger(balance.chainId) : undefined;
 	const balanceLabel = balance
-		? detecting ? "Payment detected · preparing renewal" : holdLabel(balance.holdReason, minimum, balance.chainId)
+		? detecting ? "Payment detected · preparing renewal" : holdLabel(balance.holdReason, minimum, balance.chainId, balance.flowErrorCode)
 		: "";
 	const transactions = flow ? completedFlowTransactions(flow.api) : [];
 	return (
@@ -278,7 +278,7 @@ function ChainRow({
 						<Tooltip
 							text={detecting
 								? "The payment balance arrived before its automatic renewal appeared. Namepass is checking for the flow."
-								: holdCopy(balance.holdReason, minimum, balance.chainId)}
+								: holdCopy(balance.holdReason, minimum, balance.chainId, balance.flowErrorCode)}
 							label={`Why are these funds on ${chain} here?`}
 						/>
 					</div>

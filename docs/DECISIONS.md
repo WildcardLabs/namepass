@@ -7,6 +7,20 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-23 — Deposit eligibility reads use the verified deposit block
+
+Goldsky and the receipt check can observe a deposit before a different RPC replica serves that
+state through an unpinned `latest` call. Four automatic flows therefore recorded `empty_wallet`
+even though each wallet held 20 USDC. A finality sleep would hide some replica lag and would add an
+unnecessary delay.
+
+An indexed flow now reads the wallet balance at the canonical deposit block. An accumulated
+automatic flow uses the latest canonical deposit block available when the flow was created. An
+unavailable or impossible block result retries the workflow step. A safe stopped-flow retry uses
+the original flow only when one canonical deposit equals the full live balance. This keeps exact
+sender evidence. A balance with several deposits uses an unlinked recovery flow and states that no
+single sender is authoritative.
+
 ### 2026-08-19 — Small deposits trigger from the accumulated chain balance
 
 The Goldsky webhook used each transfer amount as the automatic trigger amount. Two separate $0.25

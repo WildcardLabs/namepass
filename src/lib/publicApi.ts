@@ -89,6 +89,7 @@ export interface PublicRenewal {
 	flowId: string;
 	originChainId: string;
 	funderAddress: string | null;
+	funderUnavailableReason?: "multiple_deposits" | "deposit_not_linked" | null;
 	executorAddress: string;
 	executorIsRelayer: boolean;
 	amountReceived: string;

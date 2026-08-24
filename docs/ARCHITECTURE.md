@@ -1191,6 +1191,13 @@ configuration fault → failed
 
 Ethereum flows skip the CCTP states.
 
+For an indexed deposit, `confirming_deposit` verifies the receipt, canonical event, token,
+destination, and amount. `checking_name` then reads the wallet balance at that verified deposit
+block. An automatic accumulated-balance flow uses the latest canonical deposit block that existed
+when the flow was created. It does not use an unpinned `latest` read. If an RPC replica cannot
+serve the verified block or returns an impossible zero balance, the step retries. It does not
+cancel the flow. Manual and balance-recovery flows without a deposit block use the live balance.
+
 Use a partial unique index for one active flow per name and chain. Active means every state except
 `settled`, `cancelled`, and `failed`. An `unclaimed` flow remains active.
 
@@ -1306,8 +1313,9 @@ because it also contains live flow state. Do not cache flow detail or per-name r
 reads contain live balances and active flow state for the frontend's fast polling loop.
 
 Both activity endpoints return canonical `Renewed` rows. The global response also includes live,
-nonterminal flow rows. The per-name activity response excludes settled and cancelled flows from its
-flow list. It does not treat a deposit as a completed renewal. The receiver recomputes name totals
+nonterminal flow rows. A per-name response also includes one recent stopped flow per chain when
+the live balance is still eligible. It returns the safe error code and available transaction
+evidence. It does not treat a deposit as a completed renewal. The receiver recomputes name totals
 from canonical events after every create, delete, or replay, so duplicate delivery and reorgs
 cannot add totals twice.
 
@@ -1326,7 +1334,12 @@ Keep the transfer sender and renewal executor separate:
 - Show `Processed by Namepass` when the executor is the configured relayer, with the full address in
   the detail view.
 - Show the raw executor address when a third party called the permissionless function.
-- Show `Sender unavailable` for `balance_recovery`. Do not invent a sender from later events.
+- A safe retry resumes the original flow when one canonical deposit equals the full wallet
+  balance. This preserves `Funded by` and the deposit transaction.
+- A recovered historical renewal can use an earlier stopped flow only when the name, chain,
+  amount, time window, and canonical deposit produce one unique match.
+- Show `Sender unavailable — multiple deposits` when several deposits fund one balance. Show
+  `Sender unavailable — deposit not linked` for other unlinked recoveries. Do not invent a sender.
 
 An address is public chain data. Do not add avatars, profile data, or claims such as “owner” or
 “supporter.” Those claims are not present on chain.
@@ -1367,11 +1380,16 @@ category per run:
 
 - any resumable workflow stage with no workflow run ID or a stale workflow owner
 - cancelled flows that have a non-reverted transaction intent but no linked renewal event
+- stopped pre-broadcast flows with `empty_wallet`, one canonical deposit, and an eligible live
+  balance
 - unclaimed CCTP flows whose next action time passed and have no workflow run ID or a stale owner
 - signed transactions that were never broadcast
 - names with a non-empty `unscanned_chain_ids`
 
-For a resumable, reconcilable cancelled, or due unclaimed flow, it starts the same idempotent workflow. A stale database owner
+For an eligible stopped flow, the job resumes the original row when the linked deposit equals the
+full wallet balance. If the balance contains more funds, it creates an unlinked recovery flow so
+one sender is not assigned to several deposits. For a resumable, reconcilable cancelled, or due
+unclaimed flow, it starts the same idempotent workflow. A stale database owner
 does not prove that the Workflow run is dead. The starter checks `getRun(runId).exists` and
 `getRun(runId).status`. It replaces the owner only when Vercel reports that the run is missing or
 terminal. It never replaces a pending or running Workflow run. The workflow itself owns

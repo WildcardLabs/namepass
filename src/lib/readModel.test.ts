@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { activeFlows, flowAmount, hasActiveFlow, leaderboardNames, recentActivity, renewalEvent, syncFeed, syncLeaderboard, syncName } from "./readModel";
+import { activeFlows, canTrigger, flowAmount, hasActiveFlow, leaderboardNames, recentActivity, renewalEvent, syncFeed, syncLeaderboard, syncName } from "./readModel";
 import { PUBLIC_CHAINS } from "./chains";
 import { setRates } from "./pricing";
 import type { PublicFlow } from "./publicApi";
@@ -72,7 +72,7 @@ test("the browser maps canonical renewal facts without inventing a sender", () =
 	}, "vitalik");
 
 	expect(event.kind).toBe("renewal");
-	expect(event.funder).toBe("Sender unavailable");
+	expect(event.funder).toBe("Sender unavailable — deposit not linked");
 	expect(event.executor).toBe("0x0000000000000000000000000000000000000002");
 	expect(event.steps.map((step) => step.kind)).toEqual(["burn", "renewal"]);
 });
@@ -193,6 +193,37 @@ test("pending balances do not count money owned by an active flow twice", () => 
 test("post-origin flow displays use the amount proven by the origin receipt", () => {
 	expect(flowAmount(flow({ amountDetected: "500000", amountProcessed: null }))).toBe(500000n);
 	expect(flowAmount(flow({ amountDetected: "500000", amountProcessed: "700000" }))).toBe(700000n);
+});
+
+test("a visible stopped flow explains the eligible balance and enables retry", () => {
+	setPublicConfig({
+		chains: PUBLIC_CHAINS.map((chain) => ({ chainId: chain.chainId, minimumTriggerAmount: "500000" })),
+	});
+	const record = syncName({
+		name: {
+			label: "stopped-test",
+			displayName: "stopped-test.eth",
+			depositAddress: "0x0000000000000000000000000000000000000008",
+			activatedAt: "2026-08-10T00:00:00.000Z",
+			currentExpiry: "2027-08-10T00:00:00.000Z",
+			renewableBy: "registrar",
+			ensSyncedAt: "2026-08-11T00:00:00.000Z",
+			unscannedChainIds: [],
+			lifetimeReceived: "0",
+			lifetimeApplied: "0",
+			timeDeliveredSeconds: "0",
+			renewalCount: "0",
+		},
+		renewals: [],
+		flows: [flow({ status: "cancelled", lastErrorCode: "empty_wallet" })],
+		balances: [{ chainId: "84532", amount: "20000000" }],
+		nextCursor: null,
+	});
+	const balance = record.pending.balances[0]!;
+	expect(record.pending.flows).toEqual([]);
+	expect(balance.holdReason).toBe("flow_failed");
+	expect(balance.flowErrorCode).toBe("empty_wallet");
+	expect(canTrigger(record.pending, balance)).toBe(true);
 });
 
 test("held and unclaimed flows do not keep the fast active-flow poll", () => {

@@ -13,6 +13,7 @@ import { labelHash, readEnsState } from "./chain";
 import { database } from "./db/client";
 import { chainEvents, deposits, flows, flowTransitions, names } from "./db/schema";
 import { setFlowStatus } from "./flow-state";
+import { automaticDepositBalanceBlock, depositBalanceAction } from "./deposit-eligibility";
 import { parseEnsRenewalExpiry } from "./ens-renewal";
 import {
 	ensureTransactionBroadcast,
@@ -41,11 +42,14 @@ export type EthereumFlow = {
 	id: string;
 	nameId: string;
 	status: string;
+	trigger: typeof flows.$inferSelect.trigger;
 	label: string;
 	depositAddress: string;
 	depositEventId: string | null;
 	depositTxHash: string | null;
 	depositLogIndex: number | null;
+	depositBlockNumber: string | null;
+	eligibilityBlockNumber: string | null;
 	depositCanonical: boolean | null;
 	depositStatus: string | null;
 	depositAmount: string | null;
@@ -178,15 +182,25 @@ export async function loadEthereumFlow(flowId: string): Promise<EthereumFlow | u
 		.where(eq(flows.id, flowId));
 	const row = rows[0];
 	if (!row) return undefined;
+	const eligibilityBlockNumber = await automaticDepositBalanceBlock({
+		trigger: row.flow.trigger,
+		nameId: row.flow.nameId,
+		chainId: row.flow.originChainId,
+		createdAt: row.flow.createdAt,
+		linkedBlockNumber: row.deposit?.blockNumber ?? null,
+	});
 	return {
 		id: row.flow.id,
 		nameId: row.flow.nameId,
 		status: row.flow.status,
+		trigger: row.flow.trigger,
 		label: row.name.normalizedLabel,
 		depositAddress: row.name.depositAddress,
 		depositEventId: row.flow.depositEventId,
 		depositTxHash: row.deposit?.txHash ?? null,
 		depositLogIndex: row.deposit?.logIndex ?? null,
+		depositBlockNumber: row.deposit?.blockNumber ?? null,
+		eligibilityBlockNumber,
 		depositCanonical: row.event?.canonical ?? null,
 		depositStatus: row.deposit?.status ?? null,
 		depositAmount: row.deposit?.amount ?? null,
@@ -211,7 +225,10 @@ export async function confirmEthereumDeposit(flowId: string): Promise<"ready" | 
 	await setStatus(flowId, "confirming_deposit");
 	const rpc = await verifiedChainClient(HUB_CHAIN);
 	const receipt = await rpc.getTransactionReceipt({ hash: flow.depositTxHash as Hex });
-	if (receipt.status !== "success") {
+	if (
+		receipt.status !== "success"
+		|| (flow.depositBlockNumber !== null && receipt.blockNumber !== BigInt(flow.depositBlockNumber))
+	) {
 		await setStatus(flowId, "cancelled", "deposit_not_canonical");
 		return "cancelled";
 	}
@@ -244,15 +261,29 @@ export async function checkEthereumEligibility(flowId: string): Promise<"ready" 
 	if (flow.status === "cancelled") return "cancelled";
 	await setStatus(flowId, "checking_name");
 	const rpc = await verifiedChainClient(HUB_CHAIN);
+	const balanceBlock = flow.eligibilityBlockNumber !== null
+		? BigInt(flow.eligibilityBlockNumber)
+		: undefined;
 	const [ens, balance] = await Promise.all([
 		readEnsState(flow.label),
-		rpc.readContract({ address: HUB_CHAIN.usdcAddress as Address, abi: ERC20_ABI, functionName: "balanceOf", args: [flow.depositAddress as Address], authorizationList: undefined }),
+		rpc.readContract({
+			address: HUB_CHAIN.usdcAddress as Address,
+			abi: ERC20_ABI,
+			functionName: "balanceOf",
+			args: [flow.depositAddress as Address],
+			authorizationList: undefined,
+			blockNumber: balanceBlock,
+		}),
 	]);
 	if (!ens.renewableBy) {
 		await setStatus(flowId, "held", "name_not_renewable");
 		return "held";
 	}
-	if (balance === 0n) {
+	const balanceAction = depositBalanceAction(balance, balanceBlock);
+	if (balanceAction !== "ready") {
+		if (balanceAction === "retry") {
+			throw new Error("The deposit block does not contain the verified wallet balance.");
+		}
 		await setStatus(flowId, "cancelled", "empty_wallet");
 		return "cancelled";
 	}

@@ -33,7 +33,13 @@ export interface FlowFailurePresentation {
 }
 
 /** Describe a reverted origin transaction without calling an Ethereum renewal a transfer. */
-export function flowFailurePresentation(originChainId: string): FlowFailurePresentation {
+export function flowFailurePresentation(originChainId: string, errorCode?: string | null): FlowFailurePresentation {
+	if (errorCode === "empty_wallet") {
+		return {
+			label: "Automatic processing stopped",
+			detail: "Automatic processing stopped before it sent a transaction. The USDC is still at this address. Anyone can retry it.",
+		};
+	}
 	if (originChainId === String(HUB_CHAIN.chainId)) {
 		return {
 			label: "Renewal did not go through",
