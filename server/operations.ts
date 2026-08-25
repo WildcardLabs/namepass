@@ -1,9 +1,10 @@
 import { and, eq, inArray, isNull, like, lte, notInArray, or, sql } from "drizzle-orm";
 
-import { readNativeUsdcBalances } from "./chain";
+import { readEnsState, readNativeUsdcBalances } from "./chain";
 import { minimumTriggerAmount } from "./config";
 import { withDatabaseLease, database } from "./db/client";
-import { chainEvents, deposits, flows, names, transactionIntents } from "./db/schema";
+import { chainEvents, deposits, flows, flowTransitions, names, transactionIntents } from "./db/schema";
+import { NAME_RECHECK_MS } from "./flow-state";
 import { logOperation } from "./log";
 import { broadcastTransaction, relayerAccount, verifiedChainClient } from "./transactions";
 import { startRenewalWorkflow } from "./workflows";
@@ -47,12 +48,14 @@ export function relayerGasLevel(balance: bigint, unit: bigint | undefined): GasL
 export interface RecoveryBatch {
 	readonly resumableFlowIds: readonly string[];
 	readonly overdueUnclaimedFlowIds: readonly string[];
+	readonly dueHeldFlowIds: readonly string[];
 	readonly unscannedNames: ReadonlyArray<{ id: string; depositAddress: string; chainIds: readonly number[] }>;
 	readonly unbroadcastIntents: ReadonlyArray<{ id: string; flowId: string; chainId: number }>;
 }
 
 export interface RecoveryActions {
 	startFlow(flowId: string): Promise<unknown>;
+	recheckHeldFlow(flowId: string): Promise<unknown>;
 	scanName(name: { id: string; depositAddress: string; chainIds: readonly number[] }): Promise<readonly string[]>;
 	broadcastIntent(intentId: string): Promise<unknown>;
 }
@@ -63,6 +66,7 @@ export interface RecoveryReport {
 	queuedFlows: number;
 	resumableFlows: number;
 	overdueUnclaimedFlows: number;
+	dueHeldFlows: number;
 	unscannedNames: number;
 	unbroadcastIntents: number;
 	failed: number;
@@ -82,6 +86,15 @@ export async function processRecoveryBatch(
 		} catch {
 			failed += 1;
 			logOperation("recovery.flow_failed", { flowId, step: "workflow_start", errorCode: "workflow_start_failed" });
+		}
+	}
+	for (const flowId of batch.dueHeldFlowIds) {
+		try {
+			await actions.recheckHeldFlow(flowId);
+			logOperation("recovery.held_name_rechecked", { flowId, step: "ens_read" });
+		} catch {
+			failed += 1;
+			logOperation("recovery.held_name_failed", { flowId, step: "ens_read", errorCode: "ens_read_failed" });
 		}
 	}
 	for (const name of batch.unscannedNames) {
@@ -107,6 +120,7 @@ export async function processRecoveryBatch(
 		queuedFlows: batch.resumableFlowIds.length,
 		resumableFlows: batch.resumableFlowIds.length,
 		overdueUnclaimedFlows: batch.overdueUnclaimedFlowIds.length,
+		dueHeldFlows: batch.dueHeldFlowIds.length,
 		unscannedNames: batch.unscannedNames.length,
 		unbroadcastIntents: batch.unbroadcastIntents.length,
 		failed,
@@ -237,11 +251,82 @@ export function overdueUnclaimedRecoveryCandidate(now: Date) {
 	);
 }
 
+export function dueHeldNameRecoveryCandidate(now: Date) {
+	return and(
+		eq(flows.status, "held"),
+		eq(flows.holdReason, "name_not_renewable"),
+		or(isNull(flows.nextActionAt), lte(flows.nextActionAt, now)),
+	);
+}
+
+type EnsState = Awaited<ReturnType<typeof readEnsState>>;
+
+export async function recheckHeldNameFlow(flowId: string, knownEns?: EnsState): Promise<void> {
+	const [row] = await database().select({
+		flow: flows,
+		label: names.normalizedLabel,
+		nameId: names.id,
+	}).from(flows)
+		.innerJoin(names, eq(flows.nameId, names.id))
+		.where(and(
+			eq(flows.id, flowId),
+			knownEns
+				? and(eq(flows.status, "held"), eq(flows.holdReason, "name_not_renewable"))
+				: dueHeldNameRecoveryCandidate(new Date()),
+		));
+	if (!row) return;
+
+	const ens = knownEns ?? await readEnsState(row.label);
+	const now = new Date();
+	const resumed = await database().transaction(async (tx) => {
+		await tx.update(names).set({
+			currentExpiry: ens.expiry,
+			renewableBy: ens.renewableBy,
+			ensSyncedAt: now,
+		}).where(eq(names.id, row.nameId));
+		if (!ens.renewableBy) {
+			await tx.update(flows).set({
+				nextActionAt: new Date(now.getTime() + NAME_RECHECK_MS),
+				updatedAt: now,
+			}).where(and(
+				eq(flows.id, flowId),
+				eq(flows.status, "held"),
+				eq(flows.holdReason, "name_not_renewable"),
+			));
+			return false;
+		}
+		const [queued] = await tx.update(flows).set({
+			status: "queued",
+			holdReason: null,
+			lastErrorCode: null,
+			nextActionAt: null,
+			workflowRunId: null,
+			queuedAt: now,
+			updatedAt: now,
+		}).where(and(
+			eq(flows.id, flowId),
+			eq(flows.status, "held"),
+			eq(flows.holdReason, "name_not_renewable"),
+		)).returning({ id: flows.id });
+		if (!queued) return false;
+		await tx.insert(flowTransitions).values({
+			flowId,
+			fromStatus: "held",
+			toStatus: "queued",
+			actor: knownEns ? "api" : "cron",
+			reasonCode: "name_became_renewable",
+		});
+		return true;
+	});
+	if (resumed) await startRenewalWorkflow(flowId);
+}
+
 async function recoveryBatch(now: Date): Promise<RecoveryBatch> {
 	const db = database();
-	const [resumable, overdueUnclaimed, unscanned, unbroadcast] = await Promise.all([
+	const [resumable, overdueUnclaimed, dueHeld, unscanned, unbroadcast] = await Promise.all([
 		db.select({ id: flows.id }).from(flows).where(resumableRecoveryCandidate(now)).limit(RECOVERY_LIMIT),
 		db.select({ id: flows.id }).from(flows).where(overdueUnclaimedRecoveryCandidate(now)).limit(RECOVERY_LIMIT),
+		db.select({ id: flows.id }).from(flows).where(dueHeldNameRecoveryCandidate(now)).limit(RECOVERY_LIMIT),
 		db.select({ id: names.id, depositAddress: names.depositAddress, chainIds: names.unscannedChainIds })
 			.from(names)
 			.where(sql`cardinality(${names.unscannedChainIds}) > 0`)
@@ -255,6 +340,7 @@ async function recoveryBatch(now: Date): Promise<RecoveryBatch> {
 	return {
 		resumableFlowIds: resumable.map((row) => row.id),
 		overdueUnclaimedFlowIds: overdueUnclaimed.map((row) => row.id),
+		dueHeldFlowIds: dueHeld.map((row) => row.id),
 		unscannedNames: unscanned.map((row) => ({
 			id: row.id,
 			depositAddress: row.depositAddress,
@@ -289,6 +375,7 @@ export async function recoverOperations(now = new Date()): Promise<RecoveryRepor
 		await clearStaleStartingMarkers(batch, now);
 		const repaired = await processRecoveryBatch(batch, {
 			startFlow: recoverFlow,
+			recheckHeldFlow: recheckHeldNameFlow,
 			scanName: scanUnscannedName,
 			broadcastIntent: broadcastTransaction,
 		});
@@ -299,6 +386,7 @@ export async function recoverOperations(now = new Date()): Promise<RecoveryRepor
 		queuedFlows: 0,
 		resumableFlows: 0,
 		overdueUnclaimedFlows: 0,
+		dueHeldFlows: 0,
 		unscannedNames: 0,
 		unbroadcastIntents: 0,
 		failed: 0,

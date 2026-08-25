@@ -8,6 +8,7 @@ import { minimumTriggerAmount } from "./config";
 import { ApiError } from "./http";
 import type { ActivityCursor } from "./http";
 import { logOperation } from "./log";
+import { recheckHeldNameFlow } from "./operations";
 import { publicBalances, publicFlowView, publicNameView, renewalActivity } from "./reads";
 import { reconcileStoredRenewals } from "./goldsky";
 import { SERVER_CHAINS } from "../src/lib/chains";
@@ -164,8 +165,39 @@ export async function activateName(input: string) {
 export async function publicName(label: string) {
 	const normalized = normalizedLabel(label);
 	const db = database();
-	const [name] = await db.select().from(names).where(eq(names.normalizedLabel, normalized));
-	if (!name) throw new ApiError(404, "name_not_found", "This name is not activated.");
+	const [storedName] = await db.select().from(names).where(eq(names.normalizedLabel, normalized));
+	if (!storedName) throw new ApiError(404, "name_not_found", "This name is not activated.");
+	let ens;
+	try {
+		ens = await readEnsState(normalized);
+	} catch {
+		logOperation("name_lookup.ens_unavailable", { step: "ens_read", errorCode: "ens_unavailable" });
+		throw new ApiError(503, "ens_unavailable", "Current ENS state is not available. Try again shortly.");
+	}
+	const now = new Date();
+	const [name] = await db.update(names).set({
+		currentExpiry: ens.expiry,
+		renewableBy: ens.renewableBy,
+		ensSyncedAt: now,
+	}).where(eq(names.id, storedName.id)).returning();
+	if (!name) throw new Error("The refreshed name does not exist.");
+	if (ens.renewableBy) {
+		const held = await db.select({ id: flows.id }).from(flows).where(and(
+			eq(flows.nameId, name.id),
+			eq(flows.status, "held"),
+			eq(flows.holdReason, "name_not_renewable"),
+		));
+		const resumed = await Promise.allSettled(held.map((flow) => recheckHeldNameFlow(flow.id, ens)));
+		for (const [index, result] of resumed.entries()) {
+			if (result.status === "rejected") {
+				logOperation("name_lookup.held_resume_failed", {
+					flowId: held[index]?.id,
+					step: "workflow_start",
+					errorCode: "workflow_start_failed",
+				});
+			}
+		}
+	}
 	const [flowRows, balances] = await Promise.all([
 		recentNameFlows(name.id),
 		publicBalances(name.depositAddress),

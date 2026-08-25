@@ -29,7 +29,7 @@ import {
 	names,
 	transactionIntents,
 } from "./db/schema";
-import { setFlowStatus } from "./flow-state";
+import { NAME_RECHECK_MS, setFlowStatus } from "./flow-state";
 import { automaticDepositBalanceBlock, depositBalanceAction } from "./deposit-eligibility";
 import { parseEnsRenewalExpiry } from "./ens-renewal";
 import {
@@ -260,7 +260,10 @@ export async function checkCctpEligibility(flowId: string): Promise<"ready" | "h
 		}),
 	]);
 	if (!ens.renewableBy) {
-		await setFlowStatus(flowId, "held", { holdReason: "name_not_renewable" }, "name_not_renewable");
+		await setFlowStatus(flowId, "held", {
+			holdReason: "name_not_renewable",
+			nextActionAt: new Date(Date.now() + NAME_RECHECK_MS),
+		}, "name_not_renewable");
 		return "held";
 	}
 	const balanceAction = depositBalanceAction(balance, balanceBlock);

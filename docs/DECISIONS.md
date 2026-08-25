@@ -7,6 +7,26 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-25 — ENS liveness comes from chain; held names recover without the UI
+
+The name API stored expiry and renewability during activation. Later selected-name reads returned
+that database snapshot. A name registered after it received funds therefore still appeared
+unregistered. Its `name_not_renewable` flow also remained held until a person used the manual UI
+action.
+
+An explicit name lookup now reads the authoritative ENS renewers before it returns. The server
+updates the database only as a cache for later activity reads. The selected-name view repeats this
+read when it opens and when browser focus returns. It does not call chain RPC from the browser.
+
+The recovery cron now rechecks held `name_not_renewable` flows on a five-minute backoff. A fresh ENS
+read updates the cached name state. When the name becomes renewable, the cron queues and starts the
+same held flow. This keeps renewal automation independent of the UI and bounds chain reads to ten
+due held flows per cron run.
+
+When an explicit lookup finds that the name is renewable, it also queues and starts matching held
+flows before it returns. This avoids a response that says the name is registered while its pending
+card still carries the old inactive hold. The cron remains the path that works without the UI.
+
 ### 2026-08-23 — Deposit eligibility reads use the verified deposit block
 
 Goldsky and the receipt check can observe a deposit before a different RPC replica serves that

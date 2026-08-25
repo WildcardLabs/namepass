@@ -36,8 +36,11 @@ gap as `preparing renewal`. It does not offer a manual retry until the balance r
 two reads and at least 20 seconds. A recent stopped flow with eligible funds shows its safe error
 code and deposit evidence. It is immediately retryable.
 
-The live feed polls every 12 seconds. A selected name polls every 4 seconds while it has one of the
-eight active workflow states and every 15 seconds while idle. A held, unclaimed, failed, settled,
+The live feed polls every 12 seconds. An explicit name lookup reads current ENS state on chain
+through the public API before the browser uses registration or renewability. Opening a selected
+name and returning focus to it repeat this liveness read. A selected name polls database-backed
+activity every 4 seconds while it has one of the eight active workflow states and every 15 seconds
+while idle. A held, unclaimed, failed, settled,
 or cancelled flow does not keep the fast poll active. Both views refetch on window focus and back
 off after errors. The live feed, selected name, and Leaderboard stop polling while the browser tab
 is hidden. They refresh when the tab becomes visible.
@@ -53,7 +56,8 @@ Completed renewals stay in activity if the name later becomes inactive or receiv
 funds. The empty activity message appears only when the name has no completed renewal rows.
 An eligible inactive balance offers `Check registration`. This action refreshes the stored ENS
 state through the activation endpoint. If ENS can renew the name, it calls the authoritative
-trigger endpoint to resume the held flow.
+trigger endpoint to resume the held flow. This is a fallback action. An ordinary name lookup now
+performs the same refresh and resumes matching held flows without a click.
 
 The browser preserves each active backend flow status. `flowPresentation.ts` supplies only the
 user-facing copy. It also uses the origin chain. `submitting_origin` and `waiting_origin` describe
@@ -100,8 +104,9 @@ Three things are real in a way the rest isn't:
 - **The prices** are ENS's own, fetched from the registrar's oracle. Only the inversion — longest
   duration a budget buys — is this app's arithmetic, and it's checked against the deployed
   helper's `quote()`.
-- **The expiry and renewability** are read by the server during activation and returned through the
-  public API. The browser does not perform a second chain read.
+- **The expiry and renewability** are read on chain by the server during activation and every
+  explicit name lookup. The database stores the latest result as a cache for activity polling and
+  recovery. The browser does not call an RPC directly.
 
   Both come from `ETHRegistrar` and `ETHRenewerV1`, which answer for **both** populations — v1's
   `BaseRegistrar` is deliberately not consulted. `findExpiry` runs 62 days later than v1's own

@@ -4,6 +4,7 @@ import { database } from "./db/client";
 import { flows, flowTransitions } from "./db/schema";
 
 export type FlowStatus = typeof flows.$inferSelect.status;
+export const NAME_RECHECK_MS = 5 * 60 * 1_000;
 
 function statusTime(status: FlowStatus, now: Date): Partial<typeof flows.$inferInsert> {
 	switch (status) {
