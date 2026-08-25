@@ -276,7 +276,12 @@ export async function checkEthereumEligibility(flowId: string): Promise<"ready" 
 		}),
 	]);
 	if (!ens.renewableBy) {
-		await setStatus(flowId, "held", "name_not_renewable");
+		await setFlowStatus(
+			flowId,
+			"held",
+			{ holdReason: "name_not_renewable" },
+			"name_not_renewable",
+		);
 		return "held";
 	}
 	const balanceAction = depositBalanceAction(balance, balanceBlock);

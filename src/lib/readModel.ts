@@ -10,6 +10,7 @@ export { minTrigger, setPublicConfig } from "./triggerConfig";
 export type EventKind = "activated" | "deposit" | "renewal";
 export type FlowStatus = ActiveFlowStatus;
 export type HoldReason = "flow_in_progress" | "below_threshold" | "name_inactive" | "not_detected" | "flow_failed" | "unknown";
+export type ActivityEmptyState = "no_completed_renewals" | "waiting_first_payment" | null;
 
 export interface FlowStep { kind: "deposit" | "burn" | "renewal"; chain: string; tx: string; }
 export interface ActivityEvent {
@@ -60,8 +61,8 @@ export function renewalEvent(renewal: PublicRenewal, label: string): ActivityEve
 
 function balanceReason(name: PublicName, flow: PublicFlow | undefined, balance: PublicChainBalance): HoldReason {
 	if (balance.amount === null) return "unknown";
-	if (flow) return holdReason(flow);
 	if (!name.renewableBy) return "name_inactive";
+	if (flow) return holdReason(flow);
 	const minimum = minTrigger(balance.chainId);
 	if (minimum === undefined) return "unknown";
 	return micro(balance.amount) < minimum ? "below_threshold" : "not_detected";
@@ -181,6 +182,15 @@ export function syncName(activity: NameActivityRead): NameRecord { return setNam
 export function allNames(): NameRecord[] { return [...records.values()]; }
 export function leaderboardNames(): NameRecord[] { return leaderboardLabels.flatMap((label) => records.get(label) ?? []); }
 export function findName(query: string): NameRecord | undefined { const label = query.trim().replace(/\.eth$/i, "").toLowerCase(); return records.get(label); }
+export function activityEmptyState(record: NameRecord): ActivityEmptyState {
+	if (record.events.some((event) => event.kind === "renewal")) return null;
+	const hasWaitingPayment = record.pending.balances.some(
+		(balance) => balance.amount !== null && balance.amount > 0n,
+	) || record.flows.some(
+		(flow) => flow.status !== "cancelled" && flowAmount(flow) > 0n,
+	);
+	return hasWaitingPayment ? "no_completed_renewals" : "waiting_first_payment";
+}
 export function nameExpiry(record: NameRecord): number { return record.onchain?.expiry ?? 0; }
 export function timeDelivered(record: NameRecord): bigint { return record.timeDeliveredSeconds; }
 export function totalReceived(record: NameRecord): bigint { return record.lifetimeReceived; }
@@ -211,6 +221,13 @@ export function hasActiveFlow(record: NameRecord): boolean { return record.flows
 export function canTrigger(pending: PendingState, balance: ChainBalance): boolean {
 	const minimum = minTrigger(balance.chainId);
 	return minimum !== undefined && balance.amount !== null && pending.renewable && balance.amount >= minimum && ["not_detected", "flow_failed"].includes(balance.holdReason);
+}
+export function canRecheckName(balance: ChainBalance): boolean {
+	const minimum = minTrigger(balance.chainId);
+	return minimum !== undefined
+		&& balance.amount !== null
+		&& balance.amount >= minimum
+		&& balance.holdReason === "name_inactive";
 }
 export function totalHeld(pending: PendingState): bigint { return pending.balances.reduce((total, balance) => total + (balance.amount ?? 0n), 0n); }
 export function totalInFlight(pending: PendingState): bigint { return pending.flows.reduce((total, flow) => total + flow.amount, 0n); }

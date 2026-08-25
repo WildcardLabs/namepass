@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { activeFlows, canTrigger, flowAmount, hasActiveFlow, leaderboardNames, recentActivity, renewalEvent, syncFeed, syncLeaderboard, syncName } from "./readModel";
+import { activeFlows, activityEmptyState, canRecheckName, canTrigger, flowAmount, hasActiveFlow, leaderboardNames, recentActivity, renewalEvent, syncFeed, syncLeaderboard, syncName } from "./readModel";
 import { PUBLIC_CHAINS } from "./chains";
 import { setRates } from "./pricing";
 import type { PublicFlow } from "./publicApi";
@@ -188,6 +188,134 @@ test("pending balances do not count money owned by an active flow twice", () => 
 	expect(reason("5042002")).toBe("flow_in_progress");
 	expect(reason("11155111")).toBe("flow_failed");
 	expect(record.pending.flows.find((active) => active.id === "active")?.status).toBe("confirming_deposit");
+});
+
+test("an inactive name never presents a held balance as queued behind a renewal", () => {
+	setPublicConfig({
+		chains: PUBLIC_CHAINS.map((chain) => ({ chainId: chain.chainId, minimumTriggerAmount: "500000" })),
+	});
+	const record = syncName({
+		name: {
+			label: "inactive-test",
+			displayName: "inactive-test.eth",
+			depositAddress: "0x0000000000000000000000000000000000000008",
+			activatedAt: "2026-08-10T00:00:00.000Z",
+			currentExpiry: null,
+			renewableBy: null,
+			ensSyncedAt: "2026-08-10T00:00:00.000Z",
+			unscannedChainIds: [],
+			lifetimeReceived: "0",
+			lifetimeApplied: "0",
+			timeDeliveredSeconds: "0",
+			renewalCount: "0",
+		},
+		renewals: [],
+		flows: [flow({ status: "held", holdReason: null, originChainId: "11155111" })],
+		balances: [{ chainId: "11155111", amount: "510000" }],
+		nextCursor: null,
+	});
+
+	expect(record.pending.flows).toEqual([]);
+	expect(record.pending.balances).toEqual([{
+		chainId: "11155111",
+		chain: "Ethereum",
+		amount: 510000n,
+		holdReason: "name_inactive",
+		flowErrorCode: null,
+	}]);
+	expect(activityEmptyState(record)).toBe("no_completed_renewals");
+	expect(canRecheckName(record.pending.balances[0]!)).toBe(true);
+});
+
+test("an inactive balance must meet its chain minimum before ENS can be rechecked", () => {
+	expect(canRecheckName({
+		chainId: "11155111",
+		chain: "Ethereum",
+		amount: 499999n,
+		holdReason: "name_inactive",
+	})).toBe(false);
+});
+
+test("historical renewals remain activity when the name becomes inactive and receives more funds", () => {
+	setRates({
+		oracle: "0x0000000000000000000000000000000000000001",
+		denom: 100n,
+		baseRates: [1n, 1n, 1n, 1n, 1n],
+		points: [{ duration: 2n, numer: 50n }],
+		tokenNumer: 1n,
+		tokenDenom: 1n,
+		readAt: 0,
+	});
+	const record = syncName({
+		name: {
+			label: "inactive-history-test",
+			displayName: "inactive-history-test.eth",
+			depositAddress: "0x0000000000000000000000000000000000000009",
+			activatedAt: "2026-08-10T00:00:00.000Z",
+			currentExpiry: null,
+			renewableBy: null,
+			ensSyncedAt: "2026-08-24T00:00:00.000Z",
+			unscannedChainIds: [],
+			lifetimeReceived: "2000000",
+			lifetimeApplied: "1900000",
+			timeDeliveredSeconds: "180",
+			renewalCount: "1",
+		},
+		renewals: [{
+			eventId: "historical-renewal",
+			flowId: "settled-flow",
+			originChainId: "84532",
+			funderAddress: "0x0000000000000000000000000000000000000010",
+			executorAddress: "0x0000000000000000000000000000000000000011",
+			executorIsRelayer: true,
+			amountReceived: "2000000",
+			gasAllowance: "100000",
+			amountApplied: "1900000",
+			durationSeconds: "180",
+			expiryAfter: "2026-08-12T00:00:00.000Z",
+			fromCctp: true,
+			depositTxHash: `0x${"1".repeat(64)}`,
+			originTxHash: `0x${"2".repeat(64)}`,
+			claimTxHash: `0x${"3".repeat(64)}`,
+			renewalTxHash: `0x${"3".repeat(64)}`,
+			blockTime: "2026-08-11T00:00:00.000Z",
+		}],
+		flows: [flow({ id: "new-held-flow", status: "held", holdReason: "name_not_renewable", originChainId: "11155111" })],
+		balances: [{ chainId: "11155111", amount: "510000" }],
+		nextCursor: null,
+	});
+
+	expect(record.events.filter((event) => event.kind === "renewal").map((event) => event.id)).toEqual(["historical-renewal"]);
+	expect(record.pending.balances[0]?.holdReason).toBe("name_inactive");
+	expect(activityEmptyState(record)).toBeNull();
+});
+
+test("activity distinguishes a new Namepass from one with a payment in progress", () => {
+	const base = {
+		label: "empty-activity-test",
+		displayName: "empty-activity-test.eth",
+		depositAddress: "0x0000000000000000000000000000000000000012",
+		activatedAt: "2026-08-24T00:00:00.000Z",
+		currentExpiry: "2027-08-24T00:00:00.000Z",
+		renewableBy: "registrar" as const,
+		ensSyncedAt: "2026-08-24T00:00:00.000Z",
+		unscannedChainIds: [],
+		lifetimeReceived: "0",
+		lifetimeApplied: "0",
+		timeDeliveredSeconds: "0",
+		renewalCount: "0",
+	};
+	const empty = syncName({ name: base, renewals: [], flows: [], balances: [], nextCursor: null });
+	expect(activityEmptyState(empty)).toBe("waiting_first_payment");
+
+	const processing = syncName({
+		name: base,
+		renewals: [],
+		flows: [flow({ status: "waiting_attestation", originChainId: "421614" })],
+		balances: [{ chainId: "421614", amount: "0" }],
+		nextCursor: null,
+	});
+	expect(activityEmptyState(processing)).toBe("no_completed_renewals");
 });
 
 test("post-origin flow displays use the amount proven by the origin receipt", () => {

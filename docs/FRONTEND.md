@@ -43,8 +43,17 @@ off after errors. The live feed, selected name, and Leaderboard stop polling whi
 is hidden. They refresh when the tab becomes visible.
 The live feed and per-name activity use ten-row pages with `Previous` and `Next` controls. They
 consume the activity cursor only when the user opens an older page. The per-name flow list contains
-pending, held, unclaimed, failed, and actionable stopped work. Settled renewals appear only in activity. Funding
-controls appear only after activation returns from the API.
+pending, held, unclaimed, failed, and actionable stopped work. Settled renewals appear only in
+activity. Funding controls appear only after activation returns from the API.
+
+An inactive name keeps deposited funds at its chain address. Its pending card says that the name
+is not registered now. It never describes those funds as queued behind a renewal. If a payment is
+waiting but no renewal has completed, the activity heading says `No completed renewals yet`.
+Completed renewals stay in activity if the name later becomes inactive or receives new waiting
+funds. The empty activity message appears only when the name has no completed renewal rows.
+An eligible inactive balance offers `Check registration`. This action refreshes the stored ENS
+state through the activation endpoint. If ENS can renew the name, it calls the authoritative
+trigger endpoint to resume the held flow.
 
 The browser preserves each active backend flow status. `flowPresentation.ts` supplies only the
 user-facing copy. It also uses the origin chain. `submitting_origin` and `waiting_origin` describe

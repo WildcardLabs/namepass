@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import {
 	activeFlows,
+	activityEmptyState,
 	allNames,
 	findName,
 	flowAmount,
@@ -775,6 +776,7 @@ function NameDetail({
 	const allEvents = [...record.events].reverse();
 	const renewalEvents = allEvents.filter((event) => event.kind === "renewal");
 	const activationEvent = allEvents.find((event) => event.kind === "activated");
+	const emptyActivity = activityEmptyState(record);
 	const activityStart = activityPage * ACTIVITY_PAGE_SIZE;
 	const events = renewalEvents.slice(activityStart, activityStart + ACTIVITY_PAGE_SIZE);
 	if (!hasNextActivity && activationEvent) events.push(activationEvent);
@@ -1095,9 +1097,9 @@ function NameDetail({
 					<span className="text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
 						Activity
 					</span>
-					{allEvents.length <= 1 && (
+					{emptyActivity && (
 						<span className="text-[12px] text-[rgba(30,50,90,0.5)]">
-							Waiting for the first payment
+							{emptyActivity === "no_completed_renewals" ? "No completed renewals yet" : "Waiting for the first payment"}
 						</span>
 					)}
 				</div>

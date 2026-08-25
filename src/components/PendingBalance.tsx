@@ -1,11 +1,11 @@
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, ChevronDown, ExternalLink, Loader2, Wallet } from "lucide-react";
-import { canTrigger, minTrigger, totalHeld, totalInFlight, type ChainBalance, type ChainFlow, type HoldReason, type NameRecord } from "../lib/readModel";
+import { canRecheckName, canTrigger, minTrigger, totalHeld, totalInFlight, type ChainBalance, type ChainFlow, type HoldReason, type NameRecord } from "../lib/readModel";
 import { flowFailurePresentation, flowPresentation } from "../lib/flowPresentation";
 import { completedFlowTransactions } from "../lib/flowTransactions";
 import { DETECTION_GRACE_MS, isDetectionPending, updateDetectionObservations, type DetectionObservations } from "../lib/detectionGrace";
-import { triggerFlow } from "../lib/publicApi";
+import { activateName, triggerFlow } from "../lib/publicApi";
 import { chainByName } from "../lib/chains";
 import { explorerUrl, fmtUsdc, truncTx } from "../lib/format";
 import Tooltip from "./Tooltip";
@@ -130,12 +130,15 @@ export default function PendingBalance({ record, onSettled }: Props) {
 			</>
 		);
 	} else {
-		summary = (
-			<>
-				{held > 0n ? `${fmtUsdc(held)} waiting` : "Balance unavailable"} on {chains.length} chain
-				{chains.length === 1 ? "" : "s"}
-			</>
-		);
+		const onlyBalance = p.balances.length === 1 ? p.balances[0] : undefined;
+		summary = onlyBalance && onlyBalance.amount !== null
+			? <>{fmtUsdc(onlyBalance.amount)} · {holdLabel(onlyBalance.holdReason, minTrigger(onlyBalance.chainId), onlyBalance.chainId)}</>
+			: (
+				<>
+					{held > 0n ? `${fmtUsdc(held)} waiting` : "Balance unavailable"} on {chains.length} chain
+					{chains.length === 1 ? "" : "s"}
+				</>
+			);
 	}
 
 	return (
@@ -175,6 +178,7 @@ export default function PendingBalance({ record, onSettled }: Props) {
 							{chains.map((chain) => {
 								const flow = p.flows.find((f) => f.chain === chain);
 								const balance = p.balances.find((b) => b.chain === chain);
+								const recheckName = balance ? canRecheckName(balance) : false;
 								return (
 									<ChainRow
 										key={chain}
@@ -182,13 +186,23 @@ export default function PendingBalance({ record, onSettled }: Props) {
 										flow={flow}
 										balance={balance}
 										detecting={balance ? detectingChainIds.has(balance.chainId) : false}
-										triggerable={balance ? canTrigger(p, balance) && !detectingChainIds.has(balance.chainId) : false}
+										triggerable={balance ? (canTrigger(p, balance) && !detectingChainIds.has(balance.chainId)) || recheckName : false}
+										actionLabel={recheckName ? "Check registration" : "Renew now"}
 										onTrigger={() => {
 											const entry = chainByName(chain);
 											if (!entry || triggering) return;
 											setTriggering(chain);
 											setTriggerError(null);
-											void triggerFlow(record.name, String(entry.chainId))
+											const start = async () => {
+												if (recheckName) {
+													const refreshed = await activateName(record.name);
+													if (!refreshed.name.renewableBy) {
+														throw new Error("ENS still cannot renew this name.");
+													}
+												}
+												await triggerFlow(record.name, String(entry.chainId));
+											};
+											void start()
 												.then(onSettled)
 												.catch((cause: unknown) => setTriggerError(cause instanceof Error ? cause.message : "Could not start the renewal."))
 												.finally(() => setTriggering(null));
@@ -219,6 +233,7 @@ function ChainRow({
 	balance,
 	detecting,
 	triggerable,
+	actionLabel,
 	onTrigger,
 }: {
 	chain: string;
@@ -226,6 +241,7 @@ function ChainRow({
 	balance?: ChainBalance;
 	detecting: boolean;
 	triggerable: boolean;
+	actionLabel: "Check registration" | "Renew now";
 	onTrigger: () => void;
 }) {
 	const minimum = balance ? minTrigger(balance.chainId) : undefined;
@@ -294,7 +310,7 @@ function ChainRow({
 					onClick={onTrigger}
 					className="shrink-0 rounded-full border border-[rgba(30,50,90,0.25)] px-3 py-1 text-[12px] text-[rgba(30,50,90,0.8)] hover:bg-[rgba(30,50,90,0.05)] transition-colors"
 				>
-					Renew now
+					{actionLabel}
 				</button>
 			)}
 		</div>
