@@ -82,6 +82,10 @@ const BALANCE_OWNED_FLOW_STATUSES = new Set([
 	"checking_name",
 	"submitting_origin",
 	"waiting_origin",
+	"waiting_attestation",
+	"submitting_claim",
+	"waiting_claim",
+	"unclaimed",
 ]);
 
 function unclaimedBalance(balance: PublicChainBalance, flows: PublicFlow[]): PublicChainBalance | undefined {

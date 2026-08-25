@@ -45,6 +45,7 @@ function booleanWord(value: string): boolean {
 async function calls(
 	rpcUrl: string,
 	requests: Array<{ to: string; signature: string; args?: string }>,
+	blockTag = "latest",
 ): Promise<string[]> {
 	const response = await fetch(rpcUrl, {
 		method: "POST",
@@ -54,7 +55,7 @@ async function calls(
 				jsonrpc: "2.0",
 				id,
 				method: "eth_call",
-				params: [{ to: request.to, data: `0x${selector(request.signature)}${request.args ?? ""}` }, "latest"],
+				params: [{ to: request.to, data: `0x${selector(request.signature)}${request.args ?? ""}` }, blockTag],
 			})),
 		),
 	});
@@ -82,7 +83,9 @@ async function calls(
 	return results;
 }
 
-async function assertRpcChainId(rpcUrl: string, expected: number): Promise<void> {
+const verifiedReadRpcs = new Map<string, Promise<void>>();
+
+async function verifyRpcChainId(rpcUrl: string, expected: number): Promise<void> {
 	const response = await fetch(rpcUrl, {
 		method: "POST",
 		headers: { "content-type": "application/json" },
@@ -96,6 +99,36 @@ async function assertRpcChainId(rpcUrl: string, expected: number): Promise<void>
 	if (BigInt(payload.result) !== BigInt(expected)) {
 		throw new Error(`The RPC reports chain ${BigInt(payload.result)}, expected ${expected}.`);
 	}
+}
+
+/** A warm function verifies each read endpoint once. Transaction writers verify every gas-spending step. */
+async function assertRpcChainId(rpcUrl: string, expected: number): Promise<void> {
+	const key = `${expected}:${rpcUrl}`;
+	let verification = verifiedReadRpcs.get(key);
+	if (!verification) {
+		verification = verifyRpcChainId(rpcUrl, expected);
+		verifiedReadRpcs.set(key, verification);
+	}
+	try {
+		await verification;
+	} catch (error) {
+		verifiedReadRpcs.delete(key);
+		throw error;
+	}
+}
+
+async function readBlockNumber(rpcUrl: string): Promise<string> {
+	const response = await fetch(rpcUrl, {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ jsonrpc: "2.0", id: 0, method: "eth_blockNumber", params: [] }),
+	});
+	if (!response.ok) throw new Error(`The RPC returned HTTP ${response.status}.`);
+	const payload = (await response.json()) as { id?: unknown; result?: unknown; error?: { message?: string } };
+	if (payload.id !== 0 || payload.error || typeof payload.result !== "string" || !/^0x[0-9a-f]+$/i.test(payload.result)) {
+		throw new Error(payload.error?.message ?? "The RPC block number response is invalid.");
+	}
+	return BigInt(payload.result).toString(10);
 }
 
 function hubRpcUrl(): string {
@@ -145,6 +178,7 @@ export async function readEnsState(label: string): Promise<EnsState> {
 export interface BalanceRead {
 	chainId: number;
 	amount?: string;
+	blockNumber?: string;
 }
 
 export async function readNativeUsdcBalances(
@@ -166,6 +200,34 @@ export async function readNativeUsdcBalances(
 					},
 				]);
 				return { chainId: chain.chainId, amount: word(raw).toString(10) };
+			} catch {
+				return { chainId: chain.chainId };
+			}
+		}),
+	);
+}
+
+/** Read a balance at one exact block so indexed events can advance the public read model. */
+export async function readNativeUsdcBalanceSnapshots(
+	address: string,
+	chainIds = SERVER_CHAINS.map((chain) => chain.chainId),
+): Promise<BalanceRead[]> {
+	const wanted = new Set(chainIds);
+	return Promise.all(
+		SERVER_CHAINS.filter((chain) => wanted.has(chain.chainId)).map(async (chain) => {
+			const rpcUrl = process.env[chain.rpcEnv];
+			if (!rpcUrl) return { chainId: chain.chainId };
+			try {
+				await assertRpcChainId(rpcUrl, chain.chainId);
+				const blockNumber = await readBlockNumber(rpcUrl);
+				const [raw] = await calls(rpcUrl, [
+					{
+						to: chain.usdcAddress,
+						signature: "balanceOf(address)",
+						args: address.replace(/^0x/, "").toLowerCase().padStart(64, "0"),
+					},
+				], `0x${BigInt(blockNumber).toString(16)}`);
+				return { chainId: chain.chainId, amount: word(raw).toString(10), blockNumber };
 			} catch {
 				return { chainId: chain.chainId };
 			}

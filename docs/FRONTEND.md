@@ -24,14 +24,17 @@ comes from an exact linked deposit or one unique recovered deposit match. An amb
 states why the sender is unavailable. The second value comes from the permanent `Renewed`
 executor fact. A recent canonical delete removes the row on the next poll.
 
-The selected-name endpoints return one native-USDC balance per active chain. An `amount: null`
-means that the server could not read that chain. The UI renders it as unavailable, never as zero.
+The selected-name endpoints return one indexed native-USDC balance per active chain. Activation
+stores an exact block-pinned chain snapshot. Public reads apply canonical Goldsky deposits and
+`DepositProcessed` events after that block. They do not call chain RPC. An `amount: null` means
+that the recovery job has not completed the chain snapshot or the indexed calculation is
+inconsistent. The UI renders it as unavailable, never as zero.
 `GET /api/config/public` returns one decimal trigger floor for every active chain. The browser
 validates the complete set before it enables a manual renewal. It shows the floor as unavailable
 until this read succeeds. The endpoint can also return the optional public relayer address. It
 never returns the relayer private key.
 
-An eligible balance can become visible before its automatic flow row. The pending card shows this
+An eligible indexed balance can become visible before its automatic flow row. The pending card shows this
 gap as `preparing renewal`. It does not offer a manual retry until the balance remains unmatched for
 two reads and at least 20 seconds. A recent stopped flow with eligible funds shows its safe error
 code and deposit evidence. It is immediately retryable.
@@ -44,6 +47,9 @@ while idle. A held, unclaimed, failed, settled,
 or cancelled flow does not keep the fast poll active. Both views refetch on window focus and back
 off after errors. The live feed, selected name, and Leaderboard stop polling while the browser tab
 is hidden. They refresh when the tab becomes visible.
+These repeated reads use Neon only. Opening a name and returning focus to its tab also refreshes
+ENS registration, expiry, and renewability from Sepolia. That explicit liveness read does not run
+in the 4-second or 15-second activity loop.
 The live feed and per-name activity use ten-row pages with `Previous` and `Next` controls. They
 consume the activity cursor only when the user opens an older page. The per-name flow list contains
 pending, held, unclaimed, failed, and actionable stopped work. Settled renewals appear only in

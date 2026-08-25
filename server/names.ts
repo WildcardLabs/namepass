@@ -1,9 +1,9 @@
 import { and, desc, eq, gte, inArray, notInArray, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
-import { readEnsState, readNativeUsdcBalances, ensNamehash, labelHash } from "./chain";
+import { readEnsState, readNativeUsdcBalanceSnapshots, ensNamehash, labelHash } from "./chain";
 import { database } from "./db/client";
-import { deposits, flows, names, transactionIntents, watchedAddresses } from "./db/schema";
+import { balanceSnapshots, deposits, flows, names, transactionIntents, watchedAddresses } from "./db/schema";
 import { minimumTriggerAmount } from "./config";
 import { ApiError } from "./http";
 import type { ActivityCursor } from "./http";
@@ -127,13 +127,14 @@ export async function activateName(input: string) {
 		return { row, inserted: Boolean(inserted) };
 	});
 
-	const balances = await readNativeUsdcBalances(address);
+	const balances = await readNativeUsdcBalanceSnapshots(address);
 	const unknownChainIds = balances
-		.filter((balance) => balance.amount === undefined)
+		.filter((balance) => balance.amount === undefined || balance.blockNumber === undefined)
 		.map((balance) => String(balance.chainId));
 	const positiveBalances = balances.filter(
 		(balance): balance is Required<typeof balance> =>
 			balance.amount !== undefined &&
+			balance.blockNumber !== undefined &&
 			BigInt(balance.amount) >= minimumTriggerAmount(balance.chainId),
 	);
 
@@ -142,6 +143,19 @@ export async function activateName(input: string) {
 			.update(names)
 			.set({ unscannedChainIds: unknownChainIds })
 			.where(eq(names.id, created.row.id));
+		for (const balance of balances) {
+			if (balance.amount === undefined || balance.blockNumber === undefined) continue;
+			await tx.insert(balanceSnapshots).values({
+				nameId: created.row.id,
+				chainId: String(balance.chainId),
+				amount: balance.amount,
+				blockNumber: balance.blockNumber,
+				updatedAt: new Date(),
+			}).onConflictDoUpdate({
+				target: [balanceSnapshots.nameId, balanceSnapshots.chainId],
+				set: { amount: balance.amount, blockNumber: balance.blockNumber, updatedAt: new Date() },
+			});
+		}
 		for (const balance of positiveBalances) {
 			await tx
 				.insert(flows)
@@ -200,7 +214,7 @@ export async function publicName(label: string) {
 	}
 	const [flowRows, balances] = await Promise.all([
 		recentNameFlows(name.id),
-		publicBalances(name.depositAddress),
+		publicBalances(name.id),
 	]);
 	const activeFlows = visibleNameFlows(flowRows, balances);
 	return {
@@ -225,7 +239,7 @@ export async function nameActivity(label: string, limit: number, cursor?: Activi
 	const renewals = await renewalActivity(limit, cursor, name.id);
 	const [flowRows, balances] = await Promise.all([
 		recentNameFlows(name.id),
-		publicBalances(name.depositAddress),
+		publicBalances(name.id),
 	]);
 	const activityFlows = visibleNameFlows(flowRows, balances).slice(0, limit);
 	return {

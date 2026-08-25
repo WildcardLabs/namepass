@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import type { flows } from "./db/schema";
 import { visibleNameFlows, type NameFlowRow } from "./names";
+
+test("polled name activity does not call chain RPC", () => {
+	const source = readFileSync(new URL("./names.ts", import.meta.url), "utf8");
+	const activityRead = source.slice(source.indexOf("export async function nameActivity"));
+	assert.doesNotMatch(activityRead, /readNativeUsdc|readEnsState|verifiedChainClient/);
+});
 
 function row(status: "queued" | "cancelled", reasonCode: string | null): NameFlowRow {
 	return {

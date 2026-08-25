@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ensNamehash, labelHash, readEnsState } from "./chain";
+import { ensNamehash, labelHash, readEnsState, readNativeUsdcBalanceSnapshots } from "./chain";
 
 test("ENS hashes match known vitalik vectors", () => {
 	assert.equal(
@@ -78,6 +78,40 @@ test("ENS reads reject an incomplete RPC batch", async () => {
 	};
 	try {
 		await assert.rejects(() => readEnsState("vitalik"), /RPC response is incomplete/);
+	} finally {
+		globalThis.fetch = previousFetch;
+		if (previousRpc === undefined) delete process.env[rpcVariable];
+		else process.env[rpcVariable] = previousRpc;
+	}
+});
+
+test("balance snapshots pin the token read to the reported block", async () => {
+	const rpcVariable = "BASE_SEPOLIA_RPC_URL";
+	const previousRpc = process.env[rpcVariable];
+	const previousFetch = globalThis.fetch;
+	process.env[rpcVariable] = "https://snapshot-rpc.test";
+	globalThis.fetch = async (_input, init) => {
+		const body = JSON.parse(String(init?.body)) as
+			| { method: string }
+			| Array<{ id: number; params: [{ data: string }, string] }>;
+		if (!Array.isArray(body)) {
+			if (body.method === "eth_chainId") {
+				return Response.json({ jsonrpc: "2.0", id: 0, result: "0x14a34" });
+			}
+			assert.equal(body.method, "eth_blockNumber");
+			return Response.json({ jsonrpc: "2.0", id: 0, result: "0x64" });
+		}
+		assert.equal(body[0]?.params[1], "0x64");
+		return Response.json([{ jsonrpc: "2.0", id: 0, result: `0x${"7a120".padStart(64, "0")}` }]);
+	};
+	try {
+		assert.deepEqual(
+			await readNativeUsdcBalanceSnapshots(
+				"0x0000000000000000000000000000000000000001",
+				[84532],
+			),
+			[{ chainId: 84532, amount: "500000", blockNumber: "100" }],
+		);
 	} finally {
 		globalThis.fetch = previousFetch;
 		if (previousRpc === undefined) delete process.env[rpcVariable];

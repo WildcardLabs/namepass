@@ -105,7 +105,7 @@ export interface PublicRenewal {
 	blockTime: string;
 }
 
-/** A null amount means the server could not read that chain. It never means zero. */
+/** A null amount means the indexed chain snapshot is unavailable or inconsistent. It never means zero. */
 export interface PublicChainBalance {
 	chainId: string;
 	amount: string | null;

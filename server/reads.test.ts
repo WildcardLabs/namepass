@@ -1,8 +1,20 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { publicDepositView, publicFlowView, publicNameView, publicRenewalView, recoveredDepositMatches } from "./reads";
+import { indexedBalanceAmount, publicDepositView, publicFlowView, publicNameView, publicRenewalView, recoveredDepositMatches } from "./reads";
 import type { chainEvents, deposits, flows, names } from "./db/schema";
+
+test("public read models do not import chain RPC", () => {
+	const source = readFileSync(new URL("./reads.ts", import.meta.url), "utf8");
+	assert.doesNotMatch(source, /from "\.\/chain"/);
+});
+
+test("indexed balances apply canonical deposits and processing after the snapshot", () => {
+	assert.equal(indexedBalanceAmount("250000", "250000", "0"), "500000");
+	assert.equal(indexedBalanceAmount("500000", "100000", "600000"), "0");
+	assert.equal(indexedBalanceAmount("0", "100000", "200000"), null);
+});
 
 test("public flow data excludes internal execution and error detail", () => {
 	const now = new Date("2026-08-11T12:00:00.000Z");
