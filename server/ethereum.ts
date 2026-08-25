@@ -12,7 +12,7 @@ import { HUB_CHAIN } from "../src/lib/chains";
 import { labelHash, readEnsState } from "./chain";
 import { database } from "./db/client";
 import { chainEvents, deposits, flows, flowTransitions, names } from "./db/schema";
-import { setFlowStatus } from "./flow-state";
+import { NAME_RECHECK_MS, setFlowStatus } from "./flow-state";
 import { automaticDepositBalanceBlock, depositBalanceAction } from "./deposit-eligibility";
 import { parseEnsRenewalExpiry } from "./ens-renewal";
 import {
@@ -279,7 +279,10 @@ export async function checkEthereumEligibility(flowId: string): Promise<"ready" 
 		await setFlowStatus(
 			flowId,
 			"held",
-			{ holdReason: "name_not_renewable" },
+			{
+				holdReason: "name_not_renewable",
+				nextActionAt: new Date(Date.now() + NAME_RECHECK_MS),
+			},
 			"name_not_renewable",
 		);
 		return "held";

@@ -1383,6 +1383,7 @@ category per run:
 - stopped pre-broadcast flows with `empty_wallet`, one canonical deposit, and an eligible live
   balance
 - unclaimed CCTP flows whose next action time passed and have no workflow run ID or a stale owner
+- held `name_not_renewable` flows whose next ENS check is due
 - signed transactions that were never broadcast
 - names with a non-empty `unscanned_chain_ids`
 
@@ -1396,6 +1397,14 @@ terminal. It never replaces a pending or running Workflow run. The workflow itse
 active Iris polling. For a stored signed
 transaction, it rebroadcasts the exact stored bytes. For an unscanned name, it re-reads only the
 listed chains, removes each chain that answers, and queues a flow if the balance is now eligible.
+For a due inactive-name hold, it reads the authoritative ENS renewers. It refreshes the cached name
+state. If the name is renewable, it queues and starts the same held flow. If the name is still not
+renewable, it schedules the next check five minutes later.
+
+An explicit public name lookup also reads the authoritative ENS renewers. If this read changes an
+inactive name to renewable, the lookup queues and starts its matching held flows before it returns.
+This removes stale UI state without making the browser an automation dependency. The cron provides
+the same recovery when no UI is open.
 
 The job does not scan every deposit address and does not compute balances from deposit arithmetic.
 Goldsky source checkpoints recover chain ingestion. Public manual trigger plus activation balance

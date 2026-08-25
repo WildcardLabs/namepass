@@ -1295,6 +1295,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 	const nameHistory = useRef<NameActivityRead["renewals"]>([]);
 	const nameCursor = useRef<string | null>(null);
 	const nameCursorInitialized = useRef(false);
+	const ensFreshLabel = useRef<string | null>(null);
 	const [nameNextCursor, setNameNextCursor] = useState<string | null>(null);
 	const [loadingOlderName, setLoadingOlderName] = useState(false);
 	const [namePageIndex, setNamePageIndex] = useState(0);
@@ -1353,10 +1354,15 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 			if (document.hidden) return;
 			timer = window.setTimeout(() => void load(), delay);
 		};
-		const load = async () => {
+		const load = async (refreshEns = false) => {
 			if (stopped || document.hidden || loading) return;
 			loading = true;
 			try {
+				const label = normalizeLabel(selected);
+				if (refreshEns || ensFreshLabel.current !== label) {
+					await getName(label);
+					ensFreshLabel.current = label;
+				}
 				const activity = await getNameActivity(selected, undefined, ACTIVITY_PAGE_SIZE);
 				if (!stopped) {
 					mergeNameHistory(activity.renewals);
@@ -1383,11 +1389,11 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 		};
 		const focus = () => {
 			window.clearTimeout(timer);
-			if (!document.hidden) void load();
+			if (!document.hidden) void load(true);
 		};
 		const visibility = () => {
 			window.clearTimeout(timer);
-			if (!document.hidden) void load();
+			if (!document.hidden) void load(true);
 		};
 		void load();
 		window.addEventListener("focus", focus);
@@ -1455,6 +1461,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 		try {
 			const label = normalizeLabel(value);
 			await getName(label);
+			ensFreshLabel.current = label;
 			onSelect(`${label}.eth`);
 			setQuery("");
 			setNotFound(null);
@@ -1524,8 +1531,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 									<button
 										key={s.name}
 										onClick={() => {
-											onSelect(s.name);
-											setQuery("");
+											void submit(s.name);
 										}}
 										className="w-full text-left px-4 py-2.5 text-[14px] text-[rgba(30,50,90,0.85)] hover:bg-[rgba(30,50,90,0.04)] transition-colors flex items-center justify-between gap-3"
 									>

@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { cronAuthorized } from "./cron";
 import * as schema from "./db/schema";
 import {
+	dueHeldNameRecoveryCandidate,
 	overdueUnclaimedRecoveryCandidate,
 	processRecoveryBatch,
 	resumableRecoveryCandidate,
@@ -28,14 +29,17 @@ test("recovery repairs queued, overdue, unscanned, and unbroadcast rows without 
 	const started = new Set<string>();
 	const broadcasts: string[] = [];
 	const scans: string[] = [];
+	const rechecked: string[] = [];
 	const actions = {
 		async startFlow(id: string) { started.add(id); },
+		async recheckHeldFlow(id: string) { rechecked.push(id); },
 		async scanName(name: { id: string }) { scans.push(name.id); return ["flow-from-scan"]; },
 		async broadcastIntent(id: string) { broadcasts.push(id); },
 	};
 	const batch = {
 		resumableFlowIds: ["queued", "shared"],
 		overdueUnclaimedFlowIds: ["overdue", "shared"],
+		dueHeldFlowIds: ["held-name"],
 		unscannedNames: [{ id: "name-1", depositAddress: "0x0", chainIds: [84532] }],
 		unbroadcastIntents: [{ id: "intent-1", flowId: "queued", chainId: 84532 }],
 	};
@@ -45,7 +49,10 @@ test("recovery repairs queued, overdue, unscanned, and unbroadcast rows without 
 	]);
 	assert.equal(first.failed, 0);
 	assert.equal(second.failed, 0);
+	assert.equal(first.dueHeldFlows, 1);
+	assert.equal(second.dueHeldFlows, 1);
 	assert.deepEqual([...started].sort(), ["flow-from-scan", "overdue", "queued", "shared"]);
+	assert.deepEqual(rechecked, ["held-name", "held-name"]);
 	assert.deepEqual(scans, ["name-1", "name-1"]);
 	assert.deepEqual(broadcasts, ["intent-1", "intent-1"]);
 });
@@ -76,6 +83,7 @@ test("recovery checks every stale resumable stage and due unclaimed workflow own
 	const db = drizzle.mock({ schema });
 	const resumable = db.select().from(schema.flows).where(resumableRecoveryCandidate(now)).toSQL();
 	const unclaimed = db.select().from(schema.flows).where(overdueUnclaimedRecoveryCandidate(now)).toSQL();
+	const held = db.select().from(schema.flows).where(dueHeldNameRecoveryCandidate(now)).toSQL();
 	const stale = new Date(now.getTime() - STARTING_STALE_MS).toISOString();
 	assert.ok(resumable.params.includes("queued"));
 	assert.ok(resumable.params.includes("waiting_origin"));
@@ -83,6 +91,9 @@ test("recovery checks every stale resumable stage and due unclaimed workflow own
 	assert.ok(resumable.params.includes("cancelled"));
 	assert.ok(resumable.params.includes("empty_wallet"));
 	assert.ok(unclaimed.params.includes("unclaimed"));
+	assert.ok(held.params.includes("held"));
+	assert.ok(held.params.includes("name_not_renewable"));
+	assert.ok(held.params.includes(now.toISOString()));
 	assert.ok(resumable.params.includes(stale));
 	assert.ok(unclaimed.params.includes(stale));
 	assert.ok(unclaimed.params.includes(now.toISOString()));
