@@ -27,6 +27,27 @@ When an explicit lookup finds that the name is renewable, it also queues and sta
 flows before it returns. This avoids a response that says the name is registered while its pending
 card still carries the old inactive hold. The cron remains the path that works without the UI.
 
+### 2026-08-25 — Explorer polls indexed balances, and terminal empty-wallet rows do not poll RPC
+
+The selected-name API read all four chain balances on every browser poll. One request used
+`eth_chainId` and `balanceOf` on four chains. An idle tab therefore used up to 320 Edge RPC methods
+in ten minutes. An active tab could use up to 1,200. This was not necessary for an explorer read.
+
+Activation and bounded recovery now store one exact balance snapshot and block number per name and
+chain. Public reads apply canonical Goldsky deposits and `DepositProcessed` events after that
+block. The 4-second and 15-second activity polls use Neon only. Transaction preflight still reads
+the live chain balance before it can move funds. A name open or focus event still reads ENS on
+Sepolia because registration and renewability can change outside Namepass.
+
+This does not restore the rejected running balance as workflow authority. The new table is a
+block-pinned read-model anchor. Canonical events advance it. The chain remains authoritative for
+activation, recovery, and transaction execution.
+
+Six old cancelled flows also kept `empty_wallet` as their historical error after later repair flows
+settled. Recovery selected those old rows every minute, read the now-empty wallet, did no work, and
+logged `recovery.flow_started`. Terminal `empty_wallet` rows are no longer cron candidates. A new
+Goldsky deposit or an explicit manual trigger supplies new evidence and can start work.
+
 ### 2026-08-23 — Deposit eligibility reads use the verified deposit block
 
 Goldsky and the receipt check can observe a deposit before a different RPC replica serves that

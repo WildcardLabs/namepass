@@ -177,8 +177,8 @@ funds arrived on mainnet but silently vanished.
 
 **Burn only after confirming the name is renewable.** This is load-bearing. Burn first on a name
 sitting in its premium auction and the funds leave the deposit address to wait as an unclaimed
-message, and the pending-balance card has nothing to show, because it reads the on-chain balance at
-the address. Gate the burn on renewability and held funds stay visible where the sender left them.
+message. The indexed pending balance then becomes zero. Gate the burn on renewability and held
+funds stay visible where the sender left them.
 
 Consequences that shape everything else:
 
@@ -495,7 +495,7 @@ an address. It therefore needs an explicit set of addresses to watch.
 5. Derive the deposit address with the deployed factory constants.
 6. In one Neon transaction, insert the name and insert the lowercase address into
    `goldsky.watched_addresses`.
-7. Read the native USDC balance of the address.
+7. Read the native USDC balance at one exact block on each chain and store the snapshots.
 8. If the balance is positive, create or find a queued flow. This recovers funds that arrived before
    activation.
 9. Return the activated name and address.
@@ -537,6 +537,11 @@ Three rules follow:
 
 Names remain in the watched set. Deleting them would make later deposits invisible. The table is
 therefore small, append-only application data, not an expiring cache.
+
+Public reads do not repeat these RPC calls. They start from each block-pinned snapshot. They add
+canonical deposits after the snapshot block and subtract canonical `DepositProcessed` amounts
+after the same block. A reorg delete changes the indexed result without another chain read. The
+chain remains authoritative when activation, recovery, or a workflow can move money.
 
 ## Goldsky Turbo
 
@@ -796,8 +801,8 @@ The contract uses the wallet's live balance. The database does not attempt to al
 deposit rows to a flow. Deposits are contribution history. The `DepositProcessed` event is the
 authority for the amount a flow actually consumed.
 
-This removes `deposit_allocations` and a derived balance ledger. The public pending balance comes
-from the latest chain read plus the active flow state.
+This removes `deposit_allocations` as an execution ledger. The public pending balance comes from a
+block-pinned chain snapshot, later canonical events, and the active flow state.
 
 ### Manual trigger
 
@@ -1071,6 +1076,22 @@ writes the chains that failed; the recovery job retries them and removes each on
 empty array means every chain was read. It is a small array on an already-small table, not a new
 table. Without it a failed read at activation is unrecoverable — see "Balance reads fail soft".
 
+### `balance_snapshots`
+
+One exact activation or recovery snapshot per name and chain.
+
+- `name_id`
+- `chain_id`
+- `amount`
+- `block_number`
+- `updated_at`
+
+Primary key: `(name_id, chain_id)`.
+
+This table is an event anchor, not a mutable running balance. Public reads apply canonical deposit
+and `DepositProcessed` events after `block_number`. Transaction execution still reads the live
+chain balance before it moves funds.
+
 ### `goldsky.watched_addresses`
 
 The dynamic table read by Goldsky.
@@ -1261,7 +1282,7 @@ Use a unique constraint on `(flow_id, kind)`. Use a second unique constraint on
 `(chain_id, from_address, nonce)`. A replacement is another signed attempt inside the same logical
 intent, not another nonce owner.
 
-### No extra tables in the first version
+### No other execution tables in the first version
 
 Do not add these old draft tables:
 
@@ -1277,6 +1298,8 @@ Do not add these old draft tables:
 events and permanent validated facts. `CCTPClaimed` supplies the exact source domain and final
 nonce. A workflow transaction intent supplies the origin transaction when Namepass ran the flow.
 `NameRenewed` supplies the expiry after renewal.
+`balance_snapshots` supplies only the block-pinned anchor for the indexed public balance. It does
+not own workflow eligibility or transaction execution.
 
 ## API and frontend reads
 
@@ -1310,14 +1333,42 @@ after its API routes. A Vercel catch-all rewrite runs first and sends `/api/*` t
 
 Use cursor pagination for activity. Cap page sizes. Do not cache the global activity response
 because it also contains live flow state. Do not cache flow detail or per-name reads. Per-name
-reads contain live balances and active flow state for the frontend's fast polling loop.
+reads contain indexed balances and active flow state for the frontend's fast polling loop.
+
+`GET /api/names/:label` refreshes ENS liveness when a person opens the name or returns focus to
+the tab. `GET /api/names/:label/activity` is the repeated poll and uses Neon only. This separation
+keeps registration state current without putting chain reads in the fast loop.
 
 Both activity endpoints return canonical `Renewed` rows. The global response also includes live,
 nonterminal flow rows. A per-name response also includes one recent stopped flow per chain when
-the live balance is still eligible. It returns the safe error code and available transaction
+the indexed balance is still eligible. It returns the safe error code and available transaction
 evidence. It does not treat a deposit as a completed renewal. The receiver recomputes name totals
 from canonical events after every create, delete, or replay, so duplicate delivery and reorgs
 cannot add totals twice.
+
+### RPC request budget
+
+Every UI path has an explicit RPC cost. JSON-RPC batch members count as separate provider
+requests even when they use one HTTP request.
+
+| Path | Normal RPC methods | Reason |
+|---|---:|---|
+| App boot | 7 Sepolia `eth_call` methods | Read both ENS oracle pointers, four pricing values, and the fixed Namepass allowance. The deployed app currently uses the public browser RPC, not Goldsky Edge. |
+| Activity, leaderboard, statistics, flow detail | 0 | Read canonical Neon data. |
+| Selected-name activity poll | 0 | Read indexed balances, renewals, and flow state from Neon. |
+| Open or refocus one name | 5 Sepolia `eth_call` methods, plus one cached `eth_chainId` on a cold function | Refresh current ENS expiry and renewability. |
+| Activate one name | 13 methods on a warm function, up to 17 on a cold function | Refresh ENS and create one block-pinned balance snapshot on each chain. |
+| Manual trigger | 7 methods on a warm function, plus cold chain checks | Verify ENS, the selected-chain balance, and the endpoint before execution. |
+
+Backend-only RPC calls also have bounded causes:
+
+- The health cron uses eight methods per run: `eth_chainId` and native gas balance on four chains.
+- A below-threshold deposit webhook reads one chain balance so separate deposits can reach the
+  trigger floor. It uses one `eth_call` plus one cached cold `eth_chainId`.
+- The recovery job reads only missing activation snapshots, due inactive-name flows, resumable
+  transactions, and active workflow evidence. It does not poll terminal `empty_wallet` flows.
+- Workflows verify chain ID, balances, simulations, receipts, and ENS state before they move money.
+  Their cost exists only while a flow runs.
 
 ### Public sender identity
 
@@ -1360,11 +1411,12 @@ Polling is sufficient and has fewer failure modes.
 ### Read-model rules
 
 - A pending balance is per name and chain.
-- The displayed balance comes from a recent native USDC `balanceOf` read.
+- The displayed balance starts from a block-pinned chain snapshot. Canonical Goldsky events advance
+  it without an RPC call in the public read path.
 - An active flow explains funds that have left the origin address.
 - An `unclaimed` flow must remain visible even though the origin balance is zero.
 - Lifetime received is the sum of `amount_received` in canonical `Renewed` events. Pending wallet
-  funds remain a separate live balance. This rule also includes renewals that happened before name
+  funds remain a separate indexed balance. This rule also includes renewals that happened before name
   activation and balance recoveries that do not have an indexed deposit event.
 - Time delivered and amount applied come from canonical `Renewed` events.
 - A protocol event seen outside a known workflow creates or reconciles an `external` flow.
@@ -1380,23 +1432,24 @@ category per run:
 
 - any resumable workflow stage with no workflow run ID or a stale workflow owner
 - cancelled flows that have a non-reverted transaction intent but no linked renewal event
-- stopped pre-broadcast flows with `empty_wallet`, one canonical deposit, and an eligible live
-  balance
 - unclaimed CCTP flows whose next action time passed and have no workflow run ID or a stale owner
 - held `name_not_renewable` flows whose next ENS check is due
 - signed transactions that were never broadcast
-- names with a non-empty `unscanned_chain_ids`
+- names with a non-empty `unscanned_chain_ids` or a missing indexed balance snapshot
 
-For an eligible stopped flow, the job resumes the original row when the linked deposit equals the
-full wallet balance. If the balance contains more funds, it creates an unlinked recovery flow so
-one sender is not assigned to several deposits. For a resumable, reconcilable cancelled, or due
-unclaimed flow, it starts the same idempotent workflow. A stale database owner
+Terminal `empty_wallet` rows are historical failures. The recovery job does not poll them. A new
+Goldsky deposit creates or resumes work. An explicit manual trigger can safely inspect and resume
+the old row when its exact deposit evidence still matches the live balance.
+
+For a resumable, reconcilable cancelled, or due unclaimed flow, the job starts the same idempotent
+workflow. A stale database owner
 does not prove that the Workflow run is dead. The starter checks `getRun(runId).exists` and
 `getRun(runId).status`. It replaces the owner only when Vercel reports that the run is missing or
 terminal. It never replaces a pending or running Workflow run. The workflow itself owns
 active Iris polling. For a stored signed
 transaction, it rebroadcasts the exact stored bytes. For an unscanned name, it re-reads only the
-listed chains, removes each chain that answers, and queues a flow if the balance is now eligible.
+listed or missing-snapshot chains, stores each exact snapshot, removes each chain that answers, and
+queues a flow if the balance is now eligible.
 For a due inactive-name hold, it reads the authoritative ENS renewers. It refreshes the cached name
 state. If the name is renewable, it queues and starts the same held flow. If the name is still not
 renewable, it schedules the next check five minutes later.

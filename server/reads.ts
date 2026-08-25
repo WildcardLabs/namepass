@@ -2,13 +2,12 @@ import { and, desc, eq, gt, gte, inArray, isNotNull, lt, lte, or, sql } from "dr
 import { alias } from "drizzle-orm/pg-core";
 
 import { database } from "./db/client";
-import { chainEvents, deposits, flows, names, transactionIntents } from "./db/schema";
+import { balanceSnapshots, chainEvents, deposits, flows, names, transactionIntents } from "./db/schema";
 import { ApiError } from "./http";
 import type { ActivityCursor } from "./http";
 import { PUBLIC_CHAINS } from "../src/lib/chains";
 import { checksumAddress } from "../src/lib/namepass";
 import { CHAIN_TRIGGER_CONFIG, configuredRelayerAddress } from "./config";
-import { readNativeUsdcBalances } from "./chain";
 import { stoppedDepositFlowCandidate, stoppedFlowReason } from "./stopped-flows";
 
 const PUBLIC_CACHE = { "cache-control": "public, s-maxage=30, stale-while-revalidate=60" };
@@ -25,11 +24,60 @@ const LIVE_FLOW_STATUSES = [
 
 export { PUBLIC_CACHE };
 
-export async function publicBalances(depositAddress: string) {
-	const balances = await readNativeUsdcBalances(depositAddress);
-	return balances.map((balance) => ({
-		chainId: String(balance.chainId),
-		amount: balance.amount ?? null,
+export function indexedBalanceAmount(snapshot: string, incoming: string, processed: string): string | null {
+	const amount = BigInt(snapshot) + BigInt(incoming) - BigInt(processed);
+	return amount >= 0n ? amount.toString() : null;
+}
+
+export function indexedBalancesQuery(nameId: string) {
+	return sql`
+		select
+			${balanceSnapshots.chainId}::text as chain_id,
+			${balanceSnapshots.amount}::text as snapshot_amount,
+			coalesce((
+					select sum(${deposits.amount})
+					from ${deposits}
+					join ${chainEvents} on ${chainEvents.eventId} = ${deposits.eventId}
+					where ${deposits.nameId} = ${balanceSnapshots.nameId}
+						and ${deposits.chainId} = ${balanceSnapshots.chainId}
+						and ${deposits.status} in ('detected', 'finalized')
+						and ${chainEvents.canonical} = true
+						and ${chainEvents.blockNumber} > ${balanceSnapshots.blockNumber}
+				), 0)::text as incoming_amount,
+			coalesce((
+					select sum((${chainEvents.facts}->>'amount')::numeric)
+					from ${chainEvents}
+					join ${names} on ${names.id} = ${balanceSnapshots.nameId}
+					where ${chainEvents.chainId} = ${balanceSnapshots.chainId}
+						and ${chainEvents.eventFamily} = 'namepass'
+						and ${chainEvents.eventType} = 'DepositProcessed'
+						and ${chainEvents.canonical} = true
+						and ${chainEvents.blockNumber} > ${balanceSnapshots.blockNumber}
+						and lower(${chainEvents.facts}->>'wallet_address') = lower(${names.depositAddress})
+				), 0)::text as processed_amount
+		from ${balanceSnapshots}
+		where ${balanceSnapshots.nameId} = ${nameId}
+	`;
+}
+
+/**
+ * Serve an indexed balance from Neon. The snapshot is an exact chain read.
+ * Canonical deposits and DepositProcessed events advance it after that block.
+ */
+export async function publicBalances(nameId: string) {
+	const result = await database().execute<{
+		chain_id: string;
+		snapshot_amount: string;
+		incoming_amount: string;
+		processed_amount: string;
+	}>(indexedBalancesQuery(nameId));
+	const indexed = new Map(result.rows.map((row) => [
+		row.chain_id,
+		indexedBalanceAmount(row.snapshot_amount, row.incoming_amount, row.processed_amount),
+	]));
+	return PUBLIC_CHAINS.map((chain) => ({
+		chainId: String(chain.chainId),
+		amount: indexed.get(String(chain.chainId)) ?? null,
 	}));
 }
 

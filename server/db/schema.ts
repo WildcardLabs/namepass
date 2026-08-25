@@ -135,6 +135,27 @@ export const watchedAddresses = goldsky.table("watched_addresses", {
 	updatedAt: instant("updated_at").defaultNow().notNull(),
 });
 
+/**
+ * One authoritative chain snapshot per activated name and chain. Public reads
+ * apply canonical indexed events after this block. They do not call chain RPC.
+ */
+export const balanceSnapshots = pgTable(
+	"balance_snapshots",
+	{
+		nameId: uuid("name_id")
+			.notNull()
+			.references(() => names.id),
+		chainId: amount("chain_id").notNull(),
+		amount: amount("amount").notNull(),
+		blockNumber: amount("block_number").notNull(),
+		updatedAt: instant("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.nameId, table.chainId] }),
+		index("balance_snapshots_chain_idx").on(table.chainId),
+	],
+);
+
 export const chainEvents = pgTable(
 	"chain_events",
 	{

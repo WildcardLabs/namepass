@@ -89,7 +89,7 @@ test("recovery checks every stale resumable stage and due unclaimed workflow own
 	assert.ok(resumable.params.includes("waiting_origin"));
 	assert.ok(resumable.params.includes("waiting_claim"));
 	assert.ok(resumable.params.includes("cancelled"));
-	assert.ok(resumable.params.includes("empty_wallet"));
+	assert.ok(!resumable.params.includes("empty_wallet"));
 	assert.ok(unclaimed.params.includes("unclaimed"));
 	assert.ok(held.params.includes("held"));
 	assert.ok(held.params.includes("name_not_renewable"));

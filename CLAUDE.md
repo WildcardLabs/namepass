@@ -112,6 +112,10 @@ second event ledger, queue, worker service, real-time service, or balance aggreg
 measured need and a new decision entry. The chain remains authoritative for balances, receipts,
 and renewals.
 
+Public balance reads use one block-pinned `balance_snapshots` anchor and canonical Goldsky events
+after that block. The selected-name activity poll must not call chain RPC. Activation, bounded
+recovery, manual trigger, and workflows still read the chain when their decision can move funds.
+
 **Circle Iris supplies the final CCTP v2 nonce.** The origin-chain `MessageSent` event has a zero
 nonce placeholder. The workflow verifies that event and its route, then requests exactly one final
 message from Iris by origin transaction hash. Goldsky does not index global Circle events. It

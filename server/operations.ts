@@ -1,19 +1,14 @@
-import { and, eq, inArray, isNull, like, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
 
-import { readEnsState, readNativeUsdcBalances } from "./chain";
+import { readEnsState, readNativeUsdcBalanceSnapshots } from "./chain";
 import { minimumTriggerAmount } from "./config";
 import { withDatabaseLease, database } from "./db/client";
-import { chainEvents, deposits, flows, flowTransitions, names, transactionIntents } from "./db/schema";
+import { balanceSnapshots, chainEvents, flows, flowTransitions, names, transactionIntents } from "./db/schema";
 import { NAME_RECHECK_MS } from "./flow-state";
 import { logOperation } from "./log";
 import { broadcastTransaction, relayerAccount, verifiedChainClient } from "./transactions";
 import { startRenewalWorkflow } from "./workflows";
 import { chainById, SERVER_CHAINS, type ChainKey } from "../src/lib/chains";
-import {
-	queueStoppedFlow,
-	stoppedDepositFlowCandidate,
-	stoppedFlowRecoveryAction,
-} from "./stopped-flows";
 
 const RECOVERY_LEASE = 0x4e414d45;
 const RECOVERY_LIMIT = 10;
@@ -128,8 +123,10 @@ export async function processRecoveryBatch(
 }
 
 async function scanUnscannedName(name: { id: string; depositAddress: string; chainIds: readonly number[] }): Promise<readonly string[]> {
-	const balances = await readNativeUsdcBalances(name.depositAddress, [...name.chainIds]);
-	const answered = new Set(balances.filter((balance) => balance.amount !== undefined).map((balance) => balance.chainId));
+	const balances = await readNativeUsdcBalanceSnapshots(name.depositAddress, [...name.chainIds]);
+	const answered = new Set(balances
+		.filter((balance) => balance.amount !== undefined && balance.blockNumber !== undefined)
+		.map((balance) => balance.chainId));
 	const remaining = name.chainIds.filter((chainId) => !answered.has(chainId));
 	const eligible = balances.filter(
 		(balance): balance is Required<typeof balance> =>
@@ -137,6 +134,19 @@ async function scanUnscannedName(name: { id: string; depositAddress: string; cha
 	);
 	const created = await database().transaction(async (tx) => {
 		await tx.update(names).set({ unscannedChainIds: remaining.map(String) }).where(eq(names.id, name.id));
+		for (const balance of balances) {
+			if (balance.amount === undefined || balance.blockNumber === undefined) continue;
+			await tx.insert(balanceSnapshots).values({
+				nameId: name.id,
+				chainId: String(balance.chainId),
+				amount: balance.amount,
+				blockNumber: balance.blockNumber,
+				updatedAt: new Date(),
+			}).onConflictDoUpdate({
+				target: [balanceSnapshots.nameId, balanceSnapshots.chainId],
+				set: { amount: balance.amount, blockNumber: balance.blockNumber, updatedAt: new Date() },
+			});
+		}
 		const result: string[] = [];
 		for (const balance of eligible) {
 			const [flow] = await tx
@@ -171,16 +181,6 @@ export function resumableRecoveryCandidate(now: Date) {
 						and ${transactionIntents.status} <> 'reverted'
 				)`,
 			),
-			and(
-				stoppedDepositFlowCandidate(),
-				sql`exists (
-					select 1 from ${deposits}
-					join ${chainEvents} on ${chainEvents.eventId} = ${deposits.eventId}
-					where ${deposits.eventId} = ${flows.depositEventId}
-						and ${deposits.status} in ('detected', 'finalized')
-						and ${chainEvents.canonical} = true
-				)`,
-			),
 		),
 		or(
 			isNull(flows.workflowRunId),
@@ -190,54 +190,7 @@ export function resumableRecoveryCandidate(now: Date) {
 }
 
 async function recoverFlow(flowId: string): Promise<void> {
-	const [row] = await database().select({
-		flow: flows,
-		depositAmount: deposits.amount,
-		depositStatus: deposits.status,
-		canonical: chainEvents.canonical,
-		depositAddress: names.depositAddress,
-	}).from(flows)
-		.innerJoin(names, eq(flows.nameId, names.id))
-		.leftJoin(deposits, eq(flows.depositEventId, deposits.eventId))
-		.leftJoin(chainEvents, eq(deposits.eventId, chainEvents.eventId))
-		.where(eq(flows.id, flowId));
-	if (!row) return;
-	if (!["cancelled", "failed"].includes(row.flow.status) || row.flow.originTxIntentId) {
-		await startRenewalWorkflow(flowId);
-		return;
-	}
-	if (!row.depositAmount || !row.canonical || !["detected", "finalized"].includes(row.depositStatus ?? "")) {
-		return;
-	}
-	const chainId = Number(row.flow.originChainId);
-	const [balanceRead] = await readNativeUsdcBalances(row.depositAddress, [chainId]);
-	if (balanceRead?.amount === undefined) return;
-	const balance = BigInt(balanceRead.amount);
-	const action = stoppedFlowRecoveryAction({
-		chainId,
-		balance,
-		amountDetected: row.flow.amountDetected,
-		depositAmount: row.depositAmount,
-	});
-	if (action === "none") return;
-	if (action === "resume_original") {
-		if (await queueStoppedFlow(row.flow, "cron")) await startRenewalWorkflow(row.flow.id);
-		return;
-	}
-	const [created] = await database().insert(flows).values({
-		nameId: row.flow.nameId,
-		originChainId: row.flow.originChainId,
-		trigger: "recovery",
-		status: "queued",
-		holdReason: "multiple_or_unlinked_deposits",
-		amountDetected: balance.toString(),
-	}).onConflictDoNothing().returning({ id: flows.id });
-	const [winner] = created ? [created] : await database().select({ id: flows.id }).from(flows).where(and(
-		eq(flows.nameId, row.flow.nameId),
-		eq(flows.originChainId, row.flow.originChainId),
-		notInArray(flows.status, ["settled", "cancelled", "failed"]),
-	));
-	if (winner) await startRenewalWorkflow(winner.id);
+	await startRenewalWorkflow(flowId);
 }
 
 export function overdueUnclaimedRecoveryCandidate(now: Date) {
@@ -261,6 +214,7 @@ export function dueHeldNameRecoveryCandidate(now: Date) {
 
 type EnsState = Awaited<ReturnType<typeof readEnsState>>;
 
+/** Refresh a held name on a bounded backoff. Resume the same flow when ENS accepts it. */
 export async function recheckHeldNameFlow(flowId: string, knownEns?: EnsState): Promise<void> {
 	const [row] = await database().select({
 		flow: flows,
@@ -323,14 +277,23 @@ export async function recheckHeldNameFlow(flowId: string, knownEns?: EnsState): 
 
 async function recoveryBatch(now: Date): Promise<RecoveryBatch> {
 	const db = database();
-	const [resumable, overdueUnclaimed, dueHeld, unscanned, unbroadcast] = await Promise.all([
+	const unscanned = await db.select({
+		id: names.id,
+		depositAddress: names.depositAddress,
+		chainIds: names.unscannedChainIds,
+	}).from(names).where(or(
+		sql`cardinality(${names.unscannedChainIds}) > 0`,
+		sql`(select count(*) from ${balanceSnapshots} where ${balanceSnapshots.nameId} = ${names.id}) < ${SERVER_CHAINS.length}`,
+	)).limit(RECOVERY_LIMIT);
+	const snapshotRows = unscanned.length
+		? await db.select({ nameId: balanceSnapshots.nameId, chainId: balanceSnapshots.chainId })
+			.from(balanceSnapshots)
+			.where(inArray(balanceSnapshots.nameId, unscanned.map((row) => row.id)))
+		: [];
+	const [resumable, overdueUnclaimed, dueHeld, unbroadcast] = await Promise.all([
 		db.select({ id: flows.id }).from(flows).where(resumableRecoveryCandidate(now)).limit(RECOVERY_LIMIT),
 		db.select({ id: flows.id }).from(flows).where(overdueUnclaimedRecoveryCandidate(now)).limit(RECOVERY_LIMIT),
 		db.select({ id: flows.id }).from(flows).where(dueHeldNameRecoveryCandidate(now)).limit(RECOVERY_LIMIT),
-		db.select({ id: names.id, depositAddress: names.depositAddress, chainIds: names.unscannedChainIds })
-			.from(names)
-			.where(sql`cardinality(${names.unscannedChainIds}) > 0`)
-			.limit(RECOVERY_LIMIT),
 		db.select({ id: transactionIntents.id, flowId: transactionIntents.flowId, chainId: transactionIntents.chainId }).from(transactionIntents).where(and(
 			eq(transactionIntents.status, "prepared"),
 			isNull(transactionIntents.broadcastAt),
@@ -341,11 +304,14 @@ async function recoveryBatch(now: Date): Promise<RecoveryBatch> {
 		resumableFlowIds: resumable.map((row) => row.id),
 		overdueUnclaimedFlowIds: overdueUnclaimed.map((row) => row.id),
 		dueHeldFlowIds: dueHeld.map((row) => row.id),
-		unscannedNames: unscanned.map((row) => ({
-			id: row.id,
-			depositAddress: row.depositAddress,
-			chainIds: row.chainIds.map(Number).filter(Number.isSafeInteger),
-		})),
+		unscannedNames: unscanned.map((row) => {
+			const existing = new Set(snapshotRows
+				.filter((snapshot) => snapshot.nameId === row.id)
+				.map((snapshot) => Number(snapshot.chainId)));
+			const requested = new Set(row.chainIds.map(Number).filter(Number.isSafeInteger));
+			for (const chain of SERVER_CHAINS) if (!existing.has(chain.chainId)) requested.add(chain.chainId);
+			return { id: row.id, depositAddress: row.depositAddress, chainIds: [...requested] };
+		}),
 		unbroadcastIntents: unbroadcast.map((row) => ({ id: row.id, flowId: row.flowId, chainId: Number(row.chainId) })),
 	};
 }
