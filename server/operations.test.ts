@@ -9,10 +9,8 @@ import {
 	overdueUnclaimedRecoveryCandidate,
 	processRecoveryBatch,
 	resumableRecoveryCandidate,
-	relayerGasLevel,
 	retentionBatchLimit,
 	STARTING_STALE_MS,
-	transactionUnitWei,
 } from "./operations";
 import { RAW_PAYLOAD_RETENTION_MS, rawPayloadExpiresAt } from "./retention";
 import { stoppedFlowRecoveryAction } from "./stopped-flows";
@@ -55,21 +53,6 @@ test("recovery repairs queued, overdue, unscanned, and unbroadcast rows without 
 	assert.deepEqual(rechecked, ["held-name", "held-name"]);
 	assert.deepEqual(scans, ["name-1", "name-1"]);
 	assert.deepEqual(broadcasts, ["intent-1", "intent-1"]);
-});
-
-test("gas levels use the configured transaction unit and do not expose balances", () => {
-	const previous = process.env.RELAYER_TRANSACTION_UNIT_WEI_BASE;
-	process.env.RELAYER_TRANSACTION_UNIT_WEI_BASE = "100";
-	try {
-		assert.equal(transactionUnitWei("base"), 100n);
-		assert.equal(relayerGasLevel(2_001n, 100n), "ok");
-		assert.equal(relayerGasLevel(2_000n, 100n), "warning");
-		assert.equal(relayerGasLevel(500n, 100n), "critical");
-		assert.equal(relayerGasLevel(1n, undefined), "unavailable");
-	} finally {
-		if (previous === undefined) delete process.env.RELAYER_TRANSACTION_UNIT_WEI_BASE;
-		else process.env.RELAYER_TRANSACTION_UNIT_WEI_BASE = previous;
-	}
 });
 
 test("cron authorization rejects missing and wrong secrets", () => {

@@ -115,6 +115,8 @@ and renewals.
 Public balance reads use one block-pinned `balance_snapshots` anchor and canonical Goldsky events
 after that block. The selected-name activity poll must not call chain RPC. Activation, bounded
 recovery, manual trigger, and workflows still read the chain when their decision can move funds.
+Do not add scheduled RPC health polling. Use an external address monitor with real notification
+delivery for relayer gas. With no live read, deposit, due recovery, or workflow, RPC usage is zero.
 
 **Circle Iris supplies the final CCTP v2 nonce.** The origin-chain `MessageSent` event has a zero
 nonce placeholder. The workflow verifies that event and its route, then requests exactly one final

@@ -412,18 +412,10 @@ export function goldskyHandler(
 		try {
 			event = parseGoldskyEvent(object);
 		} catch (error) {
-			/* TEMPORARY testnet diagnostic. A rejected event must never return a
-			   non-retriable 4xx: Goldsky treats that as fatal and crash-loops the whole
-			   pipeline on the one bad row. Log the real payload shape so we can fix the
-			   parser, then 200-ack so the indexer keeps moving. Remove the raw payload
-			   log before mainnet. */
-			console.info(JSON.stringify({
-				event: "goldsky.rejected_payload",
-				code: error instanceof ApiError ? error.code : "parse_error",
-				message: error instanceof Error ? error.message : String(error),
-				keys: Object.keys(object),
-				payload: object,
-			}));
+			logOperation("goldsky.rejected_payload", {
+				step: "payload_validation",
+				errorCode: error instanceof ApiError ? error.code : "parse_error",
+			});
 			return json({ accepted: false, skipped: true }, 200);
 		}
 		let observedBalance: string | undefined;

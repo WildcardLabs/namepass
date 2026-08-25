@@ -6,9 +6,9 @@ import { withDatabaseLease, database } from "./db/client";
 import { balanceSnapshots, chainEvents, flows, flowTransitions, names, transactionIntents } from "./db/schema";
 import { NAME_RECHECK_MS } from "./flow-state";
 import { logOperation } from "./log";
-import { broadcastTransaction, relayerAccount, verifiedChainClient } from "./transactions";
+import { broadcastTransaction } from "./transactions";
 import { startRenewalWorkflow } from "./workflows";
-import { chainById, SERVER_CHAINS, type ChainKey } from "../src/lib/chains";
+import { SERVER_CHAINS } from "../src/lib/chains";
 
 const RECOVERY_LEASE = 0x4e414d45;
 const RECOVERY_LIMIT = 10;
@@ -25,20 +25,6 @@ const RESUMABLE_FLOW_STATUSES = [
 	"submitting_claim",
 	"waiting_claim",
 ] as Array<typeof flows.$inferSelect.status>;
-
-export type GasLevel = "ok" | "warning" | "critical" | "unavailable";
-
-export function transactionUnitWei(key: ChainKey): bigint | undefined {
-	const value = process.env[`RELAYER_TRANSACTION_UNIT_WEI_${key.toUpperCase()}`];
-	return value && /^[1-9][0-9]*$/.test(value) ? BigInt(value) : undefined;
-}
-
-export function relayerGasLevel(balance: bigint, unit: bigint | undefined): GasLevel {
-	if (!unit || unit <= 0n) return "unavailable";
-	if (balance <= unit * 5n) return "critical";
-	if (balance <= unit * 20n) return "warning";
-	return "ok";
-}
 
 export interface RecoveryBatch {
 	readonly resumableFlowIds: readonly string[];
@@ -381,43 +367,4 @@ export async function deleteExpiredPayloads(now = new Date(), limit = RETENTION_
 
 export function retentionBatchLimit(limit: number): number {
 	return Math.min(Math.max(Math.floor(limit), 1), RETENTION_LIMIT);
-}
-
-export type OperationsHealth = {
-	database: "ok" | "unavailable";
-	chains: Array<{ chainId: number; gas: GasLevel }>;
-};
-
-/** Return operational state without returning database URLs, keys, addresses, or balances. */
-export async function operationsHealth(): Promise<OperationsHealth> {
-	let databaseStatus: OperationsHealth["database"] = "ok";
-	try {
-		await database().execute(sql`select 1`);
-	} catch {
-		databaseStatus = "unavailable";
-		logOperation("operations.database_failed", { step: "health", errorCode: "database_unavailable" });
-	}
-
-	let account: ReturnType<typeof relayerAccount> | undefined;
-	try {
-		account = relayerAccount();
-	} catch {
-		// A missing key is shown as unavailable, never as configuration detail.
-	}
-	const chains = await Promise.all(SERVER_CHAINS.map(async (chain) => {
-		try {
-			if (!account) return { chainId: chain.chainId, gas: "unavailable" as const };
-			const definition = chainById(chain.chainId);
-			if (!definition) throw new Error("Unsupported chain.");
-			const client = await verifiedChainClient(definition);
-			const balance = await client.getBalance({ address: account.address });
-			const gas = relayerGasLevel(balance, transactionUnitWei(chain.key));
-			logOperation("operations.relayer_gas", { chainId: chain.chainId, step: "health", errorCode: gas === "ok" ? undefined : `gas_${gas}` });
-			return { chainId: chain.chainId, gas };
-		} catch {
-			logOperation("operations.rpc_failed", { chainId: chain.chainId, step: "health", errorCode: "rpc_unavailable" });
-			return { chainId: chain.chainId, gas: "unavailable" as const };
-		}
-	}));
-	return { database: databaseStatus, chains };
 }

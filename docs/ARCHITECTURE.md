@@ -1026,21 +1026,11 @@ one primary operator and one backup operator. Do not put personal names in the p
 document.
 
 Do not automate refills in the first version. An automatic treasury signer would add another key
-that can move funds. The relayer already has alerts and a manual refill has a long safety window.
-
-Set the initial balance policy from measured testnet and canary transactions:
-
-1. For each chain and transaction kind, record the highest gas cost from the launch test suite.
-2. Multiply that cost by two to define one transaction unit.
-3. Send a warning when the relayer balance is below 20 transaction units.
-4. Send a critical alert when the balance is below 5 transaction units.
-5. Refill to 50 transaction units from the treasury.
-
-Recalculate the unit after a contract change or after seven production days. Then use the greater
-of twice the test maximum and twice the observed seven-day 95th-percentile cost. Keep only this
-limited gas balance on the relayer. The $0.10 USDC allowance does not refill native gas
-automatically. Treasury operations can account for or convert collected allowances outside the
-renewal workflow.
+that can move funds. Use an external native-balance monitor for the single relayer address on each
+chain. The monitor must deliver a real operator notification. The application does not poll idle
+RPC endpoints for gas balances. Keep only a limited gas balance on the relayer. The $0.10 USDC
+allowance does not refill native gas automatically. Treasury operations can account for or convert
+collected allowances outside the renewal workflow.
 
 ## Neon data model
 
@@ -1319,7 +1309,6 @@ after its API routes. A Vercel catch-all rewrite runs first and sends `/api/*` t
 - `POST /api/webhooks/goldsky`
 - `GET /api/cron/recover`, authenticated with `CRON_SECRET`
 - `GET /api/cron/retention`, authenticated with `CRON_SECRET`
-- `GET /api/cron/health`, authenticated with `CRON_SECRET`
 
 ### Read endpoints
 
@@ -1362,13 +1351,13 @@ requests even when they use one HTTP request.
 
 Backend-only RPC calls also have bounded causes:
 
-- The health cron uses eight methods per run: `eth_chainId` and native gas balance on four chains.
 - A below-threshold deposit webhook reads one chain balance so separate deposits can reach the
   trigger floor. It uses one `eth_call` plus one cached cold `eth_chainId`.
 - The recovery job reads only missing activation snapshots, due inactive-name flows, resumable
   transactions, and active workflow evidence. It does not poll terminal `empty_wallet` flows.
 - Workflows verify chain ID, balances, simulations, receipts, and ENS state before they move money.
   Their cost exists only while a flow runs.
+- With no browser, deposit, due recovery, or active workflow, the application uses zero chain RPC.
 
 ### Public sender identity
 

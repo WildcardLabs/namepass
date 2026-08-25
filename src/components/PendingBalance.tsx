@@ -5,7 +5,7 @@ import { canRecheckName, canTrigger, minTrigger, totalHeld, totalInFlight, type 
 import { flowFailurePresentation, flowPresentation } from "../lib/flowPresentation";
 import { completedFlowTransactions } from "../lib/flowTransactions";
 import { DETECTION_GRACE_MS, isDetectionPending, updateDetectionObservations, type DetectionObservations } from "../lib/detectionGrace";
-import { activateName, triggerFlow } from "../lib/publicApi";
+import { triggerFlow } from "../lib/publicApi";
 import { chainByName } from "../lib/chains";
 import { explorerUrl, fmtUsdc, truncTx } from "../lib/format";
 import Tooltip from "./Tooltip";
@@ -193,16 +193,7 @@ export default function PendingBalance({ record, onSettled }: Props) {
 											if (!entry || triggering) return;
 											setTriggering(chain);
 											setTriggerError(null);
-											const start = async () => {
-												if (recheckName) {
-													const refreshed = await activateName(record.name);
-													if (!refreshed.name.renewableBy) {
-														throw new Error("ENS still cannot renew this name.");
-													}
-												}
-												await triggerFlow(record.name, String(entry.chainId));
-											};
-											void start()
+											void triggerFlow(record.name, String(entry.chainId))
 												.then(onSettled)
 												.catch((cause: unknown) => setTriggerError(cause instanceof Error ? cause.message : "Could not start the renewal."))
 												.finally(() => setTriggering(null));
