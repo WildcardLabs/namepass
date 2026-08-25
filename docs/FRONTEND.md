@@ -50,6 +50,8 @@ is hidden. They refresh when the tab becomes visible.
 These repeated reads use Neon only. Opening a name and returning focus to its tab also refreshes
 ENS registration, expiry, and renewability from Sepolia. That explicit liveness read does not run
 in the 4-second or 15-second activity loop.
+The inactive-name action calls the manual trigger directly. That endpoint refreshes ENS and checks
+the selected-chain balance. It does not run activation again or rescan every chain first.
 The live feed and per-name activity use ten-row pages with `Previous` and `Next` controls. They
 consume the activity cursor only when the user opens an older page. The per-name flow list contains
 pending, held, unclaimed, failed, and actionable stopped work. Settled renewals appear only in

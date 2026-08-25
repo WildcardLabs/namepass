@@ -53,8 +53,7 @@ vercel env ls --scope wildcard-labs
 ```
 
 The stable deployment has the database, RPC, relayer, cron, Circle, deployment-environment, and
-Goldsky webhook variables. The relayer transaction-unit variables remain unset until testnet gas
-measurements exist. `.env.example` lists the required value-free variable names.
+Goldsky webhook variables. `.env.example` lists the required value-free variable names.
 
 Use test-only values for preview and stable testnet. Put production values in the production
 environment only. Do not expose a server secret through a `VITE_*` variable. In particular, keep
@@ -184,8 +183,9 @@ secret. Do not target a preview URL.
 
 One test-only relayer account exists. Its private key is in the stable testnet Vercel environment.
 It has executed the verified stable-testnet automation path. Do not use this account outside
-Namepass. Check native gas on Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and Arc Testnet
-before more test funding. Record any missing per-chain transaction-unit values separately.
+Namepass. Monitor its native balance on Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and Arc
+Testnet with an external address alert that notifies the operator. Do not poll balances from the
+application when no transaction is running.
 
 ## Operations
 
@@ -196,17 +196,15 @@ balance, raw Goldsky payload, or signed transaction.
 | Endpoint | Schedule | Action |
 |---|---|---|
 | `/api/cron/recover` | Every minute | Restarts safe unowned work, scans recorded activation failures, and rebroadcasts prepared transaction bytes. |
-| `/api/cron/health` | Every 5 minutes | Checks Neon, each RPC chain ID, and relayer gas status. |
 | `/api/cron/retention` | Daily at 03:17 UTC | Clears at most 500 expired raw payloads. It keeps normalized chain-event data. |
 
 The recovery job has a transaction-scoped PostgreSQL advisory lock. It takes at most 10 rows from
 each recovery category. It checks stale workflow IDs through Vercel Workflow. It restarts any
 resumable workflow stage and reconciles a cancelled row that still owns a non-reverted transaction
-intent. It also checks a stopped `empty_wallet` flow that has one canonical deposit. If the live
-balance is eligible and equals that deposit, it queues the same flow and keeps the deposit
-evidence. If several deposits fund the balance, it creates an unlinked recovery flow. It restarts a flow
-only when the stored run is missing or terminal. It does not replace a pending or running
-Workflow run. The CCTP workflow owns its active Iris polling.
+intent. It does not poll terminal `empty_wallet` history. A new Goldsky deposit or an explicit
+manual trigger supplies new balance evidence. It restarts a flow only when the stored run is
+missing or terminal. It does not replace a pending or running Workflow run. The CCTP workflow owns
+its active Iris polling.
 
 ### Pending transaction replacement
 
@@ -228,21 +226,6 @@ If this happens on stable testnet:
 Production remains blocked until the repository has an automated same-nonce replacement path and
 a test that proves it cannot change the transaction intent.
 
-### Relayer gas thresholds
-
-Set one `RELAYER_TRANSACTION_UNIT_WEI_<CHAIN>` value for every active chain. The value is two times
-the greater of the tested maximum transaction gas cost and the observed seven-day 95th-percentile
-cost. Use native-token wei. Do not estimate this value from the USDC allowance.
-
-| Status | Threshold | Operator action |
-|---|---:|---|
-| Warning | At or below 20 units | Relayer operator checks the next funding window. |
-| Critical | At or below 5 units | Relayer operator asks the project owner for a manual refill. |
-| Refill target | 50 units | Project owner funds the relayer manually. |
-
-There is no automatic refill signer. The private operator record identifies the primary and backup
-relayer operators. Recalculate units after a material gas-price or transaction-shape change.
-
 ### Dashboards and alerts
 
 Configure provider alerts before stable-testnet use:
@@ -250,12 +233,10 @@ Configure provider alerts before stable-testnet use:
 - Vercel: Function `5xx` rate, cron failures, and Workflow failures.
 - Goldsky: pipeline failure, source lag, and webhook backpressure.
 - Neon: connection saturation, query latency, storage, and restore availability.
-- Operations health: a non-`ok` relayer gas result, unavailable database, or unavailable RPC.
+- Relayer: an external native-balance alert for the configured address on every active chain.
 
-The repository provides the checked status endpoint and structured logs. Provider dashboards and
-alert delivery remain external runtime gates. The health endpoint returns `503` for a critical or
-unavailable check. It returns `200` for a warning, so alert rules must also inspect its structured
-logs.
+Provider dashboards and alert delivery remain external runtime gates. An alert without a tested
+notification destination is not monitoring.
 
 ### Recovery drills
 
@@ -291,7 +272,6 @@ loaded. Do not paste it into chat or a repository file:
 
 ```bash
 curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://<stable-domain>/api/cron/recover
-curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://<stable-domain>/api/cron/health
 ```
 
 ### Local verification

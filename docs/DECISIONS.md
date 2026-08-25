@@ -7,6 +7,25 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-25 — Remove scheduled health polling with no alert consumer
+
+The health cron called `eth_chainId` and `eth_getBalance` on four chains every five minutes. This
+used 96 Edge RPC methods per hour and about 69,120 per 30-day month while the service was idle. Its
+warning result returned `200`, its critical result returned `503`, and no configured consumer sent
+either result to an operator. It did not block transactions or refill the relayer.
+
+The scheduled health endpoint and its transaction-unit environment variables are removed. RPC
+chain verification remains inside every transaction path that can spend relayer gas. Relayer gas
+monitoring belongs in an external address-balance alert that has real notification delivery. With
+no browser, deposit, due recovery, or active workflow, Namepass now makes zero chain RPC calls.
+
+The same audit removed a temporary rejected-Goldsky-payload log. Invalid authenticated rows still
+receive a safe `200` acknowledgement and a structured error event, but the service no longer copies
+their complete payload into Vercel logs. It also removed the inactive-name button's duplicate
+activation scan. The manual trigger already verifies current ENS state and the selected-chain
+balance, so rescanning ENS and all four balances first had no effect. The remaining RPC paths are
+tied to a live read, deposit, bounded recovery item, or transaction decision.
+
 ### 2026-08-25 — ENS liveness comes from chain; held names recover without the UI
 
 The name API stored expiry and renewability during activation. Later selected-name reads returned
