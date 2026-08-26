@@ -25,7 +25,7 @@
 		"react": "^18.3.1",
 		"react-dom": "^18.3.1",
 		"viem": "^2.55.13",
-		"workflow": "^4.8.2"
+		"workflow": "4.8.5"
 	},
 	"devDependencies": {
 		"@ensdomains/ens-contracts": "^1.7.0",
@@ -36,12 +36,24 @@
 		"@types/react": "^18.3.12",
 		"@types/react-dom": "^18.3.1",
 		"@vitejs/plugin-react": "^4.3.4",
-		"@workflow/vitest": "^4.0.18",
+		"@workflow/vitest": "4.0.21",
 		"drizzle-kit": "^0.31.10",
 		"tailwindcss": "^4.0.0",
 		"tsx": "^4.23.12",
 		"typescript": "^5.6.3",
 		"vite": "^7.3.6",
 		"vitest": "^4.1.10"
+	},
+	"overrides": {
+		"@workflow/core": {
+			"nanoid": "5.1.16"
+		},
+		"@workflow/world-local": {
+			"undici": "7.29.0"
+		},
+		"@workflow/world-vercel": {
+			"undici": "7.29.0"
+		},
+		"postcss": "8.5.26"
 	}
 }
