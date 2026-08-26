@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
+        with:
+          version: v1.7.1
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Install Foundry test dependency
+        run: forge install foundry-rs/forge-std@bf647bd6046f2f7da30d0c2bf435e5c76a780c1b --no-git
+
+      - name: Build the application
+        run: npm run build
+
+      - name: Check server and workflow types
+        run: npm run check:server
+
+      - name: Test the frontend
+        run: npm run test:frontend
+
+      - name: Test the server
+        run: npm run test:server
+
+      - name: Test the Workflow runtime
+        run: npm run test:workflow
+
+      - name: Check the chain registry
+        run: node scripts/check-chains.mjs
+
+      - name: Check the generated Goldsky pipeline
+        run: node goldsky/generate-testnet.mjs --check
+
+      - name: Test the contracts
+        run: forge test

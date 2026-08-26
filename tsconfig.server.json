@@ -5,5 +5,5 @@
 		"moduleResolution": "bundler",
 		"types": ["node"]
 	},
-	"include": ["routes/api", "server", "src/lib/chains.ts", "src/lib/namepass.ts"]
+	"include": ["routes/api", "server", "workflows", "src/lib/chains.ts", "src/lib/namepass.ts"]
 }
