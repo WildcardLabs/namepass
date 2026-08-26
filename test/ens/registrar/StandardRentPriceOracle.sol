@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {StringUtils} from "@ens/contracts/utils/StringUtils.sol";
+import {StringUtils} from "../utils/StringUtils.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
