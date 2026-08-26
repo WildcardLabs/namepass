@@ -114,7 +114,7 @@ export async function renewalActivity(
 			flow: flows,
 			deposit: deposits,
 			ensFacts: ensRenewal.facts,
-			originTxHash: originIntent.currentTxHash,
+			originTxHash: sql<string | null>`coalesce(${originIntent.currentTxHash}, ${flows.originEvidenceTxHash})`,
 			claimTxHash: claimIntent.currentTxHash,
 		})
 		.from(chainEvents)
@@ -342,7 +342,7 @@ export async function publicFlow(id: string) {
 			lastErrorCode: row.flow.lastErrorCode ?? row.reasonCode,
 		}, {
 			depositTxHash: row.depositTxHash,
-			originTxHash: row.origin?.currentTxHash ?? null,
+			originTxHash: row.origin?.currentTxHash ?? row.flow.originEvidenceTxHash ?? null,
 			claimTxHash: row.claim?.currentTxHash ?? null,
 			renewalTxHash: renewal?.txHash ?? null,
 			executorAddress: executor,

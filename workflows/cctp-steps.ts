@@ -13,11 +13,6 @@ export async function checkCctpEligibilityStep(flowId: string) {
 	return (await import("../server/cctp-renewal")).checkCctpEligibility(flowId);
 }
 
-export async function simulateCctpOriginStep(flowId: string) {
-	"use step";
-	return (await import("../server/cctp-renewal")).simulateCctpOrigin(flowId);
-}
-
 export async function prepareCctpOriginStep(flowId: string) {
 	"use step";
 	return (await import("../server/cctp-renewal")).prepareCctpOrigin(flowId);
@@ -28,7 +23,7 @@ export async function broadcastCctpTransactionStep(intentId: string) {
 	return (await import("../server/cctp-renewal")).broadcastCctpTransaction(intentId);
 }
 
-export async function confirmCctpOriginStep(flowId: string, intentId: string) {
+export async function confirmCctpOriginStep(flowId: string, intentId: string | null) {
 	"use step";
 	return (await import("../server/cctp-renewal")).confirmCctpOrigin(flowId, intentId);
 }

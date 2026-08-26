@@ -9,6 +9,11 @@ import {
 	prepareEthereumRenewalStep,
 } from "./ethereum-steps";
 import { receiptPollDelay } from "./receipt-polling";
+import { recordWorkflowFailureStep } from "./common-steps";
+
+function errorText(error: unknown): string {
+	return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+}
 
 export function ethereumResumeStage(flow: {
 	status: string;
@@ -28,25 +33,30 @@ export async function ethereumRenewal(
 	flowId: string,
 ): Promise<"settled" | "held" | "cancelled" | "failed"> {
 	"use workflow";
-	const flow = await loadEthereumFlowStep(flowId);
-	if (!flow) throw new Error("The flow does not exist.");
-	const resume = ethereumResumeStage(flow);
-	if (resume === "done") return flow.status as "settled" | "held" | "cancelled" | "failed";
+	try {
+		const flow = await loadEthereumFlowStep(flowId);
+		if (!flow) throw new Error("The flow does not exist.");
+		const resume = ethereumResumeStage(flow);
+		if (resume === "done") return flow.status as "settled" | "held" | "cancelled" | "failed";
 
-	if (resume === "origin") {
-		if ((await confirmEthereumDepositStep(flowId)) === "cancelled") return "cancelled";
-		const eligibility = await checkEthereumEligibilityStep(flowId);
-		if (eligibility !== "ready") return eligibility;
-	}
-	let intentId = flow.originIntentId;
-	if (resume !== "receipt") {
-		intentId = await prepareEthereumRenewalStep(flowId);
-	}
-	if (!intentId) throw new Error("The Ethereum flow has no transaction intent.");
-	await broadcastEthereumRenewalStep(intentId);
-	for (let attempt = 0; ; attempt += 1) {
-		const result = await confirmEthereumRenewalStep(flowId, intentId);
-		if (result !== "waiting") return result;
-		await sleep(receiptPollDelay(attempt));
+		if (resume === "origin") {
+			if ((await confirmEthereumDepositStep(flowId)) === "cancelled") return "cancelled";
+			const eligibility = await checkEthereumEligibilityStep(flowId);
+			if (eligibility !== "ready") return eligibility;
+		}
+		let intentId = flow.originIntentId;
+		if (resume !== "receipt") {
+			intentId = await prepareEthereumRenewalStep(flowId);
+		}
+		if (!intentId) throw new Error("The Ethereum flow has no transaction intent.");
+		await broadcastEthereumRenewalStep(intentId);
+		for (let attempt = 0; ; attempt += 1) {
+			const result = await confirmEthereumRenewalStep(flowId, intentId);
+			if (result !== "waiting") return result;
+			await sleep(receiptPollDelay(attempt));
+		}
+	} catch (error) {
+		await recordWorkflowFailureStep(flowId, errorText(error));
+		throw error;
 	}
 }

@@ -15,7 +15,15 @@ import {
 	parseEthereumRenewalReceipt,
 	reserveNonce,
 } from "./ethereum";
-import { originRevertFlowPatch, transactionIntentAction, withVerifiedChainClient } from "./transactions";
+import {
+	isMissingTransactionReceipt,
+	gasLimitWithSafetyMargin,
+	replacementFee,
+	originRevertFlowPatch,
+	transactionIntentAction,
+	withVerifiedChainClient,
+} from "./transactions";
+import { TransactionReceiptNotFoundError } from "viem";
 import { HUB_CHAIN } from "../src/lib/chains";
 
 const DEPOSIT_PROCESSED = parseAbi([
@@ -65,10 +73,26 @@ test("nonce reservation never moves behind the RPC pending nonce", () => {
 	assert.equal(reserveNonce(12n, 12n), 12n);
 });
 
+test("signed transactions include a gas-limit safety margin", () => {
+	assert.equal(gasLimitWithSafetyMargin(100_000n), 120_000n);
+	assert.equal(gasLimitWithSafetyMargin(1n), 1n);
+});
+
+test("replacement fees increase by at least 12.5 percent and use a higher live quote", () => {
+	assert.equal(replacementFee(100n, undefined), 113n);
+	assert.equal(replacementFee(100n, 200n), 200n);
+	assert.equal(replacementFee(100n, 110n), 113n);
+});
+
 test("a safe raw-transaction rebroadcast accepts only known-transaction responses", () => {
 	assert.equal(isKnownTransactionError(new Error("already known")), true);
 	assert.equal(isKnownTransactionError(new Error("already imported")), true);
 	assert.equal(isKnownTransactionError(new Error("insufficient funds")), false);
+});
+
+test("receipt polling hides only the expected not-found response", () => {
+	assert.equal(isMissingTransactionReceipt(new TransactionReceiptNotFoundError({ hash: `0x${"1".repeat(64)}` })), true);
+	assert.equal(isMissingTransactionReceipt(new Error("RPC rate limit")), false);
 });
 
 test("Ethereum settlement ignores forged same-signature logs from another emitter", () => {

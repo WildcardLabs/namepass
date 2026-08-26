@@ -1668,11 +1668,14 @@ Cover:
 - out-of-order create and delete
 - concurrent activation
 - concurrent manual and automatic trigger
-- one active flow per name and chain
+- one origin-wallet-owning flow per name and chain
 - nonce reservation under concurrency
 - crash after signing and before broadcast
 - transaction replacement
 - external permissionless renewal reconciliation
+- deposit arrival during an active origin transaction
+- settlement before the Workflow receipt step
+- permissionless origin burn before the backend transaction
 
 ### Workflow tests
 
@@ -1775,11 +1778,13 @@ delivery.
 ### Phase 4 — Ethereum workflow
 
 **Implemented and proven on stable testnet:** the Ethereum workflow validates the deposit receipt
-and exact transfer, then checks renewability, balance, simulation, durable nonce ownership, stored
+and exact transfer, then checks renewability, balance, durable nonce ownership, stored
 signed bytes, renewal receipt status, and exact settlement events. Automatic Sepolia renewals have
 settled through this workflow. The same-chain path now submits without a separate deposit-finality
-wait and needs one more canary for that timing change. Recovery can rebroadcast a prepared
-transaction. Local tests cover the step logic and ownership guards. The Workflow runtime probe
+wait and needs one more canary for that timing change. Recovery can rebroadcast prepared bytes.
+A transaction that remains pending for five minutes gets a same-nonce fee replacement. Receipt
+checks include every replacement attempt. Local tests cover the step logic and ownership guards.
+The Workflow runtime probe
 covers compiler output, durable step persistence, and targeted sleep resume. It does not cover
 Namepass workflow composition or retry behavior.
 
@@ -1798,9 +1803,12 @@ polls Circle Iris v2, validates the complete CCTP route and message fields, stor
 attestation before the claim, and submits the Ethereum claim through a durable transaction intent.
 The origin receipt can contain Circle's zero nonce placeholder. The final Iris message must contain
 a nonzero nonce, and the workflow stores that final nonce before the claim.
-An unclaimed flow keeps one Circle message and retries only that claim. A non-zero origin remainder
-queues a new recovery flow. Local checks cover Iris retry responses, route mismatch, claim retry,
-duplicate execution, and workflow-owner scoping. Track remaining per-chain canaries in the runbook.
+An unclaimed flow keeps one Circle message and retries only that claim. It does not block new
+origin deposits after the burn. A non-zero origin remainder marks that exact name and chain for a
+bounded balance scan. A permissionless origin burn is stored as transaction evidence, verified
+from its receipt, and continued through Iris and the Ethereum claim. Local checks cover Iris retry
+responses, route mismatch, claim retry, duplicate execution, and workflow-owner scoping. Track
+remaining per-chain canaries in the runbook.
 
 - Add origin burn receipt parsing.
 - Add Circle Iris polling.

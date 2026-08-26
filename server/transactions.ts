@@ -3,6 +3,7 @@ import {
 	createPublicClient,
 	http,
 	keccak256,
+	TransactionReceiptNotFoundError,
 	type Address,
 	type Hex,
 	type TransactionReceipt,
@@ -50,6 +51,15 @@ export function reserveNonce(databaseNextNonce: bigint, rpcPendingNonce: bigint)
 	return databaseNextNonce > rpcPendingNonce ? databaseNextNonce : rpcPendingNonce;
 }
 
+export function gasLimitWithSafetyMargin(estimatedGas: bigint): bigint {
+	return estimatedGas + estimatedGas / 5n;
+}
+
+export function replacementFee(previous: bigint, current: bigint | undefined): bigint {
+	const bumped = previous + previous / 8n + 1n;
+	return current !== undefined && current > bumped ? current : bumped;
+}
+
 /** A mined revert consumes its nonce. Resume with a new signed attempt, not stale bytes. */
 export function transactionIntentAction(status: string | undefined): "reuse" | "retry" {
 	return status === "reverted" ? "retry" : "reuse";
@@ -71,6 +81,10 @@ export function isKnownTransactionError(error: unknown): boolean {
 	return message.includes("already known") || message.includes("already imported");
 }
 
+export function isMissingTransactionReceipt(error: unknown): boolean {
+	return error instanceof TransactionReceiptNotFoundError;
+}
+
 type TransactionInput = {
 	flowId: string;
 	kind: "origin_renew" | "claim";
@@ -82,11 +96,12 @@ type TransactionInput = {
 async function signAttempt(input: TransactionInput, intentId?: string): Promise<string> {
 	const db = database();
 	const account = relayerAccount();
-	const { gas, fees, pending } = await withVerifiedChainClient(input.chain, async (rpc) => ({
-		gas: await rpc.estimateGas({ account, to: input.to, data: input.callData }),
+	const { estimatedGas, fees, pending } = await withVerifiedChainClient(input.chain, async (rpc) => ({
+		estimatedGas: await rpc.estimateGas({ account, to: input.to, data: input.callData }),
 		fees: await rpc.estimateFeesPerGas(),
 		pending: await rpc.getTransactionCount({ address: account.address, blockTag: "pending" }),
 	}));
+	const gas = gasLimitWithSafetyMargin(estimatedGas);
 	return db.transaction(async (tx) => {
 		if (!intentId) {
 			const [existing] = await tx
@@ -280,6 +295,76 @@ export async function ensureTransactionBroadcast(intentId: string): Promise<stri
 	return intent.currentTxHash;
 }
 
+const TRANSACTION_REPLACEMENT_MS = 5 * 60 * 1_000;
+
+/** Replace an old pending transaction with the same nonce and invariant transaction fields. */
+export async function replaceStaleTransaction(intentId: string, now = new Date()): Promise<string | undefined> {
+	const [intent] = await database().select().from(transactionIntents).where(eq(transactionIntents.id, intentId));
+	if (!intent?.currentTxHash || intent.status !== "broadcast" || !intent.broadcastAt) return intent?.currentTxHash ?? undefined;
+	if (intent.broadcastAt.getTime() > now.getTime() - TRANSACTION_REPLACEMENT_MS) return intent.currentTxHash;
+	if (!intent.currentRawTransaction || !intent.gasLimit || !intent.maxFeePerGas || !intent.maxPriorityFeePerGas) {
+		throw new Error("The pending transaction does not contain replaceable EIP-1559 fields.");
+	}
+	const chain = chainById(Number(intent.chainId));
+	if (!chain) throw new Error(`Chain ${intent.chainId} is not active.`);
+	const account = relayerAccount();
+	if (account.address.toLowerCase() !== intent.fromAddress.toLowerCase()) {
+		throw new Error("The transaction relayer does not match RELAYER_PRIVATE_KEY.");
+	}
+	const rpc = await verifiedChainClient(chain);
+	const nonce = BigInt(intent.nonce);
+	const [latestNonce, fees] = await Promise.all([
+		rpc.getTransactionCount({ address: account.address, blockTag: "latest" }),
+		rpc.estimateFeesPerGas(),
+	]);
+	if (BigInt(latestNonce) > nonce) {
+		throw new Error("The relayer nonce was consumed without a receipt from a known transaction attempt.");
+	}
+	const maxFeePerGas = replacementFee(BigInt(intent.maxFeePerGas), fees.maxFeePerGas);
+	const maxPriorityFeePerGas = replacementFee(
+		BigInt(intent.maxPriorityFeePerGas),
+		fees.maxPriorityFeePerGas,
+	);
+	const raw = await account.signTransaction({
+		chainId: chain.chainId,
+		to: intent.toAddress as Address,
+		data: intent.callData as Hex,
+		value: BigInt(intent.value),
+		nonce: Number(nonce),
+		gas: BigInt(intent.gasLimit),
+		maxFeePerGas,
+		maxPriorityFeePerGas,
+	});
+	const hash = keccak256(raw);
+	const attempts = Array.isArray(intent.attempts) ? [...intent.attempts] : [];
+	const [updated] = await database().update(transactionIntents).set({
+		currentRawTransaction: raw,
+		currentTxHash: hash,
+		maxFeePerGas: String(maxFeePerGas),
+		maxPriorityFeePerGas: String(maxPriorityFeePerGas),
+		attempts: [...attempts, {
+			hash,
+			nonce: intent.nonce,
+			maxFeePerGas: String(maxFeePerGas),
+			maxPriorityFeePerGas: String(maxPriorityFeePerGas),
+			broadcastAt: null,
+		}],
+		status: "prepared",
+		broadcastAt: null,
+		updatedAt: now,
+	}).where(and(
+		eq(transactionIntents.id, intentId),
+		eq(transactionIntents.status, "broadcast"),
+		eq(transactionIntents.currentTxHash, intent.currentTxHash),
+	)).returning({ id: transactionIntents.id });
+	if (!updated) {
+		return (await database().select({ hash: transactionIntents.currentTxHash })
+			.from(transactionIntents).where(eq(transactionIntents.id, intentId)))[0]?.hash ?? undefined;
+	}
+	logOperation("transaction.replaced", { flowId: intent.flowId, chainId: intent.chainId, step: intent.kind });
+	return broadcastTransaction(intentId);
+}
+
 export async function readTransactionReceipt(intentId: string): Promise<TransactionReceipt | undefined> {
 	"use step";
 	const [intent] = await database().select().from(transactionIntents).where(eq(transactionIntents.id, intentId));
@@ -287,9 +372,20 @@ export async function readTransactionReceipt(intentId: string): Promise<Transact
 	const chain = chainById(Number(intent.chainId));
 	if (!chain) throw new Error(`Chain ${intent.chainId} is not active.`);
 	const rpc = await verifiedChainClient(chain);
-	try {
-		return await rpc.getTransactionReceipt({ hash: intent.currentTxHash as Hex });
-	} catch {
-		return undefined;
+	const hashes = new Set<string>([intent.currentTxHash]);
+	if (Array.isArray(intent.attempts)) {
+		for (const attempt of intent.attempts) {
+			if (attempt && typeof attempt === "object" && "hash" in attempt && typeof attempt.hash === "string") {
+				hashes.add(attempt.hash);
+			}
+		}
 	}
+	for (const hash of [...hashes].reverse()) {
+		try {
+			return await rpc.getTransactionReceipt({ hash: hash as Hex });
+		} catch (error) {
+			if (!isMissingTransactionReceipt(error)) throw error;
+		}
+	}
+	return undefined;
 }

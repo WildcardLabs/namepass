@@ -7,6 +7,26 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-08-26 — CCTP flows release the origin wallet after the burn
+
+The old uniqueness rule allowed only one non-terminal flow for each name and origin chain. An
+attested or unclaimed CCTP message therefore blocked a new deposit on the origin chain, although
+the old USDC had already left that wallet.
+
+The uniqueness rule now covers only the stages that can spend the origin wallet. A flow releases
+the wallet after its burn receipt is verified. Later CCTP stages own only their exact Circle
+message. A new origin flow can run while an older message waits for Iris or an Ethereum claim.
+Goldsky marks only the affected name and chain for a balance scan when funds arrive during an
+origin-wallet stage. Recovery does not read that balance until the stage releases the wallet.
+
+Goldsky also records a permissionless origin burn as transaction evidence. The workflow verifies
+the exact receipt and continues that Circle message instead of trying to burn an empty wallet.
+Settlement events never replace the stored origin-wallet remainder with renewal pricing dust.
+
+Pending relayer transactions use same-nonce fee replacement after five minutes. Every signed
+attempt keeps the same destination, call data, value, gas limit, and nonce. Receipt checks search
+all attempts because an older attempt can be mined after a replacement is signed.
+
 ### 2026-08-25 — Remove scheduled health polling with no alert consumer
 
 The health cron called `eth_chainId` and `eth_getBalance` on four chains every five minutes. This

@@ -5,6 +5,7 @@ import { minimumTriggerAmount } from "./config";
 import { withDatabaseLease, database } from "./db/client";
 import { balanceSnapshots, chainEvents, flows, flowTransitions, names, transactionIntents } from "./db/schema";
 import { NAME_RECHECK_MS } from "./flow-state";
+import { ORIGIN_WALLET_ACTIVE_STATUSES } from "./flow-state";
 import { logOperation } from "./log";
 import { broadcastTransaction } from "./transactions";
 import { startRenewalWorkflow } from "./workflows";
@@ -109,17 +110,25 @@ export async function processRecoveryBatch(
 }
 
 async function scanUnscannedName(name: { id: string; depositAddress: string; chainIds: readonly number[] }): Promise<readonly string[]> {
-	const balances = await readNativeUsdcBalanceSnapshots(name.depositAddress, [...name.chainIds]);
+	const active = await database().select({ chainId: flows.originChainId }).from(flows).where(and(
+		eq(flows.nameId, name.id),
+		inArray(flows.status, ORIGIN_WALLET_ACTIVE_STATUSES),
+	));
+	const activeChainIds = new Set(active.map((row) => Number(row.chainId)));
+	const scanChainIds = name.chainIds.filter((chainId) => !activeChainIds.has(chainId));
+	if (!scanChainIds.length) return [];
+	const balances = await readNativeUsdcBalanceSnapshots(name.depositAddress, [...scanChainIds]);
 	const answered = new Set(balances
 		.filter((balance) => balance.amount !== undefined && balance.blockNumber !== undefined)
 		.map((balance) => balance.chainId));
-	const remaining = name.chainIds.filter((chainId) => !answered.has(chainId));
+	const remaining = new Set(name.chainIds.filter(
+		(chainId) => activeChainIds.has(chainId) || !answered.has(chainId),
+	));
 	const eligible = balances.filter(
 		(balance): balance is Required<typeof balance> =>
 			balance.amount !== undefined && BigInt(balance.amount) >= minimumTriggerAmount(balance.chainId),
 	);
 	const created = await database().transaction(async (tx) => {
-		await tx.update(names).set({ unscannedChainIds: remaining.map(String) }).where(eq(names.id, name.id));
 		for (const balance of balances) {
 			if (balance.amount === undefined || balance.blockNumber === undefined) continue;
 			await tx.insert(balanceSnapshots).values({
@@ -148,7 +157,9 @@ async function scanUnscannedName(name: { id: string; depositAddress: string; cha
 				.onConflictDoNothing()
 				.returning({ id: flows.id });
 			if (flow) result.push(flow.id);
+			else remaining.add(balance.chainId);
 		}
+		await tx.update(names).set({ unscannedChainIds: [...remaining].map(String) }).where(eq(names.id, name.id));
 		return result;
 	});
 	return created;
@@ -172,6 +183,7 @@ export function resumableRecoveryCandidate(now: Date) {
 			isNull(flows.workflowRunId),
 			lte(flows.updatedAt, new Date(now.getTime() - STARTING_STALE_MS)),
 		),
+		or(isNull(flows.nextActionAt), lte(flows.nextActionAt, now)),
 	);
 }
 
