@@ -329,6 +329,7 @@ payment target) is still truncated elsewhere.
 
 ## CI
 
-**There is none.** The repo has no workflows at all — `.github/` holds only README screenshots. The
-Claude Code Action that used to review every PR was removed on 2026-08-05, so nothing runs on push
-or on a pull request, and nothing checks that `npm run build` passes before a merge. Verify locally.
+GitHub Actions runs the application build, server and workflow type checks, frontend tests, server
+tests, Workflow runtime tests, chain-registry check, generated Goldsky pipeline check, and Foundry
+tests on each pull request and each push to `main`. Keep the `Checks` job free of deployment
+credentials and live-service calls. GitHub branch protection must require this job before merge.
