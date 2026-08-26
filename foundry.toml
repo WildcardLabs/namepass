@@ -24,12 +24,10 @@ optimizer_runs = 200
 bytecode_hash = "none"
 cbor_metadata = false
 
-# Solidity dependencies come from npm rather than git submodules — the repo
-# already has a package.json, and this keeps `forge` and `npm install` from
-# owning two different dependency stores.
+# OpenZeppelin comes from npm rather than a git submodule. The ENS test sources
+# are stored under `test/ens/`, so Forge and npm do not share ownership of them.
 remappings = [
     "@openzeppelin/=node_modules/@openzeppelin/",
-    "@ens/contracts/=node_modules/@ensdomains/ens-contracts/contracts/",
 ]
 
 # Tests only. `src = "contracts"` above is what ships, and nothing under

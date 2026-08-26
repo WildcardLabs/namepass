@@ -167,8 +167,9 @@ forge test -vvv       # traces, for a failure worth reading
 ```
 
 Foundry is not vendored — install it with `curl -L https://foundry.paradigm.xyz | bash && foundryup`.
-Solidity dependencies come from **npm**, not git submodules (`remappings` in `foundry.toml`), so
-`npm install` is a prerequisite for `forge build`. `forge-std` is the exception and lives in `lib/`.
+OpenZeppelin comes from **npm**, not a git submodule (`remappings` in `foundry.toml`), so `npm install`
+is a prerequisite for `forge build`. The ENS test sources are stored under `test/ens/`, and
+`forge-std` lives in `lib/`.
 
 `test/ens/` is ENS v2 source, copied verbatim — see the README there. The pricing tests run the
 helper's inverse against **ENS's own `StandardRentPriceOracle`**, which is the point: both pricing

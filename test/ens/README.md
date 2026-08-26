@@ -21,5 +21,9 @@ ENS v1 and their renewability predicates are small enough to reproduce exactly i
 `test/mocks/MockRenewer.sol`. Those predicates are copied from `ETHRegistrar._isRenewable` and
 `ETHRenewerV1._isRenewable`; check them against the source if ENS changes them.
 
+`utils/StringUtils.sol` is copied verbatim from `ensdomains/ens-contracts` tag **`v1.7.0`**. It is
+stored here because the oracle only needs this standalone helper; installing the full package adds
+unrelated contracts and dependencies to the test environment.
+
 **This is still not a substitute for a fork test** against deployed Sepolia contracts, which is the
 only thing that confirms the addresses and the ABI as actually deployed.
