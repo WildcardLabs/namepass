@@ -29,6 +29,20 @@
       "when": 1787681682487,
       "tag": "0003_indexed_balance_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787753774189,
+      "tag": "0004_phase_aware_flows",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787754015795,
+      "tag": "0005_external_origin_evidence",
+      "breakpoints": true
     }
   ]
 }

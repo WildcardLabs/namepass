@@ -5,6 +5,7 @@ import {
 	goldskyHandler,
 	ensRenewalLabel,
 	externalRenewalProjection,
+	reorgResumeStatus,
 	parseGoldskyEvent,
 	type GoldskyEvent,
 	type GoldskyStore,
@@ -55,6 +56,7 @@ class MemoryStore implements GoldskyStore, GoldskyTransaction {
 	renewalReconciliations = 0;
 	renewalAggregateRefreshes = 0;
 	expiryRefreshes = 0;
+	readonly scanMarkers = new Set<string>();
 
 	async transaction<T>(work: (tx: GoldskyTransaction) => Promise<T>): Promise<T> {
 		return work(this);
@@ -72,6 +74,8 @@ class MemoryStore implements GoldskyStore, GoldskyTransaction {
 		this.deposits.set(event.eventId, { status: event.gsOp === "c" ? "detected" : "orphaned" });
 	}
 
+	async reconcileOriginBurn(): Promise<string | undefined> { return "flow-origin"; }
+
 	async reconcileRenewal(): Promise<string | undefined> {
 		this.renewalReconciliations += 1;
 		return "name-1";
@@ -80,6 +84,10 @@ class MemoryStore implements GoldskyStore, GoldskyTransaction {
 	async refreshRenewalAggregates(): Promise<void> { this.renewalAggregateRefreshes += 1; }
 
 	async refreshEnsExpiry(): Promise<void> { this.expiryRefreshes += 1; }
+
+	async markChainForScan(nameId: string, chainId: number): Promise<void> {
+		this.scanMarkers.add(`${nameId}:${chainId}`);
+	}
 
 	async ensureFlow(
 		nameId: string,
@@ -97,15 +105,24 @@ class MemoryStore implements GoldskyStore, GoldskyTransaction {
 		const existing = this.flows.find(
 			(flow) => flow.nameId === nameId && flow.chainId === chainId && flow.status === "queued",
 		);
-		if (existing) return existing.id;
+		if (existing) {
+			existing.depositEventId = null;
+			await this.markChainForScan(nameId, chainId);
+			return existing.id;
+		}
 		const id = `flow-${this.flows.length + 1}`;
 		this.flows.push({ id, nameId, chainId, amount, depositEventId, status: "queued" });
 		return id;
 	}
 
-	async cancelUnbroadcastFlow(nameId: string, chainId: number): Promise<void> {
+	async cancelUnbroadcastFlow(nameId: string, chainId: number, depositEventId: string): Promise<void> {
 		for (const flow of this.flows) {
-			if (flow.nameId === nameId && flow.chainId === chainId && flow.status === "queued") {
+			if (
+				flow.nameId === nameId
+				&& flow.chainId === chainId
+				&& flow.depositEventId === depositEventId
+				&& flow.status === "queued"
+			) {
 				flow.status = "cancelled";
 			}
 		}
@@ -211,6 +228,38 @@ test("two small deposits start one flow when their wallet balance reaches the mi
 	assert.equal(store.flows[0]?.amount, "500000");
 	assert.equal(store.flows[0]?.depositEventId, null);
 	assert.deepEqual(started, ["flow-1"]);
+});
+
+test("a deposit during an active flow leaves a bounded balance-scan marker", async () => {
+	const store = new MemoryStore();
+	const route = goldskyHandler(store, async () => {}, () => secret);
+	const later = {
+		...transfer(),
+		event_id: "84532:later",
+		tx_hash: `0x${"9".repeat(64)}`,
+		log_index: 9,
+	};
+
+	assert.equal((await route.fetch(request(JSON.stringify(transfer())))).status, 200);
+	assert.equal((await route.fetch(request(JSON.stringify(later)))).status, 200);
+	assert.equal(store.flows.length, 1);
+	assert.equal(store.flows[0]?.depositEventId, null);
+	assert.deepEqual([...store.scanMarkers], ["name-1:84532"]);
+});
+
+test("a failed small-deposit balance read leaves a recovery marker", async () => {
+	const store = new MemoryStore();
+	const route = goldskyHandler(
+		store,
+		async () => {},
+		() => secret,
+		async () => { throw new Error("RPC unavailable"); },
+	);
+	const small = { ...transfer(), event_id: "84532:small-rpc-failure", amount: "250000" };
+
+	assert.equal((await route.fetch(request(JSON.stringify(small)))).status, 200);
+	assert.equal(store.flows.length, 0);
+	assert.deepEqual([...store.scanMarkers], ["name-1:84532"]);
 });
 
 test("delete is idempotent and replay resumes the same deposit flow", async () => {
@@ -418,10 +467,16 @@ test("external renewal projection requires an exact CCTP source domain", () => {
 	const projection = externalRenewalProjection(facts, {
 		source_domain: "6",
 		nonce: `0x${"1".repeat(64)}`,
+		burn_amount: "5000000",
 	});
 	assert.equal(projection?.originChainId, "84532");
-	assert.equal(projection?.amountProcessed, "4900000");
+	assert.equal(projection?.amountProcessed, "5000000");
 	assert.equal(externalRenewalProjection({ ...facts, from_cctp: "false" })?.originChainId, "11155111");
+});
+
+test("a settlement reorg resumes the exact transaction stage", () => {
+	assert.equal(reorgResumeStatus("origin_renew"), "waiting_origin");
+	assert.equal(reorgResumeStatus("claim"), "waiting_claim");
 });
 
 test("bytes32 event fields accept Goldsky's bare hex and normalize to 0x", () => {

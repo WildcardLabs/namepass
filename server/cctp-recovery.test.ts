@@ -82,3 +82,12 @@ test("a stored CCTP transaction resumes at its receipt", () => {
 		claimIntentStatus: "broadcast",
 	}), "claim_receipt");
 });
+
+test("a permissionless origin burn resumes from its indexed transaction", () => {
+	assert.equal(cctpResumeStage({
+		status: "waiting_origin",
+		cctpMessage: null,
+		cctpAttestation: null,
+		originEvidenceTxHash: `0x${"1".repeat(64)}`,
+	}), "origin_receipt");
+});

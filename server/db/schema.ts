@@ -231,6 +231,7 @@ export const flows = pgTable(
 		holdReason: text("hold_reason"),
 		workflowRunId: text("workflow_run_id"),
 		originTxIntentId: uuid("origin_tx_intent_id"),
+		originEvidenceTxHash: varchar("origin_evidence_tx_hash", { length: 66 }),
 		claimTxIntentId: uuid("claim_tx_intent_id"),
 		amountDetected: amount("amount_detected").notNull(),
 		amountProcessed: amount("amount_processed"),
@@ -264,7 +265,7 @@ export const flows = pgTable(
 	(table) => [
 		uniqueIndex("flows_one_active_per_name_chain")
 			.on(table.nameId, table.originChainId)
-			.where(sql`${table.status} not in ('settled', 'cancelled', 'failed')`),
+			.where(sql`${table.status} in ('queued', 'confirming_deposit', 'checking_name', 'submitting_origin', 'waiting_origin', 'held')`),
 		uniqueIndex("flows_deposit_event_unique")
 			.on(table.depositEventId)
 			.where(sql`${table.depositEventId} is not null`),

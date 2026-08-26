@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { HUB_CHAIN, SERVER_CHAINS } from "../src/lib/chains";
 import { normalizeLabel } from "../src/lib/namepass";
@@ -12,6 +12,7 @@ import { logOperation } from "./log";
 import { startRenewalWorkflow } from "./workflows";
 import { rawPayloadExpiresAt } from "./retention";
 import { STOPPED_DEPOSIT_ERROR, stoppedFlowReason } from "./stopped-flows";
+import { ORIGIN_WALLET_ACTIVE_STATUSES } from "./flow-state";
 
 const COMMON_FIELDS = [
 	"event_id",
@@ -100,11 +101,13 @@ export interface GoldskyTransaction {
 	upsertEvent(event: GoldskyEvent): Promise<void>;
 	nameIdForAddress(address: string): Promise<string | undefined>;
 	upsertDeposit(event: GoldskyEvent, nameId: string): Promise<void>;
+	reconcileOriginBurn(event: GoldskyEvent): Promise<string | undefined>;
 	reconcileRenewal(event: GoldskyEvent): Promise<string | undefined>;
 	refreshRenewalAggregates(nameId: string): Promise<void>;
 	refreshEnsExpiry(event: GoldskyEvent): Promise<void>;
 	ensureFlow(nameId: string, chainId: number, amount: string, depositEventId: string | null): Promise<string>;
-	cancelUnbroadcastFlow(nameId: string, chainId: number): Promise<void>;
+	markChainForScan(nameId: string, chainId: number): Promise<void>;
+	cancelUnbroadcastFlow(nameId: string, chainId: number, depositEventId: string): Promise<void>;
 }
 
 export interface GoldskyStore {
@@ -123,14 +126,18 @@ export function externalRenewalProjection(
 	if (!origin) return undefined;
 	return {
 		originChainId: String(origin.chainId),
-		amountDetected: String(facts.amount_received),
-		amountProcessed: String(facts.amount_received),
+		amountDetected: String(fromCctp ? claim!.burn_amount : facts.amount_received),
+		amountProcessed: String(fromCctp ? claim!.burn_amount : facts.amount_received),
 		remainingAmount: String(facts.remainder),
 		gasAllowance: String(facts.gas_allowance),
 		amountApplied: String(facts.amount_applied),
 		durationSeconds: String(facts.duration),
 		cctpNonce: claim ? BigInt(String(claim.nonce)).toString() : null,
 	};
+}
+
+export function reorgResumeStatus(kind: "origin_renew" | "claim") {
+	return kind === "claim" ? "waiting_claim" as const : "waiting_origin" as const;
 }
 
 function ensExpiry(facts: unknown): Date | null {
@@ -326,9 +333,13 @@ export async function ingestGoldskyEvent(
 	store: GoldskyStore,
 	event: GoldskyEvent,
 	observedBalance?: string,
+	balanceReadFailed = false,
 ): Promise<string | undefined> {
 	return store.transaction(async (tx) => {
 		await tx.upsertEvent(event);
+		if (event.eventFamily === "namepass" && event.eventType === "DepositProcessed") {
+			return tx.reconcileOriginBurn(event);
+		}
 		if (
 			event.eventFamily === "namepass"
 			&& (event.eventType === "Renewed" || event.eventType === "CCTPClaimed")
@@ -350,9 +361,10 @@ export async function ingestGoldskyEvent(
 		}
 		await tx.upsertDeposit(event, nameId);
 		if (event.gsOp === "d") {
-			await tx.cancelUnbroadcastFlow(nameId, event.chainId);
+			await tx.cancelUnbroadcastFlow(nameId, event.chainId, event.eventId);
 			return undefined;
 		}
+		if (balanceReadFailed) await tx.markChainForScan(nameId, event.chainId);
 		const eventAmount = BigInt(amount);
 		const balance = observedBalance === undefined ? eventAmount : BigInt(observedBalance);
 		const amountDetected = balance > eventAmount ? balance : eventAmount;
@@ -419,6 +431,7 @@ export function goldskyHandler(
 			return json({ accepted: false, skipped: true }, 200);
 		}
 		let observedBalance: string | undefined;
+		let balanceReadFailed = false;
 		if (
 			event.eventFamily === "deposit"
 			&& event.gsOp === "c"
@@ -429,6 +442,7 @@ export function goldskyHandler(
 			try {
 				observedBalance = await readBalance(event.recipientAddress, event.chainId);
 			} catch {
+				balanceReadFailed = true;
 				logOperation("goldsky.balance_unavailable", {
 					chainId: event.chainId,
 					step: "balance_read",
@@ -437,7 +451,7 @@ export function goldskyHandler(
 				});
 			}
 		}
-		const flowId = await ingestGoldskyEvent(store, event, observedBalance);
+		const flowId = await ingestGoldskyEvent(store, event, observedBalance, balanceReadFailed);
 		if (flowId) await startFlow(flowId);
 		return json({ accepted: true });
 	});
@@ -507,6 +521,99 @@ export const postgresGoldskyStore: GoldskyStore = {
 							set: { status: event.gsOp === "c" ? "detected" : "orphaned" },
 						});
 				},
+				async reconcileOriginBurn(event) {
+					if (event.chainId === HUB_CHAIN.chainId) return undefined;
+					const facts = event.facts as Record<string, unknown>;
+					const wallet = String(facts.wallet_address ?? "");
+					const [name] = await tx.select({ id: names.id }).from(names).where(eq(names.depositAddress, wallet));
+					if (!name) return undefined;
+					if (event.gsOp === "d") {
+						const [flow] = await tx.select({
+							id: flows.id,
+							status: flows.status,
+							trigger: flows.trigger,
+							originIntentId: flows.originTxIntentId,
+						}).from(flows).where(eq(flows.originEvidenceTxHash, event.txHash));
+						if (!flow) return undefined;
+						const status = flow.originIntentId
+							? "waiting_origin" as const
+							: flow.trigger === "external" ? "cancelled" as const : "queued" as const;
+						const now = new Date();
+						if (flow.originIntentId) {
+							await tx.update(transactionIntents).set({
+								status: "broadcast",
+								confirmedAt: null,
+								receipt: null,
+								updatedAt: now,
+							}).where(eq(transactionIntents.id, flow.originIntentId));
+						}
+						await tx.update(flows).set({
+							status,
+							originEvidenceTxHash: null,
+							amountProcessed: null,
+							remainingAmount: null,
+							workflowRunId: null,
+							lastErrorCode: "origin_reorged",
+							nextActionAt: status === "cancelled" ? null : now,
+							cancelledAt: status === "cancelled" ? now : null,
+							updatedAt: now,
+						}).where(eq(flows.id, flow.id));
+						await tx.insert(flowTransitions).values({
+							flowId: flow.id,
+							fromStatus: flow.status,
+							toStatus: status,
+							actor: "webhook",
+							reasonCode: "origin_reorged",
+						});
+						return status === "cancelled" ? undefined : flow.id;
+					}
+					const [active] = await tx.select({
+						id: flows.id,
+						status: flows.status,
+						workflowRunId: flows.workflowRunId,
+						originIntentId: flows.originTxIntentId,
+					})
+						.from(flows).where(and(
+							eq(flows.nameId, name.id),
+							eq(flows.originChainId, String(event.chainId)),
+							inArray(flows.status, ORIGIN_WALLET_ACTIVE_STATUSES),
+						));
+					const [originIntent] = active?.originIntentId
+						? await tx.select({ hash: transactionIntents.currentTxHash })
+							.from(transactionIntents).where(eq(transactionIntents.id, active.originIntentId))
+						: [];
+					const keepsOwner = originIntent?.hash?.toLowerCase() === event.txHash.toLowerCase();
+					const values = {
+						originEvidenceTxHash: event.txHash,
+						status: "waiting_origin" as const,
+						amountProcessed: String(facts.amount),
+						remainingAmount: String(facts.remaining_amount),
+						workflowRunId: keepsOwner ? active?.workflowRunId ?? null : null,
+						waitingOriginAt: event.blockTime,
+						updatedAt: new Date(),
+					};
+					const [flow] = active
+						? await tx.update(flows).set(values).where(eq(flows.id, active.id)).returning({ id: flows.id })
+						: await tx.insert(flows).values({
+							...values,
+							nameId: name.id,
+							originChainId: String(event.chainId),
+							trigger: "external",
+							amountDetected: String(facts.amount),
+						}).returning({ id: flows.id });
+					if (!flow) return undefined;
+					if (BigInt(String(facts.remaining_amount)) > 0n) {
+						await this.markChainForScan(name.id, event.chainId);
+					}
+					await tx.insert(flowTransitions).values({
+						flowId: flow.id,
+						fromStatus: active?.status ?? null,
+						toStatus: "waiting_origin",
+						actor: "webhook",
+						reasonCode: "origin_burn_observed",
+					});
+					return flow.id;
+				},
 				async reconcileRenewal(event) {
 					const [renewal] = event.eventType === "Renewed"
 						? [{
@@ -544,19 +651,76 @@ export const postgresGoldskyStore: GoldskyStore = {
 					const expiryAfter = ensExpiry(ensRenewal?.facts);
 					const expiryPatch = expiryAfter ? { expiryAfter } : {};
 
-					if (!renewal.canonical) {
-						await tx.update(flows).set({ status: "cancelled", cancelledAt: new Date(), updatedAt: new Date() })
-							.where(and(eq(flows.renewalEventId, renewal.eventId), eq(flows.trigger, "external")));
-						return name.id;
-					}
-					if (event.eventType === "CCTPClaimed" && event.gsOp === "d") {
-						await tx.update(flows).set({ status: "cancelled", cancelledAt: new Date(), updatedAt: new Date() })
-							.where(and(eq(flows.renewalEventId, renewal.eventId), eq(flows.trigger, "external")));
+					if (!renewal.canonical || (event.eventType === "CCTPClaimed" && event.gsOp === "d")) {
+						const affected = await tx.select({
+							flowId: flows.id,
+							status: flows.status,
+							trigger: flows.trigger,
+							cctpMessage: flows.cctpMessage,
+							originEvidenceTxHash: flows.originEvidenceTxHash,
+						}).from(flows).where(eq(flows.renewalEventId, renewal.eventId));
+						const now = new Date();
+						for (const row of affected) {
+							const [matchingIntent] = await tx.select({ id: transactionIntents.id, kind: transactionIntents.kind })
+								.from(transactionIntents).where(and(
+									eq(transactionIntents.flowId, row.flowId),
+									eq(transactionIntents.currentTxHash, renewal.txHash),
+								));
+							const [claimIntent] = matchingIntent ? [] : await tx.select({ id: transactionIntents.id, kind: transactionIntents.kind })
+								.from(transactionIntents).where(and(
+									eq(transactionIntents.flowId, row.flowId),
+									eq(transactionIntents.kind, "claim"),
+								));
+							const recoverable = row.trigger !== "external" || row.cctpMessage !== null || row.originEvidenceTxHash !== null;
+							if (!recoverable) {
+								await tx.update(flows).set({ status: "cancelled", cancelledAt: now, updatedAt: now })
+									.where(eq(flows.id, row.flowId));
+								continue;
+							}
+							const intent = matchingIntent ?? claimIntent;
+							const status = intent ? reorgResumeStatus(intent.kind) : row.cctpMessage ? "submitting_claim" as const : "waiting_origin" as const;
+							if (intent) {
+								await tx.update(transactionIntents).set({
+									status: matchingIntent ? "broadcast" : "prepared",
+									broadcastAt: matchingIntent ? undefined : null,
+									confirmedAt: null,
+									receipt: null,
+									updatedAt: now,
+								}).where(eq(transactionIntents.id, intent.id));
+							}
+							await tx.update(flows).set({
+								renewalEventId: null,
+								status,
+								gasAllowance: null,
+								amountApplied: null,
+								durationSeconds: null,
+								expiryAfter: null,
+								settledAt: null,
+								workflowRunId: null,
+								lastErrorCode: "settlement_reorged",
+								nextActionAt: now,
+								updatedAt: now,
+							}).where(eq(flows.id, row.flowId));
+							await tx.insert(flowTransitions).values({
+								flowId: row.flowId,
+								fromStatus: row.status,
+								toStatus: status,
+								actor: "webhook",
+								reasonCode: "settlement_reorged",
+							});
+						}
 						return name.id;
 					}
 
 					const [known] = await tx
-						.select({ id: flows.id })
+						.select({
+							id: flows.id,
+							status: flows.status,
+							nameId: flows.nameId,
+							originChainId: flows.originChainId,
+							remainingAmount: flows.remainingAmount,
+							intentId: transactionIntents.id,
+						})
 						.from(flows)
 						.innerJoin(transactionIntents, eq(transactionIntents.flowId, flows.id))
 						.where(and(
@@ -564,18 +728,46 @@ export const postgresGoldskyStore: GoldskyStore = {
 							eq(transactionIntents.currentTxHash, renewal.txHash),
 						));
 					if (known) {
+						const now = new Date();
+						await tx.update(transactionIntents).set({
+							status: "confirmed",
+							confirmedAt: renewal.blockTime,
+							updatedAt: now,
+						}).where(eq(transactionIntents.id, known.intentId));
 						await tx.update(flows).set({
 							renewalEventId: renewal.eventId,
 							status: "settled",
-							remainingAmount: String(facts.remainder),
 							gasAllowance: String(facts.gas_allowance),
 							amountApplied: String(facts.amount_applied),
 							durationSeconds: String(facts.duration),
 							...expiryPatch,
+							holdReason: null,
+							lastErrorCode: null,
+							nextActionAt: null,
 							settledAt: renewal.blockTime,
-							updatedAt: new Date(),
+							updatedAt: now,
 						})
 							.where(eq(flows.id, known.id));
+						if (known.status !== "settled") {
+							await tx.insert(flowTransitions).values({
+								flowId: known.id,
+								fromStatus: known.status,
+								toStatus: "settled",
+								actor: "webhook",
+								reasonCode: "canonical_renewal_observed",
+							});
+						}
+						// `Renewed.remainder` is pricing dust. Keep the origin wallet remainder
+						// that `DepositProcessed` stored, and mark only this chain for a balance scan.
+						if (BigInt(known.remainingAmount ?? "0") > 0n) {
+							await tx.update(names).set({
+								unscannedChainIds: sql`case
+									when ${known.originChainId}::numeric = any(${names.unscannedChainIds})
+									then ${names.unscannedChainIds}
+									else array_append(${names.unscannedChainIds}, ${known.originChainId}::numeric)
+								end`,
+							}).where(eq(names.id, known.nameId));
+						}
 						return name.id;
 					}
 
@@ -598,16 +790,27 @@ export const postgresGoldskyStore: GoldskyStore = {
 					const projection = externalRenewalProjection(facts, claim);
 					if (!projection) return name.id;
 					if (projection.cctpNonce) {
-						const [rescued] = await tx.select({ id: flows.id }).from(flows).where(and(
+						const [exact] = await tx.select({ id: flows.id }).from(flows).where(and(
 							eq(flows.nameId, name.id),
 							eq(flows.originChainId, projection.originChainId),
 							eq(flows.cctpNonce, projection.cctpNonce),
 						));
+						const [byBurn] = exact ? [] : await tx.select({ id: flows.id }).from(flows).where(and(
+							eq(flows.nameId, name.id),
+							eq(flows.originChainId, projection.originChainId),
+							eq(flows.amountProcessed, projection.amountProcessed),
+							inArray(flows.status, ["waiting_attestation", "submitting_claim", "waiting_claim", "unclaimed"]),
+						));
+						const rescued = exact ?? byBurn;
 						if (rescued) {
 							await tx.update(flows).set({
 								renewalEventId: renewal.eventId,
 								status: "settled",
-								...projection,
+								amountProcessed: projection.amountProcessed,
+								gasAllowance: projection.gasAllowance,
+								amountApplied: projection.amountApplied,
+								durationSeconds: projection.durationSeconds,
+								cctpNonce: projection.cctpNonce,
 								...expiryPatch,
 								holdReason: null,
 								lastErrorCode: null,
@@ -615,6 +818,14 @@ export const postgresGoldskyStore: GoldskyStore = {
 								settledAt: renewal.blockTime,
 								updatedAt: new Date(),
 							}).where(eq(flows.id, rescued.id));
+							await tx.update(transactionIntents).set({
+								status: "completed_externally",
+								confirmedAt: renewal.blockTime,
+								updatedAt: new Date(),
+							}).where(and(
+								eq(transactionIntents.flowId, rescued.id),
+								eq(transactionIntents.kind, "claim"),
+							));
 							return name.id;
 						}
 					}
@@ -694,6 +905,15 @@ export const postgresGoldskyStore: GoldskyStore = {
 							.where(inArray(flows.renewalEventId, renewals.map((renewal) => renewal.eventId)));
 					}
 				},
+				async markChainForScan(nameId, chainId) {
+					await tx.update(names).set({
+						unscannedChainIds: sql`case
+							when ${String(chainId)}::numeric = any(${names.unscannedChainIds})
+							then ${names.unscannedChainIds}
+							else array_append(${names.unscannedChainIds}, ${String(chainId)}::numeric)
+						end`,
+					}).where(eq(names.id, nameId));
+				},
 				async ensureFlow(nameId, chainId, amount, depositEventId) {
 					const [created] = await tx
 						.insert(flows)
@@ -717,7 +937,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 							const [active] = await tx.select({ id: flows.id }).from(flows).where(and(
 								eq(flows.nameId, nameId),
 								eq(flows.originChainId, String(chainId)),
-								notInArray(flows.status, ["settled", "cancelled", "failed"]),
+								inArray(flows.status, ORIGIN_WALLET_ACTIVE_STATUSES),
 							));
 							if (active) return active.id;
 							const safeToResume = [STOPPED_DEPOSIT_ERROR, "deposit_orphaned"].includes(linked.reasonCode ?? "")
@@ -755,13 +975,19 @@ export const postgresGoldskyStore: GoldskyStore = {
 							and(
 								eq(flows.nameId, nameId),
 								eq(flows.originChainId, String(chainId)),
-								notInArray(flows.status, ["settled", "cancelled", "failed"]),
+								inArray(flows.status, ORIGIN_WALLET_ACTIVE_STATUSES),
 							),
 						);
 					if (!existing) throw new Error("Active flow conflict did not return a flow.");
+					await tx.update(flows).set({
+						depositEventId: null,
+						holdReason: "multiple_or_unlinked_deposits",
+						updatedAt: new Date(),
+					}).where(eq(flows.id, existing.id));
+					await this.markChainForScan(nameId, chainId);
 					return existing.id;
 				},
-				async cancelUnbroadcastFlow(nameId, chainId) {
+				async cancelUnbroadcastFlow(nameId, chainId, depositEventId) {
 					const cancelled = await tx
 						.update(flows)
 						.set({ status: "cancelled", lastErrorCode: "deposit_orphaned", cancelledAt: new Date(), updatedAt: new Date() })
@@ -769,6 +995,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 							and(
 								eq(flows.nameId, nameId),
 								eq(flows.originChainId, String(chainId)),
+								eq(flows.depositEventId, depositEventId),
 								isNull(flows.originTxIntentId),
 								inArray(flows.status, ["queued", "confirming_deposit", "checking_name", "held"]),
 							),

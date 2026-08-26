@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt, or } from "drizzle-orm";
+import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
 	decodeEventLog,
@@ -19,7 +19,7 @@ import {
 	ensureTransactionBroadcast,
 	prepareTransaction,
 	readTransactionReceipt,
-	relayerAccount,
+	replaceStaleTransaction,
 	retryTransaction,
 	transactionIntentAction,
 	originRevertFlowPatch,
@@ -310,15 +310,6 @@ export async function prepareEthereumRenewal(flowId: string): Promise<string> {
 			? retryTransaction(flow.originIntentId)
 			: flow.originIntentId;
 	}
-	const account = relayerAccount();
-	const rpc = await verifiedChainClient(HUB_CHAIN);
-	await rpc.simulateContract({
-		address: HUB_CHAIN.factoryAddress! as Address,
-		abi: FACTORY_ABI,
-		functionName: "renew",
-		args: [flow.label],
-		account,
-	});
 	const callData = encodeFunctionData({ abi: FACTORY_ABI, functionName: "renew", args: [flow.label] });
 	return prepareTransaction({
 		flowId,
@@ -367,7 +358,10 @@ export async function confirmEthereumRenewal(flowId: string, intentId: string): 
 	const flow = await loadEthereumFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
 	const receipt = await readTransactionReceipt(intentId);
-	if (!receipt) return "waiting";
+	if (!receipt) {
+		await replaceStaleTransaction(intentId);
+		return "waiting";
+	}
 	if (receipt.status !== "success") {
 		await markEthereumOriginReverted(flowId, intentId, receipt as unknown as Record<string, unknown>);
 		return "held";
@@ -383,9 +377,10 @@ export async function confirmEthereumRenewal(flowId: string, intentId: string): 
 	const db = database();
 	await db.transaction(async (tx) => {
 		const [current] = await tx.select({ status: flows.status }).from(flows).where(eq(flows.id, flowId));
-		if (!current || current.status === "settled") return;
+		if (!current) return;
 		const now = new Date();
 		await tx.update(transactionIntents).set({ status: "confirmed", confirmedAt: now, receipt: receipt as unknown as Record<string, unknown>, updatedAt: now }).where(eq(transactionIntents.id, intentId));
+		if (current.status === "settled") return;
 		await tx.update(flows).set({ status: "settled", amountProcessed: settlement.amountProcessed, remainingAmount: settlement.remainingAmount, gasAllowance: settlement.gasAllowance, amountApplied: settlement.amountApplied, durationSeconds: settlement.durationSeconds, expiryAfter, settledAt: now, updatedAt: now }).where(eq(flows.id, flowId));
 		await tx.update(names).set({ currentExpiry: expiryAfter, ensSyncedAt: now }).where(and(
 			eq(names.id, flow.nameId),
@@ -393,6 +388,15 @@ export async function confirmEthereumRenewal(flowId: string, intentId: string): 
 		));
 		if (flow.depositEventId) {
 			await tx.update(deposits).set({ status: "finalized" }).where(eq(deposits.eventId, flow.depositEventId));
+		}
+		if (BigInt(settlement.remainingAmount) > 0n) {
+			await tx.update(names).set({
+				unscannedChainIds: sql`case
+					when ${String(HUB_CHAIN.chainId)}::numeric = any(${names.unscannedChainIds})
+					then ${names.unscannedChainIds}
+					else array_append(${names.unscannedChainIds}, ${String(HUB_CHAIN.chainId)}::numeric)
+				end`,
+			}).where(eq(names.id, flow.nameId));
 		}
 		await tx.insert(flowTransitions).values({ flowId, fromStatus: current.status, toStatus: "settled", actor: "workflow", detail: settlement });
 	});

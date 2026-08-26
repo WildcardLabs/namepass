@@ -11,15 +11,20 @@ import {
 	prepareCctpClaimStep,
 	prepareCctpOriginStep,
 	simulateCctpClaimStep,
-	simulateCctpOriginStep,
 } from "./cctp-steps";
 import { receiptPollDelay } from "./receipt-polling";
+import { recordWorkflowFailureStep } from "./common-steps";
+
+function errorText(error: unknown): string {
+	return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+}
 
 export function cctpResumeStage(flow: {
 	status: string;
 	cctpMessage: string | null;
 	cctpAttestation: string | null;
 	originIntentId?: string | null;
+	originEvidenceTxHash?: string | null;
 	originIntentStatus?: string | null;
 	claimIntentId?: string | null;
 	claimIntentStatus?: string | null;
@@ -30,7 +35,7 @@ export function cctpResumeStage(flow: {
 	}
 	if (flow.cctpMessage && flow.cctpAttestation) return "claim";
 	if (flow.cctpMessage) return "attestation";
-	if (flow.originIntentId) {
+	if (flow.originIntentId || flow.originEvidenceTxHash) {
 		return flow.originIntentStatus === "reverted" ? "origin_retry" : "origin_receipt";
 	}
 	if (flow.status === "cancelled") return "done";
@@ -54,62 +59,68 @@ export async function cctpRenewal(
 	flowId: string,
 ): Promise<"settled" | "held" | "unclaimed" | "cancelled" | "failed"> {
 	"use workflow";
-	let flow = await loadCctpFlowStep(flowId);
-	if (!flow) throw new Error("The flow does not exist.");
-	let resume = cctpResumeStage(flow);
-	if (resume === "done") {
-		return flow.status as "settled" | "held" | "cancelled" | "failed";
-	}
+	try {
+		let flow = await loadCctpFlowStep(flowId);
+		if (!flow) throw new Error("The flow does not exist.");
+		let resume = cctpResumeStage(flow);
+		if (resume === "done") {
+			return flow.status as "settled" | "held" | "cancelled" | "failed";
+		}
 
-	// A stored Circle message proves that the origin burn already happened.
-	if (resume === "origin" || resume === "origin_retry" || resume === "origin_receipt") {
-		if (resume === "origin") {
-			const deposit = cctpDepositAction(await confirmCctpDepositStep(flowId));
-			if (deposit === "cancelled") return "cancelled";
-			const eligibility = await checkCctpEligibilityStep(flowId);
-			if (eligibility !== "ready") return eligibility;
+		// A stored Circle message proves that the origin burn already happened.
+		if (resume === "origin" || resume === "origin_retry" || resume === "origin_receipt") {
+			if (resume === "origin") {
+				const deposit = cctpDepositAction(await confirmCctpDepositStep(flowId));
+				if (deposit === "cancelled") return "cancelled";
+				const eligibility = await checkCctpEligibilityStep(flowId);
+				if (eligibility !== "ready") return eligibility;
+			}
+			let originIntentId = flow.originIntentId;
+			if (resume !== "origin_receipt") {
+				originIntentId = await prepareCctpOriginStep(flowId);
+			}
+			if (!originIntentId && !flow.originEvidenceTxHash) {
+				throw new Error("The CCTP flow has no origin transaction evidence.");
+			}
+			if (originIntentId) await broadcastCctpTransactionStep(originIntentId);
+			for (let attempt = 0; ; attempt += 1) {
+				const result = await confirmCctpOriginStep(flowId, originIntentId);
+				if (result === "held" || result === "cancelled") return result;
+				if (result === "attestation") break;
+				await sleep(receiptPollDelay(attempt));
+			}
+			flow = (await loadCctpFlowStep(flowId))!;
+			resume = cctpResumeStage(flow);
 		}
-		let originIntentId = flow.originIntentId;
-		if (resume !== "origin_receipt") {
-			await simulateCctpOriginStep(flowId);
-			originIntentId = await prepareCctpOriginStep(flowId);
+
+		if (resume === "attestation") {
+			for (let attempt = 0; ; attempt += 1) {
+				const iris = await pollCctpAttestationStep(flowId, attempt);
+				if (iris.kind === "complete") break;
+				await sleep(iris.retryAfterMs);
+			}
+			flow = (await loadCctpFlowStep(flowId))!;
+			resume = cctpResumeStage(flow);
 		}
-		if (!originIntentId) throw new Error("The CCTP flow has no origin transaction intent.");
-		await broadcastCctpTransactionStep(originIntentId);
+
+		if (resume === "done") {
+			return flow.status as "settled" | "held" | "cancelled" | "failed";
+		}
+		let claimIntentId = flow.claimIntentId;
+		if (resume !== "claim_receipt") {
+			const claim = cctpClaimAction(await simulateCctpClaimStep(flowId));
+			if (claim === "unclaimed" || claim === "settled") return claim;
+			claimIntentId = await prepareCctpClaimStep(flowId);
+		}
+		if (!claimIntentId) throw new Error("The CCTP flow has no claim transaction intent.");
+		await broadcastCctpTransactionStep(claimIntentId);
 		for (let attempt = 0; ; attempt += 1) {
-			const result = await confirmCctpOriginStep(flowId, originIntentId);
-			if (result === "held") return "held";
-			if (result === "attestation") break;
+			const result = await confirmCctpClaimStep(flowId, claimIntentId);
+			if (result !== "waiting") return result;
 			await sleep(receiptPollDelay(attempt));
 		}
-		flow = (await loadCctpFlowStep(flowId))!;
-		resume = cctpResumeStage(flow);
-	}
-
-	if (resume === "attestation") {
-		for (let attempt = 0; ; attempt += 1) {
-			const iris = await pollCctpAttestationStep(flowId, attempt);
-			if (iris.kind === "complete") break;
-			await sleep(iris.retryAfterMs);
-		}
-		flow = (await loadCctpFlowStep(flowId))!;
-		resume = cctpResumeStage(flow);
-	}
-
-	if (resume === "done") {
-		return flow.status as "settled" | "held" | "cancelled" | "failed";
-	}
-	let claimIntentId = flow.claimIntentId;
-	if (resume !== "claim_receipt") {
-		const claim = cctpClaimAction(await simulateCctpClaimStep(flowId));
-		if (claim === "unclaimed" || claim === "settled") return claim;
-		claimIntentId = await prepareCctpClaimStep(flowId);
-	}
-	if (!claimIntentId) throw new Error("The CCTP flow has no claim transaction intent.");
-	await broadcastCctpTransactionStep(claimIntentId);
-	for (let attempt = 0; ; attempt += 1) {
-		const result = await confirmCctpClaimStep(flowId, claimIntentId);
-		if (result !== "waiting") return result;
-		await sleep(receiptPollDelay(attempt));
+	} catch (error) {
+		await recordWorkflowFailureStep(flowId, errorText(error));
+		throw error;
 	}
 }

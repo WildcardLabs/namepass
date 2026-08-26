@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt, or } from "drizzle-orm";
+import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
 	decodeEventLog,
@@ -36,6 +36,8 @@ import {
 	ensureTransactionBroadcast,
 	prepareTransaction,
 	readTransactionReceipt,
+	replaceStaleTransaction,
+	isMissingTransactionReceipt,
 	relayerAccount,
 	retryTransaction,
 	transactionIntentAction,
@@ -80,6 +82,7 @@ export type CctpFlow = {
 	amountProcessed: string | null;
 	remainingAmount: string | null;
 	originIntentId: string | null;
+	originEvidenceTxHash: Hex | null;
 	originIntentStatus: typeof transactionIntents.$inferSelect.status | null;
 	claimIntentId: string | null;
 	claimIntentStatus: typeof transactionIntents.$inferSelect.status | null;
@@ -166,6 +169,7 @@ export async function loadCctpFlow(flowId: string): Promise<CctpFlow | undefined
 		amountProcessed: row.flow.amountProcessed,
 		remainingAmount: row.flow.remainingAmount,
 		originIntentId: row.flow.originTxIntentId,
+		originEvidenceTxHash: row.flow.originEvidenceTxHash as Hex | null,
 		originIntentStatus: row.originIntentStatus,
 		claimIntentId: row.flow.claimTxIntentId,
 		claimIntentStatus: row.claimIntentStatus,
@@ -277,21 +281,6 @@ export async function checkCctpEligibility(flowId: string): Promise<"ready" | "h
 	return "ready";
 }
 
-export async function simulateCctpOrigin(flowId: string): Promise<void> {
-	"use step";
-	const flow = await loadCctpFlow(flowId);
-	if (!flow) throw new Error("The flow does not exist.");
-	const chain = originChain(flow);
-	const rpc = await verifiedChainClient(chain);
-	await rpc.simulateContract({
-		address: chain.factoryAddress! as Address,
-		abi: FACTORY_ABI,
-		functionName: "renew",
-		args: [flow.label],
-		account: relayerAccount(),
-	});
-}
-
 export async function prepareCctpOrigin(flowId: string): Promise<string> {
 	"use step";
 	const flow = await loadCctpFlow(flowId);
@@ -343,17 +332,35 @@ async function markCctpOriginReverted(
 
 export async function confirmCctpOrigin(
 	flowId: string,
-	intentId: string,
-): Promise<"waiting" | "held" | "attestation"> {
+	intentId: string | null,
+): Promise<"waiting" | "held" | "cancelled" | "attestation"> {
 	"use step";
 	const flow = await loadCctpFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
 	if (flow.cctpMessage) return "attestation";
-	const receipt = await readTransactionReceipt(intentId);
-	if (!receipt) return "waiting";
+	const receipt = intentId
+		? await readTransactionReceipt(intentId)
+		: flow.originEvidenceTxHash
+			? await verifiedChainClient(originChain(flow)).then(async (rpc) => {
+				try {
+					return await rpc.getTransactionReceipt({ hash: flow.originEvidenceTxHash! });
+				} catch (error) {
+					if (isMissingTransactionReceipt(error)) return undefined;
+					throw error;
+				}
+			})
+			: undefined;
+	if (!receipt) {
+		if (intentId) await replaceStaleTransaction(intentId);
+		return "waiting";
+	}
 	if (receipt.status !== "success") {
-		await markCctpOriginReverted(flowId, intentId, receipt as unknown as Record<string, unknown>);
-		return "held";
+		if (intentId) {
+			await markCctpOriginReverted(flowId, intentId, receipt as unknown as Record<string, unknown>);
+		} else {
+			await setFlowStatus(flowId, "cancelled", {}, "external_origin_reverted");
+		}
+		return intentId ? "held" : "cancelled";
 	}
 	const burn = parseOriginBurnReceipt(receiptLogs(receipt.logs), {
 		originChainId: flow.originChainId,
@@ -365,12 +372,14 @@ export async function confirmCctpOrigin(
 	await database().transaction(async (tx) => {
 		const [current] = await tx.select({ status: flows.status }).from(flows).where(eq(flows.id, flowId));
 		if (!current) throw new Error("The flow does not exist.");
-		await tx.update(transactionIntents).set({
-			status: "confirmed",
-			confirmedAt: now,
-			receipt: receipt as unknown as Record<string, unknown>,
-			updatedAt: now,
-		}).where(eq(transactionIntents.id, intentId));
+		if (intentId) {
+			await tx.update(transactionIntents).set({
+				status: "confirmed",
+				confirmedAt: now,
+				receipt: receipt as unknown as Record<string, unknown>,
+				updatedAt: now,
+			}).where(eq(transactionIntents.id, intentId));
+		}
 		await tx.update(flows).set({
 			status: "waiting_attestation",
 			amountProcessed: burn.amount.toString(),
@@ -380,6 +389,15 @@ export async function confirmCctpOrigin(
 			waitingAttestationAt: now,
 			updatedAt: now,
 		}).where(eq(flows.id, flowId));
+		if (burn.remaining > 0n) {
+			await tx.update(names).set({
+				unscannedChainIds: sql`case
+					when ${String(flow.originChainId)}::numeric = any(${names.unscannedChainIds})
+					then ${names.unscannedChainIds}
+					else array_append(${names.unscannedChainIds}, ${String(flow.originChainId)}::numeric)
+				end`,
+			}).where(eq(names.id, flow.nameId));
+		}
 		if (current.status !== "waiting_attestation") {
 			await tx.insert(flowTransitions).values({
 				flowId,
@@ -396,19 +414,24 @@ export async function confirmCctpOrigin(
 export async function pollCctpAttestation(flowId: string, attempt: number): Promise<IrisResult> {
 	"use step";
 	const flow = await loadCctpFlow(flowId);
-	if (!flow?.originIntentId || !flow.cctpMessage) throw new Error("The origin CCTP message is missing.");
+	if ((!flow?.originIntentId && !flow?.originEvidenceTxHash) || !flow.cctpMessage) {
+		throw new Error("The origin CCTP message is missing.");
+	}
 	if (flow.cctpAttestation) {
 		return { kind: "complete", message: flow.cctpMessage, attestation: flow.cctpAttestation, status: "complete" };
 	}
-	const [intent] = await database().select({ txHash: transactionIntents.currentTxHash })
-		.from(transactionIntents).where(eq(transactionIntents.id, flow.originIntentId));
-	if (!intent?.txHash) throw new Error("The origin transaction hash is missing.");
+	const [intent] = flow.originIntentId
+		? await database().select({ txHash: transactionIntents.currentTxHash })
+			.from(transactionIntents).where(eq(transactionIntents.id, flow.originIntentId))
+		: [];
+	const originTxHash = intent?.txHash ?? flow.originEvidenceTxHash;
+	if (!originTxHash) throw new Error("The origin transaction hash is missing.");
 	const chain = originChain(flow);
 	const polling = chain.polling.attestation!;
 	const result = await pollIris({
 		baseUrl: process.env.CIRCLE_IRIS_URL ?? "",
 		sourceDomain: chain.circleDomain,
-		transactionHash: intent.txHash as Hex,
+		transactionHash: originTxHash as Hex,
 		attempt,
 		initialDelayMs: polling.initialMs,
 		maxDelayMs: polling.maxMs,
@@ -525,9 +548,12 @@ export async function confirmCctpClaim(
 	"use step";
 	const flow = await loadCctpFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
-	if (flow.status === "settled") return "settled";
+	if (flow.status === "settled" && flow.claimIntentStatus === "confirmed") return "settled";
 	const receipt = await readTransactionReceipt(intentId);
-	if (!receipt) return "waiting";
+	if (!receipt) {
+		await replaceStaleTransaction(intentId);
+		return "waiting";
+	}
 	if (receipt.status !== "success") {
 		await database().update(transactionIntents).set({
 			status: "reverted",
@@ -553,13 +579,14 @@ export async function confirmCctpClaim(
 	const now = new Date();
 	await database().transaction(async (tx) => {
 		const [current] = await tx.select({ status: flows.status }).from(flows).where(eq(flows.id, flowId));
-		if (!current || current.status === "settled") return;
+		if (!current) return;
 		await tx.update(transactionIntents).set({
 			status: "confirmed",
 			confirmedAt: now,
 			receipt: receipt as unknown as Record<string, unknown>,
 			updatedAt: now,
 		}).where(eq(transactionIntents.id, intentId));
+		if (current.status === "settled") return;
 		await tx.update(flows).set({
 			status: "settled",
 			gasAllowance: settlement.gasAllowance.toString(),
@@ -590,14 +617,6 @@ export async function confirmCctpClaim(
 				durationSeconds: settlement.durationSeconds.toString(),
 			},
 		});
-		if (BigInt(flow.remainingAmount ?? "0") > 0n) {
-			await tx.insert(flows).values({
-				nameId: flow.nameId,
-				originChainId: String(flow.originChainId),
-				trigger: "recovery",
-				amountDetected: flow.remainingAmount!,
-			}).onConflictDoNothing();
-		}
 	});
 	return "settled";
 }

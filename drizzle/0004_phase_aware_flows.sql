@@ -1,0 +1,2 @@
+DROP INDEX "flows_one_active_per_name_chain";--> statement-breakpoint
+CREATE UNIQUE INDEX "flows_one_active_per_name_chain" ON "flows" USING btree ("name_id","origin_chain_id") WHERE "flows"."status" in ('queued', 'confirming_deposit', 'checking_name', 'submitting_origin', 'waiting_origin', 'held');

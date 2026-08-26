@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, notInArray, or } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, notInArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import { readEnsState, readNativeUsdcBalanceSnapshots, ensNamehash, labelHash } from "./chain";
@@ -14,6 +14,7 @@ import { reconcileStoredRenewals } from "./goldsky";
 import { SERVER_CHAINS } from "../src/lib/chains";
 import { depositAddress, InvalidLabelError, normalizeLabel } from "../src/lib/namepass";
 import { STOPPED_FLOW_STATUSES, stoppedFlowReason } from "./stopped-flows";
+import { startRenewalWorkflow } from "./workflows";
 
 const TERMINAL_FLOW_STATUSES = ["settled", "cancelled", "failed"] as Array<typeof flows.$inferSelect.status>;
 const STOPPED_FLOW_VISIBILITY_MS = 30 * 24 * 60 * 60 * 1_000;
@@ -32,7 +33,7 @@ async function recentNameFlows(nameId: string): Promise<NameFlowRow[]> {
 	return database().select({
 		flow: flows,
 		depositTxHash: deposits.txHash,
-		originTxHash: originIntent.currentTxHash,
+		originTxHash: sql<string | null>`coalesce(${originIntent.currentTxHash}, ${flows.originEvidenceTxHash})`,
 		claimTxHash: claimIntent.currentTxHash,
 		reasonCode: stoppedFlowReason(),
 	}).from(flows)
@@ -138,7 +139,8 @@ export async function activateName(input: string) {
 			BigInt(balance.amount) >= minimumTriggerAmount(balance.chainId),
 	);
 
-	await db.transaction(async (tx) => {
+	const recoveryFlowIds = await db.transaction(async (tx) => {
+		const flowIds: string[] = [];
 		await tx
 			.update(names)
 			.set({ unscannedChainIds: unknownChainIds })
@@ -157,7 +159,7 @@ export async function activateName(input: string) {
 			});
 		}
 		for (const balance of positiveBalances) {
-			await tx
+			const [flow] = await tx
 				.insert(flows)
 				.values({
 					nameId: created.row.id,
@@ -167,10 +169,23 @@ export async function activateName(input: string) {
 					holdReason: "balance_recovery",
 					amountDetected: balance.amount,
 				})
-				.onConflictDoNothing();
+				.onConflictDoNothing()
+				.returning({ id: flows.id });
+			if (flow) flowIds.push(flow.id);
 		}
+		return flowIds;
 	});
 	await reconcileStoredRenewals(address);
+	const starts = await Promise.allSettled(recoveryFlowIds.map((flowId) => startRenewalWorkflow(flowId)));
+	for (const [index, result] of starts.entries()) {
+		if (result.status === "rejected") {
+			logOperation("activation.workflow_start_failed", {
+				flowId: recoveryFlowIds[index],
+				step: "workflow_start",
+				errorCode: "workflow_start_failed",
+			});
+		}
+	}
 
 	const [name] = await db.select().from(names).where(eq(names.id, created.row.id));
 	return { name: publicNameView(name), balances, activated: created.inserted };
