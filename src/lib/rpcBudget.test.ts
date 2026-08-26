@@ -19,4 +19,10 @@ describe("RPC budget invariants", () => {
 		expect(source).not.toMatch(/activateName/);
 		expect(source).toMatch(/triggerFlow/);
 	});
+
+	test("the Ethereum workflow does not run a duplicate renewal simulation step", () => {
+		const source = readFileSync(new URL("../../workflows/ethereum.ts", import.meta.url), "utf8");
+		expect(source).not.toMatch(/simulateEthereumRenewalStep/);
+		expect(source).toMatch(/prepareEthereumRenewalStep/);
+	});
 });

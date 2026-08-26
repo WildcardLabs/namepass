@@ -298,21 +298,6 @@ export async function checkEthereumEligibility(flowId: string): Promise<"ready" 
 	return "ready";
 }
 
-export async function simulateEthereumRenewal(flowId: string): Promise<void> {
-	"use step";
-	const flow = await loadEthereumFlow(flowId);
-	if (!flow) throw new Error("The flow does not exist.");
-	const account = relayerAccount();
-	const rpc = await verifiedChainClient(HUB_CHAIN);
-	await rpc.simulateContract({
-		address: HUB_CHAIN.factoryAddress! as Address,
-		abi: FACTORY_ABI,
-		functionName: "renew",
-		args: [flow.label],
-		account,
-	});
-}
-
 /** Persist exact signed bytes before any RPC broadcast. */
 export async function prepareEthereumRenewal(flowId: string): Promise<string> {
 	"use step";

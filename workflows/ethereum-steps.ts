@@ -13,11 +13,6 @@ export async function checkEthereumEligibilityStep(flowId: string) {
 	return (await import("../server/ethereum")).checkEthereumEligibility(flowId);
 }
 
-export async function simulateEthereumRenewalStep(flowId: string) {
-	"use step";
-	return (await import("../server/ethereum")).simulateEthereumRenewal(flowId);
-}
-
 export async function prepareEthereumRenewalStep(flowId: string) {
 	"use step";
 	return (await import("../server/ethereum")).prepareEthereumRenewal(flowId);
