@@ -2,6 +2,7 @@ import { labelLength, solve } from "./pricing";
 import { chainById, HUB_CHAIN } from "./chains";
 import { GAS_ALLOWANCE } from "./fees";
 import { isActiveFlowStatus, type ActiveFlowStatus } from "./flowPresentation";
+import { normalizeLabel } from "./namepass";
 import { micro, milliseconds, safeInteger, type ActivityRead, type LeaderboardRead, type NameActivityRead, type PublicChainBalance, type PublicFlow, type PublicName, type PublicRenewal } from "./publicApi";
 import { minTrigger } from "./triggerConfig";
 
@@ -185,7 +186,13 @@ export function syncLeaderboard(leaderboard: LeaderboardRead): void {
 export function syncName(activity: NameActivityRead): NameRecord { return setName(activity.name, activity); }
 export function allNames(): NameRecord[] { return [...records.values()]; }
 export function leaderboardNames(): NameRecord[] { return leaderboardLabels.flatMap((label) => records.get(label) ?? []); }
-export function findName(query: string): NameRecord | undefined { const label = query.trim().replace(/\.eth$/i, "").toLowerCase(); return records.get(label); }
+export function findName(query: string): NameRecord | undefined {
+	try {
+		return records.get(normalizeLabel(query));
+	} catch {
+		return undefined;
+	}
+}
 export function activityEmptyState(record: NameRecord): ActivityEmptyState {
 	if (record.events.some((event) => event.kind === "renewal")) return null;
 	const hasWaitingPayment = record.pending.balances.some(

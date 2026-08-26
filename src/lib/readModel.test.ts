@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { activeFlows, activityEmptyState, canRecheckName, canTrigger, flowAmount, hasActiveFlow, leaderboardNames, recentActivity, renewalEvent, syncFeed, syncLeaderboard, syncName } from "./readModel";
+import { activeFlows, activityEmptyState, canRecheckName, canTrigger, findName, flowAmount, hasActiveFlow, leaderboardNames, recentActivity, renewalEvent, syncFeed, syncLeaderboard, syncName } from "./readModel";
 import { PUBLIC_CHAINS } from "./chains";
 import { setRates } from "./pricing";
 import type { PublicFlow } from "./publicApi";
@@ -402,4 +402,31 @@ test("leaderboard names contain only the latest leaderboard response", () => {
 		{ ...base, label: "empty", displayName: "empty.eth", renewalCount: "0" },
 	] });
 	expect(leaderboardNames().map((record) => record.name)).toEqual(["ranked.eth"]);
+});
+
+test("name lookup uses the same ENS normalization as address derivation", () => {
+	const record = syncName({
+		name: {
+			label: "bücher",
+			displayName: "bücher.eth",
+			depositAddress: "0x0000000000000000000000000000000000000013",
+			activatedAt: "2026-08-10T00:00:00.000Z",
+			currentExpiry: "2027-08-10T00:00:00.000Z",
+			renewableBy: "registrar",
+			ensSyncedAt: "2026-08-11T00:00:00.000Z",
+			unscannedChainIds: [],
+			lifetimeReceived: "0",
+			lifetimeApplied: "0",
+			timeDeliveredSeconds: "0",
+			renewalCount: "0",
+		},
+		renewals: [],
+		flows: [],
+		balances: [],
+		nextCursor: null,
+	});
+
+	expect(findName("BÜCHER.ETH")).toBe(record);
+	expect(findName("bu\u0308cher.eth")).toBe(record);
+	expect(findName("sub.bücher.eth")).toBeUndefined();
 });
