@@ -66,6 +66,7 @@ import { fetchProfile, type EnsProfile } from "../lib/ens";
 import { XIcon } from "./icons";
 import { activateName, getActivity, getName, getNameActivity, getPublicConfig, safeInteger, triggerFlow, type ActivityRead, type NameActivityRead, type PublicFlow } from "../lib/publicApi";
 import { chainById, HUB_CHAIN } from "../lib/chains";
+import { mergeActivityHistory, mergeNameHistory } from "../lib/activityHistory";
 
 /**
  * "Received" is what the funder sent; the rate and time next to it were bought
@@ -393,11 +394,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 	const tableRef = useRef<HTMLDivElement>(null);
 
 	const mergeHistory = (items: ActivityRead["items"]) => {
-		const merged = new Map(history.current.map((item) => [item.renewal.eventId, item]));
-		for (const item of items) merged.set(item.renewal.eventId, item);
-		history.current = [...merged.values()].sort(
-			(a, b) => new Date(b.renewal.blockTime).getTime() - new Date(a.renewal.blockTime).getTime(),
-		);
+		history.current = mergeActivityHistory(history.current, items);
 	};
 
 	useEffect(() => {
@@ -1300,12 +1297,8 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 	const [loadingOlderName, setLoadingOlderName] = useState(false);
 	const [namePageIndex, setNamePageIndex] = useState(0);
 
-	const mergeNameHistory = (renewals: NameActivityRead["renewals"]) => {
-		const merged = new Map(nameHistory.current.map((renewal) => [renewal.eventId, renewal]));
-		for (const renewal of renewals) merged.set(renewal.eventId, renewal);
-		nameHistory.current = [...merged.values()].sort(
-			(a, b) => new Date(b.blockTime).getTime() - new Date(a.blockTime).getTime(),
-		);
+	const mergeLoadedNameHistory = (renewals: NameActivityRead["renewals"]) => {
+		nameHistory.current = mergeNameHistory(nameHistory.current, renewals);
 	};
 
 	useEffect(() => {
@@ -1365,7 +1358,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 				}
 				const activity = await getNameActivity(selected, undefined, ACTIVITY_PAGE_SIZE);
 				if (!stopped) {
-					mergeNameHistory(activity.renewals);
+					mergeLoadedNameHistory(activity.renewals);
 					if (!nameCursorInitialized.current) {
 						nameCursorInitialized.current = true;
 						nameCursor.current = activity.nextCursor;
@@ -1412,7 +1405,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 		const previousLength = nameHistory.current.length;
 		try {
 			const activity = await getNameActivity(selected, nameCursor.current, ACTIVITY_PAGE_SIZE);
-			mergeNameHistory(activity.renewals);
+			mergeLoadedNameHistory(activity.renewals);
 			nameCursor.current = activity.nextCursor;
 			setNameNextCursor(activity.nextCursor);
 			syncName({ ...activity, renewals: nameHistory.current });
