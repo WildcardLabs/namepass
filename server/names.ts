@@ -33,7 +33,7 @@ async function recentNameFlows(nameId: string): Promise<NameFlowRow[]> {
 	return database().select({
 		flow: flows,
 		depositTxHash: deposits.txHash,
-		originTxHash: sql<string | null>`coalesce(${originIntent.currentTxHash}, ${flows.originEvidenceTxHash})`,
+		originTxHash: sql<string | null>`coalesce(${flows.originEvidenceTxHash}, ${originIntent.currentTxHash})`,
 		claimTxHash: claimIntent.currentTxHash,
 		reasonCode: stoppedFlowReason(),
 	}).from(flows)

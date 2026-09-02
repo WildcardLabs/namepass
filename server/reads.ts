@@ -91,7 +91,7 @@ export async function activity(limit: number, cursor?: ActivityCursor) {
 				flow: flows,
 				name: names,
 				depositTxHash: deposits.txHash,
-				originTxHash: sql<string | null>`coalesce(${originIntent.currentTxHash}, ${flows.originEvidenceTxHash})`,
+				originTxHash: sql<string | null>`coalesce(${flows.originEvidenceTxHash}, ${originIntent.currentTxHash})`,
 				claimTxHash: claimIntent.currentTxHash,
 			})
 			.from(flows)
@@ -135,7 +135,7 @@ export async function renewalActivity(
 			flow: flows,
 			deposit: deposits,
 			ensFacts: ensRenewal.facts,
-			originTxHash: sql<string | null>`coalesce(${originIntent.currentTxHash}, ${flows.originEvidenceTxHash})`,
+			originTxHash: sql<string | null>`coalesce(${flows.originEvidenceTxHash}, ${originIntent.currentTxHash})`,
 			claimTxHash: claimIntent.currentTxHash,
 		})
 		.from(chainEvents)
@@ -337,7 +337,7 @@ export async function publicFlow(id: string) {
 		.leftJoin(claimIntent, eq(flows.claimTxIntentId, claimIntent.id))
 		.where(eq(flows.id, id));
 	if (!row) throw new ApiError(404, "flow_not_found", "This flow does not exist.");
-	const hashes = [row.origin?.currentTxHash, row.claim?.currentTxHash].filter(
+	const hashes = [row.flow.originEvidenceTxHash, row.origin?.currentTxHash, row.claim?.currentTxHash].filter(
 		(hash): hash is string => Boolean(hash),
 	);
 	const linkedRenewal = row.flow.renewalEventId
@@ -363,8 +363,8 @@ export async function publicFlow(id: string) {
 			lastErrorCode: row.flow.lastErrorCode ?? row.reasonCode,
 		}, {
 			depositTxHash: row.depositTxHash,
-			originTxHash: row.origin?.currentTxHash ?? row.flow.originEvidenceTxHash ?? null,
-			claimTxHash: row.claim?.currentTxHash ?? null,
+			originTxHash: row.flow.originEvidenceTxHash ?? row.origin?.currentTxHash ?? null,
+			claimTxHash: facts?.from_cctp === "true" && renewal ? renewal.txHash : row.claim?.currentTxHash ?? null,
 			renewalTxHash: renewal?.txHash ?? null,
 			executorAddress: executor,
 			executorIsRelayer: executor !== null && executor === relayer,
@@ -411,7 +411,7 @@ export function publicRenewalView(
 		fromCctp: facts.from_cctp === "true",
 		depositTxHash: deposit?.txHash ?? null,
 		originTxHash,
-		claimTxHash,
+		claimTxHash: facts.from_cctp === "true" ? event.txHash : claimTxHash,
 		renewalTxHash: event.txHash,
 		blockTime: event.blockTime,
 	};

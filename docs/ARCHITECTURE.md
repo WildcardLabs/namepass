@@ -997,6 +997,13 @@ consume gas.
 Use one exclusive relayer account per environment. It can be the same address across chains, but no
 other tool or person may send transactions from it.
 
+An EOA nonce is sequential per sender and chain. One pending Ethereum transaction therefore blocks
+later Ethereum transactions from the same relayer. For Namepass, that lane contains direct
+Ethereum renewals and every CCTP claim. A pending transaction on Base, Arbitrum, or Arc does not
+block Ethereum or another chain. The current implementation replaces a stale transaction after
+five minutes with the same nonce and higher fees, and receipt checks inspect every signed attempt.
+This bounds an ordinary fee stall but does not remove the single Ethereum relayer as a failure lane.
+
 Vercel serverless functions can run concurrently. An in-memory nonce manager is not safe. Neon
 therefore stores nonce state.
 
@@ -1017,6 +1024,48 @@ therefore stores nonce state.
 If the process stops after step 9, recovery rebroadcasts the same bytes. If the RPC reports “already
 known,” continue receipt polling. If a transaction is stuck, sign a higher-fee replacement with the
 same nonce and link it to the same intent.
+
+Goldsky reconciliation matches a canonical transaction against every hash stored in that intent.
+An older attempt can be mined after a replacement was signed. The actual mined hash is stored as
+flow evidence and is preferred in public reads.
+
+### Relayer concurrency options
+
+The current single EOA is simple and suitable for low volume, but it has one Ethereum nonce lane.
+The practical options are:
+
+| Option | Benefit | Cost and risk |
+|---|---|---|
+| One EOA with active replacement | Small key surface and the current implementation | One unresolved Ethereum nonce delays every later direct renewal and CCTP claim |
+| Small EOA pool | Independent nonce lanes bound one stuck transaction to one worker | More hot keys, native-gas balances, monitoring, public relayer identities, and assignment state |
+| Managed relayer service | Outsources signing, nonce allocation, resubmission, and monitoring | Vendor dependency, service cost, migration work, and less control over incident recovery |
+| ERC-4337 smart account | Keyed nonce lanes can execute independently | New account, bundler, signing, monitoring, and contract-call infrastructure; too large a change for the current relayer |
+
+The recommended next scaling step is a small Ethereum EOA pool, not twenty wallets immediately.
+Start with four lanes and keep at most one pending transaction per relayer and chain. Select a free
+lane with a durable database lease before signing. Keep same-nonce replacement on every lane. Scale
+the pool only when queue and confirmation metrics show sustained saturation.
+
+The pool must not select a wallet from one RPC's pending count alone. Serverless requests can race,
+and node mempools can disagree. Neon must own the assignment. A production implementation needs:
+
+- a configured set of relayer keys in the deployment secret store
+- one nonce row and one pending lease per relayer and chain
+- atomic free-lane selection, for example `FOR UPDATE SKIP LOCKED`
+- the selected relayer address stored permanently on each transaction intent
+- receipt and replacement signing with that same selected key
+- native-gas monitoring and limited balances for every relayer
+- public configuration that recognizes every Namepass relayer address
+- queue age, oldest nonce age, replacement count, and free-lane alerts
+
+Focus the first pool on Ethereum because it carries both direct renewals and all CCTP claims. Keep
+one source-chain relayer until traffic or incident data justifies more lanes there. The factory and
+helper are permissionless and already pay the transaction executor, so a pool does not require a
+contract allowlist change.
+
+References: [Ethereum transactions](https://ethereum.org/developers/docs/transactions),
+[ERC-4337 keyed nonces](https://eips.ethereum.org/EIPS/eip-4337), and
+[OpenZeppelin Relayer](https://docs.openzeppelin.com/relayer/1.5.x).
 
 On a successful receipt, the workflow also validates the matching ENS `NameRenewed` log. It stores
 `flows.expiry_after` and updates `names.current_expiry` in the settlement transaction. Goldsky still

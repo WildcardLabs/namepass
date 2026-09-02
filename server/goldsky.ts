@@ -13,6 +13,7 @@ import { startRenewalWorkflow } from "./workflows";
 import { rawPayloadExpiresAt } from "./retention";
 import { STOPPED_DEPOSIT_ERROR, stoppedFlowReason } from "./stopped-flows";
 import { ORIGIN_WALLET_ACTIVE_STATUSES } from "./flow-state";
+import { transactionHashMatchesIntentSql } from "./transactions";
 
 const COMMON_FIELDS = [
 	"event_id",
@@ -526,61 +527,86 @@ export const postgresGoldskyStore: GoldskyStore = {
 							set: { status: event.gsOp === "c" ? "detected" : "orphaned" },
 						});
 				},
-				async reconcileOriginBurn(event) {
-					if (event.chainId === HUB_CHAIN.chainId) return undefined;
-					const facts = event.facts as Record<string, unknown>;
-					const wallet = String(facts.wallet_address ?? "");
-					const [name] = await tx.select({ id: names.id }).from(names).where(eq(names.depositAddress, wallet));
-					if (!name) return undefined;
-					if (event.gsOp === "d") {
-						const [flow] = await tx.select({
-							id: flows.id,
-							status: flows.status,
-							trigger: flows.trigger,
-							originIntentId: flows.originTxIntentId,
-						}).from(flows)
-							.leftJoin(transactionIntents, eq(transactionIntents.id, flows.originTxIntentId))
-							.where(and(
-								eq(flows.nameId, name.id),
-								eq(flows.originChainId, String(event.chainId)),
-								or(
-									sql<boolean>`lower(${flows.originEvidenceTxHash}) = lower(${event.txHash})`,
-									sql<boolean>`lower(${transactionIntents.currentTxHash}) = lower(${event.txHash})`,
-								),
-							));
-						if (!flow) return undefined;
-						const status = flow.originIntentId
-							? "waiting_origin" as const
-							: flow.trigger === "external" ? "cancelled" as const : "queued" as const;
-						const now = new Date();
-						if (flow.originIntentId) {
-							await tx.update(transactionIntents).set({
-								status: "broadcast",
-								confirmedAt: null,
-								receipt: null,
-								updatedAt: now,
-							}).where(eq(transactionIntents.id, flow.originIntentId));
+					async reconcileOriginBurn(event) {
+						const facts = event.facts as Record<string, unknown>;
+						const wallet = String(facts.wallet_address ?? "");
+						const [name] = await tx.select({ id: names.id }).from(names).where(eq(names.depositAddress, wallet));
+						if (!name) return undefined;
+						if (event.chainId === HUB_CHAIN.chainId) {
+							const [direct] = await tx.select({ id: flows.id }).from(flows)
+								.innerJoin(transactionIntents, eq(transactionIntents.id, flows.originTxIntentId))
+								.where(and(
+									eq(flows.nameId, name.id),
+									eq(flows.originChainId, String(HUB_CHAIN.chainId)),
+									eq(transactionIntents.kind, "origin_renew"),
+									transactionHashMatchesIntentSql(event.txHash),
+								));
+							if (!direct) return undefined;
+							await tx.update(flows).set(event.gsOp === "d" ? {
+								originEvidenceTxHash: null,
+								amountProcessed: null,
+								remainingAmount: null,
+								updatedAt: new Date(),
+							} : {
+								originEvidenceTxHash: event.txHash,
+								amountProcessed: String(facts.amount),
+								remainingAmount: String(facts.remaining_amount),
+								updatedAt: new Date(),
+							}).where(eq(flows.id, direct.id));
+							if (event.gsOp !== "d" && BigInt(String(facts.remaining_amount)) > 0n) {
+								await this.markChainForScan(name.id, event.chainId);
+							}
+							return undefined;
 						}
-						await tx.update(flows).set({
-							status,
-							originEvidenceTxHash: null,
-							amountProcessed: null,
-							remainingAmount: null,
-							workflowRunId: null,
-							lastErrorCode: "origin_reorged",
-							nextActionAt: status === "cancelled" ? null : now,
-							cancelledAt: status === "cancelled" ? now : null,
-							updatedAt: now,
-						}).where(eq(flows.id, flow.id));
-						await tx.insert(flowTransitions).values({
-							flowId: flow.id,
-							fromStatus: flow.status,
-							toStatus: status,
-							actor: "webhook",
-							reasonCode: "origin_reorged",
-						});
-						return status === "cancelled" ? undefined : flow.id;
-					}
+						if (event.gsOp === "d") {
+							const [flow] = await tx.select({
+								id: flows.id,
+								status: flows.status,
+								trigger: flows.trigger,
+								originIntentId: flows.originTxIntentId,
+							}).from(flows)
+								.leftJoin(transactionIntents, eq(transactionIntents.id, flows.originTxIntentId))
+								.where(and(
+									eq(flows.nameId, name.id),
+									eq(flows.originChainId, String(event.chainId)),
+									or(
+										sql<boolean>`lower(${flows.originEvidenceTxHash}) = lower(${event.txHash})`,
+										transactionHashMatchesIntentSql(event.txHash),
+									),
+								));
+							if (!flow) return undefined;
+							const status = flow.originIntentId
+								? "waiting_origin" as const
+								: flow.trigger === "external" ? "cancelled" as const : "queued" as const;
+							const now = new Date();
+							if (flow.originIntentId) {
+								await tx.update(transactionIntents).set({
+									status: "broadcast",
+									confirmedAt: null,
+									receipt: null,
+									updatedAt: now,
+								}).where(eq(transactionIntents.id, flow.originIntentId));
+							}
+							await tx.update(flows).set({
+								status,
+								originEvidenceTxHash: null,
+								amountProcessed: null,
+								remainingAmount: null,
+								workflowRunId: null,
+								lastErrorCode: "origin_reorged",
+								nextActionAt: status === "cancelled" ? null : now,
+								cancelledAt: status === "cancelled" ? now : null,
+								updatedAt: now,
+							}).where(eq(flows.id, flow.id));
+							await tx.insert(flowTransitions).values({
+								flowId: flow.id,
+								fromStatus: flow.status,
+								toStatus: status,
+								actor: "webhook",
+								reasonCode: "origin_reorged",
+							});
+							return status === "cancelled" ? undefined : flow.id;
+						}
 					/* Match the transaction before asking which flow owns the wallet. A
 					   confirmed burn releases that wallet while its Circle message keeps
 					   moving. A late DepositProcessed webhook must still attach to the
@@ -595,7 +621,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 							eq(flows.originChainId, String(event.chainId)),
 							or(
 								sql<boolean>`lower(${flows.originEvidenceTxHash}) = lower(${event.txHash})`,
-								sql<boolean>`lower(${transactionIntents.currentTxHash}) = lower(${event.txHash})`,
+								transactionHashMatchesIntentSql(event.txHash),
 							),
 						));
 					if (exact) {
@@ -767,7 +793,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 							const [matchingIntent] = await tx.select({ id: transactionIntents.id, kind: transactionIntents.kind })
 								.from(transactionIntents).where(and(
 									eq(transactionIntents.flowId, row.flowId),
-									eq(transactionIntents.currentTxHash, renewal.txHash),
+									transactionHashMatchesIntentSql(renewal.txHash),
 								));
 							const [claimIntent] = matchingIntent ? [] : await tx.select({ id: transactionIntents.id, kind: transactionIntents.kind })
 								.from(transactionIntents).where(and(
@@ -825,12 +851,13 @@ export const postgresGoldskyStore: GoldskyStore = {
 							cctpNonce: flows.cctpNonce,
 							originEvidenceTxHash: flows.originEvidenceTxHash,
 							intentId: transactionIntents.id,
+							intentKind: transactionIntents.kind,
 						})
 						.from(flows)
 						.innerJoin(transactionIntents, eq(transactionIntents.flowId, flows.id))
 						.where(and(
 							eq(flows.nameId, name.id),
-							eq(transactionIntents.currentTxHash, renewal.txHash),
+							transactionHashMatchesIntentSql(renewal.txHash),
 						));
 					if (known) {
 						const now = new Date();
@@ -841,6 +868,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 						}).where(eq(transactionIntents.id, known.intentId));
 						await tx.update(flows).set({
 							renewalEventId: renewal.eventId,
+							...(known.intentKind === "origin_renew" ? { originEvidenceTxHash: renewal.txHash } : {}),
 							status: "settled",
 							gasAllowance: String(facts.gas_allowance),
 							amountApplied: String(facts.amount_applied),
@@ -866,7 +894,9 @@ export const postgresGoldskyStore: GoldskyStore = {
 							flowId: known.id,
 							originChainId: known.originChainId,
 							cctpNonce: known.cctpNonce,
-							originTxHash: known.originEvidenceTxHash,
+							originTxHash: known.intentKind === "origin_renew"
+								? renewal.txHash
+								: known.originEvidenceTxHash,
 						});
 						// `Renewed.remainder` is pricing dust. Keep the origin wallet remainder
 						// that `DepositProcessed` stored, and mark only this chain for a balance scan.

@@ -198,6 +198,29 @@ test("public renewal data uses the receipt expiry when the indexer event is late
 	assert.equal(publicRenewalView(event, flow, null, null, null, null).expiryAfter, "2033-05-18T03:33:20.000Z");
 });
 
+test("a completed CCTP renewal exposes the mined claim attempt", () => {
+	const mined = `0x${"7".repeat(64)}`;
+	const replacement = `0x${"8".repeat(64)}`;
+	const result = publicRenewalView({
+		eventId: "11155111:renewed:replacement",
+		txHash: mined,
+		blockTime: new Date("2026-08-11T12:00:00.000Z"),
+		facts: {
+			executor_address: "0x0000000000000000000000000000000000000001",
+			amount_received: "5000000",
+			gas_allowance: "100000",
+			amount_applied: "4900000",
+			duration: "31536000",
+			from_cctp: "true",
+		},
+	} as typeof chainEvents.$inferSelect, {
+		id: "00000000-0000-4000-8000-000000000003",
+		originChainId: "84532",
+	} as typeof flows.$inferSelect, null, null, null, replacement);
+
+	assert.equal(result.claimTxHash, mined);
+});
+
 test("recovered activity accepts only one exact stopped deposit", () => {
 	const target = {
 		flowId: "manual",

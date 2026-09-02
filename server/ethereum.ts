@@ -380,8 +380,11 @@ export async function confirmEthereumRenewal(flowId: string, intentId: string): 
 		if (!current) return;
 		const now = new Date();
 		await tx.update(transactionIntents).set({ status: "confirmed", confirmedAt: now, receipt: receipt as unknown as Record<string, unknown>, updatedAt: now }).where(eq(transactionIntents.id, intentId));
-		if (current.status === "settled") return;
-		await tx.update(flows).set({ status: "settled", amountProcessed: settlement.amountProcessed, remainingAmount: settlement.remainingAmount, gasAllowance: settlement.gasAllowance, amountApplied: settlement.amountApplied, durationSeconds: settlement.durationSeconds, expiryAfter, settledAt: now, updatedAt: now }).where(eq(flows.id, flowId));
+		if (current.status === "settled") {
+			await tx.update(flows).set({ originEvidenceTxHash: receipt.transactionHash, updatedAt: now }).where(eq(flows.id, flowId));
+			return;
+		}
+		await tx.update(flows).set({ status: "settled", originEvidenceTxHash: receipt.transactionHash, amountProcessed: settlement.amountProcessed, remainingAmount: settlement.remainingAmount, gasAllowance: settlement.gasAllowance, amountApplied: settlement.amountApplied, durationSeconds: settlement.durationSeconds, expiryAfter, settledAt: now, updatedAt: now }).where(eq(flows.id, flowId));
 		await tx.update(names).set({ currentExpiry: expiryAfter, ensSyncedAt: now }).where(and(
 			eq(names.id, flow.nameId),
 			or(isNull(names.currentExpiry), lt(names.currentExpiry, expiryAfter)),

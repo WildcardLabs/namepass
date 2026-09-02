@@ -60,6 +60,35 @@ export function replacementFee(previous: bigint, current: bigint | undefined): b
 	return current !== undefined && current > bumped ? current : bumped;
 }
 
+/** Return every hash that may settle one logical transaction intent. */
+export function transactionAttemptHashes(
+	currentTxHash: unknown,
+	attempts: unknown,
+): string[] {
+	const hashes = new Set<string>();
+	if (Array.isArray(attempts)) {
+		for (const attempt of attempts) {
+			if (attempt && typeof attempt === "object" && "hash" in attempt && typeof attempt.hash === "string") {
+				hashes.add(attempt.hash.toLowerCase());
+			}
+		}
+	}
+	if (typeof currentTxHash === "string") hashes.add(currentTxHash.toLowerCase());
+	return [...hashes];
+}
+
+/** Match Goldsky evidence even when an older same-nonce replacement attempt was mined. */
+export function transactionHashMatchesIntentSql(txHash: string) {
+	return sql<boolean>`(
+		lower(${transactionIntents.currentTxHash}) = lower(${txHash})
+		or exists (
+			select 1
+			from jsonb_array_elements(${transactionIntents.attempts}) as attempt
+			where lower(attempt->>'hash') = lower(${txHash})
+		)
+	)`;
+}
+
 /** A mined revert consumes its nonce. Resume with a new signed attempt, not stale bytes. */
 export function transactionIntentAction(status: string | undefined): "reuse" | "retry" {
 	return status === "reverted" ? "retry" : "reuse";
@@ -372,15 +401,7 @@ export async function readTransactionReceipt(intentId: string): Promise<Transact
 	const chain = chainById(Number(intent.chainId));
 	if (!chain) throw new Error(`Chain ${intent.chainId} is not active.`);
 	const rpc = await verifiedChainClient(chain);
-	const hashes = new Set<string>([intent.currentTxHash]);
-	if (Array.isArray(intent.attempts)) {
-		for (const attempt of intent.attempts) {
-			if (attempt && typeof attempt === "object" && "hash" in attempt && typeof attempt.hash === "string") {
-				hashes.add(attempt.hash);
-			}
-		}
-	}
-	for (const hash of [...hashes].reverse()) {
+	for (const hash of transactionAttemptHashes(intent.currentTxHash, intent.attempts).reverse()) {
 		try {
 			return await rpc.getTransactionReceipt({ hash: hash as Hex });
 		} catch (error) {

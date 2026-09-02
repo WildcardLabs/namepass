@@ -27,6 +27,12 @@ when their origin transaction or Circle nonce matches, and it suppresses a stale
 canonical renewal has the same origin transaction. It never combines or removes flows by name,
 chain, or amount because separate payments can share all three values.
 
+The same identity rule covers direct Ethereum renewals and transaction replacements. A logical
+intent can contain several same-nonce signed attempts, and any one of them can be mined. Goldsky
+matches `Renewed` and `DepositProcessed` against every attempt, not only the latest hash. The
+receipt's actual transaction hash becomes permanent origin evidence and public reads prefer that
+mined evidence over the latest signed replacement.
+
 ### 2026-08-26 — CCTP flows release the origin wallet after the burn
 
 The old uniqueness rule allowed only one non-terminal flow for each name and origin chain. An

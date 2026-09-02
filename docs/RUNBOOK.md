@@ -208,23 +208,25 @@ its active Iris polling.
 
 ### Pending transaction replacement
 
-The testnet service does not automatically replace a pending transaction with a higher-fee
-transaction. A pending transaction can block later nonces on the same chain.
+The service automatically replaces a transaction that remains pending for five minutes. The
+replacement keeps the sender, chain, nonce, destination, value, call data, and gas limit, and raises
+both EIP-1559 fee fields. The workflow checks every stored attempt because an older attempt can be
+mined after a replacement is broadcast.
 
-If this happens on stable testnet:
+One unresolved nonce still blocks later transactions from the same relayer on that chain. If a
+transaction remains pending after repeated automatic replacements:
 
 1. Stop new stable-testnet funding and pause the recovery cron.
-2. Confirm through two RPC providers that the stored transaction has no receipt and that its nonce
-   is still pending for the configured relayer.
-3. Do not send a transaction with a different nonce. Do not edit the intent or flow rows by hand.
-4. Prepare a reviewed hotfix that signs the same chain ID, sender, nonce, destination, value, and
-   call data with sufficient replacement fees. The hotfix must store the new signed bytes, hash,
-   fees, and attempt before it broadcasts them.
-5. Deploy the hotfix to stable testnet. Confirm the replacement receipt and the expected contract
-   events. Then restore the recovery cron and funding.
-
-Production remains blocked until the repository has an automated same-nonce replacement path and
-a test that proves it cannot change the transaction intent.
+2. Check every stored attempt through two RPC providers. Confirm whether any attempt has a receipt
+   and whether the relayer's latest nonce has passed the intent nonce.
+3. Confirm the relayer has enough native gas for the replacement's maximum cost.
+4. Do not send a transaction with a later nonce as a repair. Do not edit the intent or flow rows by
+   hand.
+5. If no attempt is mined and the nonce is still pending, prepare a reviewed same-nonce replacement
+   with higher fees. Store the new attempt before broadcast.
+6. If the account nonce was consumed by an unknown transaction, treat the relayer key as an
+   integrity incident. Keep the service paused until the transaction and key use are explained.
+7. Confirm the receipt and expected contract events, then restore recovery and funding.
 
 ### Dashboards and alerts
 

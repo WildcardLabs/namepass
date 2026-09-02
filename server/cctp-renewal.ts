@@ -62,6 +62,13 @@ const UNCLAIMED_RETRY_MS = 6 * 60 * 60 * 1_000;
 const ARC_NATIVE_USDC_SCALE = 1_000_000_000_000n;
 export const CCTP_ORIGIN_REVERTED = "origin_reverted";
 
+export function cctpOriginTransactionHash(
+	originEvidenceTxHash: Hex | null,
+	currentTxHash: string | null | undefined,
+): Hex | undefined {
+	return originEvidenceTxHash ?? (currentTxHash as Hex | undefined);
+}
+
 export type CctpFlow = {
 	id: string;
 	nameId: string;
@@ -425,7 +432,7 @@ export async function pollCctpAttestation(flowId: string, attempt: number): Prom
 		? await database().select({ txHash: transactionIntents.currentTxHash })
 			.from(transactionIntents).where(eq(transactionIntents.id, flow.originIntentId))
 		: [];
-	const originTxHash = intent?.txHash ?? flow.originEvidenceTxHash;
+	const originTxHash = cctpOriginTransactionHash(flow.originEvidenceTxHash, intent?.txHash);
 	if (!originTxHash) throw new Error("The origin transaction hash is missing.");
 	const chain = originChain(flow);
 	const polling = chain.polling.attestation!;

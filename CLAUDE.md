@@ -256,7 +256,9 @@ on non-Home pages (only Home shows the Explorer/Search/Cost simulator menu).
   copy and must also receive the origin chain. An Ethereum `submitting_origin` or `waiting_origin`
   state is a renewal. The same state on a supported source chain is a Circle transfer. Flow
   deduplication uses only the exact origin transaction or Circle nonce. Never deduplicate by name,
-  chain, or amount because a later deposit can start after the first burn releases the wallet.
+  chain, or amount because a later deposit can start after the first burn releases the wallet. A
+  transaction intent includes every same-nonce replacement attempt. Any attempt can be mined, and
+  the actual receipt hash is canonical evidence even when it is not the latest signed hash.
 - `registry.ts` — seeded local demonstration data only. Do not import it from a production screen.
   The frontend uses the public API for activated names, public activity, flows, and leaderboard
   data. Balances remain separate by chain. An `unclaimed` CCTP flow is not a balance at its origin

@@ -19,6 +19,7 @@ import {
 	isMissingTransactionReceipt,
 	gasLimitWithSafetyMargin,
 	replacementFee,
+	transactionAttemptHashes,
 	originRevertFlowPatch,
 	transactionIntentAction,
 	withVerifiedChainClient,
@@ -82,6 +83,17 @@ test("replacement fees increase by at least 12.5 percent and use a higher live q
 	assert.equal(replacementFee(100n, undefined), 113n);
 	assert.equal(replacementFee(100n, 200n), 200n);
 	assert.equal(replacementFee(100n, 110n), 113n);
+});
+
+test("settlement checks every same-nonce attempt when an older replacement wins", () => {
+	const first = `0x${"a".repeat(64)}`;
+	const replacement = `0x${"b".repeat(64)}`;
+	assert.deepEqual(transactionAttemptHashes(replacement.toUpperCase(), [
+		{ hash: first },
+		{ hash: replacement },
+		{ hash: first.toUpperCase() },
+		{ malformed: true },
+	]), [first, replacement]);
 });
 
 test("a safe raw-transaction rebroadcast accepts only known-transaction responses", () => {
