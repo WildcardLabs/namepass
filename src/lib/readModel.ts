@@ -77,6 +77,47 @@ export function flowAmount(flow: Pick<PublicFlow, "amountDetected" | "amountProc
 	return micro(flow.amountProcessed ?? flow.amountDetected);
 }
 
+function normalizedOriginTx(flow: PublicFlow): string | undefined {
+	return flow.evidence?.originTxHash?.toLowerCase();
+}
+
+function sameCctpMessage(left: PublicFlow, right: PublicFlow): boolean {
+	if (left.originChainId !== right.originChainId) return false;
+	const leftOrigin = normalizedOriginTx(left);
+	const rightOrigin = normalizedOriginTx(right);
+	if (leftOrigin && rightOrigin && leftOrigin === rightOrigin) return true;
+	return Boolean(left.cctpNonce && right.cctpNonce && left.cctpNonce === right.cctpNonce);
+}
+
+function preferFlow(left: PublicFlow, right: PublicFlow): PublicFlow {
+	if (left.trigger === "external" && right.trigger !== "external") return right;
+	if (right.trigger === "external" && left.trigger !== "external") return left;
+	if (!left.evidence?.depositTxHash && right.evidence?.depositTxHash) return right;
+	if (!right.evidence?.depositTxHash && left.evidence?.depositTxHash) return left;
+	return milliseconds(left.createdAt) <= milliseconds(right.createdAt) ? left : right;
+}
+
+/** Keep one browser row per exact origin transaction or Circle message. */
+export function distinctFlows(
+	flows: readonly PublicFlow[],
+	renewals: readonly Pick<PublicRenewal, "originChainId" | "originTxHash">[] = [],
+): PublicFlow[] {
+	const settledOrigins = new Set(renewals.flatMap((renewal) =>
+		renewal.originTxHash
+			? [`${renewal.originChainId}:${renewal.originTxHash.toLowerCase()}`]
+			: [],
+	));
+	const distinct: PublicFlow[] = [];
+	for (const flow of flows) {
+		const origin = normalizedOriginTx(flow);
+		if (origin && settledOrigins.has(`${flow.originChainId}:${origin}`)) continue;
+		const duplicateAt = distinct.findIndex((candidate) => sameCctpMessage(candidate, flow));
+		if (duplicateAt === -1) distinct.push(flow);
+		else distinct[duplicateAt] = preferFlow(distinct[duplicateAt]!, flow);
+	}
+	return distinct;
+}
+
 const BALANCE_OWNED_FLOW_STATUSES = new Set([
 	"queued",
 	"confirming_deposit",
@@ -118,7 +159,9 @@ function setName(name: PublicName, activity?: NameActivityRead): NameRecord {
 		{ id: `activation:${name.label}`, kind: "activated", at: milliseconds(name.activatedAt), chain: "Ethereum", amountDeposited: 0n, gasAllowance: 0n, amountApplied: 0n, seconds: 0n, off: "", nameExpiryAfter: expiry, funder: "", executor: "", executorIsRelayer: false, steps: [] },
 		...activity.renewals.map((renewal) => renewalEvent(renewal, name.label)).reverse(),
 	] : current?.events ?? [];
-	const sourceFlows = activity?.flows ?? current?.flows ?? [];
+	const sourceFlows = activity
+		? distinctFlows(activity.flows, activity.renewals)
+		: current?.flows ?? [];
 	const sourceBalances = activity?.balances ?? [];
 	const unclaimedBalances = sourceBalances
 		.map((balance) => unclaimedBalance(balance, sourceFlows))
@@ -156,7 +199,15 @@ function setName(name: PublicName, activity?: NameActivityRead): NameRecord {
 }
 
 export function syncFeed(feed: ActivityRead): void {
-	feedFlows = feed.flows ?? [];
+	const labels = new Set((feed.flows ?? []).map(({ name }) => name.label));
+	feedFlows = [...labels].flatMap((label) => {
+		const named = (feed.flows ?? []).filter(({ name }) => name.label === label);
+		const renewals = feed.items
+			.filter(({ name }) => name.label === label)
+			.map(({ renewal }) => renewal);
+		const kept = new Set(distinctFlows(named.map(({ flow }) => flow), renewals).map((flow) => flow.id));
+		return named.filter(({ flow }) => kept.has(flow.id));
+	});
 	const received = new Set(feed.items.map((item) => item.renewal.eventId));
 	for (const item of feed.items) {
 		const record = setName(item.name);

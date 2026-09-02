@@ -7,6 +7,26 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-09-02 — Releasing an origin wallet must not release the burn's identity
+
+The 2026-08-26 change correctly let a new payment start after an earlier CCTP burn left the origin
+wallet. It also introduced a race. If the workflow reached `waiting_attestation` before Goldsky
+delivered `DepositProcessed`, the webhook no longer found that flow among the stages that own the
+wallet. It created an external flow for the same burn. Two workflows then claimed one Circle
+message, and the browser added the duplicated amount.
+
+Do not fix this by making `waiting_attestation`, claim stages, or `unclaimed` own the origin wallet
+again. That restores the old bug where one Circle message blocks a later deposit on the same chain.
+Wallet ownership and message identity are separate rules. A late burn event first matches the exact
+origin transaction across every flow status. The confirmed automatic flow stores that transaction
+as evidence. A canonical settlement cancels any other non-terminal flow with the same origin
+transaction or Circle nonce.
+
+The browser applies the same exact-identity rule as a read-side safeguard. It collapses flows only
+when their origin transaction or Circle nonce matches, and it suppresses a stale flow when a
+canonical renewal has the same origin transaction. It never combines or removes flows by name,
+chain, or amount because separate payments can share all three values.
+
 ### 2026-08-26 — CCTP flows release the origin wallet after the burn
 
 The old uniqueness rule allowed only one non-terminal flow for each name and origin chain. An

@@ -5,6 +5,7 @@ import {
 	goldskyHandler,
 	ensRenewalLabel,
 	externalRenewalProjection,
+	originBurnReconciliationStatus,
 	reorgResumeStatus,
 	parseGoldskyEvent,
 	type GoldskyEvent,
@@ -477,6 +478,13 @@ test("external renewal projection requires an exact CCTP source domain", () => {
 test("a settlement reorg resumes the exact transaction stage", () => {
 	assert.equal(reorgResumeStatus("origin_renew"), "waiting_origin");
 	assert.equal(reorgResumeStatus("claim"), "waiting_claim");
+});
+
+test("a late origin webhook does not rewind a released CCTP flow", () => {
+	assert.equal(originBurnReconciliationStatus("waiting_origin"), "waiting_origin");
+	assert.equal(originBurnReconciliationStatus("waiting_attestation"), "waiting_attestation");
+	assert.equal(originBurnReconciliationStatus("waiting_claim"), "waiting_claim");
+	assert.equal(originBurnReconciliationStatus("unclaimed"), "unclaimed");
 });
 
 test("bytes32 event fields accept Goldsky's bare hex and normalize to 0x", () => {

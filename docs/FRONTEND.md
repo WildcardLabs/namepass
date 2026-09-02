@@ -24,6 +24,12 @@ comes from an exact linked deposit or one unique recovered deposit match. An amb
 states why the sender is unavailable. The second value comes from the permanent `Renewed`
 executor fact. A recent canonical delete removes the row on the next poll.
 
+The browser normalizes flows by CCTP message identity before it renders or totals them. Two rows
+with the same origin transaction or Circle nonce are one flow. A canonical renewal suppresses a
+stale non-terminal row with the same origin transaction. The browser prefers the automatic row
+with deposit evidence over an external duplicate. It never deduplicates by name, chain, or amount;
+separate payments can share those values.
+
 The selected-name endpoints return one indexed native-USDC balance per active chain. Activation
 stores an exact block-pinned chain snapshot. Public reads apply canonical Goldsky deposits and
 `DepositProcessed` events after that block. They do not call chain RPC. An `amount: null` means

@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
 	decodeEventLog,
@@ -382,6 +382,7 @@ export async function confirmCctpOrigin(
 		}
 		await tx.update(flows).set({
 			status: "waiting_attestation",
+			originEvidenceTxHash: receipt.transactionHash,
 			amountProcessed: burn.amount.toString(),
 			remainingAmount: burn.remaining.toString(),
 			cctpNonce: null,
@@ -487,12 +488,62 @@ async function markUnclaimed(flowId: string, reasonCode: string): Promise<void> 
 	);
 }
 
+/** A canonical sibling proves that this row duplicated an already consumed message. */
+async function cancelSettledDuplicateMessage(flow: CctpFlow): Promise<boolean> {
+	const identity = flow.cctpNonce && flow.originEvidenceTxHash
+		? or(
+			eq(flows.cctpNonce, flow.cctpNonce),
+			sql<boolean>`lower(${flows.originEvidenceTxHash}) = lower(${flow.originEvidenceTxHash})`,
+		)
+		: flow.cctpNonce
+			? eq(flows.cctpNonce, flow.cctpNonce)
+			: flow.originEvidenceTxHash
+				? sql<boolean>`lower(${flows.originEvidenceTxHash}) = lower(${flow.originEvidenceTxHash})`
+				: undefined;
+	if (!identity) return false;
+	const [settled] = await database().select({ id: flows.id }).from(flows).where(and(
+		eq(flows.nameId, flow.nameId),
+		eq(flows.originChainId, String(flow.originChainId)),
+		ne(flows.id, flow.id),
+		eq(flows.status, "settled"),
+		identity,
+	));
+	if (!settled) return false;
+	await database().transaction(async (tx) => {
+		const [current] = await tx.select({ status: flows.status }).from(flows).where(eq(flows.id, flow.id));
+		if (!current || current.status === "settled" || current.status === "cancelled") return;
+		const now = new Date();
+		const [cancelled] = await tx.update(flows).set({
+			status: "cancelled",
+			holdReason: null,
+			workflowRunId: null,
+			lastErrorCode: "duplicate_message_settled",
+			lastErrorDetail: null,
+			nextActionAt: null,
+			cancelledAt: now,
+			updatedAt: now,
+		}).where(and(eq(flows.id, flow.id), eq(flows.status, current.status)))
+			.returning({ id: flows.id });
+		if (!cancelled) return;
+		await tx.insert(flowTransitions).values({
+			flowId: flow.id,
+			fromStatus: current.status,
+			toStatus: "cancelled",
+			actor: "workflow",
+			reasonCode: "duplicate_message_settled",
+			detail: { settledFlowId: settled.id },
+		});
+	});
+	return true;
+}
+
 export async function simulateCctpClaim(flowId: string): Promise<"ready" | "unclaimed" | "settled"> {
 	"use step";
 	const flow = await loadCctpFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
 	if (flow.status === "settled") return "settled";
 	if (!flow.cctpMessage || !flow.cctpAttestation) throw new Error("The attested CCTP message is missing.");
+	if (await cancelSettledDuplicateMessage(flow)) return "settled";
 	if (!(await readEnsState(flow.label)).renewableBy) {
 		await markUnclaimed(flowId, "name_not_renewable");
 		return "unclaimed";

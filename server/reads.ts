@@ -82,19 +82,40 @@ export async function publicBalances(nameId: string) {
 }
 
 export async function activity(limit: number, cursor?: ActivityCursor) {
+	const originIntent = alias(transactionIntents, "activity_live_origin_intent");
+	const claimIntent = alias(transactionIntents, "activity_live_claim_intent");
 	const [result, active] = await Promise.all([
 		renewalActivity(limit, cursor),
 		database()
-			.select({ flow: flows, name: names })
+			.select({
+				flow: flows,
+				name: names,
+				depositTxHash: deposits.txHash,
+				originTxHash: sql<string | null>`coalesce(${originIntent.currentTxHash}, ${flows.originEvidenceTxHash})`,
+				claimTxHash: claimIntent.currentTxHash,
+			})
 			.from(flows)
 			.innerJoin(names, eq(flows.nameId, names.id))
+			.leftJoin(deposits, eq(flows.depositEventId, deposits.eventId))
+			.leftJoin(originIntent, eq(flows.originTxIntentId, originIntent.id))
+			.leftJoin(claimIntent, eq(flows.claimTxIntentId, claimIntent.id))
 			.where(inArray(flows.status, LIVE_FLOW_STATUSES))
 			.orderBy(desc(flows.createdAt))
 			.limit(6),
 	]);
 	return {
 		items: result.items.map(({ renewal, name }) => ({ renewal, name })),
-		flows: active.map(({ flow, name }) => ({ flow: publicFlowView(flow), name: publicNameView(name) })),
+		flows: active.map(({ flow, name, depositTxHash, originTxHash, claimTxHash }) => ({
+			flow: publicFlowView(flow, {
+				depositTxHash,
+				originTxHash,
+				claimTxHash,
+				renewalTxHash: null,
+				executorAddress: null,
+				executorIsRelayer: false,
+			}),
+			name: publicNameView(name),
+		})),
 		nextCursor: result.nextCursor,
 	};
 }

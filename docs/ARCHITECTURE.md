@@ -701,6 +701,13 @@ This is intentional:
 The webhook has at-least-once delivery. The receiver must expect duplicates. It also must expect a
 reorg delete after a create.
 
+`DepositProcessed` identifies its flow by the exact origin transaction before the receiver checks
+which flow currently owns the origin wallet. This ordering matters after a burn: the flow releases
+the wallet so a later deposit can start, but it keeps ownership of its Circle message. A late
+webhook must attach to that released flow instead of creating an external flow for the same burn.
+Canonical settlement cancels any non-terminal sibling with the same origin transaction or Circle
+nonce.
+
 Goldsky stores the webhook authorization header as an `httpauth` secret. The pipeline file contains
 only the secret name. The Vercel endpoint compares the header in constant time and rejects an
 invalid request.
@@ -761,7 +768,8 @@ It performs this sequence:
 12. Return `2xx` only after the durable database write and workflow-start attempt succeed.
 
 A duplicate create changes no money totals and starts no second flow. A duplicate delete changes no
-additional state.
+additional state. Duplicate flow protection uses transaction and message identity, not a one-flow
+per-name-and-chain rule; a second real deposit can start after the first burn confirms.
 
 If Neon or Workflow is unavailable, return `503`. Goldsky will retry. Do not return `2xx` and hope a
 background callback finishes.
