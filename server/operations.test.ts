@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 import { cronAuthorized } from "./cron";
 import * as schema from "./db/schema";
@@ -11,6 +12,7 @@ import {
 	resumableRecoveryCandidate,
 	retentionBatchLimit,
 	STARTING_STALE_MS,
+	transactionMonitorCandidatesSql,
 } from "./operations";
 import { RAW_PAYLOAD_RETENTION_MS, rawPayloadExpiresAt } from "./retention";
 import { stoppedFlowRecoveryAction } from "./stopped-flows";
@@ -32,14 +34,20 @@ test("recovery repairs queued, overdue, unscanned, and unbroadcast rows without 
 		async startFlow(id: string) { started.add(id); },
 		async recheckHeldFlow(id: string) { rechecked.push(id); },
 		async scanName(name: { id: string }) { scans.push(name.id); return ["flow-from-scan"]; },
-		async broadcastIntent(id: string) { broadcasts.push(id); },
+		async monitorIntent(id: string) { broadcasts.push(id); },
 	};
 	const batch = {
 		resumableFlowIds: ["queued", "shared"],
 		overdueUnclaimedFlowIds: ["overdue", "shared"],
 		dueHeldFlowIds: ["held-name"],
 		unscannedNames: [{ id: "name-1", depositAddress: "0x0", chainIds: [84532] }],
-		unbroadcastIntents: [{ id: "intent-1", flowId: "queued", chainId: 84532 }],
+		monitoredIntents: [{
+			id: "intent-1",
+			flowId: "queued",
+			chainId: 84532,
+			status: "prepared",
+			broadcastAt: null,
+		}],
 	};
 	const [first, second] = await Promise.all([
 		processRecoveryBatch(batch, actions),
@@ -49,6 +57,8 @@ test("recovery repairs queued, overdue, unscanned, and unbroadcast rows without 
 	assert.equal(second.failed, 0);
 	assert.equal(first.dueHeldFlows, 1);
 	assert.equal(second.dueHeldFlows, 1);
+	assert.equal(first.monitoredIntents, 1);
+	assert.equal(first.unbroadcastIntents, 1);
 	assert.deepEqual([...started].sort(), ["flow-from-scan", "overdue", "queued", "shared"]);
 	assert.deepEqual(rechecked, ["held-name", "held-name"]);
 	assert.deepEqual(scans, ["name-1", "name-1"]);
@@ -80,6 +90,14 @@ test("recovery checks every stale resumable stage and due unclaimed workflow own
 	assert.ok(resumable.params.includes(stale));
 	assert.ok(unclaimed.params.includes(stale));
 	assert.ok(unclaimed.params.includes(now.toISOString()));
+});
+
+test("the transaction monitor selects only the lowest nonce in each database lane", () => {
+	const query = new PgDialect().sqlToQuery(transactionMonitorCandidatesSql(10));
+	assert.match(query.sql, /distinct on \(chain_id, lower\(from_address\)\)/);
+	assert.match(query.sql, /status in \('prepared', 'broadcast'\)/);
+	assert.match(query.sql, /order by chain_id, lower\(from_address\), nonce/);
+	assert.equal(query.params[query.params.length - 1], 10);
 });
 
 test("stopped-flow recovery keeps exact deposit evidence and rejects false attribution", () => {

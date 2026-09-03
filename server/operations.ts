@@ -7,7 +7,7 @@ import { balanceSnapshots, chainEvents, flows, flowTransitions, names, transacti
 import { NAME_RECHECK_MS } from "./flow-state";
 import { ORIGIN_WALLET_ACTIVE_STATUSES } from "./flow-state";
 import { logOperation } from "./log";
-import { broadcastTransaction } from "./transactions";
+import { monitorTransactionIntent } from "./transactions";
 import { startRenewalWorkflow } from "./workflows";
 import { SERVER_CHAINS } from "../src/lib/chains";
 
@@ -32,14 +32,20 @@ export interface RecoveryBatch {
 	readonly overdueUnclaimedFlowIds: readonly string[];
 	readonly dueHeldFlowIds: readonly string[];
 	readonly unscannedNames: ReadonlyArray<{ id: string; depositAddress: string; chainIds: readonly number[] }>;
-	readonly unbroadcastIntents: ReadonlyArray<{ id: string; flowId: string; chainId: number }>;
+	readonly monitoredIntents: ReadonlyArray<{
+		id: string;
+		flowId: string;
+		chainId: number;
+		status: string;
+		broadcastAt: Date | null;
+	}>;
 }
 
 export interface RecoveryActions {
 	startFlow(flowId: string): Promise<unknown>;
 	recheckHeldFlow(flowId: string): Promise<unknown>;
 	scanName(name: { id: string; depositAddress: string; chainIds: readonly number[] }): Promise<readonly string[]>;
-	broadcastIntent(intentId: string): Promise<unknown>;
+	monitorIntent(intentId: string): Promise<unknown>;
 }
 
 export interface RecoveryReport {
@@ -51,6 +57,7 @@ export interface RecoveryReport {
 	dueHeldFlows: number;
 	unscannedNames: number;
 	unbroadcastIntents: number;
+	monitoredIntents: number;
 	failed: number;
 }
 
@@ -89,13 +96,13 @@ export async function processRecoveryBatch(
 			logOperation("recovery.name_failed", { chainId: name.chainIds.join(","), step: "balance_scan", errorCode: "balance_scan_failed" });
 		}
 	}
-	for (const intent of batch.unbroadcastIntents) {
+	for (const intent of batch.monitoredIntents) {
 		try {
-			await actions.broadcastIntent(intent.id);
-			logOperation("recovery.intent_rebroadcast", { flowId: intent.flowId, chainId: intent.chainId, step: "broadcast" });
+			await actions.monitorIntent(intent.id);
+			logOperation("recovery.intent_monitored", { flowId: intent.flowId, chainId: intent.chainId, step: "transaction_monitor" });
 		} catch {
 			failed += 1;
-			logOperation("recovery.intent_failed", { flowId: intent.flowId, chainId: intent.chainId, step: "broadcast", errorCode: "broadcast_failed" });
+			logOperation("recovery.intent_failed", { flowId: intent.flowId, chainId: intent.chainId, step: "transaction_monitor", errorCode: "transaction_monitor_failed" });
 		}
 	}
 	return {
@@ -104,7 +111,10 @@ export async function processRecoveryBatch(
 		overdueUnclaimedFlows: batch.overdueUnclaimedFlowIds.length,
 		dueHeldFlows: batch.dueHeldFlowIds.length,
 		unscannedNames: batch.unscannedNames.length,
-		unbroadcastIntents: batch.unbroadcastIntents.length,
+		unbroadcastIntents: batch.monitoredIntents.filter(
+			(intent) => intent.status === "prepared" && intent.broadcastAt === null,
+		).length,
+		monitoredIntents: batch.monitoredIntents.length,
 		failed,
 	};
 }
@@ -210,6 +220,19 @@ export function dueHeldNameRecoveryCandidate(now: Date) {
 	);
 }
 
+/** Select one lowest unresolved nonce from each sender and chain lane. */
+export function transactionMonitorCandidatesSql(limit = RECOVERY_LIMIT) {
+	return sql`
+		select distinct on (chain_id, lower(from_address))
+			id, flow_id, chain_id, status, broadcast_at
+		from transaction_intents
+		where status in ('prepared', 'broadcast')
+			and current_raw_transaction is not null
+		order by chain_id, lower(from_address), nonce
+		limit ${limit}
+	`;
+}
+
 type EnsState = Awaited<ReturnType<typeof readEnsState>>;
 
 /** Refresh a held name on a bounded backoff. Resume the same flow when ENS accepts it. */
@@ -288,15 +311,17 @@ async function recoveryBatch(now: Date): Promise<RecoveryBatch> {
 			.from(balanceSnapshots)
 			.where(inArray(balanceSnapshots.nameId, unscanned.map((row) => row.id)))
 		: [];
-	const [resumable, overdueUnclaimed, dueHeld, unbroadcast] = await Promise.all([
+	const [resumable, overdueUnclaimed, dueHeld, monitored] = await Promise.all([
 		db.select({ id: flows.id }).from(flows).where(resumableRecoveryCandidate(now)).limit(RECOVERY_LIMIT),
 		db.select({ id: flows.id }).from(flows).where(overdueUnclaimedRecoveryCandidate(now)).limit(RECOVERY_LIMIT),
 		db.select({ id: flows.id }).from(flows).where(dueHeldNameRecoveryCandidate(now)).limit(RECOVERY_LIMIT),
-		db.select({ id: transactionIntents.id, flowId: transactionIntents.flowId, chainId: transactionIntents.chainId }).from(transactionIntents).where(and(
-			eq(transactionIntents.status, "prepared"),
-			isNull(transactionIntents.broadcastAt),
-			sql`${transactionIntents.currentRawTransaction} is not null`,
-		)).limit(RECOVERY_LIMIT),
+		db.execute<{
+			id: string;
+			flow_id: string;
+			chain_id: string;
+			status: string;
+			broadcast_at: Date | null;
+		}>(transactionMonitorCandidatesSql()),
 	]);
 	return {
 		resumableFlowIds: resumable.map((row) => row.id),
@@ -310,7 +335,13 @@ async function recoveryBatch(now: Date): Promise<RecoveryBatch> {
 			for (const chain of SERVER_CHAINS) if (!existing.has(chain.chainId)) requested.add(chain.chainId);
 			return { id: row.id, depositAddress: row.depositAddress, chainIds: [...requested] };
 		}),
-		unbroadcastIntents: unbroadcast.map((row) => ({ id: row.id, flowId: row.flowId, chainId: Number(row.chainId) })),
+		monitoredIntents: monitored.rows.map((row) => ({
+			id: row.id,
+			flowId: row.flow_id,
+			chainId: Number(row.chain_id),
+			status: row.status,
+			broadcastAt: row.broadcast_at,
+		})),
 	};
 }
 
@@ -341,7 +372,7 @@ export async function recoverOperations(now = new Date()): Promise<RecoveryRepor
 			startFlow: recoverFlow,
 			recheckHeldFlow: recheckHeldNameFlow,
 			scanName: scanUnscannedName,
-			broadcastIntent: broadcastTransaction,
+			monitorIntent: monitorTransactionIntent,
 		});
 		return { skipped: false, ...repaired };
 	});
@@ -353,6 +384,7 @@ export async function recoverOperations(now = new Date()): Promise<RecoveryRepor
 		dueHeldFlows: 0,
 		unscannedNames: 0,
 		unbroadcastIntents: 0,
+		monitoredIntents: 0,
 		failed: 0,
 	};
 }

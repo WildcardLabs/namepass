@@ -10,7 +10,16 @@ type LogFields = {
 
 /** Log only stable operational fields. Do not pass secrets, raw payloads, or signed transactions. */
 export function logOperation(event: string, fields: LogFields = {}): void {
-	console.info(JSON.stringify({
+	console.info(serializedLog(event, fields));
+}
+
+/** Emit a structured warning without adding sensitive transaction data. */
+export function logWarning(event: string, fields: LogFields = {}): void {
+	console.warn(serializedLog(event, fields));
+}
+
+function serializedLog(event: string, fields: LogFields): string {
+	return JSON.stringify({
 		event,
 		environment: process.env.DEPLOYMENT_ENVIRONMENT ?? "unknown",
 		requestId: fields.requestId ?? null,
@@ -20,5 +29,5 @@ export function logOperation(event: string, fields: LogFields = {}): void {
 		errorCode: fields.errorCode ?? null,
 		eventId: fields.eventId ?? null,
 		retryCount: fields.retryCount ?? null,
-	}));
+	});
 }

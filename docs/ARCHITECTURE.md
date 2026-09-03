@@ -994,15 +994,16 @@ The relayer holds no user funds. It pays gas and receives the fixed helper allow
 successful renewal. Its key is still security-sensitive because it can submit transactions and
 consume gas.
 
-Use one exclusive relayer account per environment. It can be the same address across chains, but no
-other tool or person may send transactions from it.
+Use four exclusive relayer accounts per environment. No other tool or person may send transactions
+from them. Ethereum uses all four accounts. Base, Arbitrum, and Arc use only the first account.
 
 An EOA nonce is sequential per sender and chain. One pending Ethereum transaction therefore blocks
 later Ethereum transactions from the same relayer. For Namepass, that lane contains direct
 Ethereum renewals and every CCTP claim. A pending transaction on Base, Arbitrum, or Arc does not
-block Ethereum or another chain. The current implementation replaces a stale transaction after
-five minutes with the same nonce and higher fees, and receipt checks inspect every signed attempt.
-This bounds an ordinary fee stall but does not remove the single Ethereum relayer as a failure lane.
+block Ethereum or another chain. The current implementation warns after 30 seconds and replaces a
+stale transaction after three minutes with the same nonce and higher fees. Receipt checks inspect
+every signed attempt. Four Ethereum accounts create four independent nonce lanes. One stalled lane
+does not block the other three lanes.
 
 Vercel serverless functions can run concurrently. An in-memory nonce manager is not safe. Neon
 therefore stores nonce state.
@@ -1011,19 +1012,22 @@ therefore stores nonce state.
 
 1. Build and simulate the call without a nonce.
 2. Start a Neon transaction.
-3. Lock the `relayer_nonces` row for the chain with `SELECT ... FOR UPDATE`.
-4. Read the RPC pending nonce.
-5. Reserve `max(database_next_nonce, rpc_pending_nonce)`.
-6. Sign the full transaction with the reserved nonce.
-7. Insert the raw signed transaction and expected hash.
-8. Increment `next_nonce`.
-9. Commit.
+3. Create missing nonce rows for the allowed relayers on that chain.
+4. Select a relayer that has no unresolved intent. Lock its nonce row with
+   `FOR UPDATE SKIP LOCKED`.
+5. Read the selected relayer's RPC pending nonce.
+6. Reserve `max(database_next_nonce, rpc_pending_nonce)`.
+7. Sign the full transaction with the selected relayer and reserved nonce.
+8. Store the selected address, raw transaction, and expected hash in the intent.
+9. Increment `next_nonce` and commit.
 10. Broadcast the stored raw transaction.
 11. Record the receipt or replacement.
 
 If the process stops after step 9, recovery rebroadcasts the same bytes. If the RPC reports “already
-known,” continue receipt polling. If a transaction is stuck, sign a higher-fee replacement with the
-same nonce and link it to the same intent.
+known,” continue receipt polling. If it reports “nonce too low,” check every stored attempt before
+the system assumes that an unknown transaction consumed the nonce. If a transaction is rejected or
+stuck, sign a higher-fee replacement with the same nonce and selected relayer. Link it to the same
+intent.
 
 Goldsky reconciliation matches a canonical transaction against every hash stored in that intent.
 An older attempt can be mined after a replacement was signed. The actual mined hash is stored as
@@ -1031,34 +1035,32 @@ flow evidence and is preferred in public reads.
 
 ### Relayer concurrency options
 
-The current single EOA is simple and suitable for low volume, but it has one Ethereum nonce lane.
-The practical options are:
+The first relayer pool uses four Ethereum EOAs. The practical alternatives remain:
 
 | Option | Benefit | Cost and risk |
 |---|---|---|
-| One EOA with active replacement | Small key surface and the current implementation | One unresolved Ethereum nonce delays every later direct renewal and CCTP claim |
+| One EOA with active replacement | Small key surface | One unresolved Ethereum nonce delays every later direct renewal and CCTP claim |
 | Small EOA pool | Independent nonce lanes bound one stuck transaction to one worker | More hot keys, native-gas balances, monitoring, public relayer identities, and assignment state |
 | Managed relayer service | Outsources signing, nonce allocation, resubmission, and monitoring | Vendor dependency, service cost, migration work, and less control over incident recovery |
 | ERC-4337 smart account | Keyed nonce lanes can execute independently | New account, bundler, signing, monitoring, and contract-call infrastructure; too large a change for the current relayer |
 
-The recommended next scaling step is a small Ethereum EOA pool, not twenty wallets immediately.
-Start with four lanes and keep at most one pending transaction per relayer and chain. Select a free
-lane with a durable database lease before signing. Keep same-nonce replacement on every lane. Scale
-the pool only when queue and confirmation metrics show sustained saturation.
+Keep at most one unresolved transaction per relayer and chain. Select a free lane with a durable
+database lock before signing. Keep same-nonce replacement on every lane. Scale the pool only when
+queue and confirmation metrics show sustained saturation.
 
 The pool must not select a wallet from one RPC's pending count alone. Serverless requests can race,
-and node mempools can disagree. Neon must own the assignment. A production implementation needs:
+and node mempools can disagree. Neon owns the assignment. The implementation has:
 
-- a configured set of relayer keys in the deployment secret store
+- four configured relayer keys in the deployment secret store
 - one nonce row and one pending lease per relayer and chain
 - atomic free-lane selection, for example `FOR UPDATE SKIP LOCKED`
 - the selected relayer address stored permanently on each transaction intent
 - receipt and replacement signing with that same selected key
 - native-gas monitoring and limited balances for every relayer
 - public configuration that recognizes every Namepass relayer address
-- queue age, oldest nonce age, replacement count, and free-lane alerts
+- structured pending, stuck-nonce, and free-lane warning events
 
-Focus the first pool on Ethereum because it carries both direct renewals and all CCTP claims. Keep
+The first pool is on Ethereum because it carries both direct renewals and all CCTP claims. Keep
 one source-chain relayer until traffic or incident data justifies more lanes there. The factory and
 helper are permissionless and already pay the transaction executor, so a pool does not require a
 contract allowlist change.
@@ -1083,9 +1085,10 @@ one primary operator and one backup operator. Do not put personal names in the p
 document.
 
 Do not automate refills in the first version. An automatic treasury signer would add another key
-that can move funds. Use an external native-balance monitor for the single relayer address on each
-chain. The monitor must deliver a real operator notification. The application does not poll idle
-RPC endpoints for gas balances. Keep only a limited gas balance on the relayer. The $0.10 USDC
+that can move funds. Use an external native-balance monitor for all four addresses on Ethereum and
+the primary address on each source chain. The monitor must deliver a real operator notification.
+The application does not poll idle RPC endpoints for gas balances. Keep only a limited gas balance
+on each relayer. The $0.10 USDC
 allowance does not refill native gas automatically. Treasury operations can account for or convert
 collected allowances outside the renewal workflow.
 
@@ -1321,6 +1324,8 @@ nonce.
 - `attempts`, a JSON array of signed hashes, fee fields, and broadcast times
 - `status`
 - `broadcast_at`
+- `last_broadcast_attempt_at`
+- `pending_warned_at`
 - `confirmed_at`
 - `receipt`
 - `error`
@@ -1480,7 +1485,7 @@ category per run:
 - cancelled flows that have a non-reverted transaction intent but no linked renewal event
 - unclaimed CCTP flows whose next action time passed and have no workflow run ID or a stale owner
 - held `name_not_renewable` flows whose next ENS check is due
-- signed transactions that were never broadcast
+- the lowest unresolved transaction in each relayer and chain lane
 - names with a non-empty `unscanned_chain_ids` or a missing indexed balance snapshot
 
 Terminal `empty_wallet` rows are historical failures. The recovery job does not poll them. A new
@@ -1492,8 +1497,10 @@ workflow. A stale database owner
 does not prove that the Workflow run is dead. The starter checks `getRun(runId).exists` and
 `getRun(runId).status`. It replaces the owner only when Vercel reports that the run is missing or
 terminal. It never replaces a pending or running Workflow run. The workflow itself owns
-active Iris polling. For a stored signed
-transaction, it rebroadcasts the exact stored bytes. For an unscanned name, it re-reads only the
+active Iris polling. For a stored signed transaction, it broadcasts the exact stored bytes. The
+monitor emits one warning after 30 seconds. After three minutes, it replaces only the lowest
+unresolved nonce in the lane. A rejected prepared transaction is also eligible for replacement.
+For an unscanned name, it re-reads only the
 listed or missing-snapshot chains, stores each exact snapshot, removes each chain that answers, and
 queues a flow if the balance is now eligible.
 For a due inactive-name hold, it reads the authoritative ENS renewers. It refreshes the cached name
@@ -1593,8 +1600,9 @@ Vercel server variables:
 - `DATABASE_URL`, pooled
 - `DATABASE_URL_UNPOOLED`, migrations only
 - one RPC URL per supported chain
-- `RELAYER_PRIVATE_KEY`
-- `RELAYER_ADDRESS` (public address only; used to label Namepass executions)
+- `RELAYER_PRIVATE_KEYS` (four comma-separated keys)
+- `RELAYER_ADDRESSES` (the four matching public addresses, in the same order)
+- `RELAYER_PRIVATE_KEY` and `RELAYER_ADDRESS` (legacy one-relayer fallback for local migration)
 - `GOLDSKY_WEBHOOK_SECRET`
 - `CRON_SECRET`
 - `CIRCLE_IRIS_URL`
@@ -1839,8 +1847,10 @@ and exact transfer, then checks renewability, balance, durable nonce ownership, 
 signed bytes, renewal receipt status, and exact settlement events. Automatic Sepolia renewals have
 settled through this workflow. The same-chain path now submits without a separate deposit-finality
 wait and needs one more canary for that timing change. Recovery can rebroadcast prepared bytes.
-A transaction that remains pending for five minutes gets a same-nonce fee replacement. Receipt
-checks include every replacement attempt. Local tests cover the step logic and ownership guards.
+A transaction that remains pending for three minutes gets a same-nonce fee replacement. The cron
+monitors it even when its Workflow run is active. Receipt checks include every replacement attempt.
+Ethereum uses four independent relayer lanes. Each lane accepts one unresolved intent at a time.
+Local tests cover the step logic and ownership guards.
 The Workflow runtime probe
 covers compiler output, durable step persistence, and targeted sleep resume. It does not cover
 Namepass workflow composition or retry behavior.

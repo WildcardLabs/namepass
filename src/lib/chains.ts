@@ -39,6 +39,7 @@ export interface ChainDefinition {
 	rpcEnv: string;
 	polling: {
 		receiptMs: number;
+		transactionReplacementMs: number;
 		attestation: { initialMs: number; maxMs: number } | null;
 	};
 }
@@ -84,6 +85,7 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		rpcEnv: "BASE_SEPOLIA_RPC_URL",
 		polling: {
 			receiptMs: 5_000,
+			transactionReplacementMs: 3 * 60_000,
 			attestation: { initialMs: 30_000, maxMs: 120_000 },
 		},
 	},
@@ -110,6 +112,7 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		rpcEnv: "ARBITRUM_SEPOLIA_RPC_URL",
 		polling: {
 			receiptMs: 5_000,
+			transactionReplacementMs: 3 * 60_000,
 			attestation: { initialMs: 30_000, maxMs: 120_000 },
 		},
 	},
@@ -138,7 +141,7 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		circleFinalityThreshold: 0,
 		explorerUrl: "https://sepolia.etherscan.io",
 		rpcEnv: "ETHEREUM_SEPOLIA_RPC_URL",
-		polling: { receiptMs: 5_000, attestation: null },
+		polling: { receiptMs: 5_000, transactionReplacementMs: 3 * 60_000, attestation: null },
 	},
 	{
 		key: "arc",
@@ -165,6 +168,7 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		rpcEnv: "ARC_TESTNET_RPC_URL",
 		polling: {
 			receiptMs: 5_000,
+			transactionReplacementMs: 3 * 60_000,
 			attestation: { initialMs: 5_000, maxMs: 30_000 },
 		},
 	},
@@ -188,7 +192,7 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		circleFinalityThreshold: 0,
 		explorerUrl: "https://etherscan.io",
 		rpcEnv: "ETHEREUM_RPC_URL",
-		polling: { receiptMs: 5_000, attestation: null },
+		polling: { receiptMs: 5_000, transactionReplacementMs: 3 * 60_000, attestation: null },
 	},
 	{
 		key: "base",
@@ -212,6 +216,7 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		rpcEnv: "BASE_RPC_URL",
 		polling: {
 			receiptMs: 5_000,
+			transactionReplacementMs: 3 * 60_000,
 			attestation: { initialMs: 30_000, maxMs: 120_000 },
 		},
 	},
@@ -237,6 +242,7 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		rpcEnv: "ARBITRUM_RPC_URL",
 		polling: {
 			receiptMs: 5_000,
+			transactionReplacementMs: 3 * 60_000,
 			attestation: { initialMs: 30_000, maxMs: 120_000 },
 		},
 	},

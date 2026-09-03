@@ -7,6 +7,7 @@ import {
 	type Address,
 	type Hex,
 } from "viem";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 import { labelHash } from "./chain";
 import {
@@ -17,15 +18,20 @@ import {
 } from "./ethereum";
 import {
 	isMissingTransactionReceipt,
+	isNonceTooLowError,
+	freeRelayerLaneSql,
 	gasLimitWithSafetyMargin,
 	replacementFee,
 	transactionAttemptHashes,
 	originRevertFlowPatch,
+	relayerCandidatesForChain,
+	reconcileConsumedNonce,
 	transactionIntentAction,
+	transactionMonitorTiming,
 	withVerifiedChainClient,
 } from "./transactions";
 import { TransactionReceiptNotFoundError } from "viem";
-import { HUB_CHAIN } from "../src/lib/chains";
+import { ACTIVE_CHAINS, chainByKey, HUB_CHAIN } from "../src/lib/chains";
 
 const DEPOSIT_PROCESSED = parseAbi([
 	"event DepositProcessed(bytes32 indexed labelKey, address indexed wallet, uint256 amount, uint256 remaining)",
@@ -100,6 +106,60 @@ test("a safe raw-transaction rebroadcast accepts only known-transaction response
 	assert.equal(isKnownTransactionError(new Error("already known")), true);
 	assert.equal(isKnownTransactionError(new Error("already imported")), true);
 	assert.equal(isKnownTransactionError(new Error("insufficient funds")), false);
+});
+
+test("nonce reconciliation recognizes only consumed-nonce errors", () => {
+	assert.equal(isNonceTooLowError(new Error("nonce too low")), true);
+	assert.equal(isNonceTooLowError(new Error("nonce has already been used")), true);
+	assert.equal(isNonceTooLowError(new Error("replacement transaction underpriced")), false);
+});
+
+test("a nonce-too-low race checks known receipts before the RPC nonce", async () => {
+	let latestReads = 0;
+	assert.equal(await reconcileConsumedNonce(
+		8n,
+		async () => ({ transactionHash: `0x${"1".repeat(64)}` }),
+		async () => { latestReads += 1; return 9n; },
+	), "receipt_found");
+	assert.equal(latestReads, 0);
+	assert.equal(await reconcileConsumedNonce(8n, async () => undefined, async () => 9n), "receipt_pending");
+	assert.equal(await reconcileConsumedNonce(8n, async () => undefined, async () => 8n), "not_consumed");
+});
+
+test("the four-wallet pool is limited to Ethereum", () => {
+	const accounts = ["one", "two", "three", "four"];
+	assert.deepEqual(relayerCandidatesForChain(HUB_CHAIN, accounts), accounts);
+	assert.deepEqual(relayerCandidatesForChain(chainByKey("base"), accounts), ["one"]);
+	for (const chain of ACTIVE_CHAINS) {
+		assert.equal(chain.polling.transactionReplacementMs, 3 * 60_000);
+	}
+});
+
+test("database lane allocation locks one free relayer and skips busy rows", () => {
+	const query = new PgDialect().sqlToQuery(freeRelayerLaneSql(11155111, [
+		"0x1111111111111111111111111111111111111111",
+		"0x2222222222222222222222222222222222222222",
+	]));
+	assert.match(query.sql, /not exists/);
+	assert.match(query.sql, /status in \('prepared', 'broadcast'\)/);
+	assert.match(query.sql, /for update of rn skip locked/);
+	assert.match(query.sql, /limit 1/);
+});
+
+test("the transaction monitor warns after 30 seconds and replaces after three minutes", () => {
+	const started = new Date("2026-09-03T12:00:00.000Z");
+	assert.deepEqual(transactionMonitorTiming(started, null, new Date(started.getTime() + 29_999), 180_000), {
+		warn: false,
+		replace: false,
+	});
+	assert.deepEqual(transactionMonitorTiming(started, null, new Date(started.getTime() + 30_000), 180_000), {
+		warn: true,
+		replace: false,
+	});
+	assert.deepEqual(transactionMonitorTiming(started, new Date(), new Date(started.getTime() + 180_000), 180_000), {
+		warn: false,
+		replace: true,
+	});
 });
 
 test("receipt polling hides only the expected not-found response", () => {

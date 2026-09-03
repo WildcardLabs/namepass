@@ -336,6 +336,8 @@ export const transactionIntents = pgTable(
 		attempts: jsonb("attempts").default(sql`'[]'::jsonb`).notNull(),
 		status: text("status").notNull(),
 		broadcastAt: instant("broadcast_at"),
+		lastBroadcastAttemptAt: instant("last_broadcast_attempt_at"),
+		pendingWarnedAt: instant("pending_warned_at"),
 		confirmedAt: instant("confirmed_at"),
 		receipt: jsonb("receipt"),
 		error: jsonb("error"),
@@ -347,6 +349,12 @@ export const transactionIntents = pgTable(
 		unique("transaction_intents_nonce_owner_unique").on(
 			table.chainId,
 			table.fromAddress,
+			table.nonce,
+		),
+		index("transaction_intents_lane_status_nonce_idx").on(
+			table.chainId,
+			table.fromAddress,
+			table.status,
 			table.nonce,
 		),
 	],

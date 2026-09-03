@@ -181,11 +181,26 @@ secret. Do not target a preview URL.
 
 ### Relayer
 
-One test-only relayer account exists. Its private key is in the stable testnet Vercel environment.
-It has executed the verified stable-testnet automation path. Do not use this account outside
-Namepass. Monitor its native balance on Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and Arc
-Testnet with an external address alert that notifies the operator. Do not poll balances from the
+Configure four test-only relayer accounts in `RELAYER_PRIVATE_KEYS` and their ordered public
+addresses in `RELAYER_ADDRESSES`. Ethereum Sepolia uses all four. Base Sepolia, Arbitrum Sepolia,
+and Arc Testnet use the first account. Do not use these accounts outside Namepass. Monitor every
+account's native balance on Ethereum Sepolia. Monitor the primary account on the three source
+chains. The external address alert must notify the operator. Do not poll balances from the
 application when no transaction is running.
+
+Use this release order for the pool:
+
+1. Apply `0006_transaction_monitoring.sql`.
+2. Create and fund three additional Ethereum relayers. Keep the existing relayer first.
+3. Set all four keys and addresses in the plural environment variables. Set both variables before
+   the new deployment starts.
+4. Deploy the application. Confirm that `/api/config/public` returns the four expected public
+   addresses and no key.
+5. Run four low-value Ethereum transactions at the same time. Confirm that each intent has a
+   different `from_address` and that a fifth waits for a lane.
+
+The singular environment variables remain a one-relayer fallback during migration. The plural
+variables take priority. Remove the singular variables only after the four-lane canary succeeds.
 
 ## Operations
 
@@ -195,7 +210,7 @@ balance, raw Goldsky payload, or signed transaction.
 
 | Endpoint | Schedule | Action |
 |---|---|---|
-| `/api/cron/recover` | Every minute | Restarts safe unowned work, scans recorded activation failures, and rebroadcasts prepared transaction bytes. |
+| `/api/cron/recover` | Every minute | Restarts safe unowned work, scans activation failures, and monitors one lowest transaction nonce per relayer lane. |
 | `/api/cron/retention` | Daily at 03:17 UTC | Clears at most 500 expired raw payloads. It keeps normalized chain-event data. |
 
 The recovery job has a transaction-scoped PostgreSQL advisory lock. It takes at most 10 rows from
@@ -208,12 +223,16 @@ its active Iris polling.
 
 ### Pending transaction replacement
 
-The service automatically replaces a transaction that remains pending for five minutes. The
+The service emits a structured warning after 30 seconds. It automatically replaces a transaction
+that remains pending or rejected for three minutes. The
 replacement keeps the sender, chain, nonce, destination, value, call data, and gas limit, and raises
 both EIP-1559 fee fields. The workflow checks every stored attempt because an older attempt can be
 mined after a replacement is broadcast.
 
-One unresolved nonce still blocks later transactions from the same relayer on that chain. If a
+Only the lowest unresolved nonce in a lane can be replaced. A `nonce too low` response causes a
+receipt check across every stored attempt before another broadcast. One unresolved nonce still
+blocks later transactions from the same relayer on that chain. The other three Ethereum lanes can
+continue. If a
 transaction remains pending after repeated automatic replacements:
 
 1. Stop new stable-testnet funding and pause the recovery cron.
@@ -235,7 +254,8 @@ Configure provider alerts before stable-testnet use:
 - Vercel: Function `5xx` rate, cron failures, and Workflow failures.
 - Goldsky: pipeline failure, source lag, and webhook backpressure.
 - Neon: connection saturation, query latency, storage, and restore availability.
-- Relayer: an external native-balance alert for the configured address on every active chain.
+- Relayer: external native-balance alerts for all four Ethereum addresses and the primary address
+  on every source chain.
 
 Provider dashboards and alert delivery remain external runtime gates. An alert without a tested
 notification destination is not monitoring.

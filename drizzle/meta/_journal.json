@@ -43,6 +43,13 @@
       "when": 1787754015795,
       "tag": "0005_external_origin_evidence",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788441600000,
+      "tag": "0006_transaction_monitoring",
+      "breakpoints": true
     }
   ]
 }

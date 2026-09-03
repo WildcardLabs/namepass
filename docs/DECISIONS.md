@@ -7,6 +7,27 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-09-03 — Use four Ethereum relayer lanes with lane-head recovery
+
+Ethereum carries direct renewals and every CCTP claim. One EOA therefore made one pending nonce a
+platform-wide Ethereum blocker. The service now supports four exclusive Ethereum relayers. It
+assigns only a wallet with no unresolved intent and stores that address permanently on the intent.
+Base, Arbitrum, and Arc continue to use the primary wallet.
+
+The database owns lane assignment. RPC pending counts alone cannot prevent two serverless requests
+from selecting the same wallet. A transaction locks one `relayer_nonces` row with `FOR UPDATE SKIP
+LOCKED`, and each lane accepts one unresolved intent. The recovery cron checks the lowest nonce in
+each lane every minute. It warns after 30 seconds and makes a same-nonce fee replacement after three
+minutes. A rejected prepared transaction can also be replaced.
+
+Receipt reconciliation checks all signed attempts before it handles a `nonce too low` response.
+This closes the race where an older attempt mines while a replacement is being sent. Four wallets
+reduce the effect of a stall. They do not remove the need for same-nonce recovery.
+
+Replacement-count limits and fee ceilings are not part of this change.
+
+---
+
 ### 2026-09-02 — Releasing an origin wallet must not release the burn's identity
 
 The 2026-08-26 change correctly let a new payment start after an earlier CCTP burn left the origin
