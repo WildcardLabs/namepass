@@ -64,6 +64,7 @@ export function visibleNameFlows(
 	const stoppedChains = new Set<string>();
 	return rows.flatMap((row) => {
 		if (!STOPPED_FLOW_STATUSES.includes(row.flow.status as "cancelled" | "failed")) return [row];
+		if (row.flow.lastErrorCode === "duplicate_message_settled") return [];
 		const chainId = row.flow.originChainId;
 		const balance = balances.find((item) => item.chainId === chainId)?.amount;
 		const eligible = balance !== null && balance !== undefined

@@ -16,4 +16,8 @@ test("workflow errors separate retryable chain state from invalid configuration"
 		code: "rpc_unavailable",
 		fatal: false,
 	});
+	assert.deepEqual(classifyWorkflowFailure("No relayer lane is free on this chain."), {
+		code: "relayer_pool_saturated",
+		fatal: false,
+	});
 });

@@ -182,10 +182,11 @@ export function resumableRecoveryCandidate(now: Date) {
 			and(
 				eq(flows.status, "cancelled"),
 				isNull(flows.renewalEventId),
+				sql`coalesce(${flows.lastErrorCode}, '') <> 'duplicate_message_settled'`,
 				sql`exists (
 					select 1 from ${transactionIntents}
 					where ${transactionIntents.flowId} = ${flows.id}
-						and ${transactionIntents.status} <> 'reverted'
+						and ${transactionIntents.status} in ('prepared', 'broadcast', 'mined', 'confirmed')
 				)`,
 			),
 		),
@@ -226,7 +227,7 @@ export function transactionMonitorCandidatesSql(limit = RECOVERY_LIMIT) {
 		select distinct on (chain_id, lower(from_address))
 			id, flow_id, chain_id, status, broadcast_at
 		from transaction_intents
-		where status in ('prepared', 'broadcast')
+		where status in ('prepared', 'broadcast', 'cancellation_requested', 'cancelling')
 			and current_raw_transaction is not null
 		order by chain_id, lower(from_address), nonce
 		limit ${limit}

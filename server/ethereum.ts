@@ -353,10 +353,11 @@ async function markEthereumOriginReverted(
 	});
 }
 
-export async function confirmEthereumRenewal(flowId: string, intentId: string): Promise<"waiting" | "held" | "settled"> {
+export async function confirmEthereumRenewal(flowId: string, intentId: string): Promise<"waiting" | "held" | "settled" | "cancelled"> {
 	"use step";
 	const flow = await loadEthereumFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
+	if (flow.status === "cancelled") return "cancelled";
 	const receipt = await readTransactionReceipt(intentId);
 	if (!receipt) {
 		await replaceStaleTransaction(intentId);

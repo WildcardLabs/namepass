@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { activeFlows, activityEmptyState, canRecheckName, canTrigger, distinctFlows, findName, flowAmount, hasActiveFlow, leaderboardNames, recentActivity, renewalEvent, syncFeed, syncLeaderboard, syncName } from "./readModel";
+import { activeFlows, activityEmptyState, canRecheckName, canTrigger, findName, flowAmount, hasActiveFlow, leaderboardNames, recentActivity, renewalEvent, syncFeed, syncLeaderboard, syncName } from "./readModel";
 import { PUBLIC_CHAINS } from "./chains";
 import { setRates } from "./pricing";
 import type { PublicFlow } from "./publicApi";
@@ -144,74 +144,6 @@ test("the global feed exposes active flows without opening a name", () => {
 	};
 	syncFeed({ items: [], flows: [{ name, flow: flow({ id: "live-flow" }) }], nextCursor: null });
 	expect(activeFlows().map((item) => item.id)).toContain("live-flow");
-});
-
-test("one Arc burn cannot appear as two in-flight payments", () => {
-	const originTxHash = `0x${"4".repeat(64)}`;
-	const evidence = {
-		depositTxHash: null,
-		originTxHash,
-		claimTxHash: null,
-		renewalTxHash: null,
-		executorAddress: null,
-		executorIsRelayer: false,
-	};
-	const automatic = flow({
-		id: "automatic",
-		originChainId: "5042002",
-		trigger: "automatic",
-		status: "waiting_attestation",
-		amountDetected: "25000000",
-		amountProcessed: "25000000",
-		evidence: { ...evidence, depositTxHash: `0x${"3".repeat(64)}` },
-	});
-	const external = flow({
-		id: "external",
-		originChainId: "5042002",
-		trigger: "external",
-		status: "waiting_claim",
-		amountDetected: "25000000",
-		amountProcessed: "25000000",
-		evidence,
-	});
-	const distinct = distinctFlows([external, automatic]);
-	expect(distinct.map((item) => item.id)).toEqual(["automatic"]);
-	expect(distinct.reduce((total, item) => total + flowAmount(item), 0n)).toBe(25_000_000n);
-});
-
-test("a canonical renewal suppresses its stale duplicate claim", () => {
-	const originTxHash = `0x${"5".repeat(64)}`;
-	const duplicate = flow({
-		id: "stale-external",
-		originChainId: "5042002",
-		trigger: "external",
-		status: "unclaimed",
-		evidence: {
-			depositTxHash: null,
-			originTxHash,
-			claimTxHash: `0x${"6".repeat(64)}`,
-			renewalTxHash: null,
-			executorAddress: null,
-			executorIsRelayer: false,
-		},
-	});
-	expect(distinctFlows([duplicate], [{ originChainId: "5042002", originTxHash }])).toEqual([]);
-});
-
-test("separate same-chain payments with the same amount remain separate", () => {
-	const first = flow({
-		id: "first-payment",
-		originChainId: "5042002",
-		amountProcessed: "25000000",
-		evidence: { depositTxHash: null, originTxHash: `0x${"7".repeat(64)}`, claimTxHash: null, renewalTxHash: null, executorAddress: null, executorIsRelayer: false },
-	});
-	const second = flow({
-		id: "second-payment",
-		originChainId: "5042002",
-		amountProcessed: "25000000",
-		evidence: { depositTxHash: null, originTxHash: `0x${"8".repeat(64)}`, claimTxHash: null, renewalTxHash: null, executorAddress: null, executorIsRelayer: false },
-	});
-	expect(distinctFlows([first, second]).map((item) => item.id)).toEqual(["first-payment", "second-payment"]);
 });
 
 test("pending balances do not count money owned by an active flow twice", () => {

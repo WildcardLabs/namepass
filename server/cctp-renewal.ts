@@ -42,6 +42,7 @@ import {
 	retryTransaction,
 	transactionIntentAction,
 	originRevertFlowPatch,
+	requestTransactionCancellationSql,
 	verifiedChainClient,
 } from "./transactions";
 
@@ -344,6 +345,7 @@ export async function confirmCctpOrigin(
 	"use step";
 	const flow = await loadCctpFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
+	if (flow.status === "cancelled") return "cancelled";
 	if (flow.cctpMessage) return "attestation";
 	const receipt = intentId
 		? await readTransactionReceipt(intentId)
@@ -457,12 +459,55 @@ export async function pollCctpAttestation(flowId: string, attempt: number): Prom
 		label: flow.label,
 		amount: BigInt(flow.amountProcessed!),
 	});
-	await setFlowStatus(flowId, "waiting_attestation", {
-		cctpMessage: result.message,
-		cctpNonce: BigInt(message.nonce).toString(),
-		cctpAttestation: result.attestation,
-		lastErrorCode: null,
-		nextActionAt: null,
+	const cctpNonce = BigInt(message.nonce).toString();
+	await database().transaction(async (tx) => {
+		const [current] = await tx.select({ status: flows.status }).from(flows)
+			.where(eq(flows.id, flowId));
+		if (!current) throw new Error("The flow does not exist.");
+		const [settled] = await tx.select({ id: flows.id }).from(flows).where(and(
+			ne(flows.id, flowId),
+			eq(flows.nameId, flow.nameId),
+			eq(flows.originChainId, String(flow.originChainId)),
+			eq(flows.cctpNonce, cctpNonce),
+			eq(flows.status, "settled"),
+		));
+		const now = new Date();
+		if (settled) {
+			await tx.execute(requestTransactionCancellationSql([flowId], now));
+			await tx.update(flows).set({
+				status: "cancelled",
+				cctpMessage: result.message,
+				cctpNonce,
+				cctpAttestation: result.attestation,
+				holdReason: null,
+				workflowRunId: null,
+				lastErrorCode: "duplicate_message_settled",
+				lastErrorDetail: null,
+				nextActionAt: null,
+				cancelledAt: now,
+				updatedAt: now,
+			}).where(eq(flows.id, flowId));
+			if (current.status !== "cancelled") {
+				await tx.insert(flowTransitions).values({
+					flowId,
+					fromStatus: current.status,
+					toStatus: "cancelled",
+					actor: "workflow",
+					reasonCode: "duplicate_message_settled",
+					detail: { settledFlowId: settled.id },
+				});
+			}
+			return;
+		}
+		await tx.update(flows).set({
+			status: "waiting_attestation",
+			cctpMessage: result.message,
+			cctpNonce,
+			cctpAttestation: result.attestation,
+			lastErrorCode: null,
+			nextActionAt: null,
+			updatedAt: now,
+		}).where(eq(flows.id, flowId));
 	});
 	return result;
 }
@@ -520,6 +565,7 @@ async function cancelSettledDuplicateMessage(flow: CctpFlow): Promise<boolean> {
 		const [current] = await tx.select({ status: flows.status }).from(flows).where(eq(flows.id, flow.id));
 		if (!current || current.status === "settled" || current.status === "cancelled") return;
 		const now = new Date();
+		await tx.execute(requestTransactionCancellationSql([flow.id], now));
 		const [cancelled] = await tx.update(flows).set({
 			status: "cancelled",
 			holdReason: null,
@@ -602,10 +648,11 @@ export async function prepareCctpClaim(flowId: string): Promise<string> {
 export async function confirmCctpClaim(
 	flowId: string,
 	intentId: string,
-): Promise<"waiting" | "unclaimed" | "settled"> {
+): Promise<"waiting" | "unclaimed" | "settled" | "cancelled"> {
 	"use step";
 	const flow = await loadCctpFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
+	if (flow.status === "cancelled") return "cancelled";
 	if (flow.status === "settled" && flow.claimIntentStatus === "confirmed") return "settled";
 	const receipt = await readTransactionReceipt(intentId);
 	if (!receipt) {

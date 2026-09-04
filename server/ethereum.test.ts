@@ -18,11 +18,14 @@ import {
 } from "./ethereum";
 import {
 	isMissingTransactionReceipt,
+	isInsufficientFundsError,
 	isNonceTooLowError,
 	freeRelayerLaneSql,
 	gasLimitWithSafetyMargin,
 	replacementFee,
+	requestTransactionCancellationSql,
 	transactionAttemptHashes,
+	transactionHashMatchesIntentSql,
 	originRevertFlowPatch,
 	relayerCandidatesForChain,
 	reconcileConsumedNonce,
@@ -95,17 +98,38 @@ test("settlement checks every same-nonce attempt when an older replacement wins"
 	const first = `0x${"a".repeat(64)}`;
 	const replacement = `0x${"b".repeat(64)}`;
 	assert.deepEqual(transactionAttemptHashes(replacement.toUpperCase(), [
-		{ hash: first },
-		{ hash: replacement },
-		{ hash: first.toUpperCase() },
+		{ hash: `0x${"c".repeat(64)}`, nonce: "8" },
+		{ hash: first, nonce: "9" },
+		{ hash: replacement, nonce: "9" },
+		{ hash: first.toUpperCase(), nonce: "9" },
 		{ malformed: true },
-	]), [first, replacement]);
+	], "9"), [first, replacement]);
+});
+
+test("duplicate cancellation changes only unresolved transaction intents", () => {
+	const query = new PgDialect().sqlToQuery(requestTransactionCancellationSql(
+		["11111111-1111-4111-8111-111111111111"],
+		new Date("2026-09-04T10:00:00.000Z"),
+	));
+	assert.match(query.sql, /status = 'cancellation_requested'/);
+	assert.match(query.sql, /status in \('prepared', 'broadcast'\)/);
+});
+
+test("indexed evidence matches only attempts from the intent's current nonce", () => {
+	const query = new PgDialect().sqlToQuery(transactionHashMatchesIntentSql(`0x${"d".repeat(64)}`));
+	assert.match(query.sql, /attempt->>'nonce'/);
+	assert.match(query.sql, /"transaction_intents"\."nonce"::text/);
 });
 
 test("a safe raw-transaction rebroadcast accepts only known-transaction responses", () => {
 	assert.equal(isKnownTransactionError(new Error("already known")), true);
 	assert.equal(isKnownTransactionError(new Error("already imported")), true);
 	assert.equal(isKnownTransactionError(new Error("insufficient funds")), false);
+});
+
+test("insufficient funds is not treated as a fee-replacement problem", () => {
+	assert.equal(isInsufficientFundsError(new Error("insufficient funds for gas * price + value")), true);
+	assert.equal(isInsufficientFundsError(new Error("replacement transaction underpriced")), false);
 });
 
 test("nonce reconciliation recognizes only consumed-nonce errors", () => {
@@ -141,7 +165,7 @@ test("database lane allocation locks one free relayer and skips busy rows", () =
 		"0x2222222222222222222222222222222222222222",
 	]));
 	assert.match(query.sql, /not exists/);
-	assert.match(query.sql, /status in \('prepared', 'broadcast'\)/);
+	assert.match(query.sql, /status in \('prepared', 'broadcast', 'cancellation_requested', 'cancelling'\)/);
 	assert.match(query.sql, /for update of rn skip locked/);
 	assert.match(query.sql, /limit 1/);
 });

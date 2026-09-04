@@ -275,6 +275,12 @@ export const flows = pgTable(
 		uniqueIndex("flows_workflow_run_unique")
 			.on(table.workflowRunId)
 			.where(sql`${table.workflowRunId} is not null`),
+		uniqueIndex("flows_origin_evidence_tx_unique")
+			.on(table.originChainId, sql`lower(${table.originEvidenceTxHash})`)
+			.where(sql`${table.originEvidenceTxHash} is not null and ${table.status} <> 'cancelled'`),
+		uniqueIndex("flows_cctp_nonce_unique")
+			.on(table.originChainId, table.cctpNonce)
+			.where(sql`${table.cctpNonce} is not null and ${table.status} <> 'cancelled'`),
 		index("flows_name_created_idx").on(table.nameId, table.createdAt),
 		index("flows_status_action_idx").on(table.status, table.nextActionAt),
 	],

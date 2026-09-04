@@ -75,7 +75,7 @@ export function freeRelayerLaneSql(chainId: number, addresses: readonly string[]
 				select 1 from transaction_intents ti
 				where ti.chain_id = rn.chain_id
 					and ti.from_address = rn.relayer_address
-					and ti.status in ('prepared', 'broadcast')
+					and ti.status in ('prepared', 'broadcast', 'cancellation_requested', 'cancelling')
 			)
 		order by rn.updated_at, rn.relayer_address
 		for update of rn skip locked
@@ -100,11 +100,18 @@ export function replacementFee(previous: bigint, current: bigint | undefined): b
 export function transactionAttemptHashes(
 	currentTxHash: unknown,
 	attempts: unknown,
+	currentNonce?: unknown,
 ): string[] {
 	const hashes = new Set<string>();
 	if (Array.isArray(attempts)) {
 		for (const attempt of attempts) {
-			if (attempt && typeof attempt === "object" && "hash" in attempt && typeof attempt.hash === "string") {
+			if (
+				attempt
+				&& typeof attempt === "object"
+				&& "hash" in attempt
+				&& typeof attempt.hash === "string"
+				&& (currentNonce === undefined || ("nonce" in attempt && String(attempt.nonce) === String(currentNonce)))
+			) {
 				hashes.add(attempt.hash.toLowerCase());
 			}
 		}
@@ -121,8 +128,22 @@ export function transactionHashMatchesIntentSql(txHash: string) {
 			select 1
 			from jsonb_array_elements(${transactionIntents.attempts}) as attempt
 			where lower(attempt->>'hash') = lower(${txHash})
+				and attempt->>'nonce' = ${transactionIntents.nonce}::text
 		)
 	)`;
+}
+
+/** Stop duplicate work without leaving an unconsumed nonce gap. */
+export function requestTransactionCancellationSql(flowIds: readonly string[], now: Date) {
+	if (!flowIds.length) throw new Error("At least one flow is required for transaction cancellation.");
+	return sql`
+		update transaction_intents
+		set status = 'cancellation_requested',
+			error = jsonb_build_object('code', 'duplicate_message_settled'),
+			updated_at = ${now}
+		where flow_id in (${sql.join(flowIds.map((flowId) => sql`${flowId}`), sql`, `)})
+			and status in ('prepared', 'broadcast')
+	`;
 }
 
 /** A mined revert consumes its nonce. Resume with a new signed attempt, not stale bytes. */
@@ -149,6 +170,11 @@ export function isKnownTransactionError(error: unknown): boolean {
 export function isNonceTooLowError(error: unknown): boolean {
 	const message = error instanceof Error ? error.message.toLowerCase() : "";
 	return message.includes("nonce too low") || message.includes("nonce has already been used");
+}
+
+export function isInsufficientFundsError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message.toLowerCase() : "";
+	return message.includes("insufficient funds");
 }
 
 export type ConsumedNonceResolution = "receipt_found" | "receipt_pending" | "not_consumed";
@@ -202,6 +228,17 @@ async function signAttempt(input: TransactionInput, intentId?: string): Promise<
 	await Promise.all(accounts.map((account) => db.execute(
 		sql`insert into relayer_nonces (chain_id, relayer_address, next_nonce) values (${String(input.chain.chainId)}, ${account.address.toLowerCase()}, '0') on conflict do nothing`,
 	)));
+	/* Do not hold a database lane lock while waiting on RPC. Pending nonces are
+	   snapshots; the locked database counter still serializes local reservations. */
+	const [estimatedGas, fees, pendingNonces] = await Promise.all([
+		rpc.estimateGas({ account: accounts[0], to: input.to, data: input.callData }),
+		rpc.estimateFeesPerGas(),
+		Promise.all(accounts.map(async (account) => ({
+			address: account.address.toLowerCase(),
+			nonce: BigInt(await rpc.getTransactionCount({ address: account.address, blockTag: "pending" })),
+		}))),
+	]);
+	const pendingByAddress = new Map(pendingNonces.map(({ address, nonce }) => [address, nonce]));
 	return db.transaction(async (tx) => {
 		await tx.execute(sql`select id from flows where id = ${input.flowId} for update`);
 		if (!intentId) {
@@ -235,14 +272,9 @@ async function signAttempt(input: TransactionInput, intentId?: string): Promise<
 			(candidate) => candidate.address.toLowerCase() === lane.relayer_address.toLowerCase(),
 		);
 		if (!account) throw new Error("The leased relayer lane has no configured key.");
-		const [{ estimatedGas, fees }, livePending] = await Promise.all([
-			Promise.all([
-				rpc.estimateGas({ account, to: input.to, data: input.callData }),
-				rpc.estimateFeesPerGas(),
-			]).then(([estimatedGas, fees]) => ({ estimatedGas, fees })),
-			rpc.getTransactionCount({ address: account.address, blockTag: "pending" }),
-		]);
-		const nonce = reserveNonce(BigInt(lane.next_nonce), BigInt(livePending));
+		const livePending = pendingByAddress.get(account.address.toLowerCase());
+		if (livePending === undefined) throw new Error("The relayer pending nonce was not loaded.");
+		const nonce = reserveNonce(BigInt(lane.next_nonce), livePending);
 		const gas = gasLimitWithSafetyMargin(estimatedGas);
 		const raw = await account.signTransaction({
 			chainId: input.chain.chainId,
@@ -384,6 +416,7 @@ export async function broadcastTransaction(intentId: string): Promise<string> {
 	if (!intent?.currentRawTransaction || !intent.currentTxHash) {
 		throw new Error("The transaction intent has no signed transaction.");
 	}
+	if (!new Set(["prepared", "cancelling"]).has(intent.status)) return intent.currentTxHash;
 	const chain = chainById(Number(intent.chainId));
 	if (!chain) throw new Error(`Chain ${intent.chainId} is not active.`);
 	const attemptedAt = new Date();
@@ -422,11 +455,12 @@ export async function broadcastTransaction(intentId: string): Promise<string> {
 	} catch (error) {
 		await database().update(transactionIntents).set({
 			lastBroadcastAttemptAt: sql`coalesce(${transactionIntents.lastBroadcastAttemptAt}, ${attemptedAt})`,
-			error: { code: "broadcast_rejected" },
+			error: { code: isInsufficientFundsError(error) ? "insufficient_funds" : "broadcast_rejected" },
 			updatedAt: attemptedAt,
 		}).where(and(
 			eq(transactionIntents.id, intentId),
 			eq(transactionIntents.currentTxHash, intent.currentTxHash),
+			eq(transactionIntents.status, intent.status),
 		));
 		throw error;
 	}
@@ -438,7 +472,7 @@ export async function broadcastTransaction(intentId: string): Promise<string> {
 	const [updated] = await database()
 		.update(transactionIntents)
 		.set({
-			status: "broadcast",
+			status: intent.status === "cancelling" ? "cancelling" : "broadcast",
 			attempts,
 			broadcastAt: attemptedAt,
 			lastBroadcastAttemptAt: sql`coalesce(${transactionIntents.lastBroadcastAttemptAt}, ${attemptedAt})`,
@@ -448,9 +482,10 @@ export async function broadcastTransaction(intentId: string): Promise<string> {
 		.where(and(
 			eq(transactionIntents.id, intentId),
 			eq(transactionIntents.currentTxHash, intent.currentTxHash),
+			eq(transactionIntents.status, intent.status),
 		))
 		.returning({ id: transactionIntents.id });
-	if (updated) {
+	if (updated && intent.status !== "cancelling") {
 		await setFlowStatus(intent.flowId, intent.kind === "claim" ? "waiting_claim" : "waiting_origin");
 	}
 	logOperation("transaction.broadcast", { flowId: intent.flowId, chainId: intent.chainId, step: intent.kind });
@@ -498,23 +533,26 @@ async function isLaneHead(intent: typeof transactionIntents.$inferSelect): Promi
 		.where(and(
 			eq(transactionIntents.chainId, intent.chainId),
 			eq(transactionIntents.fromAddress, intent.fromAddress),
-			sql`${transactionIntents.status} in ('prepared', 'broadcast')`,
+			sql`${transactionIntents.status} in ('prepared', 'broadcast', 'cancellation_requested', 'cancelling')`,
 			sql`${transactionIntents.nonce} < ${intent.nonce}`,
 		))
 		.limit(1);
 	return !earlier;
 }
 
-/** Replace an old pending transaction with the same nonce and invariant transaction fields. */
+/** Replace pending work at the same nonce. Cancellation uses a zero-value self-transfer. */
 export async function replaceStaleTransaction(intentId: string, now = new Date()): Promise<string | undefined> {
 	const [intent] = await database().select().from(transactionIntents).where(eq(transactionIntents.id, intentId));
-	if (!intent?.currentTxHash || !new Set(["prepared", "broadcast"]).has(intent.status)) return intent?.currentTxHash ?? undefined;
+	if (!intent?.currentTxHash || !new Set(["prepared", "broadcast", "cancelling"]).has(intent.status)) return intent?.currentTxHash ?? undefined;
 	if (!(await isLaneHead(intent))) return intent.currentTxHash;
 	const chain = chainById(Number(intent.chainId));
 	if (!chain) throw new Error(`Chain ${intent.chainId} is not active.`);
 	const pendingSince = intent.broadcastAt ?? intent.lastBroadcastAttemptAt;
 	if (!pendingSince || pendingSince.getTime() > now.getTime() - chain.polling.transactionReplacementMs) {
 		return intent.currentTxHash;
+	}
+	if ((intent.error as { code?: unknown } | null)?.code === "insufficient_funds") {
+		return broadcastTransaction(intentId);
 	}
 	if (!intent.currentRawTransaction || !intent.gasLimit || !intent.maxFeePerGas || !intent.maxPriorityFeePerGas) {
 		throw new Error("The pending transaction does not contain replaceable EIP-1559 fields.");
@@ -549,11 +587,11 @@ export async function replaceStaleTransaction(intentId: string, now = new Date()
 	);
 	const raw = await account.signTransaction({
 		chainId: chain.chainId,
-		to: intent.toAddress as Address,
-		data: intent.callData as Hex,
-		value: BigInt(intent.value),
+		to: intent.status === "cancelling" ? account.address : intent.toAddress as Address,
+		data: intent.status === "cancelling" ? "0x" : intent.callData as Hex,
+		value: intent.status === "cancelling" ? 0n : BigInt(intent.value),
 		nonce: Number(nonce),
-		gas: BigInt(intent.gasLimit),
+		gas: intent.status === "cancelling" ? 21_000n : BigInt(intent.gasLimit),
 		maxFeePerGas,
 		maxPriorityFeePerGas,
 	});
@@ -570,8 +608,9 @@ export async function replaceStaleTransaction(intentId: string, now = new Date()
 			maxFeePerGas: String(maxFeePerGas),
 			maxPriorityFeePerGas: String(maxPriorityFeePerGas),
 			broadcastAt: null,
+			...(intent.status === "cancelling" ? { purpose: "cancel" } : {}),
 		}],
-		status: "prepared",
+		status: intent.status === "cancelling" ? "cancelling" : "prepared",
 		broadcastAt: null,
 		lastBroadcastAttemptAt: null,
 		updatedAt: now,
@@ -590,16 +629,90 @@ export async function replaceStaleTransaction(intentId: string, now = new Date()
 
 export type TransactionMonitorResult = "broadcast" | "receipt_found" | "replaced" | "waiting" | "deferred";
 
+async function prepareCancellationTransaction(
+	intent: typeof transactionIntents.$inferSelect,
+	now: Date,
+): Promise<string | undefined> {
+	if (!intent.currentTxHash) return undefined;
+	const chain = chainById(Number(intent.chainId));
+	if (!chain) throw new Error(`Chain ${intent.chainId} is not active.`);
+	const account = relayerAccountForAddress(intent.fromAddress);
+	const rpc = await verifiedChainClient(chain);
+	const fees = await rpc.estimateFeesPerGas();
+	const maxFeePerGas = intent.maxFeePerGas
+		? replacementFee(BigInt(intent.maxFeePerGas), fees.maxFeePerGas)
+		: fees.maxFeePerGas;
+	const maxPriorityFeePerGas = intent.maxPriorityFeePerGas
+		? replacementFee(BigInt(intent.maxPriorityFeePerGas), fees.maxPriorityFeePerGas)
+		: fees.maxPriorityFeePerGas;
+	if (!maxFeePerGas || !maxPriorityFeePerGas) throw new Error("The cancellation fee quote is incomplete.");
+	const raw = await account.signTransaction({
+		chainId: chain.chainId,
+		to: account.address,
+		data: "0x",
+		value: 0n,
+		nonce: Number(BigInt(intent.nonce)),
+		gas: 21_000n,
+		maxFeePerGas,
+		maxPriorityFeePerGas,
+	});
+	const hash = keccak256(raw);
+	const attempts = Array.isArray(intent.attempts) ? [...intent.attempts] : [];
+	const [updated] = await database().update(transactionIntents).set({
+		maxFeePerGas: String(maxFeePerGas),
+		maxPriorityFeePerGas: String(maxPriorityFeePerGas),
+		currentRawTransaction: raw,
+		currentTxHash: hash,
+		attempts: [...attempts, {
+			hash,
+			nonce: intent.nonce,
+			maxFeePerGas: String(maxFeePerGas),
+			maxPriorityFeePerGas: String(maxPriorityFeePerGas),
+			broadcastAt: null,
+			purpose: "cancel",
+		}],
+		status: "cancelling",
+		broadcastAt: null,
+		lastBroadcastAttemptAt: null,
+		pendingWarnedAt: null,
+		error: { code: "duplicate_message_cancelling" },
+		updatedAt: now,
+	}).where(and(
+		eq(transactionIntents.id, intent.id),
+		eq(transactionIntents.status, "cancellation_requested"),
+		eq(transactionIntents.currentTxHash, intent.currentTxHash),
+	)).returning({ id: transactionIntents.id });
+	if (!updated) return undefined;
+	await broadcastTransaction(intent.id);
+	return hash;
+}
+
 /** Monitor one logical transaction. Only the lowest unresolved nonce can act in its lane. */
 export async function monitorTransactionIntent(
 	intentId: string,
 	now = new Date(),
 ): Promise<TransactionMonitorResult> {
 	const [intent] = await database().select().from(transactionIntents).where(eq(transactionIntents.id, intentId));
-	if (!intent?.currentTxHash || !new Set(["prepared", "broadcast"]).has(intent.status)) return "deferred";
+	if (!intent?.currentTxHash || !new Set(["prepared", "broadcast", "cancellation_requested", "cancelling"]).has(intent.status)) return "deferred";
 	if (!(await isLaneHead(intent))) return "deferred";
-	if (await readTransactionReceipt(intentId)) return "receipt_found";
-	if (intent.status === "prepared" && !intent.lastBroadcastAttemptAt) {
+	const receipt = await readTransactionReceipt(intentId);
+	if (receipt) {
+		await database().update(transactionIntents).set({
+			status: new Set(["cancellation_requested", "cancelling"]).has(intent.status) ? "cancelled" : "mined",
+			confirmedAt: now,
+			receipt: receipt as unknown as Record<string, unknown>,
+			updatedAt: now,
+		}).where(and(
+			eq(transactionIntents.id, intentId),
+			eq(transactionIntents.status, intent.status),
+			eq(transactionIntents.currentTxHash, intent.currentTxHash),
+		));
+		return "receipt_found";
+	}
+	if (intent.status === "cancellation_requested") {
+		return await prepareCancellationTransaction(intent, now) ? "replaced" : "deferred";
+	}
+	if (new Set(["prepared", "cancelling"]).has(intent.status) && !intent.lastBroadcastAttemptAt) {
 		await broadcastTransaction(intentId);
 		return "broadcast";
 	}
@@ -644,7 +757,7 @@ export async function readTransactionReceipt(intentId: string): Promise<Transact
 	const chain = chainById(Number(intent.chainId));
 	if (!chain) throw new Error(`Chain ${intent.chainId} is not active.`);
 	const rpc = await verifiedChainClient(chain);
-	for (const hash of transactionAttemptHashes(intent.currentTxHash, intent.attempts).reverse()) {
+	for (const hash of transactionAttemptHashes(intent.currentTxHash, intent.attempts, intent.nonce).reverse()) {
 		try {
 			return await rpc.getTransactionReceipt({ hash: hash as Hex });
 		} catch (error) {

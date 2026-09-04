@@ -26,6 +26,7 @@ export function classifyWorkflowFailure(text: string): WorkflowFailure {
 	if (value.includes("0x87a22607")) return { code: "amount_below_policy", fatal: false }; // BelowMinimumBurn()
 	if (value.includes("0x15bd493b")) return { code: "name_not_renewable", fatal: false }; // NameNotRenewable()
 	if (value.includes("0xd5139101")) return { code: "claim_already_used_or_failed", fatal: false }; // CCTPReceiveFailed()
+	if (value.includes("no relayer lane is free")) return { code: "relayer_pool_saturated", fatal: false };
 	if (
 		value.includes("429")
 		|| value.includes("rate limit")

@@ -7,6 +7,30 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-09-04 — Transaction state and exact payment identity are server invariants
+
+A review found that the transaction monitor could read a reverted receipt from an earlier nonce,
+and a late broadcast update could change a confirmed intent back to `broadcast`. Receipt lookup now
+uses only attempts with the intent's current nonce. Broadcast writes compare the current status and
+hash. The monitor stores a mined receipt before it releases the nonce lane.
+
+Canceling a duplicate flow also changes its unresolved transaction to `cancellation_requested` in
+the same database transaction. The monitor replaces the original call with a zero-value transfer to
+the same relayer at the same nonce. This prevents the duplicate call from being intentionally
+rebroadcast without leaving a nonce gap. The original call can still win a mempool race, so receipt
+lookup keeps every attempt for that nonce.
+
+The server never settles CCTP by amount. A non-canceled flow is unique by origin chain plus exact
+origin transaction, and by origin chain plus Circle nonce. Migration `0007_exact_flow_identity`
+cancels existing duplicate rows before it creates both partial unique indexes. The API returns this
+canonical state. The browser no longer hides duplicate rows.
+
+The four-wallet Ethereum pool remains. RPC fee, gas, and pending-nonce reads happen before the short
+database lane lock. A fifth request records `relayer_pool_saturated` and enters normal durable
+workflow recovery. Replacement-count limits and fee ceilings remain outside this change.
+
+---
+
 ### 2026-09-03 — Use four Ethereum relayer lanes with lane-head recovery
 
 Ethereum carries direct renewals and every CCTP claim. One EOA therefore made one pending nonce a
@@ -15,14 +39,15 @@ assigns only a wallet with no unresolved intent and stores that address permanen
 Base, Arbitrum, and Arc continue to use the primary wallet.
 
 The database owns lane assignment. RPC pending counts alone cannot prevent two serverless requests
-from selecting the same wallet. A transaction locks one `relayer_nonces` row with `FOR UPDATE SKIP
-LOCKED`, and each lane accepts one unresolved intent. The recovery cron checks the lowest nonce in
-each lane every minute. It warns after 30 seconds and makes a same-nonce fee replacement after three
-minutes. A rejected prepared transaction can also be replaced.
+from selecting the same wallet. RPC reads finish before a transaction locks one `relayer_nonces`
+row with `FOR UPDATE SKIP LOCKED`, and each lane accepts one unresolved intent. The recovery cron
+checks the lowest nonce in each lane every minute. It warns after 30 seconds and makes a same-nonce
+fee replacement after three minutes. A rejected prepared transaction can also be replaced.
 
-Receipt reconciliation checks all signed attempts before it handles a `nonce too low` response.
-This closes the race where an older attempt mines while a replacement is being sent. Four wallets
-reduce the effect of a stall. They do not remove the need for same-nonce recovery.
+Receipt reconciliation checks all signed attempts for the current nonce before it handles a
+`nonce too low` response. This closes the race where an older attempt mines while a replacement is
+being sent. Four wallets reduce the effect of a stall. They do not remove the need for same-nonce
+recovery.
 
 Replacement-count limits and fee ceilings are not part of this change.
 
@@ -43,10 +68,9 @@ origin transaction across every flow status. The confirmed automatic flow stores
 as evidence. A canonical settlement cancels any other non-terminal flow with the same origin
 transaction or Circle nonce.
 
-The browser applies the same exact-identity rule as a read-side safeguard. It collapses flows only
-when their origin transaction or Circle nonce matches, and it suppresses a stale flow when a
-canonical renewal has the same origin transaction. It never combines or removes flows by name,
-chain, or amount because separate payments can share all three values.
+The database enforces the exact-identity rule for non-canceled flows. The API returns canonical
+rows, and the browser does not hide duplicate state. It never combines flows by name, chain, or
+amount because separate payments can share all three values.
 
 The same identity rule covers direct Ethereum renewals and transaction replacements. A logical
 intent can contain several same-nonce signed attempts, and any one of them can be mined. Goldsky

@@ -95,7 +95,7 @@ test("recovery checks every stale resumable stage and due unclaimed workflow own
 test("the transaction monitor selects only the lowest nonce in each database lane", () => {
 	const query = new PgDialect().sqlToQuery(transactionMonitorCandidatesSql(10));
 	assert.match(query.sql, /distinct on \(chain_id, lower\(from_address\)\)/);
-	assert.match(query.sql, /status in \('prepared', 'broadcast'\)/);
+	assert.match(query.sql, /status in \('prepared', 'broadcast', 'cancellation_requested', 'cancelling'\)/);
 	assert.match(query.sql, /order by chain_id, lower\(from_address\), nonce/);
 	assert.equal(query.params[query.params.length - 1], 10);
 });

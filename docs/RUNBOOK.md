@@ -190,14 +190,14 @@ application when no transaction is running.
 
 Use this release order for the pool:
 
-1. Apply `0006_transaction_monitoring.sql`.
+1. Apply `0006_transaction_monitoring.sql`, then `0007_exact_flow_identity.sql`.
 2. Create and fund three additional Ethereum relayers. Keep the existing relayer first.
 3. Set all four keys and addresses in the plural environment variables. Set both variables before
    the new deployment starts.
 4. Deploy the application. Confirm that `/api/config/public` returns the four expected public
    addresses and no key.
 5. Run four low-value Ethereum transactions at the same time. Confirm that each intent has a
-   different `from_address` and that a fifth waits for a lane.
+   different `from_address` and that a fifth records `relayer_pool_saturated` for durable retry.
 
 The singular environment variables remain a one-relayer fallback during migration. The plural
 variables take priority. Remove the singular variables only after the four-lane canary succeeds.
@@ -226,8 +226,14 @@ its active Iris polling.
 The service emits a structured warning after 30 seconds. It automatically replaces a transaction
 that remains pending or rejected for three minutes. The
 replacement keeps the sender, chain, nonce, destination, value, call data, and gas limit, and raises
-both EIP-1559 fee fields. The workflow checks every stored attempt because an older attempt can be
-mined after a replacement is broadcast.
+both EIP-1559 fee fields. An insufficient-funds rejection retries the same bytes after funding; a
+higher fee cannot repair it. The workflow checks every stored attempt for the current nonce because
+an older same-nonce attempt can be mined after a replacement is broadcast.
+
+When the server cancels a duplicate flow, it requests cancellation for any unresolved transaction
+in the same database transaction. Recovery replaces that call with a zero-value self-transfer at
+the same nonce. Keep the cron active until either the original attempt or cancellation has a
+receipt. Do not free the lane by editing its status because that can leave a nonce gap.
 
 Only the lowest unresolved nonce in a lane can be replaced. A `nonce too low` response causes a
 receipt check across every stored attempt before another broadcast. One unresolved nonce still

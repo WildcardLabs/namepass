@@ -1002,7 +1002,7 @@ later Ethereum transactions from the same relayer. For Namepass, that lane conta
 Ethereum renewals and every CCTP claim. A pending transaction on Base, Arbitrum, or Arc does not
 block Ethereum or another chain. The current implementation warns after 30 seconds and replaces a
 stale transaction after three minutes with the same nonce and higher fees. Receipt checks inspect
-every signed attempt. Four Ethereum accounts create four independent nonce lanes. One stalled lane
+every signed attempt for the intent's current nonce. Four Ethereum accounts create four independent nonce lanes. One stalled lane
 does not block the other three lanes.
 
 Vercel serverless functions can run concurrently. An in-memory nonce manager is not safe. Neon
@@ -1011,27 +1011,37 @@ therefore stores nonce state.
 ### Transaction intent algorithm
 
 1. Build and simulate the call without a nonce.
-2. Start a Neon transaction.
-3. Create missing nonce rows for the allowed relayers on that chain.
+2. Read the verified RPC fee quote and pending nonce for each candidate. Do not hold a database
+   connection while these network calls run.
+3. Start a Neon transaction and create missing nonce rows for the allowed relayers on that chain.
 4. Select a relayer that has no unresolved intent. Lock its nonce row with
    `FOR UPDATE SKIP LOCKED`.
-5. Read the selected relayer's RPC pending nonce.
-6. Reserve `max(database_next_nonce, rpc_pending_nonce)`.
-7. Sign the full transaction with the selected relayer and reserved nonce.
-8. Store the selected address, raw transaction, and expected hash in the intent.
-9. Increment `next_nonce` and commit.
-10. Broadcast the stored raw transaction.
-11. Record the receipt or replacement.
+5. Reserve `max(database_next_nonce, selected_rpc_pending_nonce)`.
+6. Sign the full transaction with the selected relayer and reserved nonce.
+7. Store the selected address, raw transaction, and expected hash in the intent.
+8. Increment `next_nonce` and commit.
+9. Broadcast the stored raw transaction.
+10. Record the receipt or replacement.
 
-If the process stops after step 9, recovery rebroadcasts the same bytes. If the RPC reports “already
-known,” continue receipt polling. If it reports “nonce too low,” check every stored attempt before
-the system assumes that an unknown transaction consumed the nonce. If a transaction is rejected or
+If the process stops after step 8, recovery rebroadcasts the same bytes. If the RPC reports “already
+known,” continue receipt polling. If it reports “nonce too low,” check every stored attempt for the
+current nonce before the system assumes that an unknown transaction consumed the nonce. If a transaction is rejected or
 stuck, sign a higher-fee replacement with the same nonce and selected relayer. Link it to the same
 intent.
 
 Goldsky reconciliation matches a canonical transaction against every hash stored in that intent.
 An older attempt can be mined after a replacement was signed. The actual mined hash is stored as
 flow evidence and is preferred in public reads.
+
+An intent that retries after a mined revert gets a new nonce. Its receipt lookup excludes attempts
+from the old nonce. A monitor receipt changes the intent to `mined` before the lane is released.
+Later workflow or Goldsky settlement changes it to `confirmed` or `reverted`. Every broadcast write
+uses the status and hash it originally read, so it cannot reopen a newer terminal state.
+
+Canceling a duplicate flow requests transaction cancellation in the same database transaction.
+The monitor signs a zero-value self-transfer with the duplicate intent's nonce and replacement
+fees. The original call and cancellation can race, but either receipt consumes the nonce without a
+gap. Cancellation attempts remain in the same audit history and are never treated as a renewal.
 
 ### Relayer concurrency options
 
@@ -1052,7 +1062,7 @@ The pool must not select a wallet from one RPC's pending count alone. Serverless
 and node mempools can disagree. Neon owns the assignment. The implementation has:
 
 - four configured relayer keys in the deployment secret store
-- one nonce row and one pending lease per relayer and chain
+- one nonce row and one unresolved-intent lease per relayer and chain
 - atomic free-lane selection, for example `FOR UPDATE SKIP LOCKED`
 - the selected relayer address stored permanently on each transaction intent
 - receipt and replacement signing with that same selected key
@@ -1482,7 +1492,8 @@ It uses a transaction-scoped database advisory lock. It finds at most 10 rows fr
 category per run:
 
 - any resumable workflow stage with no workflow run ID or a stale workflow owner
-- cancelled flows that have a non-reverted transaction intent but no linked renewal event
+- cancelled flows that have a prepared, broadcast, mined, or confirmed transaction intent but no
+  linked renewal event or duplicate-settlement reason
 - unclaimed CCTP flows whose next action time passed and have no workflow run ID or a stale owner
 - held `name_not_renewable` flows whose next ENS check is due
 - the lowest unresolved transaction in each relayer and chain lane
@@ -1499,7 +1510,8 @@ does not prove that the Workflow run is dead. The starter checks `getRun(runId).
 terminal. It never replaces a pending or running Workflow run. The workflow itself owns
 active Iris polling. For a stored signed transaction, it broadcasts the exact stored bytes. The
 monitor emits one warning after 30 seconds. After three minutes, it replaces only the lowest
-unresolved nonce in the lane. A rejected prepared transaction is also eligible for replacement.
+unresolved nonce in the lane. A rejected prepared transaction is eligible for replacement, except
+that insufficient funds causes a rebroadcast of the same bytes after funding instead of a fee bump.
 For an unscanned name, it re-reads only the
 listed or missing-snapshot chains, stores each exact snapshot, removes each chain that answers, and
 queues a flow if the balance is now eligible.

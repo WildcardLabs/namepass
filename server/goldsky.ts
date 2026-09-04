@@ -13,7 +13,7 @@ import { startRenewalWorkflow } from "./workflows";
 import { rawPayloadExpiresAt } from "./retention";
 import { STOPPED_DEPOSIT_ERROR, stoppedFlowReason } from "./stopped-flows";
 import { ORIGIN_WALLET_ACTIVE_STATUSES } from "./flow-state";
-import { transactionHashMatchesIntentSql } from "./transactions";
+import { requestTransactionCancellationSql, transactionHashMatchesIntentSql } from "./transactions";
 
 const COMMON_FIELDS = [
 	"event_id",
@@ -752,6 +752,10 @@ export const postgresGoldskyStore: GoldskyStore = {
 							));
 						if (!duplicates.length) return;
 						const now = new Date();
+						await tx.execute(requestTransactionCancellationSql(
+							duplicates.map((duplicate) => duplicate.id),
+							now,
+						));
 						await tx.update(flows).set({
 							status: "cancelled",
 							holdReason: null,
@@ -936,14 +940,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 							eq(flows.originChainId, projection.originChainId),
 							eq(flows.cctpNonce, projection.cctpNonce),
 						));
-						const [byBurn] = exact ? [] : await tx.select({ id: flows.id }).from(flows).where(and(
-							eq(flows.nameId, name.id),
-							eq(flows.originChainId, projection.originChainId),
-							eq(flows.amountProcessed, projection.amountProcessed),
-							inArray(flows.status, ["waiting_attestation", "submitting_claim", "waiting_claim", "unclaimed"]),
-						));
-						const rescued = exact ?? byBurn;
-						if (rescued) {
+						if (exact) {
 							await tx.update(flows).set({
 								renewalEventId: renewal.eventId,
 								status: "settled",
@@ -958,17 +955,17 @@ export const postgresGoldskyStore: GoldskyStore = {
 								nextActionAt: null,
 								settledAt: renewal.blockTime,
 								updatedAt: new Date(),
-							}).where(eq(flows.id, rescued.id));
+							}).where(eq(flows.id, exact.id));
 							await tx.update(transactionIntents).set({
 								status: "completed_externally",
 								confirmedAt: renewal.blockTime,
 								updatedAt: new Date(),
 							}).where(and(
-								eq(transactionIntents.flowId, rescued.id),
+								eq(transactionIntents.flowId, exact.id),
 								eq(transactionIntents.kind, "claim"),
 							));
 							await cancelDuplicateMessages({
-								flowId: rescued.id,
+								flowId: exact.id,
 								originChainId: projection.originChainId,
 								cctpNonce: projection.cctpNonce,
 								originTxHash: null,
