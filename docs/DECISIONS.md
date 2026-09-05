@@ -7,6 +7,21 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-09-05 — Repair the historical split evidence in the guarded migration
+
+The stable testnet database contains one old race with two rows for one Circle nonce. The automatic
+row owns the deposit, confirmed origin and claim transaction intents, and canonical renewal. The
+external row owns the exact `DepositProcessed` event from that confirmed origin transaction. A
+manual database edit would bypass the release record and would be difficult to reproduce.
+
+Migration `0007` repairs this shape atomically. It accepts exactly two rows with the known terminal
+states. It requires matching name, chain, amount, remainder, Circle message, and attestation. It
+also verifies the deposit event, the origin intent and event transaction, the claim intent and
+renewal transaction, and the exact preceding `CCTPClaimed` event. Circle and renewal accounting
+must agree. The migration moves the origin evidence to the settled row and records the cancelled
+duplicate in `flow_transitions`. It aborts for all other split shapes. The operator must confirm
+that a retained Workflow run is complete before the migration starts.
+
 ### 2026-09-04 — Use exact event identity and one relayer nonce queue
 
 An origin transaction hash is not a flow identity. One permissionless transaction can contain more
@@ -46,7 +61,8 @@ Schema enforcement uses two release points. Release 1 applies migration `0006`, 
 identity fields and backfills only one-to-one origin event matches. The application then starts
 writing exact identity. Release 2 pauses writers and applies migration `0007`. That migration runs a
 guarded duplicate repair and adds the full CCTP nonce unique index. It aborts if a duplicate group
-has conflicting source evidence, a Workflow owner, or unresolved transaction work.
+has conflicting source evidence or unresolved transaction work. It also aborts for a Workflow
+owner unless the row matches the exact terminal split-evidence repair described above.
 
 ### 2026-08-26 — CCTP flows release the origin wallet after the burn
 

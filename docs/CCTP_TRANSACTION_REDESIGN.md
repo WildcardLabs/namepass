@@ -234,10 +234,11 @@ claim evidence conflicts with the deleted origin event.
 This change requires two release points. Do not deploy both commits in one automatic migration run.
 
 - Release 1 target commit: `1f6f88a`.
-- Release 2 migration commit: `2041990`.
+- Release 2 migration target: `ceacbd0`.
 
 Commit `1f6f88a` is the last commit that does not contain migration `0007`. Use this exact commit for
-the first release. Commit `2041990` adds migration `0007` and is the second release boundary.
+the first release. Commit `2041990` adds migration `0007`. Commit `ceacbd0` adds its guarded
+historical split-evidence repair and is the second release target.
 
 ### Release 1
 
@@ -257,7 +258,9 @@ CCTP nonce index.
 1. Pause Goldsky delivery.
 2. Pause recovery.
 3. Pause new workflow starts.
-4. Confirm that target duplicate groups have no Workflow owner and no unresolved intent.
+4. Confirm that target duplicate groups have no unresolved intent. A Workflow owner normally stops
+   the migration. For the split-evidence repair only, confirm that the canonical settled Workflow
+   run is complete.
 5. Apply `0007_exact_cctp_identity.sql`.
 6. If the migration aborts, inspect the reported invariant. Do not weaken the guard.
 7. Resume the services after the migration commits.
@@ -265,8 +268,10 @@ CCTP nonce index.
 Migration `0007` locks the affected tables for the repair transaction. It repeats safe origin
 backfill and rejects ambiguous external origins. It also verifies the exact preceding
 `CCTPClaimed` event by log order. The source domain, full 256-bit nonce, wallet, burn amount, and
-Circle accounting must match before the migration moves evidence. It merges only the guarded
-duplicate shape and creates the full Circle nonce unique index.
+Circle accounting must match before the migration moves evidence. A historical split-evidence row
+also requires matching deposit, origin-intent, claim-intent, Circle message, attestation, and
+renewal facts. It merges only the two guarded duplicate shapes and creates the full Circle nonce
+unique index.
 
 ## Accepted limits
 

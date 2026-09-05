@@ -90,10 +90,10 @@ Use two release points for the exact flow-identity change. Do not let the migrat
 `0007_exact_cctp_identity.sql` during the first release.
 
 - Release 1 target commit: `1f6f88a`.
-- Release 2 migration commit: `2041990`.
+- Release 2 migration target: `ceacbd0`.
 
 Commit `1f6f88a` is the last commit without migration `0007`. Commit `2041990` adds migration
-`0007`.
+`0007`. Commit `ceacbd0` adds the guarded repair for the historical split-evidence row.
 
 Release 1:
 
@@ -105,8 +105,9 @@ Release 1:
 Release 2:
 
 1. Stop new deposits and manual triggers. Pause Goldsky delivery and `/api/cron/recover`.
-2. Confirm that every remaining duplicate Circle group has no `workflow_run_id` and no unresolved
-   transaction intent.
+2. Confirm that every remaining duplicate Circle group has no unresolved transaction intent. A
+   non-null `workflow_run_id` normally stops the migration. The split-evidence repair is the only
+   exception. Confirm that its canonical settled Workflow run is complete before you continue.
 3. Create a Neon restore point or branch.
 4. Apply `0007_exact_cctp_identity.sql`. It locks the affected tables for its transaction.
 5. Stop if the migration reports an ambiguous origin event, conflicting duplicate evidence, a live
@@ -117,11 +118,14 @@ Release 2:
 8. Resume Goldsky delivery, replay the paused range, resume recovery, and then allow new deposits.
 
 Migration `0006` adds nullable exact identity fields and safely backfills only one-to-one origin
-event matches. Migration `0007` merges only one evidence-rich source row with one bare external
-settlement row. It verifies the exact preceding `CCTPClaimed` event by log order. The claim source
-domain, full nonce, wallet, burn amount, and accounting values must match. It aborts the complete
-transaction for every other shape. The full Circle identity index includes cancelled rows. A
-cancelled loser must release its nonce before the source receives it.
+event matches. Migration `0007` supports two guarded repair shapes. The normal shape has one
+evidence-rich source row and one bare external settlement row. The historical split shape has one
+completed automatic row with deposit and settlement evidence and one external row with the exact
+origin event. Both rows must contain the same Circle message and attestation. The deposit event,
+origin transaction, claim transaction, exact preceding `CCTPClaimed` event, `Renewed` event, and
+renewal accounting must all agree. The migration aborts the complete transaction for every other
+shape. The full Circle identity index includes cancelled rows. A cancelled loser must release its
+nonce before the canonical row receives it.
 
 For the 2026-08-18 explorer repair, use this release order:
 
