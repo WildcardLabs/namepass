@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
 	decodeEventLog,
@@ -19,6 +19,7 @@ import {
 	type ReceiptLog,
 } from "../workflows/cctp";
 import { pollIris, type IrisResult } from "../workflows/iris";
+import { cctpFlowRowsLockSql, cctpIdentityAction, cctpIdentityLockSql } from "./cctp-identity";
 import { labelHash, readEnsState } from "./chain";
 import { database } from "./db/client";
 import {
@@ -29,9 +30,15 @@ import {
 	names,
 	transactionIntents,
 } from "./db/schema";
-import { NAME_RECHECK_MS, setFlowStatus } from "./flow-state";
+import { flowTransitionAction, NAME_RECHECK_MS, setFlowStatus, setPreOriginFlowStatus } from "./flow-state";
 import { automaticDepositBalanceBlock, depositBalanceAction } from "./deposit-eligibility";
 import { parseEnsRenewalExpiry } from "./ens-renewal";
+import {
+	assertExactCctpSettlement,
+	settlementBundleForEvent,
+	type SettlementEventBundle,
+	type SettlementIdentityEvent,
+} from "./settlement-identity";
 import {
 	ensureTransactionBroadcast,
 	prepareTransaction,
@@ -40,6 +47,7 @@ import {
 	isMissingTransactionReceipt,
 	relayerAccount,
 	retryTransaction,
+	transactionReceiptMatchesCurrentNonce,
 	transactionIntentAction,
 	originRevertFlowPatch,
 	verifiedChainClient,
@@ -62,6 +70,13 @@ const UNCLAIMED_RETRY_MS = 6 * 60 * 60 * 1_000;
 const ARC_NATIVE_USDC_SCALE = 1_000_000_000_000n;
 export const CCTP_ORIGIN_REVERTED = "origin_reverted";
 
+export function cctpOriginTransactionHash(
+	originEvidenceTxHash: Hex | null,
+	currentTxHash: string | null | undefined,
+): Hex | undefined {
+	return originEvidenceTxHash ?? (currentTxHash as Hex | undefined);
+}
+
 export type CctpFlow = {
 	id: string;
 	nameId: string;
@@ -82,11 +97,17 @@ export type CctpFlow = {
 	amountProcessed: string | null;
 	remainingAmount: string | null;
 	originIntentId: string | null;
+	originEventId: string | null;
+	originEventTxHash: Hex | null;
+	originEventLogIndex: number | null;
+	originEventBlockNumber: string | null;
+	originEventCanonical: boolean | null;
 	originEvidenceTxHash: Hex | null;
 	originIntentStatus: typeof transactionIntents.$inferSelect.status | null;
 	claimIntentId: string | null;
 	claimIntentStatus: typeof transactionIntents.$inferSelect.status | null;
 	cctpNonce: string | null;
+	cctpMessageIndex: number | null;
 	cctpMessage: Hex | null;
 	cctpAttestation: Hex | null;
 };
@@ -116,8 +137,13 @@ export function matchesRecordedArcNativeDeposit(
 
 function receiptLogs(logs: readonly unknown[]): ReceiptLog[] {
 	return logs.map((value) => {
-		const log = value as { address: Address; data: Hex; topics: readonly Hex[] };
-		return { address: log.address, data: log.data, topics: [...log.topics] as [Hex, ...Hex[]] };
+		const log = value as { address: Address; data: Hex; topics: readonly Hex[]; logIndex?: number | null };
+		return {
+			address: log.address,
+			data: log.data,
+			topics: [...log.topics] as [Hex, ...Hex[]],
+			...(typeof log.logIndex === "number" ? { logIndex: log.logIndex } : {}),
+		};
 	});
 }
 
@@ -125,6 +151,7 @@ export async function loadCctpFlow(flowId: string): Promise<CctpFlow | undefined
 	"use step";
 	const originIntent = alias(transactionIntents, "cctp_origin_intent");
 	const claimIntent = alias(transactionIntents, "cctp_claim_intent");
+	const originEvent = alias(chainEvents, "cctp_origin_event");
 	const [row] = await database()
 		.select({
 			flow: flows,
@@ -133,6 +160,10 @@ export async function loadCctpFlow(flowId: string): Promise<CctpFlow | undefined
 			event: chainEvents,
 			originIntentStatus: originIntent.status,
 			claimIntentStatus: claimIntent.status,
+			originEventTxHash: originEvent.txHash,
+			originEventLogIndex: originEvent.logIndex,
+			originEventBlockNumber: originEvent.blockNumber,
+			originEventCanonical: originEvent.canonical,
 		})
 		.from(flows)
 		.innerJoin(names, eq(flows.nameId, names.id))
@@ -140,6 +171,7 @@ export async function loadCctpFlow(flowId: string): Promise<CctpFlow | undefined
 		.leftJoin(chainEvents, eq(deposits.eventId, chainEvents.eventId))
 		.leftJoin(originIntent, eq(flows.originTxIntentId, originIntent.id))
 		.leftJoin(claimIntent, eq(flows.claimTxIntentId, claimIntent.id))
+		.leftJoin(originEvent, eq(flows.originEventId, originEvent.eventId))
 		.where(eq(flows.id, flowId));
 	if (!row) return undefined;
 	const eligibilityBlockNumber = await automaticDepositBalanceBlock({
@@ -169,11 +201,17 @@ export async function loadCctpFlow(flowId: string): Promise<CctpFlow | undefined
 		amountProcessed: row.flow.amountProcessed,
 		remainingAmount: row.flow.remainingAmount,
 		originIntentId: row.flow.originTxIntentId,
+		originEventId: row.flow.originEventId,
+		originEventTxHash: (row.originEventTxHash as Hex | null) ?? null,
+		originEventLogIndex: row.originEventLogIndex,
+		originEventBlockNumber: row.originEventBlockNumber,
+		originEventCanonical: row.originEventCanonical,
 		originEvidenceTxHash: row.flow.originEvidenceTxHash as Hex | null,
 		originIntentStatus: row.originIntentStatus,
 		claimIntentId: row.flow.claimTxIntentId,
 		claimIntentStatus: row.claimIntentStatus,
 		cctpNonce: row.flow.cctpNonce,
+		cctpMessageIndex: row.flow.cctpMessageIndex,
 		cctpMessage: (row.flow.cctpMessage as Hex | null) ?? null,
 		cctpAttestation: (row.flow.cctpAttestation as Hex | null) ?? null,
 	};
@@ -194,8 +232,14 @@ export async function confirmCctpDeposit(flowId: string): Promise<"ready" | "can
 	if (flow.status === "cancelled") return "cancelled";
 	if (!flow.depositTxHash || flow.depositLogIndex === null) return "ready";
 	if (!flow.depositCanonical || flow.depositStatus === "orphaned") {
-		await setFlowStatus(flowId, "cancelled", {}, "deposit_orphaned");
-		return "cancelled";
+		const outcome = await setPreOriginFlowStatus(
+			flowId,
+			["queued", "confirming_deposit"],
+			"cancelled",
+			{},
+			"deposit_orphaned",
+		);
+		return outcome.applied || outcome.status === "cancelled" ? "cancelled" : "ready";
 	}
 	await setFlowStatus(flowId, "confirming_deposit");
 	const chain = originChain(flow);
@@ -208,8 +252,8 @@ export async function confirmCctpDeposit(flowId: string): Promise<"ready" | "can
 		receipt.status !== "success"
 		|| (flow.depositBlockNumber !== null && receipt.blockNumber !== BigInt(flow.depositBlockNumber))
 	) {
-		await setFlowStatus(flowId, "cancelled", {}, "deposit_not_canonical");
-		return "cancelled";
+		const outcome = await setPreOriginFlowStatus(flowId, ["confirming_deposit"], "cancelled", {}, "deposit_not_canonical");
+		return outcome.applied || outcome.status === "cancelled" ? "cancelled" : "ready";
 	}
 	if (
 		chain.key === "arc"
@@ -221,8 +265,8 @@ export async function confirmCctpDeposit(flowId: string): Promise<"ready" | "can
 	}
 	const log = receipt.logs.find((candidate) => candidate.logIndex === flow.depositLogIndex);
 	if (!log || getAddress(log.address) !== getAddress(chain.usdcAddress)) {
-		await setFlowStatus(flowId, "cancelled", {}, "deposit_not_canonical");
-		return "cancelled";
+		const outcome = await setPreOriginFlowStatus(flowId, ["confirming_deposit"], "cancelled", {}, "deposit_not_canonical");
+		return outcome.applied || outcome.status === "cancelled" ? "cancelled" : "ready";
 	}
 	const transfer = decodeEventLog({
 		abi: TRANSFER_ABI,
@@ -234,8 +278,8 @@ export async function confirmCctpDeposit(flowId: string): Promise<"ready" | "can
 		flow.depositAddress,
 		flow.depositAmount,
 	)) {
-		await setFlowStatus(flowId, "cancelled", {}, "deposit_not_to_wallet");
-		return "cancelled";
+		const outcome = await setPreOriginFlowStatus(flowId, ["confirming_deposit"], "cancelled", {}, "deposit_not_to_wallet");
+		return outcome.applied || outcome.status === "cancelled" ? "cancelled" : "ready";
 	}
 	return "ready";
 }
@@ -264,19 +308,19 @@ export async function checkCctpEligibility(flowId: string): Promise<"ready" | "h
 		}),
 	]);
 	if (!ens.renewableBy) {
-		await setFlowStatus(flowId, "held", {
+		const outcome = await setPreOriginFlowStatus(flowId, ["checking_name"], "held", {
 			holdReason: "name_not_renewable",
 			nextActionAt: new Date(Date.now() + NAME_RECHECK_MS),
 		}, "name_not_renewable");
-		return "held";
+		return outcome.applied || outcome.status === "held" ? "held" : "ready";
 	}
 	const balanceAction = depositBalanceAction(balance, balanceBlock);
 	if (balanceAction !== "ready") {
 		if (balanceAction === "retry") {
 			throw new Error("The deposit block does not contain the verified wallet balance.");
 		}
-		await setFlowStatus(flowId, "cancelled", {}, "empty_wallet");
-		return "cancelled";
+		const outcome = await setPreOriginFlowStatus(flowId, ["checking_name"], "cancelled", {}, "empty_wallet");
+		return outcome.applied || outcome.status === "cancelled" ? "cancelled" : "ready";
 	}
 	return "ready";
 }
@@ -306,10 +350,34 @@ async function markCctpOriginReverted(
 	flowId: string,
 	intentId: string,
 	receipt: Record<string, unknown>,
-): Promise<void> {
-	await database().transaction(async (tx) => {
-		const [flow] = await tx.select({ status: flows.status }).from(flows).where(eq(flows.id, flowId));
+): Promise<"held" | "settled" | "cancelled" | "failed" | "superseded"> {
+	return database().transaction(async (tx) => {
+		const [flow] = await tx.select({
+			status: flows.status,
+			originTxIntentId: flows.originTxIntentId,
+		}).from(flows)
+			.where(eq(flows.id, flowId))
+			.for("update");
 		if (!flow) throw new Error("The flow does not exist.");
+		if (flow.status === "settled" || flow.status === "cancelled" || flow.status === "failed") return flow.status;
+		if (flow.originTxIntentId !== intentId) return "superseded";
+		const [intent] = await tx.select({
+			currentTxHash: transactionIntents.currentTxHash,
+			attempts: transactionIntents.attempts,
+			nonce: transactionIntents.nonce,
+			status: transactionIntents.status,
+		}).from(transactionIntents)
+			.where(eq(transactionIntents.id, intentId))
+			.for("update");
+		if (!intent) throw new Error("The transaction intent does not exist.");
+		const receiptHash = String(receipt.transactionHash ?? "");
+		if (!transactionReceiptMatchesCurrentNonce(intent, receiptHash)) {
+			throw new Error("The origin receipt does not belong to the intent's current nonce.");
+		}
+		if (intent.status === "reverted") return flow.status === "held" ? "held" : "superseded";
+		if (!["prepared", "broadcast", "mined"].includes(intent.status)) {
+			throw new Error("A revert receipt conflicts with the transaction intent state.");
+		}
 		const now = new Date();
 		await tx.update(transactionIntents).set({
 			status: "reverted",
@@ -327,52 +395,100 @@ async function markCctpOriginReverted(
 				reasonCode: CCTP_ORIGIN_REVERTED,
 			});
 		}
+		return "held";
+	});
+}
+
+async function readCctpOriginReceipt(flow: CctpFlow, intentId: string | null) {
+	if (!flow.originEvidenceTxHash) {
+		return intentId ? readTransactionReceipt(intentId) : undefined;
+	}
+	const rpc = await verifiedChainClient(originChain(flow));
+	try {
+		return await rpc.getTransactionReceipt({ hash: flow.originEvidenceTxHash });
+	} catch (error) {
+		if (isMissingTransactionReceipt(error)) return undefined;
+		throw error;
+	}
+}
+
+function assertOriginEventReceipt(
+	flow: CctpFlow,
+	receipt: { transactionHash: Hex; blockNumber: bigint },
+): void {
+	if (flow.originEventId && (
+		flow.originEventCanonical !== true
+		|| flow.originEventTxHash?.toLowerCase() !== receipt.transactionHash.toLowerCase()
+		|| (flow.originEventBlockNumber !== null
+			&& BigInt(flow.originEventBlockNumber) !== receipt.blockNumber)
+	)) {
+		throw new Error("The recorded origin event does not match the canonical receipt.");
+	}
+}
+
+function parseFlowOriginBurn(
+	flow: CctpFlow,
+	logs: readonly unknown[],
+) {
+	return parseOriginBurnReceipt(receiptLogs(logs), {
+		originChainId: flow.originChainId,
+		wallet: flow.depositAddress,
+		label: flow.label,
+		labelHash: labelHash(flow.label) as Hex,
+		...(flow.amountProcessed === null ? {} : { amount: BigInt(flow.amountProcessed) }),
+		...(flow.originEventLogIndex === null ? {} : { depositLogIndex: flow.originEventLogIndex }),
 	});
 }
 
 export async function confirmCctpOrigin(
 	flowId: string,
 	intentId: string | null,
-): Promise<"waiting" | "held" | "cancelled" | "attestation"> {
+): Promise<"waiting" | "held" | "cancelled" | "attestation" | "settled" | "failed" | "superseded"> {
 	"use step";
 	const flow = await loadCctpFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
+	if (flow.status === "cancelled") return "cancelled";
+	if (flow.status === "settled" || flow.status === "failed") return flow.status;
 	if (flow.cctpMessage) return "attestation";
-	const receipt = intentId
-		? await readTransactionReceipt(intentId)
-		: flow.originEvidenceTxHash
-			? await verifiedChainClient(originChain(flow)).then(async (rpc) => {
-				try {
-					return await rpc.getTransactionReceipt({ hash: flow.originEvidenceTxHash! });
-				} catch (error) {
-					if (isMissingTransactionReceipt(error)) return undefined;
-					throw error;
-				}
-			})
-			: undefined;
+	const receipt = await readCctpOriginReceipt(flow, intentId);
 	if (!receipt) {
 		if (intentId) await replaceStaleTransaction(intentId);
 		return "waiting";
 	}
 	if (receipt.status !== "success") {
 		if (intentId) {
-			await markCctpOriginReverted(flowId, intentId, receipt as unknown as Record<string, unknown>);
-		} else {
-			await setFlowStatus(flowId, "cancelled", {}, "external_origin_reverted");
+			return markCctpOriginReverted(flowId, intentId, receipt as unknown as Record<string, unknown>);
 		}
-		return intentId ? "held" : "cancelled";
+		throw new Error("The indexed external origin transaction reverted.");
 	}
-	const burn = parseOriginBurnReceipt(receiptLogs(receipt.logs), {
-		originChainId: flow.originChainId,
-		wallet: flow.depositAddress,
-		label: flow.label,
-		labelHash: labelHash(flow.label) as Hex,
-	});
+	assertOriginEventReceipt(flow, receipt);
+	const burn = parseFlowOriginBurn(flow, receipt.logs);
 	const now = new Date();
-	await database().transaction(async (tx) => {
-		const [current] = await tx.select({ status: flows.status }).from(flows).where(eq(flows.id, flowId));
+	const outcome = await database().transaction(async (tx) => {
+		const [current] = await tx.select({
+			status: flows.status,
+			originEventId: flows.originEventId,
+			originTxIntentId: flows.originTxIntentId,
+		}).from(flows)
+			.where(eq(flows.id, flowId))
+			.for("update");
 		if (!current) throw new Error("The flow does not exist.");
+		if (current.status === "cancelled") return "cancelled" as const;
+		if (current.status === "settled" || current.status === "failed") return current.status;
+		if (flow.originEventId && current.originEventId !== flow.originEventId) return "stale" as const;
+		if (intentId && current.originTxIntentId !== intentId) return "stale" as const;
 		if (intentId) {
+			const [intent] = await tx.select({
+				currentTxHash: transactionIntents.currentTxHash,
+				attempts: transactionIntents.attempts,
+				nonce: transactionIntents.nonce,
+			}).from(transactionIntents)
+				.where(eq(transactionIntents.id, intentId))
+				.for("update");
+			if (!intent) throw new Error("The transaction intent does not exist.");
+			if (!transactionReceiptMatchesCurrentNonce(intent, receipt.transactionHash)) {
+				return "stale" as const;
+			}
 			await tx.update(transactionIntents).set({
 				status: "confirmed",
 				confirmedAt: now,
@@ -382,9 +498,11 @@ export async function confirmCctpOrigin(
 		}
 		await tx.update(flows).set({
 			status: "waiting_attestation",
+			originEvidenceTxHash: receipt.transactionHash,
 			amountProcessed: burn.amount.toString(),
 			remainingAmount: burn.remaining.toString(),
 			cctpNonce: null,
+			cctpMessageIndex: burn.messageIndex,
 			cctpMessage: burn.message.raw,
 			waitingAttestationAt: now,
 			updatedAt: now,
@@ -407,8 +525,45 @@ export async function confirmCctpOrigin(
 				detail: { nonce: burn.message.nonce },
 			});
 		}
+		return "advanced" as const;
 	});
-	return "attestation";
+	if (outcome === "cancelled") return "cancelled";
+	if (outcome === "settled" || outcome === "failed") return outcome;
+	return outcome === "stale" ? "superseded" : "attestation";
+}
+
+async function recoverCctpMessageIndex(
+	flow: CctpFlow,
+	originTxHash: Hex,
+): Promise<number> {
+	const receipt = await (await verifiedChainClient(originChain(flow)))
+		.getTransactionReceipt({ hash: originTxHash });
+	if (receipt.status !== "success") {
+		throw new Error("The stored CCTP origin transaction reverted.");
+	}
+	assertOriginEventReceipt(flow, receipt);
+	const burn = parseFlowOriginBurn(flow, receipt.logs);
+	if (burn.message.raw.toLowerCase() !== flow.cctpMessage?.toLowerCase()) {
+		throw new Error("The stored CCTP message does not match its origin receipt.");
+	}
+	const [stored] = await database().update(flows).set({
+		cctpMessageIndex: burn.messageIndex,
+		updatedAt: new Date(),
+	}).where(and(
+		eq(flows.id, flow.id),
+		isNull(flows.cctpMessageIndex),
+		eq(flows.cctpMessage, flow.cctpMessage),
+		ne(flows.status, "cancelled"),
+		ne(flows.status, "failed"),
+	)).returning({ messageIndex: flows.cctpMessageIndex });
+	if (stored?.messageIndex !== null && stored?.messageIndex !== undefined) return stored.messageIndex;
+	const [current] = await database().select({ messageIndex: flows.cctpMessageIndex })
+		.from(flows)
+		.where(eq(flows.id, flow.id));
+	if (current?.messageIndex === null || current?.messageIndex === undefined) {
+		throw new Error("The flow changed while its Circle message index was recovered.");
+	}
+	return current.messageIndex;
 }
 
 export async function pollCctpAttestation(flowId: string, attempt: number): Promise<IrisResult> {
@@ -417,25 +572,30 @@ export async function pollCctpAttestation(flowId: string, attempt: number): Prom
 	if ((!flow?.originIntentId && !flow?.originEvidenceTxHash) || !flow.cctpMessage) {
 		throw new Error("The origin CCTP message is missing.");
 	}
-	if (flow.cctpAttestation) {
-		return { kind: "complete", message: flow.cctpMessage, attestation: flow.cctpAttestation, status: "complete" };
-	}
-	const [intent] = flow.originIntentId
-		? await database().select({ txHash: transactionIntents.currentTxHash })
-			.from(transactionIntents).where(eq(transactionIntents.id, flow.originIntentId))
-		: [];
-	const originTxHash = intent?.txHash ?? flow.originEvidenceTxHash;
-	if (!originTxHash) throw new Error("The origin transaction hash is missing.");
-	const chain = originChain(flow);
-	const polling = chain.polling.attestation!;
-	const result = await pollIris({
-		baseUrl: process.env.CIRCLE_IRIS_URL ?? "",
-		sourceDomain: chain.circleDomain,
-		transactionHash: originTxHash as Hex,
-		attempt,
-		initialDelayMs: polling.initialMs,
-		maxDelayMs: polling.maxMs,
-	});
+	if (!flow.amountProcessed) throw new Error("The origin CCTP amount is missing.");
+	const result: IrisResult = flow.cctpAttestation
+		? { kind: "complete", message: flow.cctpMessage, attestation: flow.cctpAttestation, status: "complete" }
+		: await (async () => {
+			const [intent] = flow.originIntentId
+				? await database().select({ txHash: transactionIntents.currentTxHash })
+					.from(transactionIntents).where(eq(transactionIntents.id, flow.originIntentId))
+				: [];
+			const originTxHash = cctpOriginTransactionHash(flow.originEvidenceTxHash, intent?.txHash);
+			if (!originTxHash) throw new Error("The origin transaction hash is missing.");
+			const chain = originChain(flow);
+			const polling = chain.polling.attestation!;
+			const messageIndex = flow.cctpMessageIndex
+				?? await recoverCctpMessageIndex(flow, originTxHash);
+			return pollIris({
+				baseUrl: process.env.CIRCLE_IRIS_URL ?? "",
+				sourceDomain: chain.circleDomain,
+				transactionHash: originTxHash as Hex,
+				messageIndex,
+				attempt,
+				initialDelayMs: polling.initialMs,
+				maxDelayMs: polling.maxMs,
+			});
+		})();
 	if (result.kind === "pending") {
 		await setFlowStatus(flowId, "waiting_attestation", {
 			lastErrorCode: `iris_${result.reason}`,
@@ -449,12 +609,152 @@ export async function pollCctpAttestation(flowId: string, attempt: number): Prom
 		label: flow.label,
 		amount: BigInt(flow.amountProcessed!),
 	});
-	await setFlowStatus(flowId, "waiting_attestation", {
-		cctpMessage: result.message,
-		cctpNonce: BigInt(message.nonce).toString(),
-		cctpAttestation: result.attestation,
-		lastErrorCode: null,
-		nextActionAt: null,
+	const cctpNonce = BigInt(message.nonce).toString();
+	const [ownerBeforeLock] = await database().select({
+		id: flows.id,
+		renewalEventId: flows.renewalEventId,
+	}).from(flows).where(and(
+		ne(flows.id, flowId),
+		eq(flows.originChainId, String(flow.originChainId)),
+		eq(flows.cctpNonce, cctpNonce),
+	));
+	let settlementBeforeLock: SettlementEventBundle | null | undefined;
+	if (ownerBeforeLock?.renewalEventId) {
+		const [renewalIdentity] = await database().select({
+			chainId: chainEvents.chainId,
+			txHash: chainEvents.txHash,
+		}).from(chainEvents).where(eq(chainEvents.eventId, ownerBeforeLock.renewalEventId));
+		if (!renewalIdentity) {
+			settlementBeforeLock = null;
+		} else {
+			const transactionEvents = await database().select({
+				eventId: chainEvents.eventId,
+				eventFamily: chainEvents.eventFamily,
+				eventType: chainEvents.eventType,
+				logIndex: chainEvents.logIndex,
+				canonical: chainEvents.canonical,
+				facts: chainEvents.facts,
+			}).from(chainEvents).where(and(
+				eq(chainEvents.chainId, renewalIdentity.chainId),
+				eq(chainEvents.txHash, renewalIdentity.txHash),
+			));
+			settlementBeforeLock = settlementBundleForEvent(
+				transactionEvents as SettlementIdentityEvent[],
+				ownerBeforeLock.renewalEventId,
+			) ?? null;
+		}
+	}
+	await database().transaction(async (tx) => {
+		const originChainId = String(flow.originChainId);
+		await tx.execute(cctpIdentityLockSql(originChainId, cctpNonce));
+		const ownerIds = await tx.select({ id: flows.id }).from(flows).where(and(
+			eq(flows.originChainId, originChainId),
+			eq(flows.cctpNonce, cctpNonce),
+		));
+		const idsToLock = [...new Set([flowId, ...ownerIds.map((owner) => owner.id)])];
+		await tx.execute(cctpFlowRowsLockSql(idsToLock));
+		const [current] = await tx.select().from(flows).where(eq(flows.id, flowId));
+		if (!current) throw new Error("The flow does not exist.");
+		if (current.status === "cancelled" || current.status === "failed") return;
+		if (current.cctpMessage?.toLowerCase() !== flow.cctpMessage!.toLowerCase()) return;
+		const owners = await tx.select().from(flows).where(and(
+			eq(flows.originChainId, originChainId),
+			eq(flows.cctpNonce, cctpNonce),
+		));
+		if (owners.length > 1) throw new Error("One Circle message is linked to multiple active flows.");
+		const owner = owners[0];
+		const action = cctpIdentityAction(current, owner);
+		if (action === "conflict") {
+			throw new Error("The Circle message owner conflicts with the source flow.");
+		}
+		const now = new Date();
+		if (action === "merge_external" && owner) {
+			if (current.amountProcessed === null) {
+				throw new Error("The source flow does not have a processed CCTP amount.");
+			}
+			if (
+				owner.nameId !== current.nameId
+				|| owner.originChainId !== current.originChainId
+				|| owner.amountProcessed !== current.amountProcessed
+			) {
+				throw new Error("The external settlement does not match the source flow.");
+			}
+			if (
+				owner.id !== ownerBeforeLock?.id
+				|| owner.renewalEventId !== ownerBeforeLock.renewalEventId
+			) {
+				throw new Error("The external settlement owner changed before validation.");
+			}
+			if (!settlementBeforeLock) {
+				throw new Error("The external settlement does not match an exact event bundle.");
+			}
+			assertExactCctpSettlement(settlementBeforeLock, {
+				sourceDomain: String(originChain(flow).circleDomain),
+				nonce: cctpNonce,
+				walletAddress: flow.depositAddress,
+				burnAmount: current.amountProcessed,
+			});
+			await tx.update(flows).set({
+				renewalEventId: null,
+				cctpNonce: null,
+				status: "cancelled",
+				workflowRunId: null,
+				lastErrorCode: "duplicate_flow_merged",
+				lastErrorDetail: null,
+				nextActionAt: null,
+				cancelledAt: now,
+				updatedAt: now,
+			}).where(eq(flows.id, owner.id));
+			await tx.update(flows).set({
+				status: "settled",
+				renewalEventId: owner.renewalEventId,
+				cctpMessage: result.message,
+				cctpNonce,
+				cctpAttestation: result.attestation,
+				gasAllowance: owner.gasAllowance,
+				amountApplied: owner.amountApplied,
+				durationSeconds: owner.durationSeconds,
+				expiryAfter: owner.expiryAfter,
+				holdReason: null,
+				lastErrorCode: null,
+				lastErrorDetail: null,
+				nextActionAt: null,
+				workflowRunId: null,
+				settledAt: owner.settledAt ?? now,
+				updatedAt: now,
+			}).where(eq(flows.id, flowId));
+			await tx.insert(flowTransitions).values({
+				flowId: owner.id,
+				fromStatus: owner.status,
+				toStatus: "cancelled",
+				actor: "workflow",
+				reasonCode: "duplicate_flow_merged",
+				detail: { canonicalFlowId: flowId },
+			});
+			if (current.status !== "settled") {
+				await tx.insert(flowTransitions).values({
+					flowId,
+					fromStatus: current.status,
+					toStatus: "settled",
+					actor: "workflow",
+					reasonCode: "external_settlement_merged",
+					detail: { mergedFlowId: owner.id },
+				});
+			}
+			return;
+		}
+		const nextStatus = flowTransitionAction(current.status, "waiting_attestation") === "apply"
+			? "waiting_attestation"
+			: current.status;
+		await tx.update(flows).set({
+			status: nextStatus,
+			cctpMessage: result.message,
+			cctpNonce,
+			cctpAttestation: result.attestation,
+			lastErrorCode: null,
+			nextActionAt: null,
+			updatedAt: now,
+		}).where(eq(flows.id, flowId));
 	});
 	return result;
 }
@@ -544,65 +844,116 @@ export async function prepareCctpClaim(flowId: string): Promise<string> {
 export async function confirmCctpClaim(
 	flowId: string,
 	intentId: string,
-): Promise<"waiting" | "unclaimed" | "settled"> {
+): Promise<"waiting" | "unclaimed" | "settled" | "cancelled" | "failed"> {
 	"use step";
 	const flow = await loadCctpFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
+	if (flow.status === "cancelled") return "cancelled";
 	if (flow.status === "settled" && flow.claimIntentStatus === "confirmed") return "settled";
 	const receipt = await readTransactionReceipt(intentId);
 	if (!receipt) {
 		await replaceStaleTransaction(intentId);
 		return "waiting";
 	}
-	if (receipt.status !== "success") {
-		await database().update(transactionIntents).set({
-			status: "reverted",
-			confirmedAt: new Date(),
-			receipt: receipt as unknown as Record<string, unknown>,
-			updatedAt: new Date(),
-		}).where(eq(transactionIntents.id, intentId));
-		await markUnclaimed(flowId, "claim_reverted");
-		return "unclaimed";
-	}
 	if (!flow.cctpNonce || !flow.amountProcessed) throw new Error("The CCTP claim evidence is missing.");
-	const settlement = parseClaimReceipt(receiptLogs(receipt.logs), {
-		originChainId: flow.originChainId,
-		wallet: flow.depositAddress,
-		label: flow.label,
-		labelHash: labelHash(flow.label) as Hex,
-		amount: BigInt(flow.amountProcessed),
-		nonce: `0x${BigInt(flow.cctpNonce).toString(16).padStart(64, "0")}` as Hex,
-	});
-	const expiryAfter = parseEnsRenewalExpiry(receiptLogs(receipt.logs), {
-		label: flow.label,
-	});
+	const settlement = receipt.status === "success"
+		? parseClaimReceipt(receiptLogs(receipt.logs), {
+			originChainId: flow.originChainId,
+			wallet: flow.depositAddress,
+			label: flow.label,
+			labelHash: labelHash(flow.label) as Hex,
+			amount: BigInt(flow.amountProcessed),
+			nonce: `0x${BigInt(flow.cctpNonce).toString(16).padStart(64, "0")}` as Hex,
+		})
+		: undefined;
+	const expiryAfter = receipt.status === "success"
+		? parseEnsRenewalExpiry(receiptLogs(receipt.logs), { label: flow.label })
+		: undefined;
 	const now = new Date();
-	await database().transaction(async (tx) => {
-		const [current] = await tx.select({ status: flows.status }).from(flows).where(eq(flows.id, flowId));
-		if (!current) return;
+	const outcome = await database().transaction(async (tx) => {
+		await tx.execute(cctpIdentityLockSql(String(flow.originChainId), flow.cctpNonce!));
+		const [current] = await tx.select({
+			status: flows.status,
+			claimTxIntentId: flows.claimTxIntentId,
+			cctpNonce: flows.cctpNonce,
+			cctpMessage: flows.cctpMessage,
+		}).from(flows)
+			.where(eq(flows.id, flowId))
+			.for("update");
+		if (!current) throw new Error("The flow does not exist.");
+		if (current.status === "cancelled") return "cancelled" as const;
+		if (current.status === "failed") return "failed" as const;
+		if (
+			current.claimTxIntentId !== intentId
+			|| current.cctpNonce !== flow.cctpNonce
+			|| current.cctpMessage?.toLowerCase() !== flow.cctpMessage?.toLowerCase()
+		) {
+			return current.status === "settled" ? "settled" as const : "stale" as const;
+		}
+		const [intent] = await tx.select({
+			currentTxHash: transactionIntents.currentTxHash,
+			attempts: transactionIntents.attempts,
+			nonce: transactionIntents.nonce,
+		}).from(transactionIntents)
+			.where(eq(transactionIntents.id, intentId))
+			.for("update");
+		if (!intent) throw new Error("The transaction intent does not exist.");
+		if (!transactionReceiptMatchesCurrentNonce(intent, receipt.transactionHash)) return "stale" as const;
+		if (receipt.status !== "success") {
+			await tx.update(transactionIntents).set({
+				status: "reverted",
+				confirmedAt: now,
+				receipt: receipt as unknown as Record<string, unknown>,
+				updatedAt: now,
+			}).where(eq(transactionIntents.id, intentId));
+			if (current.status === "settled") return "settled" as const;
+			await tx.update(flows).set({
+				status: "unclaimed",
+				holdReason: "claim_reverted",
+				lastErrorCode: "claim_reverted",
+				nextActionAt: new Date(now.getTime() + UNCLAIMED_RETRY_MS),
+				workflowRunId: null,
+				unclaimedAt: now,
+				updatedAt: now,
+			}).where(eq(flows.id, flowId));
+			if (current.status !== "unclaimed") {
+				await tx.insert(flowTransitions).values({
+					flowId,
+					fromStatus: current.status,
+					toStatus: "unclaimed",
+					actor: "workflow",
+					reasonCode: "claim_reverted",
+				});
+			}
+			return "unclaimed" as const;
+		}
 		await tx.update(transactionIntents).set({
 			status: "confirmed",
 			confirmedAt: now,
 			receipt: receipt as unknown as Record<string, unknown>,
 			updatedAt: now,
 		}).where(eq(transactionIntents.id, intentId));
-		if (current.status === "settled") return;
+		if (current.status === "settled") {
+			await tx.update(flows).set({ workflowRunId: null, updatedAt: now }).where(eq(flows.id, flowId));
+			return "settled" as const;
+		}
 		await tx.update(flows).set({
 			status: "settled",
-			gasAllowance: settlement.gasAllowance.toString(),
-			amountApplied: settlement.amountApplied.toString(),
-			durationSeconds: settlement.durationSeconds.toString(),
+			gasAllowance: settlement!.gasAllowance.toString(),
+			amountApplied: settlement!.amountApplied.toString(),
+			durationSeconds: settlement!.durationSeconds.toString(),
 			expiryAfter,
 			holdReason: null,
 			lastErrorCode: null,
 			nextActionAt: null,
+			workflowRunId: null,
 			settledAt: now,
 			updatedAt: now,
 		}).where(eq(flows.id, flowId));
-		await tx.update(names).set({ currentExpiry: expiryAfter, ensSyncedAt: now })
+		await tx.update(names).set({ currentExpiry: expiryAfter!, ensSyncedAt: now })
 			.where(and(
 				eq(names.id, flow.nameId),
-				or(isNull(names.currentExpiry), lt(names.currentExpiry, expiryAfter)),
+				or(isNull(names.currentExpiry), lt(names.currentExpiry, expiryAfter!)),
 			));
 		if (flow.depositEventId) {
 			await tx.update(deposits).set({ status: "finalized" }).where(eq(deposits.eventId, flow.depositEventId));
@@ -612,13 +963,14 @@ export async function confirmCctpClaim(
 			fromStatus: current.status,
 			toStatus: "settled",
 			actor: "workflow",
-			detail: {
-				amountApplied: settlement.amountApplied.toString(),
-				durationSeconds: settlement.durationSeconds.toString(),
-			},
-		});
+				detail: {
+					amountApplied: settlement!.amountApplied.toString(),
+					durationSeconds: settlement!.durationSeconds.toString(),
+				},
+			});
+		return "settled" as const;
 	});
-	return "settled";
+	return outcome === "stale" ? "waiting" : outcome;
 }
 
 export async function broadcastCctpTransaction(intentId: string): Promise<string> {

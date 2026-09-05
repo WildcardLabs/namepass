@@ -7,6 +7,63 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-09-05 — Repair the historical split evidence in the guarded migration
+
+The stable testnet database contains one old race with two rows for one Circle nonce. The automatic
+row owns the deposit, confirmed origin and claim transaction intents, and canonical renewal. The
+external row owns the exact `DepositProcessed` event from that confirmed origin transaction. A
+manual database edit would bypass the release record and would be difficult to reproduce.
+
+Migration `0007` repairs this shape atomically. It accepts exactly two rows with the known terminal
+states. It requires matching name, chain, amount, remainder, Circle message, and attestation. It
+also verifies the deposit event, the origin intent and event transaction, the claim intent and
+renewal transaction, and the exact preceding `CCTPClaimed` event. Circle and renewal accounting
+must agree. The migration moves the origin evidence to the settled row and records the cancelled
+duplicate in `flow_transitions`. It aborts for all other split shapes. The operator must confirm
+that a retained Workflow run is complete before the migration starts.
+
+### 2026-09-04 — Use exact event identity and one relayer nonce queue
+
+An origin transaction hash is not a flow identity. One permissionless transaction can contain more
+than one valid `renew` call. Each `DepositProcessed` event now identifies one origin execution. The
+flow also stores the zero-based Circle message index for that transaction. The final CCTP identity
+is the origin chain and the Circle nonce. Amount, name, chain, and transaction hash are validation
+facts only.
+
+A destination settlement can arrive before Iris gives the source flow its final nonce. In that
+case, Goldsky creates a bare external settlement row. When the source flow gets the same nonce, the
+server moves the settlement evidence to the source flow and cancels the bare row. It does not cancel
+the evidence-rich source flow. A settlement reorg can then resume that source flow with its stored
+message. On Ethereum, log order binds each `CCTPClaimed`, ENS `NameRenewed`, and `Renewed` event to
+one helper call. A transaction hash cannot bind events in a batch.
+
+The service uses one exclusive relayer EOA. Each chain has one database nonce queue for that sender.
+RPC reads finish before the database transaction. The transaction then locks the flow and the one
+nonce row, stores signed bytes, and advances the counter. Only the lowest unresolved nonce is
+broadcast. The monitor warns after 30 seconds and uses same-nonce fee replacement after three
+minutes.
+
+The service does not create cancellation transactions for obsolete work. An already signed intent
+stays durable until it gets a receipt. A terminal flow cannot be reopened by that receipt. This can
+cost gas for a rare reverted call when another executor settled first. It avoids a second
+cancellation state machine and makes a settlement reorg able to reuse the original business intent.
+
+Receipt lookup uses only attempts for the intent's current nonce. Post-RPC writers lock the flow,
+lock the intent, and verify that the receipt still belongs to that nonce. Broadcast writes compare
+the status and hash that they read. A late writer therefore cannot replace newer canonical state.
+
+A pre-sign validation result cannot cancel or hold a flow after an origin intent exists. A workflow
+failure also cannot mark a flow failed while it has prepared, broadcast, or mined bytes. The monitor
+must resolve those bytes first. If the exclusive account nonce advances without a receipt for any
+stored attempt, the queue stops and alerts. It does not skip an unknown transaction.
+
+Schema enforcement uses two release points. Release 1 applies migration `0006`, which adds nullable
+identity fields and backfills only one-to-one origin event matches. The application then starts
+writing exact identity. Release 2 pauses writers and applies migration `0007`. That migration runs a
+guarded duplicate repair and adds the full CCTP nonce unique index. It aborts if a duplicate group
+has conflicting source evidence or unresolved transaction work. It also aborts for a Workflow
+owner unless the row matches the exact terminal split-evidence repair described above.
+
 ### 2026-08-26 — CCTP flows release the origin wallet after the burn
 
 The old uniqueness rule allowed only one non-terminal flow for each name and origin chain. An
@@ -235,14 +292,18 @@ needs a Vercel Firewall rate limit before stable-testnet funding. See `docs/RUNB
 
 ### 2026-08-17 — Circle Iris supplies the final CCTP v2 nonce
 
+**Updated on 2026-09-04:** A permissionless transaction can contain several Namepass calls. The
+workflow now selects the `MessageSent` event in the exact `DepositProcessed` call segment and stores
+its zero-based message index. The final nonce still comes from Iris.
+
 The CCTP v2 `MessageSent` event on the origin chain contains a zero nonce placeholder. Circle
 assigns the final nonce off chain. Iris returns that nonce in the final message. Therefore, Goldsky
 does not index Circle `MessageSent` events for Namepass.
 
-The workflow still verifies exactly one `MessageSent` event in the origin transaction. It verifies
-the route, amount, wallet, label, and requested finality. It then requests exactly one message from
-Iris by source domain and origin transaction hash. The workflow verifies the final route and stores
-the final message, nonce, and attestation before it submits the claim.
+The workflow verifies the selected `MessageSent` event in the origin transaction. It verifies the
+route, amount, wallet, label, and requested finality. It then requests the selected message index
+from Iris by source domain and origin transaction hash. The workflow verifies the final route and
+stores the final message, nonce, and attestation before it submits the claim.
 
 Goldsky indexes Namepass contract events. It indexes an ENS `NameRenewed` event only when it has the
 Namepass referrer from the shared deployment registry. This rule prevents unrelated Circle and ENS

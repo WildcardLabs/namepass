@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
 	bigint,
 	boolean,
+	check,
 	customType,
 	index,
 	integer,
@@ -231,6 +232,7 @@ export const flows = pgTable(
 		holdReason: text("hold_reason"),
 		workflowRunId: text("workflow_run_id"),
 		originTxIntentId: uuid("origin_tx_intent_id"),
+		originEventId: text("origin_event_id").references(() => chainEvents.eventId),
 		originEvidenceTxHash: varchar("origin_evidence_tx_hash", { length: 66 }),
 		claimTxIntentId: uuid("claim_tx_intent_id"),
 		amountDetected: amount("amount_detected").notNull(),
@@ -241,6 +243,7 @@ export const flows = pgTable(
 		durationSeconds: amount("duration_seconds"),
 		expiryAfter: instant("expiry_after"),
 		cctpNonce: amount("cctp_nonce"),
+		cctpMessageIndex: integer("cctp_message_index"),
 		cctpMessage: text("cctp_message"),
 		cctpAttestation: text("cctp_attestation"),
 		lastErrorCode: text("last_error_code"),
@@ -265,7 +268,7 @@ export const flows = pgTable(
 	(table) => [
 		uniqueIndex("flows_one_active_per_name_chain")
 			.on(table.nameId, table.originChainId)
-			.where(sql`${table.status} in ('queued', 'confirming_deposit', 'checking_name', 'submitting_origin', 'waiting_origin', 'held')`),
+			.where(sql`${table.originEventId} is null and ${table.status} in ('queued', 'confirming_deposit', 'checking_name', 'submitting_origin', 'waiting_origin', 'held')`),
 		uniqueIndex("flows_deposit_event_unique")
 			.on(table.depositEventId)
 			.where(sql`${table.depositEventId} is not null`),
@@ -275,6 +278,16 @@ export const flows = pgTable(
 		uniqueIndex("flows_workflow_run_unique")
 			.on(table.workflowRunId)
 			.where(sql`${table.workflowRunId} is not null`),
+		uniqueIndex("flows_origin_event_unique")
+			.on(table.originEventId)
+			.where(sql`${table.originEventId} is not null`),
+		uniqueIndex("flows_cctp_nonce_unique")
+			.on(table.originChainId, table.cctpNonce)
+			.where(sql`${table.cctpNonce} is not null`),
+		check(
+			"flows_cctp_message_index_nonnegative",
+			sql`${table.cctpMessageIndex} is null or ${table.cctpMessageIndex} >= 0`,
+		),
 		index("flows_name_created_idx").on(table.nameId, table.createdAt),
 		index("flows_status_action_idx").on(table.status, table.nextActionAt),
 	],
@@ -336,6 +349,8 @@ export const transactionIntents = pgTable(
 		attempts: jsonb("attempts").default(sql`'[]'::jsonb`).notNull(),
 		status: text("status").notNull(),
 		broadcastAt: instant("broadcast_at"),
+		lastBroadcastAttemptAt: instant("last_broadcast_attempt_at"),
+		pendingWarnedAt: instant("pending_warned_at"),
 		confirmedAt: instant("confirmed_at"),
 		receipt: jsonb("receipt"),
 		error: jsonb("error"),
@@ -347,6 +362,12 @@ export const transactionIntents = pgTable(
 		unique("transaction_intents_nonce_owner_unique").on(
 			table.chainId,
 			table.fromAddress,
+			table.nonce,
+		),
+		index("transaction_intents_lane_status_nonce_idx").on(
+			table.chainId,
+			table.fromAddress,
+			table.status,
 			table.nonce,
 		),
 	],

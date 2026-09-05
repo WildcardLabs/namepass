@@ -67,6 +67,36 @@ test("Iris accepts one complete CCTP v2 message for the origin transaction", asy
 				],
 			}),
 		),
-		/multiple CCTP messages/,
+		/does not identify one Circle message/,
 	);
+});
+
+test("Iris selects the stored message index from a batched origin transaction", async () => {
+	const result = await pollIris({ ...request, messageIndex: 1 }, async () =>
+		Response.json({
+			messages: [
+				{ message: "0x0304", attestation: "0xccdd", status: "complete", cctpVersion: 2 },
+				{ message, attestation: "0xaabb", status: "complete", cctpVersion: 2 },
+			],
+		}),
+	);
+	assert.deepEqual(result, {
+		kind: "complete",
+		message,
+		attestation: "0xaabb",
+		status: "complete",
+	});
+
+	const pending = await pollIris({ ...request, messageIndex: 2 }, async () =>
+		Response.json({ messages: [{ status: "complete" }] }),
+	);
+	assert.equal(pending.kind, "pending");
+
+	const selectedPending = await pollIris({ ...request, messageIndex: 1 }, async () =>
+		Response.json({ messages: [
+			{ message, attestation: "0xaabb", status: "complete", cctpVersion: 2 },
+			{ message, status: "pending", cctpVersion: 2 },
+		] }),
+	);
+	assert.equal(selectedPending.kind, "pending");
 });

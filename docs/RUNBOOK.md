@@ -86,6 +86,47 @@ Apply migrations to the stable `testnet` branch before production:
 npx tsx server/db/migrate.ts
 ```
 
+Use two release points for the exact flow-identity change. Do not let the migration runner see
+`0007_exact_cctp_identity.sql` during the first release.
+
+- Release 1 target commit: `1f6f88a`.
+- Release 2 migration target: `ceacbd0`.
+
+Commit `1f6f88a` is the last commit without migration `0007`. Commit `2041990` adds migration
+`0007`. Commit `ceacbd0` adds the guarded repair for the historical split-evidence row.
+
+Release 1:
+
+1. Apply `0006_transaction_identity_support.sql` with `DATABASE_URL_UNPOOLED`.
+2. Deploy the release-1 application commit. It writes exact origin event and message-index fields.
+3. Keep recovery active until existing workflows finish. Settled workflows clear their run owner.
+   The runtime merge resolves safe source and bare-external duplicate pairs.
+
+Release 2:
+
+1. Stop new deposits and manual triggers. Pause Goldsky delivery and `/api/cron/recover`.
+2. Confirm that every remaining duplicate Circle group has no unresolved transaction intent. A
+   non-null `workflow_run_id` normally stops the migration. The split-evidence repair is the only
+   exception. Confirm that its canonical settled Workflow run is complete before you continue.
+3. Create a Neon restore point or branch.
+4. Apply `0007_exact_cctp_identity.sql`. It locks the affected tables for its transaction.
+5. Stop if the migration reports an ambiguous origin event, conflicting duplicate evidence, a live
+   workflow, or an unresolved transaction. Investigate that exact row. Do not rank or delete rows.
+6. Deploy the release-2 commit.
+7. Verify one owner for each non-null `origin_event_id` and `(origin_chain_id, cctp_nonce)`. Verify
+   that each repaired loser has `duplicate_flow_repaired` and points to its canonical flow.
+8. Resume Goldsky delivery, replay the paused range, resume recovery, and then allow new deposits.
+
+Migration `0006` adds nullable exact identity fields and safely backfills only one-to-one origin
+event matches. Migration `0007` supports two guarded repair shapes. The normal shape has one
+evidence-rich source row and one bare external settlement row. The historical split shape has one
+completed automatic row with deposit and settlement evidence and one external row with the exact
+origin event. Both rows must contain the same Circle message and attestation. The deposit event,
+origin transaction, claim transaction, exact preceding `CCTPClaimed` event, `Renewed` event, and
+renewal accounting must all agree. The migration aborts the complete transaction for every other
+shape. The full Circle identity index includes cancelled rows. A cancelled loser must release its
+nonce before the canonical row receives it.
+
 For the 2026-08-18 explorer repair, use this release order:
 
 1. Apply `0001_flow_expiry_after.sql`.
@@ -181,11 +222,15 @@ secret. Do not target a preview URL.
 
 ### Relayer
 
-One test-only relayer account exists. Its private key is in the stable testnet Vercel environment.
-It has executed the verified stable-testnet automation path. Do not use this account outside
-Namepass. Monitor its native balance on Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and Arc
-Testnet with an external address alert that notifies the operator. Do not poll balances from the
-application when no transaction is running.
+Configure one test-only account in `RELAYER_PRIVATE_KEY`. Do not use this account from a wallet,
+script, deployment tool, or another service. Namepass must have exclusive nonce ownership. Fund and
+monitor the same address on every active chain. The external address alert must notify the operator.
+Do not poll balances from the application when no transaction is running.
+
+Before deployment, confirm that no deployed version created an unresolved intent from an old pool
+address. This branch was not deployed, so the normal release has no pool drain. If such an intent
+exists in another environment, keep its key available until the exact intent gets a receipt. Do not
+move a pending nonce to the new sender.
 
 ## Operations
 
@@ -195,36 +240,47 @@ balance, raw Goldsky payload, or signed transaction.
 
 | Endpoint | Schedule | Action |
 |---|---|---|
-| `/api/cron/recover` | Every minute | Restarts safe unowned work, scans recorded activation failures, and rebroadcasts prepared transaction bytes. |
+| `/api/cron/recover` | Every minute | Restarts safe unowned work, scans activation failures, and monitors the lowest transaction nonce in each sender and chain queue. |
 | `/api/cron/retention` | Daily at 03:17 UTC | Clears at most 500 expired raw payloads. It keeps normalized chain-event data. |
 
 The recovery job has a transaction-scoped PostgreSQL advisory lock. It takes at most 10 rows from
 each recovery category. It checks stale workflow IDs through Vercel Workflow. It restarts any
-resumable workflow stage and reconciles a cancelled row that still owns a non-reverted transaction
-intent. It does not poll terminal `empty_wallet` history. A new Goldsky deposit or an explicit
+resumable workflow stage. It separately drains any durable signed intent without reopening a
+cancelled or failed flow. It does not poll terminal `empty_wallet` history. A new Goldsky deposit or an explicit
 manual trigger supplies new balance evidence. It restarts a flow only when the stored run is
 missing or terminal. It does not replace a pending or running Workflow run. The CCTP workflow owns
 its active Iris polling.
 
 ### Pending transaction replacement
 
-The testnet service does not automatically replace a pending transaction with a higher-fee
-transaction. A pending transaction can block later nonces on the same chain.
+The service emits a structured warning after 30 seconds. It automatically replaces a transaction
+that remains pending or rejected for three minutes. The
+replacement keeps the sender, chain, nonce, destination, value, call data, and gas limit, and raises
+both EIP-1559 fee fields. An insufficient-funds rejection retries the same bytes after funding; a
+higher fee cannot repair it. The workflow checks every stored attempt for the current nonce because
+an older same-nonce attempt can be mined after a replacement is broadcast.
 
-If this happens on stable testnet:
+The service does not create cancellation transactions. If a signed call becomes obsolete, recovery
+keeps its original business bytes until a success or revert receipt exists. Terminal flow guards
+prevent the receipt from reopening canonical state. Do not free the queue by editing an intent
+status because that can leave a nonce gap.
+
+Only the lowest unresolved nonce in a sender and chain queue can be replaced. A `nonce too low`
+response causes a receipt check across every stored attempt before another broadcast. One unresolved
+nonce blocks later transactions from that sender on that chain. If a
+transaction remains pending after repeated automatic replacements:
 
 1. Stop new stable-testnet funding and pause the recovery cron.
-2. Confirm through two RPC providers that the stored transaction has no receipt and that its nonce
-   is still pending for the configured relayer.
-3. Do not send a transaction with a different nonce. Do not edit the intent or flow rows by hand.
-4. Prepare a reviewed hotfix that signs the same chain ID, sender, nonce, destination, value, and
-   call data with sufficient replacement fees. The hotfix must store the new signed bytes, hash,
-   fees, and attempt before it broadcasts them.
-5. Deploy the hotfix to stable testnet. Confirm the replacement receipt and the expected contract
-   events. Then restore the recovery cron and funding.
-
-Production remains blocked until the repository has an automated same-nonce replacement path and
-a test that proves it cannot change the transaction intent.
+2. Check every stored attempt through two RPC providers. Confirm whether any attempt has a receipt
+   and whether the relayer's latest nonce has passed the intent nonce.
+3. Confirm the relayer has enough native gas for the replacement's maximum cost.
+4. Do not send a transaction with a later nonce as a repair. Do not edit the intent or flow rows by
+   hand.
+5. If no attempt is mined and the nonce is still pending, prepare a reviewed same-nonce replacement
+   with higher fees. Store the new attempt before broadcast.
+6. If the account nonce was consumed by an unknown transaction, treat the relayer key as an
+   integrity incident. Keep the service paused until the transaction and key use are explained.
+7. Confirm the receipt and expected contract events, then restore recovery and funding.
 
 ### Dashboards and alerts
 
@@ -233,7 +289,7 @@ Configure provider alerts before stable-testnet use:
 - Vercel: Function `5xx` rate, cron failures, and Workflow failures.
 - Goldsky: pipeline failure, source lag, and webhook backpressure.
 - Neon: connection saturation, query latency, storage, and restore availability.
-- Relayer: an external native-balance alert for the configured address on every active chain.
+- Relayer: an external native-balance alert for the exclusive address on every active chain.
 
 Provider dashboards and alert delivery remain external runtime gates. An alert without a tested
 notification destination is not monitoring.
@@ -249,8 +305,8 @@ Run all drills on the stable testnet environment first. Do not edit production r
 2. **Stored transaction:** use a testnet flow that has signed bytes but no broadcast time. Call the
    recovery endpoint. Confirm that the stored transaction hash is broadcast. Confirm the receipt
    before a flow becomes settled.
-   Repeat with a successful receipt whose flow row says `cancelled`. Confirm that recovery checks
-   the stored receipt instead of the now-empty deposit wallet and changes the same row to `settled`.
+   Repeat with a successful receipt whose flow row says `cancelled`. Confirm that recovery records
+   the intent receipt but does not reopen the terminal flow.
 3. **Iris outage:** cause Iris to return a retryable response in a test environment. Confirm that
    the active workflow backs off. Confirm that the recovery job does not start another active run.
    When the flow becomes `unclaimed`, confirm that its due retry resumes the same Circle message.

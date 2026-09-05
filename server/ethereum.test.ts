@@ -7,6 +7,7 @@ import {
 	type Address,
 	type Hex,
 } from "viem";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 import { labelHash } from "./chain";
 import {
@@ -17,14 +18,22 @@ import {
 } from "./ethereum";
 import {
 	isMissingTransactionReceipt,
+	isInsufficientFundsError,
+	isNonceTooLowError,
 	gasLimitWithSafetyMargin,
 	replacementFee,
+	transactionAttemptHashes,
+	transactionHashMatchesIntentSql,
+	transactionReceiptMatchesCurrentNonce,
 	originRevertFlowPatch,
+	reconcileConsumedNonce,
+	transactionPreparationAllowed,
 	transactionIntentAction,
+	transactionMonitorTiming,
 	withVerifiedChainClient,
 } from "./transactions";
 import { TransactionReceiptNotFoundError } from "viem";
-import { HUB_CHAIN } from "../src/lib/chains";
+import { ACTIVE_CHAINS, HUB_CHAIN } from "../src/lib/chains";
 
 const DEPOSIT_PROCESSED = parseAbi([
 	"event DepositProcessed(bytes32 indexed labelKey, address indexed wallet, uint256 amount, uint256 remaining)",
@@ -84,10 +93,112 @@ test("replacement fees increase by at least 12.5 percent and use a higher live q
 	assert.equal(replacementFee(100n, 110n), 113n);
 });
 
+test("settlement checks every same-nonce attempt when an older replacement wins", () => {
+	const first = `0x${"a".repeat(64)}`;
+	const replacement = `0x${"b".repeat(64)}`;
+	assert.deepEqual(transactionAttemptHashes(replacement.toUpperCase(), [
+		{ hash: `0x${"c".repeat(64)}`, nonce: "8" },
+		{ hash: first, nonce: "9" },
+		{ hash: replacement, nonce: "9" },
+		{ hash: first.toUpperCase(), nonce: "9" },
+		{ malformed: true },
+	], "9"), [first, replacement]);
+});
+
+test("indexed evidence matches only attempts from the intent's current nonce", () => {
+	const query = new PgDialect().sqlToQuery(transactionHashMatchesIntentSql(`0x${"d".repeat(64)}`));
+	assert.match(query.sql, /attempt->>'nonce'/);
+	assert.match(query.sql, /"transaction_intents"\."nonce"::text/);
+});
+
 test("a safe raw-transaction rebroadcast accepts only known-transaction responses", () => {
 	assert.equal(isKnownTransactionError(new Error("already known")), true);
 	assert.equal(isKnownTransactionError(new Error("already imported")), true);
 	assert.equal(isKnownTransactionError(new Error("insufficient funds")), false);
+});
+
+test("insufficient funds is not treated as a fee-replacement problem", () => {
+	assert.equal(isInsufficientFundsError(new Error("insufficient funds for gas * price + value")), true);
+	assert.equal(isInsufficientFundsError(new Error("replacement transaction underpriced")), false);
+});
+
+test("nonce reconciliation recognizes only consumed-nonce errors", () => {
+	assert.equal(isNonceTooLowError(new Error("nonce too low")), true);
+	assert.equal(isNonceTooLowError(new Error("nonce has already been used")), true);
+	assert.equal(isNonceTooLowError(new Error("replacement transaction underpriced")), false);
+});
+
+test("a nonce-too-low race checks known receipts before the RPC nonce", async () => {
+	let latestReads = 0;
+	assert.equal(await reconcileConsumedNonce(
+		8n,
+		async () => ({ transactionHash: `0x${"1".repeat(64)}` }),
+		async () => { latestReads += 1; return 9n; },
+	), "receipt_found");
+	assert.equal(latestReads, 0);
+	assert.equal(await reconcileConsumedNonce(8n, async () => undefined, async () => 9n), "receipt_pending");
+	assert.equal(await reconcileConsumedNonce(8n, async () => undefined, async () => 8n), "not_consumed");
+});
+
+test("every active chain uses the same replacement timeout", () => {
+	for (const chain of ACTIVE_CHAINS) {
+		assert.equal(chain.polling.transactionReplacementMs, 3 * 60_000);
+	}
+});
+
+test("post-RPC transaction preparation accepts only the expected flow stage", () => {
+	const statuses = [
+		"queued", "confirming_deposit", "checking_name", "submitting_origin", "waiting_origin",
+		"waiting_attestation", "submitting_claim", "waiting_claim", "held", "unclaimed",
+		"settled", "cancelled", "failed",
+	] as const;
+	for (const status of statuses) {
+		const empty = { status, originTxIntentId: null, claimTxIntentId: null };
+		assert.equal(transactionPreparationAllowed(empty, "origin_renew"), status === "checking_name");
+		assert.equal(
+			transactionPreparationAllowed({ ...empty, originTxIntentId: "origin" }, "origin_renew", "origin"),
+			status === "queued",
+		);
+		assert.equal(
+			transactionPreparationAllowed(empty, "claim"),
+			["waiting_attestation", "unclaimed", "submitting_claim"].includes(status),
+		);
+		assert.equal(
+			transactionPreparationAllowed({ ...empty, claimTxIntentId: "claim" }, "claim", "claim"),
+			status === "unclaimed",
+		);
+	}
+});
+
+test("a receipt must belong to the intent's current nonce", () => {
+	const old = `0x${"a".repeat(64)}`;
+	const current = `0x${"b".repeat(64)}`;
+	const intent = {
+		currentTxHash: current,
+		nonce: "8",
+		attempts: [
+			{ hash: old, nonce: "7" },
+			{ hash: current, nonce: "8" },
+		],
+	};
+	assert.equal(transactionReceiptMatchesCurrentNonce(intent, current), true);
+	assert.equal(transactionReceiptMatchesCurrentNonce(intent, old), false);
+});
+
+test("the transaction monitor warns after 30 seconds and replaces after three minutes", () => {
+	const started = new Date("2026-09-03T12:00:00.000Z");
+	assert.deepEqual(transactionMonitorTiming(started, null, new Date(started.getTime() + 29_999), 180_000), {
+		warn: false,
+		replace: false,
+	});
+	assert.deepEqual(transactionMonitorTiming(started, null, new Date(started.getTime() + 30_000), 180_000), {
+		warn: true,
+		replace: false,
+	});
+	assert.deepEqual(transactionMonitorTiming(started, new Date(), new Date(started.getTime() + 180_000), 180_000), {
+		warn: false,
+		replace: true,
+	});
 });
 
 test("receipt polling hides only the expected not-found response", () => {

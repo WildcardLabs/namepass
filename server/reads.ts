@@ -82,19 +82,40 @@ export async function publicBalances(nameId: string) {
 }
 
 export async function activity(limit: number, cursor?: ActivityCursor) {
+	const originIntent = alias(transactionIntents, "activity_live_origin_intent");
+	const claimIntent = alias(transactionIntents, "activity_live_claim_intent");
 	const [result, active] = await Promise.all([
 		renewalActivity(limit, cursor),
 		database()
-			.select({ flow: flows, name: names })
+			.select({
+				flow: flows,
+				name: names,
+				depositTxHash: deposits.txHash,
+				originTxHash: sql<string | null>`coalesce(${flows.originEvidenceTxHash}, ${originIntent.currentTxHash})`,
+				claimTxHash: claimIntent.currentTxHash,
+			})
 			.from(flows)
 			.innerJoin(names, eq(flows.nameId, names.id))
+			.leftJoin(deposits, eq(flows.depositEventId, deposits.eventId))
+			.leftJoin(originIntent, eq(flows.originTxIntentId, originIntent.id))
+			.leftJoin(claimIntent, eq(flows.claimTxIntentId, claimIntent.id))
 			.where(inArray(flows.status, LIVE_FLOW_STATUSES))
 			.orderBy(desc(flows.createdAt))
 			.limit(6),
 	]);
 	return {
 		items: result.items.map(({ renewal, name }) => ({ renewal, name })),
-		flows: active.map(({ flow, name }) => ({ flow: publicFlowView(flow), name: publicNameView(name) })),
+		flows: active.map(({ flow, name, depositTxHash, originTxHash, claimTxHash }) => ({
+			flow: publicFlowView(flow, {
+				depositTxHash,
+				originTxHash,
+				claimTxHash,
+				renewalTxHash: null,
+				executorAddress: null,
+				executorIsRelayer: false,
+			}),
+			name: publicNameView(name),
+		})),
 		nextCursor: result.nextCursor,
 	};
 }
@@ -114,7 +135,7 @@ export async function renewalActivity(
 			flow: flows,
 			deposit: deposits,
 			ensFacts: ensRenewal.facts,
-			originTxHash: sql<string | null>`coalesce(${originIntent.currentTxHash}, ${flows.originEvidenceTxHash})`,
+			originTxHash: sql<string | null>`coalesce(${flows.originEvidenceTxHash}, ${originIntent.currentTxHash})`,
 			claimTxHash: claimIntent.currentTxHash,
 		})
 		.from(chainEvents)
@@ -316,7 +337,7 @@ export async function publicFlow(id: string) {
 		.leftJoin(claimIntent, eq(flows.claimTxIntentId, claimIntent.id))
 		.where(eq(flows.id, id));
 	if (!row) throw new ApiError(404, "flow_not_found", "This flow does not exist.");
-	const hashes = [row.origin?.currentTxHash, row.claim?.currentTxHash].filter(
+	const hashes = [row.flow.originEvidenceTxHash, row.origin?.currentTxHash, row.claim?.currentTxHash].filter(
 		(hash): hash is string => Boolean(hash),
 	);
 	const linkedRenewal = row.flow.renewalEventId
@@ -342,8 +363,8 @@ export async function publicFlow(id: string) {
 			lastErrorCode: row.flow.lastErrorCode ?? row.reasonCode,
 		}, {
 			depositTxHash: row.depositTxHash,
-			originTxHash: row.origin?.currentTxHash ?? row.flow.originEvidenceTxHash ?? null,
-			claimTxHash: row.claim?.currentTxHash ?? null,
+			originTxHash: row.flow.originEvidenceTxHash ?? row.origin?.currentTxHash ?? null,
+			claimTxHash: facts?.from_cctp === "true" && renewal ? renewal.txHash : row.claim?.currentTxHash ?? null,
 			renewalTxHash: renewal?.txHash ?? null,
 			executorAddress: executor,
 			executorIsRelayer: executor !== null && executor === relayer,
@@ -390,7 +411,7 @@ export function publicRenewalView(
 		fromCctp: facts.from_cctp === "true",
 		depositTxHash: deposit?.txHash ?? null,
 		originTxHash,
-		claimTxHash,
+		claimTxHash: facts.from_cctp === "true" ? event.txHash : claimTxHash,
 		renewalTxHash: event.txHash,
 		blockTime: event.blockTime,
 	};

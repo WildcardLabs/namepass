@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+	cctpOriginTransactionHash,
 	claimIntentAction,
 	matchesRecordedArcNativeDeposit,
 	matchesRecordedCctpDepositTransfer,
@@ -66,14 +67,14 @@ test("a reverted CCTP origin retries its logical intent without returning to a b
 	assert.equal(cctpResumeStage({ status: "held", cctpMessage: null, cctpAttestation: null }), "done");
 });
 
-test("a stored CCTP transaction resumes at its receipt", () => {
+test("a cancelled CCTP flow never resumes a stored transaction", () => {
 	assert.equal(cctpResumeStage({
 		status: "cancelled",
 		cctpMessage: null,
 		cctpAttestation: null,
 		originIntentId: "origin",
 		originIntentStatus: "broadcast",
-	}), "origin_receipt");
+	}), "done");
 	assert.equal(cctpResumeStage({
 		status: "waiting_claim",
 		cctpMessage: "0x1234",
@@ -90,4 +91,11 @@ test("a permissionless origin burn resumes from its indexed transaction", () => 
 		cctpAttestation: null,
 		originEvidenceTxHash: `0x${"1".repeat(64)}`,
 	}), "origin_receipt");
+});
+
+test("Iris uses the mined origin attempt instead of a later replacement hash", () => {
+	const mined = `0x${"2".repeat(64)}` as const;
+	const replacement = `0x${"3".repeat(64)}`;
+	assert.equal(cctpOriginTransactionHash(mined, replacement), mined);
+	assert.equal(cctpOriginTransactionHash(null, replacement), replacement);
 });

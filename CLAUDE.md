@@ -119,8 +119,8 @@ Do not add scheduled RPC health polling. Use an external address monitor with re
 delivery for relayer gas. With no live read, deposit, due recovery, or workflow, RPC usage is zero.
 
 **Circle Iris supplies the final CCTP v2 nonce.** The origin-chain `MessageSent` event has a zero
-nonce placeholder. The workflow verifies that event and its route, then requests exactly one final
-message from Iris by origin transaction hash. Goldsky does not index global Circle events. It
+nonce placeholder. The workflow binds it to an exact `DepositProcessed` event, stores its index in
+the transaction, and requests that final message from Iris. Goldsky does not index global Circle events. It
 filters ENS `NameRenewed` events by the Namepass referrer in the shared chain registry. See the
 2026-08-17 decision before changing this flow.
 
@@ -254,7 +254,11 @@ on non-Home pages (only Home shows the Explorer/Search/Cost simulator menu).
   contracts. It is not a source of facts and must not invent a renewal, sender, executor, or
   transaction hash. Keep backend flow states exact. `flowPresentation.ts` owns user-facing flow
   copy and must also receive the origin chain. An Ethereum `submitting_origin` or `waiting_origin`
-  state is a renewal. The same state on a supported source chain is a Circle transfer.
+  state is a renewal. The same state on a supported source chain is a Circle transfer. Flow identity
+  uses the exact `DepositProcessed` event and the Circle source-chain nonce. A transaction hash is
+  evidence, not a unique identity, because one transaction can contain several calls. Never match
+  flows by name, chain, or amount. A transaction intent includes every same-nonce replacement
+  attempt. Any current-nonce attempt can be mined, and the receipt hash is canonical evidence.
 - `registry.ts` — seeded local demonstration data only. Do not import it from a production screen.
   The frontend uses the public API for activated names, public activity, flows, and leaderboard
   data. Balances remain separate by chain. An `unclaimed` CCTP flow is not a balance at its origin

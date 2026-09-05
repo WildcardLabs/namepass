@@ -88,17 +88,19 @@ test("the origin receipt links one deposit to one Circle message", () => {
 	const parsed = parseOriginBurnReceipt(
 		[
 			{
+				address: origin.messageTransmitterAddress as Address,
+				topics: messageTopics,
+				data: encodeAbiParameters([{ type: "bytes" }], [rawMessage]),
+				logIndex: 10,
+			},
+			{
 				address: origin.factoryAddress! as Address,
 				topics: depositTopics,
 				data: encodeAbiParameters(
 					[{ type: "uint256" }, { type: "uint256" }],
 					[1_000_000n, 250_000n],
 				),
-			},
-			{
-				address: origin.messageTransmitterAddress as Address,
-				topics: messageTopics,
-				data: encodeAbiParameters([{ type: "bytes" }], [rawMessage]),
+				logIndex: 12,
 			},
 		],
 		{
@@ -110,7 +112,47 @@ test("the origin receipt links one deposit to one Circle message", () => {
 		},
 	);
 	assert.equal(parsed.message.nonce, zeroNonce);
+	assert.equal(parsed.messageIndex, 0);
 	assert.equal(parsed.remaining, 250_000n);
+});
+
+test("an exact DepositProcessed log selects its Circle message in a batched transaction", () => {
+	const origin = chainByKey("base");
+	const rawMessage = message({ nonce: zeroNonce, executed: 0 });
+	const depositTopics = encodeEventTopics({
+		abi: depositAbi,
+		eventName: "DepositProcessed",
+		args: { labelKey: labelHash, wallet },
+	}) as [Hex, ...Hex[]];
+	const messageTopics = encodeEventTopics({ abi: messageAbi, eventName: "MessageSent" }) as [Hex, ...Hex[]];
+	const messageLog = (logIndex: number) => ({
+		address: origin.messageTransmitterAddress as Address,
+		topics: messageTopics,
+		data: encodeAbiParameters([{ type: "bytes" }], [rawMessage]),
+		logIndex,
+	});
+	const depositLog = (logIndex: number, remaining: bigint) => ({
+		address: origin.factoryAddress! as Address,
+		topics: depositTopics,
+		data: encodeAbiParameters(
+			[{ type: "uint256" }, { type: "uint256" }],
+			[1_000_000n, remaining],
+		),
+		logIndex,
+	});
+
+	const parsed = parseOriginBurnReceipt(
+		[messageLog(10), depositLog(12, 1_000_000n), messageLog(20), depositLog(22, 0n)],
+		{
+			originChainId: origin.chainId,
+			wallet,
+			label: "vitalik",
+			labelHash,
+			depositLogIndex: 22,
+		},
+	);
+	assert.equal(parsed.messageIndex, 1);
+	assert.equal(parsed.remaining, 0n);
 });
 
 test("a final Circle message rejects the origin nonce placeholder", () => {

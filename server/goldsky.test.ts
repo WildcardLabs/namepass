@@ -5,6 +5,8 @@ import {
 	goldskyHandler,
 	ensRenewalLabel,
 	externalRenewalProjection,
+	externalSettlementPatch,
+	originBurnReconciliationStatus,
 	reorgResumeStatus,
 	parseGoldskyEvent,
 	type GoldskyEvent,
@@ -56,6 +58,8 @@ class MemoryStore implements GoldskyStore, GoldskyTransaction {
 	renewalReconciliations = 0;
 	renewalAggregateRefreshes = 0;
 	expiryRefreshes = 0;
+	settlementLocks = 0;
+	lastOperation: "upsert" | "lock" | "reconcile" | undefined;
 	readonly scanMarkers = new Set<string>();
 
 	async transaction<T>(work: (tx: GoldskyTransaction) => Promise<T>): Promise<T> {
@@ -64,6 +68,13 @@ class MemoryStore implements GoldskyStore, GoldskyTransaction {
 
 	async upsertEvent(event: GoldskyEvent): Promise<void> {
 		this.events.set(event.eventId, event);
+		this.lastOperation = "upsert";
+	}
+
+	async lockSettlementTransaction(): Promise<void> {
+		assert.equal(this.lastOperation, "upsert");
+		this.lastOperation = "lock";
+		this.settlementLocks += 1;
 	}
 
 	async nameIdForAddress(address: string): Promise<string | undefined> {
@@ -77,13 +88,19 @@ class MemoryStore implements GoldskyStore, GoldskyTransaction {
 	async reconcileOriginBurn(): Promise<string | undefined> { return "flow-origin"; }
 
 	async reconcileRenewal(): Promise<string | undefined> {
+		assert.equal(this.lastOperation, "lock");
+		this.lastOperation = "reconcile";
 		this.renewalReconciliations += 1;
 		return "name-1";
 	}
 
 	async refreshRenewalAggregates(): Promise<void> { this.renewalAggregateRefreshes += 1; }
 
-	async refreshEnsExpiry(): Promise<void> { this.expiryRefreshes += 1; }
+	async refreshEnsExpiry(): Promise<void> {
+		assert.equal(this.lastOperation, "lock");
+		this.lastOperation = "reconcile";
+		this.expiryRefreshes += 1;
+	}
 
 	async markChainForScan(nameId: string, chainId: number): Promise<void> {
 		this.scanMarkers.add(`${nameId}:${chainId}`);
@@ -442,6 +459,7 @@ test("protocol events route to renewal and ENS projections", async () => {
 	assert.equal(store.renewalReconciliations, 1);
 	assert.equal(store.renewalAggregateRefreshes, 1);
 	assert.equal(store.expiryRefreshes, 1);
+	assert.equal(store.settlementLocks, 2);
 });
 
 test("ENS renewal projection identifies the name by canonical label, not mutable token ID", () => {
@@ -474,9 +492,34 @@ test("external renewal projection requires an exact CCTP source domain", () => {
 	assert.equal(externalRenewalProjection({ ...facts, from_cctp: "false" })?.originChainId, "11155111");
 });
 
+test("an external settlement patch preserves source provenance and origin remainder", () => {
+	const projection = externalRenewalProjection({
+		from_cctp: "true",
+		remainder: "9",
+		gas_allowance: "100000",
+		amount_applied: "4800000",
+		duration: "31536000",
+	}, {
+		source_domain: "6",
+		nonce: `0x${"1".repeat(64)}`,
+		burn_amount: "5000000",
+	})!;
+	const patch = externalSettlementPatch(projection, "renewal", new Date(0), null);
+	assert.equal("trigger" in patch, false);
+	assert.equal("amountDetected" in patch, false);
+	assert.equal("remainingAmount" in patch, false);
+});
+
 test("a settlement reorg resumes the exact transaction stage", () => {
 	assert.equal(reorgResumeStatus("origin_renew"), "waiting_origin");
 	assert.equal(reorgResumeStatus("claim"), "waiting_claim");
+});
+
+test("a late origin webhook does not rewind a released CCTP flow", () => {
+	assert.equal(originBurnReconciliationStatus("waiting_origin"), "waiting_origin");
+	assert.equal(originBurnReconciliationStatus("waiting_attestation"), "waiting_attestation");
+	assert.equal(originBurnReconciliationStatus("waiting_claim"), "waiting_claim");
+	assert.equal(originBurnReconciliationStatus("unclaimed"), "unclaimed");
 });
 
 test("bytes32 event fields accept Goldsky's bare hex and normalize to 0x", () => {
