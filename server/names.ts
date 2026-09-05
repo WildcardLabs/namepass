@@ -18,6 +18,11 @@ import { startRenewalWorkflow } from "./workflows";
 
 const TERMINAL_FLOW_STATUSES = ["settled", "cancelled", "failed"] as Array<typeof flows.$inferSelect.status>;
 const STOPPED_FLOW_VISIBILITY_MS = 30 * 24 * 60 * 60 * 1_000;
+const HIDDEN_DUPLICATE_ERRORS = new Set([
+	"duplicate_message_settled",
+	"duplicate_flow_merged",
+	"duplicate_flow_repaired",
+]);
 
 export type NameFlowRow = {
 	flow: typeof flows.$inferSelect;
@@ -64,7 +69,7 @@ export function visibleNameFlows(
 	const stoppedChains = new Set<string>();
 	return rows.flatMap((row) => {
 		if (!STOPPED_FLOW_STATUSES.includes(row.flow.status as "cancelled" | "failed")) return [row];
-		if (row.flow.lastErrorCode === "duplicate_message_settled") return [];
+		if (row.flow.lastErrorCode && HIDDEN_DUPLICATE_ERRORS.has(row.flow.lastErrorCode)) return [];
 		const chainId = row.flow.originChainId;
 		const balance = balances.find((item) => item.chainId === chainId)?.amount;
 		const eligible = balance !== null && balance !== undefined

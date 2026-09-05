@@ -12,6 +12,7 @@ export interface IrisRequest {
 	baseUrl: string;
 	sourceDomain: number;
 	transactionHash: Hex;
+	messageIndex?: number;
 	attempt: number;
 	initialDelayMs: number;
 	maxDelayMs: number;
@@ -49,8 +50,11 @@ export async function pollIris(
 	const payload = (await response.json()) as { messages?: unknown };
 	if (!Array.isArray(payload.messages)) throw new Error("Circle Iris returned an invalid response.");
 	if (payload.messages.length === 0) return pending("incomplete", request, response);
-	if (payload.messages.length !== 1) throw new Error("Circle Iris returned multiple CCTP messages.");
-	const row = payload.messages[0];
+	if (request.messageIndex === undefined && payload.messages.length !== 1) {
+		throw new Error("The flow does not identify one Circle message in the origin transaction.");
+	}
+	const row = payload.messages[request.messageIndex ?? 0];
+	if (row === undefined) return pending("incomplete", request, response);
 	if (typeof row !== "object" || row === null) throw new Error("Circle Iris returned an invalid CCTP message.");
 	const message = row as Record<string, unknown>;
 	if (message.status !== "complete") return pending("incomplete", request, response);

@@ -67,14 +67,14 @@ test("a reverted CCTP origin retries its logical intent without returning to a b
 	assert.equal(cctpResumeStage({ status: "held", cctpMessage: null, cctpAttestation: null }), "done");
 });
 
-test("a stored CCTP transaction resumes at its receipt", () => {
+test("a cancelled CCTP flow never resumes a stored transaction", () => {
 	assert.equal(cctpResumeStage({
 		status: "cancelled",
 		cctpMessage: null,
 		cctpAttestation: null,
 		originIntentId: "origin",
 		originIntentStatus: "broadcast",
-	}), "origin_receipt");
+	}), "done");
 	assert.equal(cctpResumeStage({
 		status: "waiting_claim",
 		cctpMessage: "0x1234",

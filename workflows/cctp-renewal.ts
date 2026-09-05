@@ -29,7 +29,7 @@ export function cctpResumeStage(flow: {
 	claimIntentId?: string | null;
 	claimIntentStatus?: string | null;
 }): "done" | "origin" | "origin_retry" | "origin_receipt" | "attestation" | "claim" | "claim_receipt" {
-	if (["settled", "held", "failed"].includes(flow.status)) return "done";
+	if (["settled", "held", "failed", "cancelled"].includes(flow.status)) return "done";
 	if (flow.claimIntentId) {
 		return flow.claimIntentStatus === "reverted" ? "claim" : "claim_receipt";
 	}
@@ -38,7 +38,6 @@ export function cctpResumeStage(flow: {
 	if (flow.originIntentId || flow.originEvidenceTxHash) {
 		return flow.originIntentStatus === "reverted" ? "origin_retry" : "origin_receipt";
 	}
-	if (flow.status === "cancelled") return "done";
 	return "origin";
 }
 
@@ -85,7 +84,16 @@ export async function cctpRenewal(
 			if (originIntentId) await broadcastCctpTransactionStep(originIntentId);
 			for (let attempt = 0; ; attempt += 1) {
 				const result = await confirmCctpOriginStep(flowId, originIntentId);
-				if (result === "held" || result === "cancelled") return result;
+				if (["held", "cancelled", "settled", "failed"].includes(result)) {
+					return result as "held" | "cancelled" | "settled" | "failed";
+				}
+				if (result === "superseded") {
+					const current = await loadCctpFlowStep(flowId);
+					if (current && ["settled", "held", "cancelled", "failed"].includes(current.status)) {
+						return current.status as "settled" | "held" | "cancelled" | "failed";
+					}
+					throw new Error("The CCTP origin transaction intent was superseded.");
+				}
 				if (result === "attestation") break;
 				await sleep(receiptPollDelay(attempt));
 			}

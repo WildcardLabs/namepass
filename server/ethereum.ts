@@ -12,7 +12,7 @@ import { HUB_CHAIN } from "../src/lib/chains";
 import { labelHash, readEnsState } from "./chain";
 import { database } from "./db/client";
 import { chainEvents, deposits, flows, flowTransitions, names } from "./db/schema";
-import { NAME_RECHECK_MS, setFlowStatus } from "./flow-state";
+import { NAME_RECHECK_MS, setFlowStatus, setPreOriginFlowStatus } from "./flow-state";
 import { automaticDepositBalanceBlock, depositBalanceAction } from "./deposit-eligibility";
 import { parseEnsRenewalExpiry } from "./ens-renewal";
 import {
@@ -22,6 +22,7 @@ import {
 	replaceStaleTransaction,
 	retryTransaction,
 	transactionIntentAction,
+	transactionReceiptMatchesCurrentNonce,
 	originRevertFlowPatch,
 	verifiedChainClient,
 } from "./transactions";
@@ -219,8 +220,14 @@ export async function confirmEthereumDeposit(flowId: string): Promise<"ready" | 
 	// Manual and balance-recovery flows have no single transfer event to wait for.
 	if (!flow.depositTxHash || flow.depositLogIndex === null) return "ready";
 	if (!flow.depositCanonical || flow.depositStatus === "orphaned") {
-		await setStatus(flowId, "cancelled", "deposit_orphaned");
-		return "cancelled";
+		const outcome = await setPreOriginFlowStatus(
+			flowId,
+			["queued", "confirming_deposit"],
+			"cancelled",
+			{},
+			"deposit_orphaned",
+		);
+		return outcome.applied || outcome.status === "cancelled" ? "cancelled" : "ready";
 	}
 	await setStatus(flowId, "confirming_deposit");
 	const rpc = await verifiedChainClient(HUB_CHAIN);
@@ -229,13 +236,13 @@ export async function confirmEthereumDeposit(flowId: string): Promise<"ready" | 
 		receipt.status !== "success"
 		|| (flow.depositBlockNumber !== null && receipt.blockNumber !== BigInt(flow.depositBlockNumber))
 	) {
-		await setStatus(flowId, "cancelled", "deposit_not_canonical");
-		return "cancelled";
+		const outcome = await setPreOriginFlowStatus(flowId, ["confirming_deposit"], "cancelled", {}, "deposit_not_canonical");
+		return outcome.applied || outcome.status === "cancelled" ? "cancelled" : "ready";
 	}
 	const log = receipt.logs.find((candidate) => candidate.logIndex === flow.depositLogIndex);
 	if (!log || getAddress(log.address) !== getAddress(HUB_CHAIN.usdcAddress)) {
-		await setStatus(flowId, "cancelled", "deposit_not_canonical");
-		return "cancelled";
+		const outcome = await setPreOriginFlowStatus(flowId, ["confirming_deposit"], "cancelled", {}, "deposit_not_canonical");
+		return outcome.applied || outcome.status === "cancelled" ? "cancelled" : "ready";
 	}
 	const transfer = decodeEventLog({
 		abi: parseAbi(["event Transfer(address indexed from, address indexed to, uint256 value)"]),
@@ -247,8 +254,8 @@ export async function confirmEthereumDeposit(flowId: string): Promise<"ready" | 
 		flow.depositAddress,
 		flow.depositAmount,
 	)) {
-		await setStatus(flowId, "cancelled", "deposit_not_to_wallet");
-		return "cancelled";
+		const outcome = await setPreOriginFlowStatus(flowId, ["confirming_deposit"], "cancelled", {}, "deposit_not_to_wallet");
+		return outcome.applied || outcome.status === "cancelled" ? "cancelled" : "ready";
 	}
 	return "ready";
 }
@@ -276,8 +283,9 @@ export async function checkEthereumEligibility(flowId: string): Promise<"ready" 
 		}),
 	]);
 	if (!ens.renewableBy) {
-		await setFlowStatus(
+		const outcome = await setPreOriginFlowStatus(
 			flowId,
+			["checking_name"],
 			"held",
 			{
 				holdReason: "name_not_renewable",
@@ -285,15 +293,15 @@ export async function checkEthereumEligibility(flowId: string): Promise<"ready" 
 			},
 			"name_not_renewable",
 		);
-		return "held";
+		return outcome.applied || outcome.status === "held" ? "held" : "ready";
 	}
 	const balanceAction = depositBalanceAction(balance, balanceBlock);
 	if (balanceAction !== "ready") {
 		if (balanceAction === "retry") {
 			throw new Error("The deposit block does not contain the verified wallet balance.");
 		}
-		await setStatus(flowId, "cancelled", "empty_wallet");
-		return "cancelled";
+		const outcome = await setPreOriginFlowStatus(flowId, ["checking_name"], "cancelled", {}, "empty_wallet");
+		return outcome.applied || outcome.status === "cancelled" ? "cancelled" : "ready";
 	}
 	return "ready";
 }
@@ -329,10 +337,34 @@ async function markEthereumOriginReverted(
 	flowId: string,
 	intentId: string,
 	receipt: Record<string, unknown>,
-): Promise<void> {
-	await database().transaction(async (tx) => {
-		const [flow] = await tx.select({ status: flows.status }).from(flows).where(eq(flows.id, flowId));
+): Promise<"held" | "settled" | "cancelled" | "failed" | "superseded"> {
+	return database().transaction(async (tx) => {
+		const [flow] = await tx.select({
+			status: flows.status,
+			originTxIntentId: flows.originTxIntentId,
+		}).from(flows)
+			.where(eq(flows.id, flowId))
+			.for("update");
 		if (!flow) throw new Error("The flow does not exist.");
+		if (flow.status === "settled" || flow.status === "cancelled" || flow.status === "failed") return flow.status;
+		if (flow.originTxIntentId !== intentId) return "superseded";
+		const [intent] = await tx.select({
+			currentTxHash: transactionIntents.currentTxHash,
+			attempts: transactionIntents.attempts,
+			nonce: transactionIntents.nonce,
+			status: transactionIntents.status,
+		}).from(transactionIntents)
+			.where(eq(transactionIntents.id, intentId))
+			.for("update");
+		if (!intent) throw new Error("The transaction intent does not exist.");
+		const receiptHash = String(receipt.transactionHash ?? "");
+		if (!transactionReceiptMatchesCurrentNonce(intent, receiptHash)) {
+			throw new Error("The renewal receipt does not belong to the intent's current nonce.");
+		}
+		if (intent.status === "reverted") return flow.status === "held" ? "held" : "superseded";
+		if (!["prepared", "broadcast", "mined"].includes(intent.status)) {
+			throw new Error("A revert receipt conflicts with the transaction intent state.");
+		}
 		const now = new Date();
 		await tx.update(transactionIntents).set({
 			status: "reverted",
@@ -350,10 +382,11 @@ async function markEthereumOriginReverted(
 				reasonCode: ORIGIN_REVERTED,
 			});
 		}
+		return "held";
 	});
 }
 
-export async function confirmEthereumRenewal(flowId: string, intentId: string): Promise<"waiting" | "held" | "settled" | "cancelled"> {
+export async function confirmEthereumRenewal(flowId: string, intentId: string): Promise<"waiting" | "held" | "settled" | "cancelled" | "failed" | "superseded"> {
 	"use step";
 	const flow = await loadEthereumFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
@@ -364,8 +397,7 @@ export async function confirmEthereumRenewal(flowId: string, intentId: string): 
 		return "waiting";
 	}
 	if (receipt.status !== "success") {
-		await markEthereumOriginReverted(flowId, intentId, receipt as unknown as Record<string, unknown>);
-		return "held";
+		return markEthereumOriginReverted(flowId, intentId, receipt as unknown as Record<string, unknown>);
 	}
 	const settlement = parseEthereumRenewalReceipt(receipt.logs as ReceiptLog[], {
 		wallet: flow.depositAddress as Address,
@@ -376,16 +408,33 @@ export async function confirmEthereumRenewal(flowId: string, intentId: string): 
 		label: flow.label,
 	});
 	const db = database();
-	await db.transaction(async (tx) => {
-		const [current] = await tx.select({ status: flows.status }).from(flows).where(eq(flows.id, flowId));
-		if (!current) return;
+	const outcome = await db.transaction(async (tx) => {
+		const [current] = await tx.select({
+			status: flows.status,
+			originTxIntentId: flows.originTxIntentId,
+		}).from(flows)
+			.where(eq(flows.id, flowId))
+			.for("update");
+		if (!current) throw new Error("The flow does not exist.");
+		if (current.status === "cancelled") return "cancelled" as const;
+		if (current.status === "failed") return "failed" as const;
+		if (current.originTxIntentId !== intentId) return "stale" as const;
+		const [intent] = await tx.select({
+			currentTxHash: transactionIntents.currentTxHash,
+			attempts: transactionIntents.attempts,
+			nonce: transactionIntents.nonce,
+		}).from(transactionIntents)
+			.where(eq(transactionIntents.id, intentId))
+			.for("update");
+		if (!intent) throw new Error("The transaction intent does not exist.");
+		if (!transactionReceiptMatchesCurrentNonce(intent, receipt.transactionHash)) return "stale" as const;
 		const now = new Date();
 		await tx.update(transactionIntents).set({ status: "confirmed", confirmedAt: now, receipt: receipt as unknown as Record<string, unknown>, updatedAt: now }).where(eq(transactionIntents.id, intentId));
 		if (current.status === "settled") {
-			await tx.update(flows).set({ originEvidenceTxHash: receipt.transactionHash, updatedAt: now }).where(eq(flows.id, flowId));
-			return;
+			await tx.update(flows).set({ originEvidenceTxHash: receipt.transactionHash, workflowRunId: null, updatedAt: now }).where(eq(flows.id, flowId));
+			return "settled" as const;
 		}
-		await tx.update(flows).set({ status: "settled", originEvidenceTxHash: receipt.transactionHash, amountProcessed: settlement.amountProcessed, remainingAmount: settlement.remainingAmount, gasAllowance: settlement.gasAllowance, amountApplied: settlement.amountApplied, durationSeconds: settlement.durationSeconds, expiryAfter, settledAt: now, updatedAt: now }).where(eq(flows.id, flowId));
+		await tx.update(flows).set({ status: "settled", originEvidenceTxHash: receipt.transactionHash, amountProcessed: settlement.amountProcessed, remainingAmount: settlement.remainingAmount, gasAllowance: settlement.gasAllowance, amountApplied: settlement.amountApplied, durationSeconds: settlement.durationSeconds, expiryAfter, workflowRunId: null, settledAt: now, updatedAt: now }).where(eq(flows.id, flowId));
 		await tx.update(names).set({ currentExpiry: expiryAfter, ensSyncedAt: now }).where(and(
 			eq(names.id, flow.nameId),
 			or(isNull(names.currentExpiry), lt(names.currentExpiry, expiryAfter)),
@@ -403,6 +452,9 @@ export async function confirmEthereumRenewal(flowId: string, intentId: string): 
 			}).where(eq(names.id, flow.nameId));
 		}
 		await tx.insert(flowTransitions).values({ flowId, fromStatus: current.status, toStatus: "settled", actor: "workflow", detail: settlement });
+		return "settled" as const;
 	});
-	return "settled";
+	if (outcome === "cancelled") return "cancelled";
+	if (outcome === "failed") return "failed";
+	return outcome === "stale" ? "waiting" : "settled";
 }

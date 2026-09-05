@@ -81,7 +81,7 @@ test("recovery checks every stale resumable stage and due unclaimed workflow own
 	assert.ok(resumable.params.includes("queued"));
 	assert.ok(resumable.params.includes("waiting_origin"));
 	assert.ok(resumable.params.includes("waiting_claim"));
-	assert.ok(resumable.params.includes("cancelled"));
+	assert.ok(!resumable.params.includes("cancelled"));
 	assert.ok(!resumable.params.includes("empty_wallet"));
 	assert.ok(unclaimed.params.includes("unclaimed"));
 	assert.ok(held.params.includes("held"));
@@ -92,10 +92,10 @@ test("recovery checks every stale resumable stage and due unclaimed workflow own
 	assert.ok(unclaimed.params.includes(now.toISOString()));
 });
 
-test("the transaction monitor selects only the lowest nonce in each database lane", () => {
+test("the transaction monitor selects only the lowest nonce in each sender queue", () => {
 	const query = new PgDialect().sqlToQuery(transactionMonitorCandidatesSql(10));
 	assert.match(query.sql, /distinct on \(chain_id, lower\(from_address\)\)/);
-	assert.match(query.sql, /status in \('prepared', 'broadcast', 'cancellation_requested', 'cancelling'\)/);
+	assert.match(query.sql, /status in \('prepared', 'broadcast'\)/);
 	assert.match(query.sql, /order by chain_id, lower\(from_address\), nonce/);
 	assert.equal(query.params[query.params.length - 1], 10);
 });

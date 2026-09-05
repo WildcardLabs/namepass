@@ -1,11 +1,18 @@
-import { and, eq, notInArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { database } from "./db/client";
-import { flows, flowTransitions } from "./db/schema";
+import { flows, flowTransitions, transactionIntents } from "./db/schema";
 
 const RETRY_DELAY_MS = 60_000;
 
 export type WorkflowFailure = { code: string; fatal: boolean };
+
+export function workflowFailureAction(
+	fatal: boolean,
+	hasLiveIntent: boolean,
+): "fail" | "retry" {
+	return fatal && !hasLiveIntent ? "fail" : "retry";
+}
 
 export function classifyWorkflowFailure(text: string): WorkflowFailure {
 	const value = text.toLowerCase();
@@ -26,7 +33,6 @@ export function classifyWorkflowFailure(text: string): WorkflowFailure {
 	if (value.includes("0x87a22607")) return { code: "amount_below_policy", fatal: false }; // BelowMinimumBurn()
 	if (value.includes("0x15bd493b")) return { code: "name_not_renewable", fatal: false }; // NameNotRenewable()
 	if (value.includes("0xd5139101")) return { code: "claim_already_used_or_failed", fatal: false }; // CCTPReceiveFailed()
-	if (value.includes("no relayer lane is free")) return { code: "relayer_pool_saturated", fatal: false };
 	if (
 		value.includes("429")
 		|| value.includes("rate limit")
@@ -42,14 +48,24 @@ function safeDetail(text: string): string {
 	return text.replace(/https?:\/\/\S+/gi, "[url]").slice(0, 500);
 }
 
-/** Persist a failed run so recovery and the UI do not mistake it for a pending chain action. */
+/** Persist a failed run without abandoning signed business bytes. */
 export async function recordWorkflowFailure(flowId: string, text: string): Promise<void> {
 	const failure = classifyWorkflowFailure(text);
 	await database().transaction(async (tx) => {
-		const [flow] = await tx.select({ status: flows.status }).from(flows).where(eq(flows.id, flowId));
+		const [flow] = await tx.select({ status: flows.status }).from(flows)
+			.where(eq(flows.id, flowId))
+			.for("update");
 		if (!flow || ["settled", "cancelled", "failed"].includes(flow.status)) return;
+		const [liveIntent] = await tx.select({ id: transactionIntents.id })
+			.from(transactionIntents)
+			.where(and(
+				eq(transactionIntents.flowId, flowId),
+				inArray(transactionIntents.status, ["prepared", "broadcast", "mined"]),
+			))
+			.limit(1);
 		const now = new Date();
-		const patch = failure.fatal
+		const terminalFailure = workflowFailureAction(failure.fatal, Boolean(liveIntent)) === "fail";
+		const patch = terminalFailure
 			? {
 				status: "failed" as const,
 				failedAt: now,
@@ -64,9 +80,9 @@ export async function recordWorkflowFailure(flowId: string, text: string): Promi
 			updatedAt: now,
 		}).where(and(
 			eq(flows.id, flowId),
-			notInArray(flows.status, ["settled", "cancelled", "failed"]),
+			eq(flows.status, flow.status),
 		)).returning({ id: flows.id });
-		if (updated && failure.fatal) {
+		if (updated && terminalFailure) {
 			await tx.insert(flowTransitions).values({
 				flowId,
 				fromStatus: flow.status,

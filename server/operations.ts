@@ -3,7 +3,7 @@ import { and, eq, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
 import { readEnsState, readNativeUsdcBalanceSnapshots } from "./chain";
 import { minimumTriggerAmount } from "./config";
 import { withDatabaseLease, database } from "./db/client";
-import { balanceSnapshots, chainEvents, flows, flowTransitions, names, transactionIntents } from "./db/schema";
+import { balanceSnapshots, chainEvents, flows, flowTransitions, names } from "./db/schema";
 import { NAME_RECHECK_MS } from "./flow-state";
 import { ORIGIN_WALLET_ACTIVE_STATUSES } from "./flow-state";
 import { logOperation } from "./log";
@@ -122,6 +122,7 @@ export async function processRecoveryBatch(
 async function scanUnscannedName(name: { id: string; depositAddress: string; chainIds: readonly number[] }): Promise<readonly string[]> {
 	const active = await database().select({ chainId: flows.originChainId }).from(flows).where(and(
 		eq(flows.nameId, name.id),
+		isNull(flows.originEventId),
 		inArray(flows.status, ORIGIN_WALLET_ACTIVE_STATUSES),
 	));
 	const activeChainIds = new Set(active.map((row) => Number(row.chainId)));
@@ -177,19 +178,7 @@ async function scanUnscannedName(name: { id: string; depositAddress: string; cha
 
 export function resumableRecoveryCandidate(now: Date) {
 	return and(
-		or(
-			inArray(flows.status, RESUMABLE_FLOW_STATUSES),
-			and(
-				eq(flows.status, "cancelled"),
-				isNull(flows.renewalEventId),
-				sql`coalesce(${flows.lastErrorCode}, '') <> 'duplicate_message_settled'`,
-				sql`exists (
-					select 1 from ${transactionIntents}
-					where ${transactionIntents.flowId} = ${flows.id}
-						and ${transactionIntents.status} in ('prepared', 'broadcast', 'mined', 'confirmed')
-				)`,
-			),
-		),
+		inArray(flows.status, RESUMABLE_FLOW_STATUSES),
 		or(
 			isNull(flows.workflowRunId),
 			lte(flows.updatedAt, new Date(now.getTime() - STARTING_STALE_MS)),
@@ -221,14 +210,13 @@ export function dueHeldNameRecoveryCandidate(now: Date) {
 	);
 }
 
-/** Select one lowest unresolved nonce from each sender and chain lane. */
+/** Select the lowest unresolved nonce for each sender and chain. */
 export function transactionMonitorCandidatesSql(limit = RECOVERY_LIMIT) {
 	return sql`
 		select distinct on (chain_id, lower(from_address))
 			id, flow_id, chain_id, status, broadcast_at
 		from transaction_intents
-		where status in ('prepared', 'broadcast', 'cancellation_requested', 'cancelling')
-			and current_raw_transaction is not null
+		where status in ('prepared', 'broadcast')
 		order by chain_id, lower(from_address), nonce
 		limit ${limit}
 	`;
@@ -359,7 +347,7 @@ async function clearStaleStartingMarkers(batch: RecoveryBatch, now: Date): Promi
 		));
 	};
 	await Promise.all([
-		clear(batch.resumableFlowIds, [...RESUMABLE_FLOW_STATUSES, "cancelled"]),
+		clear(batch.resumableFlowIds, RESUMABLE_FLOW_STATUSES),
 		clear(batch.overdueUnclaimedFlowIds, ["unclaimed"]),
 	]);
 }

@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { database } from "./db/client";
 import { flows, flowTransitions } from "./db/schema";
@@ -14,8 +14,16 @@ export const ORIGIN_WALLET_ACTIVE_STATUSES: FlowStatus[] = [
 	"held",
 ];
 
-export function originWalletOwnsStatus(status: FlowStatus): boolean {
-	return ORIGIN_WALLET_ACTIVE_STATUSES.includes(status);
+export function originWalletOwnsFlow(status: FlowStatus, originEventId: string | null): boolean {
+	return originEventId === null && ORIGIN_WALLET_ACTIVE_STATUSES.includes(status);
+}
+
+export function preOriginFlowAction(
+	status: FlowStatus,
+	hasOriginIntent: boolean,
+	expectedStatuses: readonly FlowStatus[],
+): "apply" | "ignore" {
+	return !hasOriginIntent && expectedStatuses.includes(status) ? "apply" : "ignore";
 }
 
 const TERMINAL_STATUSES = new Set<FlowStatus>(["settled", "cancelled", "failed"]);
@@ -103,5 +111,48 @@ export async function setFlowStatus(
 				detail,
 			});
 		}
+	});
+}
+
+/** Apply a validation result only before an origin transaction exists. */
+export async function setPreOriginFlowStatus(
+	flowId: string,
+	expectedStatuses: readonly FlowStatus[],
+	toStatus: "held" | "cancelled",
+	patch: Partial<typeof flows.$inferInsert>,
+	reasonCode: string,
+): Promise<{ applied: boolean; status: FlowStatus }> {
+	return database().transaction(async (tx) => {
+		const [flow] = await tx.select({
+			status: flows.status,
+			originTxIntentId: flows.originTxIntentId,
+		}).from(flows).where(eq(flows.id, flowId)).for("update");
+		if (!flow) throw new Error("The flow does not exist.");
+		if (preOriginFlowAction(flow.status, flow.originTxIntentId !== null, expectedStatuses) === "ignore") {
+			return { applied: false, status: flow.status };
+		}
+		const now = new Date();
+		const [updated] = await tx.update(flows).set({
+			...patch,
+			status: toStatus,
+			lastErrorCode: reasonCode,
+			...statusTime(toStatus, now),
+			updatedAt: now,
+		}).where(and(
+			eq(flows.id, flowId),
+			eq(flows.status, flow.status),
+			isNull(flows.originTxIntentId),
+		)).returning({ id: flows.id });
+		if (!updated) return { applied: false, status: flow.status };
+		if (flow.status !== toStatus) {
+			await tx.insert(flowTransitions).values({
+				flowId,
+				fromStatus: flow.status,
+				toStatus,
+				actor: "workflow",
+				reasonCode,
+			});
+		}
+		return { applied: true, status: toStatus };
 	});
 }

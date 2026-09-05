@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { and, eq, inArray, isNull, ne, notInArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { HUB_CHAIN, SERVER_CHAINS } from "../src/lib/chains";
 import { normalizeLabel } from "../src/lib/namepass";
@@ -7,13 +7,22 @@ import { readNativeUsdcBalances } from "./chain";
 import { minimumTriggerAmount } from "./config";
 import { database } from "./db/client";
 import { chainEvents, deposits, flows, flowTransitions, names, transactionIntents } from "./db/schema";
+import { cctpFlowRowsLockSql, cctpIdentityLockSql, hasCctpSourceEvidence } from "./cctp-identity";
 import { ApiError, handler, json, readObject } from "./http";
 import { logOperation } from "./log";
 import { startRenewalWorkflow } from "./workflows";
 import { rawPayloadExpiresAt } from "./retention";
+import {
+	assertCctpSettlementPair,
+	settlementBundleForEnsEvent,
+	settlementBundleForEvent,
+	type SettlementIdentityEvent,
+} from "./settlement-identity";
 import { STOPPED_DEPOSIT_ERROR, stoppedFlowReason } from "./stopped-flows";
 import { ORIGIN_WALLET_ACTIVE_STATUSES } from "./flow-state";
-import { requestTransactionCancellationSql, transactionHashMatchesIntentSql } from "./transactions";
+import {
+	transactionHashMatchesIntentSql,
+} from "./transactions";
 
 const COMMON_FIELDS = [
 	"event_id",
@@ -100,6 +109,7 @@ export interface GoldskyEvent {
 
 export interface GoldskyTransaction {
 	upsertEvent(event: GoldskyEvent): Promise<void>;
+	lockSettlementTransaction(event: GoldskyEvent): Promise<void>;
 	nameIdForAddress(address: string): Promise<string | undefined>;
 	upsertDeposit(event: GoldskyEvent, nameId: string): Promise<void>;
 	reconcileOriginBurn(event: GoldskyEvent): Promise<string | undefined>;
@@ -134,6 +144,27 @@ export function externalRenewalProjection(
 		amountApplied: String(facts.amount_applied),
 		durationSeconds: String(facts.duration),
 		cctpNonce: claim ? BigInt(String(claim.nonce)).toString() : null,
+	};
+}
+
+/** Settlement fields that may move to an existing evidence-rich source flow. */
+export function externalSettlementPatch(
+	projection: NonNullable<ReturnType<typeof externalRenewalProjection>>,
+	renewalEventId: string,
+	settledAt: Date,
+	expiryAfter: Date | null,
+) {
+	return {
+		renewalEventId,
+		status: "settled" as const,
+		amountProcessed: projection.amountProcessed,
+		gasAllowance: projection.gasAllowance,
+		amountApplied: projection.amountApplied,
+		durationSeconds: projection.durationSeconds,
+		cctpNonce: projection.cctpNonce,
+		...(expiryAfter ? { expiryAfter } : {}),
+		workflowRunId: null,
+		settledAt,
 	};
 }
 
@@ -343,6 +374,15 @@ export async function ingestGoldskyEvent(
 ): Promise<string | undefined> {
 	return store.transaction(async (tx) => {
 		await tx.upsertEvent(event);
+		if (
+			(event.eventFamily === "namepass"
+				&& (event.eventType === "Renewed" || event.eventType === "CCTPClaimed"))
+			|| (event.eventFamily === "ens" && event.eventType === "NameRenewed")
+		) {
+			/* Each handler stores its event before it waits. The handler that gets
+			   this lock second can then see the first committed bundle member. */
+			await tx.lockSettlementTransaction(event);
+		}
 		if (event.eventFamily === "namepass" && event.eventType === "DepositProcessed") {
 			return tx.reconcileOriginBurn(event);
 		}
@@ -497,9 +537,15 @@ export const postgresGoldskyStore: GoldskyStore = {
 								payloadExpiresAt: rawPayloadExpiresAt(now),
 								lastSeenAt: now,
 							},
-						});
-				},
-				async nameIdForAddress(address) {
+							});
+					},
+					async lockSettlementTransaction(event) {
+						await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(
+							${`goldsky-settlement:${event.chainId}:${event.txHash}`},
+							0
+						))`);
+					},
+					async nameIdForAddress(address) {
 					return (await tx.select({ id: names.id }).from(names).where(eq(names.depositAddress, address)))[0]?.id;
 				},
 				async upsertDeposit(event, nameId) {
@@ -527,159 +573,253 @@ export const postgresGoldskyStore: GoldskyStore = {
 							set: { status: event.gsOp === "c" ? "detected" : "orphaned" },
 						});
 				},
-					async reconcileOriginBurn(event) {
-						const facts = event.facts as Record<string, unknown>;
-						const wallet = String(facts.wallet_address ?? "");
-						const [name] = await tx.select({ id: names.id }).from(names).where(eq(names.depositAddress, wallet));
-						if (!name) return undefined;
-						if (event.chainId === HUB_CHAIN.chainId) {
-							const [direct] = await tx.select({ id: flows.id }).from(flows)
-								.innerJoin(transactionIntents, eq(transactionIntents.id, flows.originTxIntentId))
-								.where(and(
-									eq(flows.nameId, name.id),
-									eq(flows.originChainId, String(HUB_CHAIN.chainId)),
-									eq(transactionIntents.kind, "origin_renew"),
-									transactionHashMatchesIntentSql(event.txHash),
-								));
-							if (!direct) return undefined;
-							await tx.update(flows).set(event.gsOp === "d" ? {
-								originEvidenceTxHash: null,
-								amountProcessed: null,
-								remainingAmount: null,
-								updatedAt: new Date(),
-							} : {
-								originEvidenceTxHash: event.txHash,
-								amountProcessed: String(facts.amount),
-								remainingAmount: String(facts.remaining_amount),
-								updatedAt: new Date(),
-							}).where(eq(flows.id, direct.id));
-							if (event.gsOp !== "d" && BigInt(String(facts.remaining_amount)) > 0n) {
-								await this.markChainForScan(name.id, event.chainId);
-							}
-							return undefined;
-						}
-						if (event.gsOp === "d") {
-							const [flow] = await tx.select({
-								id: flows.id,
-								status: flows.status,
-								trigger: flows.trigger,
-								originIntentId: flows.originTxIntentId,
-							}).from(flows)
-								.leftJoin(transactionIntents, eq(transactionIntents.id, flows.originTxIntentId))
-								.where(and(
-									eq(flows.nameId, name.id),
-									eq(flows.originChainId, String(event.chainId)),
-									or(
-										sql<boolean>`lower(${flows.originEvidenceTxHash}) = lower(${event.txHash})`,
-										transactionHashMatchesIntentSql(event.txHash),
-									),
-								));
-							if (!flow) return undefined;
-							const status = flow.originIntentId
-								? "waiting_origin" as const
-								: flow.trigger === "external" ? "cancelled" as const : "queued" as const;
-							const now = new Date();
-							if (flow.originIntentId) {
-								await tx.update(transactionIntents).set({
-									status: "broadcast",
-									confirmedAt: null,
-									receipt: null,
-									updatedAt: now,
-								}).where(eq(transactionIntents.id, flow.originIntentId));
-							}
-							await tx.update(flows).set({
-								status,
-								originEvidenceTxHash: null,
-								amountProcessed: null,
-								remainingAmount: null,
-								workflowRunId: null,
-								lastErrorCode: "origin_reorged",
-								nextActionAt: status === "cancelled" ? null : now,
-								cancelledAt: status === "cancelled" ? now : null,
-								updatedAt: now,
-							}).where(eq(flows.id, flow.id));
-							await tx.insert(flowTransitions).values({
-								flowId: flow.id,
-								fromStatus: flow.status,
-								toStatus: status,
-								actor: "webhook",
-								reasonCode: "origin_reorged",
-							});
-							return status === "cancelled" ? undefined : flow.id;
-						}
-					/* Match the transaction before asking which flow owns the wallet. A
-					   confirmed burn releases that wallet while its Circle message keeps
-					   moving. A late DepositProcessed webhook must still attach to the
-					   same flow instead of creating a second claim for the same message. */
-					const [exact] = await tx.select({
+				async reconcileOriginBurn(event) {
+					const facts = event.facts as Record<string, unknown>;
+					const wallet = String(facts.wallet_address ?? "");
+					const [name] = await tx.select({ id: names.id }).from(names).where(eq(names.depositAddress, wallet));
+					if (!name) return undefined;
+					const originChainId = String(event.chainId);
+					const now = new Date();
+					const eventOwners = await tx.select({
 						id: flows.id,
+						nameId: flows.nameId,
+						originChainId: flows.originChainId,
 						status: flows.status,
+						trigger: flows.trigger,
+						originIntentId: flows.originTxIntentId,
+						claimIntentId: flows.claimTxIntentId,
+						renewalEventId: flows.renewalEventId,
+						cctpNonce: flows.cctpNonce,
+						cctpAttestation: flows.cctpAttestation,
+						originEventId: flows.originEventId,
+					}).from(flows).where(eq(flows.originEventId, event.eventId));
+					if (eventOwners.length > 1) throw new Error("One origin event is linked to multiple flows.");
+					if (eventOwners[0] && (
+						eventOwners[0].nameId !== name.id
+						|| eventOwners[0].originChainId !== originChainId
+					)) {
+						throw new Error("The origin event owner does not match the event route.");
+					}
+					const intentOwners = eventOwners.length ? [] : await tx.select({
+						id: flows.id,
+						nameId: flows.nameId,
+						originChainId: flows.originChainId,
+						status: flows.status,
+						trigger: flows.trigger,
+						originIntentId: flows.originTxIntentId,
+						claimIntentId: flows.claimTxIntentId,
+						renewalEventId: flows.renewalEventId,
+						cctpNonce: flows.cctpNonce,
+						cctpAttestation: flows.cctpAttestation,
+						originEventId: flows.originEventId,
 					}).from(flows)
-						.leftJoin(transactionIntents, eq(transactionIntents.id, flows.originTxIntentId))
+						.innerJoin(transactionIntents, eq(transactionIntents.id, flows.originTxIntentId))
 						.where(and(
 							eq(flows.nameId, name.id),
-							eq(flows.originChainId, String(event.chainId)),
-							or(
-								sql<boolean>`lower(${flows.originEvidenceTxHash}) = lower(${event.txHash})`,
-								transactionHashMatchesIntentSql(event.txHash),
-							),
+							eq(flows.originChainId, originChainId),
+							eq(transactionIntents.kind, "origin_renew"),
+							transactionHashMatchesIntentSql(event.txHash),
 						));
-					if (exact) {
-						const reconciledStatus = originBurnReconciliationStatus(exact.status);
-						const stillAtOrigin = reconciledStatus === "waiting_origin";
-						await tx.update(flows).set({
+					if (intentOwners.length > 1) throw new Error("One origin transaction matches multiple flows.");
+					let owner = eventOwners[0] ?? intentOwners[0];
+					if (!owner) {
+						const legacyOwners = await tx.select({ id: flows.id }).from(flows).where(and(
+							eq(flows.nameId, name.id),
+							eq(flows.originChainId, originChainId),
+							isNull(flows.originEventId),
+							isNull(flows.originTxIntentId),
+							eq(flows.originEvidenceTxHash, event.txHash),
+						));
+						if (legacyOwners.length) {
+							throw new Error("A legacy origin flow needs exact event identity before replay.");
+						}
+					}
+
+					if (event.chainId === HUB_CHAIN.chainId) {
+						if (!owner) return undefined;
+						await tx.execute(cctpFlowRowsLockSql([owner.id]));
+						const [lockedOwner] = await tx.select({
+							status: flows.status,
+							nameId: flows.nameId,
+							originChainId: flows.originChainId,
+							originEventId: flows.originEventId,
+						}).from(flows).where(eq(flows.id, owner.id));
+						if (
+							!lockedOwner
+							|| lockedOwner.nameId !== name.id
+							|| lockedOwner.originChainId !== originChainId
+							|| (event.gsOp === "d" && lockedOwner.originEventId !== event.eventId)
+							|| (event.gsOp === "c" && lockedOwner.originEventId !== null
+								&& lockedOwner.originEventId !== event.eventId)
+						) {
+							throw new Error("The Ethereum origin flow changed before reconciliation.");
+						}
+						await tx.update(flows).set(event.gsOp === "d" ? {
+							originEventId: null,
+							originEvidenceTxHash: null,
+							amountProcessed: null,
+							remainingAmount: null,
+							updatedAt: now,
+						} : {
+							originEventId: event.eventId,
 							originEvidenceTxHash: event.txHash,
 							amountProcessed: String(facts.amount),
 							remainingAmount: String(facts.remaining_amount),
-							...(stillAtOrigin ? { status: reconciledStatus, waitingOriginAt: event.blockTime } : {}),
-							updatedAt: new Date(),
-						}).where(eq(flows.id, exact.id));
-						if (BigInt(String(facts.remaining_amount)) > 0n) {
+							updatedAt: now,
+						}).where(and(eq(flows.id, owner.id), eq(flows.status, lockedOwner.status)));
+						if (event.gsOp !== "d" && BigInt(String(facts.remaining_amount)) > 0n) {
 							await this.markChainForScan(name.id, event.chainId);
 						}
-						if (stillAtOrigin && exact.status !== "waiting_origin") {
-							await tx.insert(flowTransitions).values({
-								flowId: exact.id,
-								fromStatus: exact.status,
-								toStatus: "waiting_origin",
-								actor: "webhook",
-								reasonCode: "origin_burn_observed",
-							});
-						}
-						return exact.id;
+						return undefined;
 					}
 
-					const [active] = await tx.select({
-						id: flows.id,
-						status: flows.status,
-						workflowRunId: flows.workflowRunId,
-						originIntentId: flows.originTxIntentId,
-					})
-						.from(flows).where(and(
+					if (event.gsOp === "d") {
+						if (!owner) return undefined;
+						const [renewalBeforeLock] = owner.renewalEventId
+							? await tx.select({ canonical: chainEvents.canonical })
+								.from(chainEvents).where(eq(chainEvents.eventId, owner.renewalEventId))
+							: [];
+						if (renewalBeforeLock?.canonical) {
+							throw new Error("A canonical settlement conflicts with the deleted origin event.");
+						}
+						if (owner.cctpNonce) {
+							await tx.execute(cctpIdentityLockSql(owner.originChainId, owner.cctpNonce));
+						}
+						await tx.execute(sql`select id from flows where id = ${owner.id} for update`);
+						const [lockedOwner] = await tx.select({
+							status: flows.status,
+							originIntentId: flows.originTxIntentId,
+							renewalEventId: flows.renewalEventId,
+							cctpNonce: flows.cctpNonce,
+							claimIntentId: flows.claimTxIntentId,
+							cctpAttestation: flows.cctpAttestation,
+							originEventId: flows.originEventId,
+						}).from(flows).where(eq(flows.id, owner.id));
+						if (
+							!lockedOwner
+							|| lockedOwner.originEventId !== event.eventId
+							|| lockedOwner.cctpNonce !== owner.cctpNonce
+							|| lockedOwner.renewalEventId !== owner.renewalEventId
+						) {
+							throw new Error("The origin flow changed while its event was removed.");
+						}
+						if (lockedOwner.originIntentId && (lockedOwner.claimIntentId || lockedOwner.cctpAttestation)) {
+							throw new Error("A final CCTP claim conflicts with the deleted origin event.");
+						}
+						const hasOriginIntent = lockedOwner.originIntentId !== null;
+						if (hasOriginIntent) {
+							await tx.update(transactionIntents).set({
+								status: "broadcast",
+								confirmedAt: null,
+								receipt: null,
+								updatedAt: now,
+							}).where(and(
+								eq(transactionIntents.id, lockedOwner.originIntentId!),
+								eq(transactionIntents.kind, "origin_renew"),
+								inArray(transactionIntents.status, ["broadcast", "mined", "confirmed"]),
+							));
+						}
+						const status = hasOriginIntent ? "waiting_origin" as const : "cancelled" as const;
+						await tx.update(flows).set({
+							status,
+							...(hasOriginIntent ? { originEventId: null } : {}),
+							originEvidenceTxHash: null,
+							amountProcessed: null,
+							remainingAmount: null,
+							cctpMessageIndex: null,
+							cctpMessage: null,
+							cctpNonce: null,
+							cctpAttestation: null,
+							workflowRunId: null,
+							lastErrorCode: "origin_reorged",
+							nextActionAt: hasOriginIntent ? now : null,
+							cancelledAt: hasOriginIntent ? null : now,
+							updatedAt: now,
+						}).where(and(eq(flows.id, owner.id), eq(flows.status, lockedOwner.status)));
+						await tx.insert(flowTransitions).values({
+							flowId: owner.id,
+							fromStatus: lockedOwner.status,
+							toStatus: status,
+							actor: "webhook",
+							reasonCode: "origin_reorged",
+						});
+						return hasOriginIntent ? owner.id : undefined;
+					}
+
+					if (owner) {
+						if (owner.cctpNonce) {
+							await tx.execute(cctpIdentityLockSql(owner.originChainId, owner.cctpNonce));
+						}
+						await tx.execute(cctpFlowRowsLockSql([owner.id]));
+						const [lockedOwner] = await tx.select({
+							id: flows.id,
+							nameId: flows.nameId,
+							originChainId: flows.originChainId,
+							status: flows.status,
+							trigger: flows.trigger,
+							originIntentId: flows.originTxIntentId,
+							claimIntentId: flows.claimTxIntentId,
+							renewalEventId: flows.renewalEventId,
+							cctpNonce: flows.cctpNonce,
+							cctpAttestation: flows.cctpAttestation,
+							originEventId: flows.originEventId,
+						}).from(flows).where(eq(flows.id, owner.id));
+						if (
+							!lockedOwner
+							|| lockedOwner.nameId !== name.id
+							|| lockedOwner.originChainId !== originChainId
+							|| (lockedOwner.originEventId !== null
+								&& lockedOwner.originEventId !== event.eventId)
+						) {
+							throw new Error("The origin flow changed before reconciliation.");
+						}
+						owner = lockedOwner;
+					}
+
+					if (!owner) {
+						const [active] = await tx.select({
+							id: flows.id,
+							nameId: flows.nameId,
+							originChainId: flows.originChainId,
+							status: flows.status,
+							trigger: flows.trigger,
+							originIntentId: flows.originTxIntentId,
+							claimIntentId: flows.claimTxIntentId,
+							renewalEventId: flows.renewalEventId,
+							cctpNonce: flows.cctpNonce,
+							cctpAttestation: flows.cctpAttestation,
+							originEventId: flows.originEventId,
+						}).from(flows).where(and(
 							eq(flows.nameId, name.id),
-							eq(flows.originChainId, String(event.chainId)),
+							eq(flows.originChainId, originChainId),
+							isNull(flows.originEventId),
+							isNull(flows.originTxIntentId),
 							inArray(flows.status, ORIGIN_WALLET_ACTIVE_STATUSES),
-						));
-					const [originIntent] = active?.originIntentId
-						? await tx.select({ hash: transactionIntents.currentTxHash })
-							.from(transactionIntents).where(eq(transactionIntents.id, active.originIntentId))
-						: [];
-					const keepsOwner = originIntent?.hash?.toLowerCase() === event.txHash.toLowerCase();
+						)).for("update");
+						owner = active;
+					}
+
+					const nextStatus = owner ? originBurnReconciliationStatus(owner.status) : "waiting_origin" as const;
+					const restoresExternal = owner?.status === "cancelled" && owner.originIntentId === null;
 					const values = {
+						originEventId: event.eventId,
 						originEvidenceTxHash: event.txHash,
-						status: "waiting_origin" as const,
+						status: restoresExternal ? "waiting_origin" as const : nextStatus,
 						amountProcessed: String(facts.amount),
 						remainingAmount: String(facts.remaining_amount),
-						workflowRunId: keepsOwner ? active?.workflowRunId ?? null : null,
 						waitingOriginAt: event.blockTime,
-						updatedAt: new Date(),
+						...(restoresExternal ? { cancelledAt: null, lastErrorCode: null } : {}),
+						updatedAt: now,
 					};
-					const [flow] = active
-						? await tx.update(flows).set(values).where(eq(flows.id, active.id)).returning({ id: flows.id })
+					const [flow] = owner
+						? await tx.update(flows).set(values).where(and(
+							eq(flows.id, owner.id),
+							eq(flows.status, owner.status),
+						)).returning({ id: flows.id })
 						: await tx.insert(flows).values({
 							...values,
 							nameId: name.id,
-							originChainId: String(event.chainId),
+							originChainId,
 							trigger: "external",
 							amountDetected: String(facts.amount),
 						}).returning({ id: flows.id });
@@ -687,139 +827,165 @@ export const postgresGoldskyStore: GoldskyStore = {
 					if (BigInt(String(facts.remaining_amount)) > 0n) {
 						await this.markChainForScan(name.id, event.chainId);
 					}
-					await tx.insert(flowTransitions).values({
-						flowId: flow.id,
-						fromStatus: active?.status ?? null,
-						toStatus: "waiting_origin",
-						actor: "webhook",
-						reasonCode: "origin_burn_observed",
-					});
+					if (!owner || owner.status !== values.status) {
+						await tx.insert(flowTransitions).values({
+							flowId: flow.id,
+							fromStatus: owner?.status ?? null,
+							toStatus: values.status,
+							actor: "webhook",
+							reasonCode: "origin_burn_observed",
+						});
+					}
 					return flow.id;
 				},
 				async reconcileRenewal(event) {
-					const [renewal] = event.eventType === "Renewed"
-						? [{
-							eventId: event.eventId,
-							txHash: event.txHash,
-							blockTime: event.blockTime,
-							canonical: event.gsOp === "c",
-							facts: event.facts,
-						}]
-						: await tx
-							.select({
-								eventId: chainEvents.eventId,
-								txHash: chainEvents.txHash,
-								blockTime: chainEvents.blockTime,
-								canonical: chainEvents.canonical,
-								facts: chainEvents.facts,
-							})
-							.from(chainEvents)
-							.where(and(
-								eq(chainEvents.txHash, event.txHash),
-								eq(chainEvents.eventFamily, "namepass"),
-								eq(chainEvents.eventType, "Renewed"),
-							));
-					if (!renewal) return undefined;
+					const transactionEvents = await tx.select({
+						eventId: chainEvents.eventId,
+						eventFamily: chainEvents.eventFamily,
+						eventType: chainEvents.eventType,
+						logIndex: chainEvents.logIndex,
+						canonical: chainEvents.canonical,
+						facts: chainEvents.facts,
+					}).from(chainEvents).where(and(
+						eq(chainEvents.chainId, String(event.chainId)),
+						eq(chainEvents.txHash, event.txHash),
+					));
+					const bundle = settlementBundleForEvent(
+						transactionEvents as SettlementIdentityEvent[],
+						event.eventId,
+					);
+					if (!bundle) return undefined;
+					const renewal = {
+						...bundle.renewal,
+						txHash: event.txHash,
+						blockTime: event.blockTime,
+					};
 					const facts = renewal.facts as Record<string, unknown>;
 					const wallet = String(facts.wallet_address ?? "");
-					const [name] = await tx.select({ id: names.id }).from(names).where(eq(names.depositAddress, wallet));
+					const [name] = await tx.select({
+						id: names.id,
+						labelHash: names.labelHash,
+						normalizedLabel: names.normalizedLabel,
+					}).from(names).where(eq(names.depositAddress, wallet));
 					if (!name) return undefined;
-					const cancelDuplicateMessages = async (settled: {
-						flowId: string;
-						originChainId: string;
-						cctpNonce: string | null;
-						originTxHash: string | null;
-					}) => {
-						const identity = settled.cctpNonce && settled.originTxHash
-							? or(
-								eq(flows.cctpNonce, settled.cctpNonce),
-								sql<boolean>`lower(${flows.originEvidenceTxHash}) = lower(${settled.originTxHash})`,
-							)
-							: settled.cctpNonce
-								? eq(flows.cctpNonce, settled.cctpNonce)
-								: settled.originTxHash
-									? sql<boolean>`lower(${flows.originEvidenceTxHash}) = lower(${settled.originTxHash})`
-									: undefined;
-						if (!identity) return;
-						const duplicates = await tx.select({ id: flows.id, status: flows.status })
-							.from(flows)
-							.where(and(
-								eq(flows.nameId, name.id),
-								eq(flows.originChainId, settled.originChainId),
-								ne(flows.id, settled.flowId),
-								notInArray(flows.status, ["settled", "cancelled"]),
-								identity,
-							));
-						if (!duplicates.length) return;
-						const now = new Date();
-						await tx.execute(requestTransactionCancellationSql(
-							duplicates.map((duplicate) => duplicate.id),
-							now,
-						));
-						await tx.update(flows).set({
-							status: "cancelled",
-							holdReason: null,
-							workflowRunId: null,
-							lastErrorCode: "duplicate_message_settled",
-							lastErrorDetail: null,
-							nextActionAt: null,
-							cancelledAt: now,
-							updatedAt: now,
-						}).where(inArray(flows.id, duplicates.map((duplicate) => duplicate.id)));
-						await tx.insert(flowTransitions).values(duplicates.map((duplicate) => ({
-							flowId: duplicate.id,
-							fromStatus: duplicate.status,
-							toStatus: "cancelled" as const,
-							actor: "webhook",
-							reasonCode: "duplicate_message_settled",
-							detail: { settledFlowId: settled.flowId },
-						})));
-					};
-					const [ensRenewal] = await tx.select({ facts: chainEvents.facts }).from(chainEvents).where(and(
-						eq(chainEvents.txHash, renewal.txHash),
-						eq(chainEvents.eventFamily, "ens"),
-						eq(chainEvents.eventType, "NameRenewed"),
-						eq(chainEvents.canonical, true),
-					));
-					const expiryAfter = ensExpiry(ensRenewal?.facts);
+					if (
+						String(facts.label_hash ?? "").toLowerCase() !== name.labelHash.toLowerCase()
+						|| String(facts.label ?? "") !== name.normalizedLabel
+					) {
+						throw new Error("The exact renewal event does not match the activated name.");
+					}
+					const fromCctp = facts.from_cctp === "true";
+					if (fromCctp && !bundle.claim) return name.id;
+					assertCctpSettlementPair(bundle);
+					const expiryAfter = bundle.ensRenewal?.canonical
+						? ensExpiry(bundle.ensRenewal.facts)
+						: null;
 					const expiryPatch = expiryAfter ? { expiryAfter } : {};
 
-					if (!renewal.canonical || (event.eventType === "CCTPClaimed" && event.gsOp === "d")) {
+					if (!renewal.canonical || (bundle.claim !== undefined && !bundle.claim.canonical)) {
 						const affected = await tx.select({
 							flowId: flows.id,
+							originChainId: flows.originChainId,
 							status: flows.status,
 							trigger: flows.trigger,
 							cctpMessage: flows.cctpMessage,
+							cctpNonce: flows.cctpNonce,
+							originEventId: flows.originEventId,
 							originEvidenceTxHash: flows.originEvidenceTxHash,
+							renewalEventId: flows.renewalEventId,
 						}).from(flows).where(eq(flows.renewalEventId, renewal.eventId));
 						const now = new Date();
-						for (const row of affected) {
-							const [matchingIntent] = await tx.select({ id: transactionIntents.id, kind: transactionIntents.kind })
+						for (const snapshot of affected) {
+							if (snapshot.cctpNonce) {
+								await tx.execute(cctpIdentityLockSql(snapshot.originChainId, snapshot.cctpNonce));
+							}
+							/* The Iris merge can move `renewalEventId` while this transaction
+							   waits for the identity lock. Resolve the owner again after the
+							   wait, then lock that row. */
+							const [ownerAfterLock] = await tx.select({
+								flowId: flows.id,
+								originChainId: flows.originChainId,
+								cctpNonce: flows.cctpNonce,
+							}).from(flows).where(eq(flows.renewalEventId, renewal.eventId));
+							if (!ownerAfterLock) continue;
+							if (snapshot.cctpNonce && (
+								ownerAfterLock.originChainId !== snapshot.originChainId
+								|| ownerAfterLock.cctpNonce !== snapshot.cctpNonce
+							)) {
+								throw new Error("The settlement identity changed while its event was removed.");
+							}
+							await tx.execute(cctpFlowRowsLockSql([ownerAfterLock.flowId]));
+							const [row] = await tx.select({
+								flowId: flows.id,
+								originChainId: flows.originChainId,
+								status: flows.status,
+								trigger: flows.trigger,
+								cctpMessage: flows.cctpMessage,
+								cctpNonce: flows.cctpNonce,
+								originEventId: flows.originEventId,
+								originEvidenceTxHash: flows.originEvidenceTxHash,
+								renewalEventId: flows.renewalEventId,
+							}).from(flows).where(eq(flows.id, ownerAfterLock.flowId));
+							if (!row || row.renewalEventId !== renewal.eventId) continue;
+							const [matchingIntent] = await tx.select({
+								id: transactionIntents.id,
+								kind: transactionIntents.kind,
+								status: transactionIntents.status,
+							})
 								.from(transactionIntents).where(and(
 									eq(transactionIntents.flowId, row.flowId),
 									transactionHashMatchesIntentSql(renewal.txHash),
 								));
-							const [claimIntent] = matchingIntent ? [] : await tx.select({ id: transactionIntents.id, kind: transactionIntents.kind })
+							const [claimIntent] = matchingIntent ? [] : await tx.select({
+								id: transactionIntents.id,
+								kind: transactionIntents.kind,
+								status: transactionIntents.status,
+							})
 								.from(transactionIntents).where(and(
 									eq(transactionIntents.flowId, row.flowId),
 									eq(transactionIntents.kind, "claim"),
 								));
-							const recoverable = row.trigger !== "external" || row.cctpMessage !== null || row.originEvidenceTxHash !== null;
+							const recoverable = row.trigger !== "external"
+								|| row.cctpMessage !== null
+								|| row.originEventId !== null
+								|| row.originEvidenceTxHash !== null;
 							if (!recoverable) {
-								await tx.update(flows).set({ status: "cancelled", cancelledAt: now, updatedAt: now })
+								await tx.update(flows).set({
+									status: "cancelled",
+									cctpNonce: null,
+									workflowRunId: null,
+									lastErrorCode: "settlement_reorged",
+									nextActionAt: null,
+									cancelledAt: now,
+									updatedAt: now,
+								})
 									.where(eq(flows.id, row.flowId));
+								if (row.status !== "cancelled") {
+									await tx.insert(flowTransitions).values({
+										flowId: row.flowId,
+										fromStatus: row.status,
+										toStatus: "cancelled",
+										actor: "webhook",
+										reasonCode: "settlement_reorged",
+									});
+								}
 								continue;
 							}
 							const intent = matchingIntent ?? claimIntent;
-							const status = intent ? reorgResumeStatus(intent.kind) : row.cctpMessage ? "submitting_claim" as const : "waiting_origin" as const;
-							if (intent) {
+							const status = intent?.status === "reverted"
+								? intent.kind === "claim" ? "unclaimed" as const : "queued" as const
+								: intent ? reorgResumeStatus(intent.kind)
+									: row.cctpMessage ? "submitting_claim" as const : "waiting_origin" as const;
+							if (matchingIntent) {
 								await tx.update(transactionIntents).set({
-									status: matchingIntent ? "broadcast" : "prepared",
-									broadcastAt: matchingIntent ? undefined : null,
+									status: "broadcast",
 									confirmedAt: null,
 									receipt: null,
 									updatedAt: now,
-								}).where(eq(transactionIntents.id, intent.id));
+								}).where(and(
+									eq(transactionIntents.id, matchingIntent.id),
+									inArray(transactionIntents.status, ["mined", "confirmed"]),
+								));
 							}
 							await tx.update(flows).set({
 								renewalEventId: null,
@@ -845,7 +1011,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 						return name.id;
 					}
 
-					const [known] = await tx
+					const knownRows = await tx
 						.select({
 							id: flows.id,
 							status: flows.status,
@@ -861,10 +1027,38 @@ export const postgresGoldskyStore: GoldskyStore = {
 						.innerJoin(transactionIntents, eq(transactionIntents.flowId, flows.id))
 						.where(and(
 							eq(flows.nameId, name.id),
+							ne(flows.status, "cancelled"),
 							transactionHashMatchesIntentSql(renewal.txHash),
 						));
+					if (knownRows.length > 1) {
+						throw new Error("One renewal transaction matches multiple flows.");
+					}
+					const known = knownRows[0];
 					if (known) {
 						const now = new Date();
+						if (known.cctpNonce) {
+							await tx.execute(cctpIdentityLockSql(known.originChainId, known.cctpNonce));
+						}
+						await tx.execute(cctpFlowRowsLockSql([known.id]));
+						const [current] = await tx.select({
+							status: flows.status,
+							cctpNonce: flows.cctpNonce,
+							remainingAmount: flows.remainingAmount,
+						}).from(flows).where(eq(flows.id, known.id));
+						if (!current || current.cctpNonce !== known.cctpNonce) {
+							throw new Error("The renewal flow changed while its event was reconciled.");
+						}
+						if (current.status === "cancelled" || current.status === "failed") {
+							throw new Error("A canonical renewal conflicts with a terminal flow.");
+						}
+						const [lockedIntent] = await tx.select({ id: transactionIntents.id })
+							.from(transactionIntents)
+							.where(and(
+								eq(transactionIntents.id, known.intentId),
+								transactionHashMatchesIntentSql(renewal.txHash),
+							))
+							.for("update");
+						if (!lockedIntent) throw new Error("The renewal intent changed before reconciliation.");
 						await tx.update(transactionIntents).set({
 							status: "confirmed",
 							confirmedAt: renewal.blockTime,
@@ -881,30 +1075,23 @@ export const postgresGoldskyStore: GoldskyStore = {
 							holdReason: null,
 							lastErrorCode: null,
 							nextActionAt: null,
+							workflowRunId: null,
 							settledAt: renewal.blockTime,
 							updatedAt: now,
 						})
 							.where(eq(flows.id, known.id));
-						if (known.status !== "settled") {
+						if (current.status !== "settled") {
 							await tx.insert(flowTransitions).values({
 								flowId: known.id,
-								fromStatus: known.status,
+								fromStatus: current.status,
 								toStatus: "settled",
 								actor: "webhook",
 								reasonCode: "canonical_renewal_observed",
 							});
 						}
-						await cancelDuplicateMessages({
-							flowId: known.id,
-							originChainId: known.originChainId,
-							cctpNonce: known.cctpNonce,
-							originTxHash: known.intentKind === "origin_renew"
-								? renewal.txHash
-								: known.originEvidenceTxHash,
-						});
 						// `Renewed.remainder` is pricing dust. Keep the origin wallet remainder
 						// that `DepositProcessed` stored, and mark only this chain for a balance scan.
-						if (BigInt(known.remainingAmount ?? "0") > 0n) {
+						if (BigInt(current.remainingAmount ?? "0") > 0n) {
 							await tx.update(names).set({
 								unscannedChainIds: sql`case
 									when ${known.originChainId}::numeric = any(${names.unscannedChainIds})
@@ -916,63 +1103,14 @@ export const postgresGoldskyStore: GoldskyStore = {
 						return name.id;
 					}
 
-					const fromCctp = facts.from_cctp === "true";
 					let claim: Record<string, unknown> | undefined;
 					if (fromCctp) {
-						if (event.eventType === "CCTPClaimed") claim = event.facts;
-						else {
-							const [row] = await tx.select({ facts: chainEvents.facts }).from(chainEvents).where(and(
-								eq(chainEvents.txHash, renewal.txHash),
-								eq(chainEvents.eventFamily, "namepass"),
-								eq(chainEvents.eventType, "CCTPClaimed"),
-								eq(chainEvents.canonical, true),
-							));
-							claim = row?.facts as Record<string, unknown> | undefined;
-						}
+						claim = bundle.claim?.canonical ? bundle.claim.facts : undefined;
 						if (!claim) return name.id;
 					}
 
 					const projection = externalRenewalProjection(facts, claim);
 					if (!projection) return name.id;
-					if (projection.cctpNonce) {
-						const [exact] = await tx.select({ id: flows.id }).from(flows).where(and(
-							eq(flows.nameId, name.id),
-							eq(flows.originChainId, projection.originChainId),
-							eq(flows.cctpNonce, projection.cctpNonce),
-						));
-						if (exact) {
-							await tx.update(flows).set({
-								renewalEventId: renewal.eventId,
-								status: "settled",
-								amountProcessed: projection.amountProcessed,
-								gasAllowance: projection.gasAllowance,
-								amountApplied: projection.amountApplied,
-								durationSeconds: projection.durationSeconds,
-								cctpNonce: projection.cctpNonce,
-								...expiryPatch,
-								holdReason: null,
-								lastErrorCode: null,
-								nextActionAt: null,
-								settledAt: renewal.blockTime,
-								updatedAt: new Date(),
-							}).where(eq(flows.id, exact.id));
-							await tx.update(transactionIntents).set({
-								status: "completed_externally",
-								confirmedAt: renewal.blockTime,
-								updatedAt: new Date(),
-							}).where(and(
-								eq(transactionIntents.flowId, exact.id),
-								eq(transactionIntents.kind, "claim"),
-							));
-							await cancelDuplicateMessages({
-								flowId: exact.id,
-								originChainId: projection.originChainId,
-								cctpNonce: projection.cctpNonce,
-								originTxHash: null,
-							});
-							return name.id;
-						}
-					}
 					const values = {
 						nameId: name.id,
 						renewalEventId: renewal.eventId,
@@ -982,11 +1120,130 @@ export const postgresGoldskyStore: GoldskyStore = {
 						...expiryPatch,
 						settledAt: renewal.blockTime,
 					};
-					const [existing] = await tx.select({ id: flows.id }).from(flows)
+					const settlementPatch = externalSettlementPatch(
+						projection,
+						renewal.eventId,
+						renewal.blockTime,
+						expiryAfter,
+					);
+					if (projection.cctpNonce) {
+						const now = new Date();
+						await tx.execute(cctpIdentityLockSql(projection.originChainId, projection.cctpNonce));
+						const [eventOwner] = await tx.select().from(flows)
+							.where(eq(flows.renewalEventId, renewal.eventId));
+						const owners = await tx.select().from(flows).where(and(
+							eq(flows.originChainId, projection.originChainId),
+							eq(flows.cctpNonce, projection.cctpNonce),
+						));
+						if (owners.length > 1) throw new Error("One Circle message is linked to multiple active flows.");
+						const owner = owners[0];
+						if (owner) {
+							if (
+								owner.nameId !== name.id
+								|| owner.originChainId !== projection.originChainId
+								|| (owner.amountProcessed !== null
+									&& owner.amountProcessed !== projection.amountProcessed)
+							) {
+								throw new Error("The Circle message owner does not match the settlement event.");
+							}
+							const idsToLock = [...new Set([owner.id, ...(eventOwner ? [eventOwner.id] : [])])];
+							await tx.execute(cctpFlowRowsLockSql(idsToLock));
+							const [lockedOwner] = await tx.select({
+								status: flows.status,
+								nameId: flows.nameId,
+								originChainId: flows.originChainId,
+								cctpNonce: flows.cctpNonce,
+								amountProcessed: flows.amountProcessed,
+							}).from(flows).where(eq(flows.id, owner.id));
+							if (
+								!lockedOwner
+								|| lockedOwner.nameId !== name.id
+								|| lockedOwner.originChainId !== projection.originChainId
+								|| lockedOwner.cctpNonce !== projection.cctpNonce
+								|| (lockedOwner.amountProcessed !== null
+									&& lockedOwner.amountProcessed !== projection.amountProcessed)
+							) {
+								throw new Error("The Circle message owner changed before settlement.");
+							}
+							if (lockedOwner.status === "cancelled" || lockedOwner.status === "failed") {
+								throw new Error("A canonical renewal conflicts with a terminal Circle message owner.");
+							}
+							if (eventOwner && eventOwner.id !== owner.id) {
+								await tx.update(flows).set({ renewalEventId: null, updatedAt: now })
+									.where(and(
+										eq(flows.id, eventOwner.id),
+										eq(flows.renewalEventId, renewal.eventId),
+									));
+							}
+							await tx.update(flows).set({
+								...settlementPatch,
+								holdReason: null,
+								lastErrorCode: null,
+								lastErrorDetail: null,
+								nextActionAt: null,
+								cancelledAt: null,
+								updatedAt: now,
+							}).where(and(eq(flows.id, owner.id), eq(flows.status, lockedOwner.status)));
+							if (lockedOwner.status !== "settled") {
+								await tx.insert(flowTransitions).values({
+									flowId: owner.id,
+									fromStatus: lockedOwner.status,
+									toStatus: "settled",
+									actor: "webhook",
+									reasonCode: "canonical_renewal_observed",
+								});
+							}
+							return name.id;
+						}
+						if (eventOwner) {
+							if (eventOwner.nameId !== name.id) {
+								throw new Error("The renewal event owner does not match the settlement event.");
+							}
+							await tx.execute(cctpFlowRowsLockSql([eventOwner.id]));
+							const [lockedEventOwner] = await tx.select().from(flows)
+								.where(eq(flows.id, eventOwner.id));
+							if (
+								!lockedEventOwner
+								|| lockedEventOwner.renewalEventId !== renewal.eventId
+								|| lockedEventOwner.nameId !== name.id
+								|| lockedEventOwner.trigger !== "external"
+								|| lockedEventOwner.claimTxIntentId !== null
+								|| hasCctpSourceEvidence(lockedEventOwner)
+							) {
+								throw new Error("The renewal event owner is not a bare external projection.");
+							}
+							await tx.update(flows).set({
+								...values,
+								cancelledAt: null,
+								lastErrorCode: null,
+								updatedAt: now,
+							}).where(and(
+								eq(flows.id, eventOwner.id),
+								eq(flows.renewalEventId, renewal.eventId),
+							));
+							return name.id;
+						}
+						await tx.insert(flows).values(values).onConflictDoNothing();
+						return name.id;
+					}
+					const [existing] = await tx.select().from(flows)
 						.where(eq(flows.renewalEventId, renewal.eventId));
 					if (existing) {
+						await tx.execute(cctpFlowRowsLockSql([existing.id]));
+						const [lockedExisting] = await tx.select().from(flows).where(eq(flows.id, existing.id));
+						if (
+							!lockedExisting
+							|| lockedExisting.renewalEventId !== renewal.eventId
+							|| lockedExisting.nameId !== name.id
+							|| lockedExisting.trigger !== "external"
+							|| lockedExisting.originTxIntentId !== null
+							|| lockedExisting.claimTxIntentId !== null
+							|| hasCctpSourceEvidence(lockedExisting)
+						) {
+							throw new Error("The renewal event conflicts with a non-external flow.");
+						}
 						await tx.update(flows).set({ ...values, status: "settled", cancelledAt: null, updatedAt: new Date() })
-							.where(eq(flows.id, existing.id));
+							.where(and(eq(flows.id, existing.id), eq(flows.renewalEventId, renewal.eventId)));
 					} else {
 						await tx.insert(flows).values(values).onConflictDoNothing();
 					}
@@ -1008,6 +1265,27 @@ export const postgresGoldskyStore: GoldskyStore = {
 						.where(eq(names.id, nameId));
 				},
 				async refreshEnsExpiry(event) {
+					const transactionEvents = await tx.select({
+						eventId: chainEvents.eventId,
+						eventFamily: chainEvents.eventFamily,
+						eventType: chainEvents.eventType,
+						logIndex: chainEvents.logIndex,
+						canonical: chainEvents.canonical,
+						facts: chainEvents.facts,
+					}).from(chainEvents).where(and(
+						eq(chainEvents.chainId, String(event.chainId)),
+						eq(chainEvents.txHash, event.txHash),
+					));
+					const bundle = settlementBundleForEnsEvent(
+						transactionEvents as SettlementIdentityEvent[],
+						event.eventId,
+					);
+					if (bundle?.renewal.canonical) {
+						await tx.update(flows).set({
+							expiryAfter: event.gsOp === "d" ? null : ensExpiry(event.facts),
+							updatedAt: new Date(),
+						}).where(eq(flows.renewalEventId, bundle.renewal.eventId));
+					}
 					let facts = event.facts;
 					if (event.gsOp === "d") {
 						const [previous] = await tx.select({ facts: chainEvents.facts })
@@ -1035,19 +1313,6 @@ export const postgresGoldskyStore: GoldskyStore = {
 						};
 					await tx.update(names).set(aggregate)
 						.where(eq(names.normalizedLabel, label));
-					const renewals = await tx.select({ eventId: chainEvents.eventId }).from(chainEvents).where(and(
-						eq(chainEvents.txHash, event.txHash),
-						eq(chainEvents.eventFamily, "namepass"),
-						eq(chainEvents.eventType, "Renewed"),
-						eq(chainEvents.canonical, true),
-					));
-					if (renewals.length) {
-						await tx.update(flows).set({
-							expiryAfter: event.gsOp === "d" ? null : expiry,
-							updatedAt: new Date(),
-						})
-							.where(inArray(flows.renewalEventId, renewals.map((renewal) => renewal.eventId)));
-					}
 				},
 				async markChainForScan(nameId, chainId) {
 					await tx.update(names).set({
@@ -1081,6 +1346,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 							const [active] = await tx.select({ id: flows.id }).from(flows).where(and(
 								eq(flows.nameId, nameId),
 								eq(flows.originChainId, String(chainId)),
+								isNull(flows.originEventId),
 								inArray(flows.status, ORIGIN_WALLET_ACTIVE_STATUSES),
 							));
 							if (active) return active.id;
@@ -1115,12 +1381,13 @@ export const postgresGoldskyStore: GoldskyStore = {
 					const [existing] = await tx
 						.select({ id: flows.id })
 						.from(flows)
-						.where(
-							and(
-								eq(flows.nameId, nameId),
-								eq(flows.originChainId, String(chainId)),
-								inArray(flows.status, ORIGIN_WALLET_ACTIVE_STATUSES),
-							),
+							.where(
+								and(
+									eq(flows.nameId, nameId),
+									eq(flows.originChainId, String(chainId)),
+									isNull(flows.originEventId),
+									inArray(flows.status, ORIGIN_WALLET_ACTIVE_STATUSES),
+								),
 						);
 					if (!existing) throw new Error("Active flow conflict did not return a flow.");
 					await tx.update(flows).set({

@@ -20,21 +20,20 @@ import {
 	isMissingTransactionReceipt,
 	isInsufficientFundsError,
 	isNonceTooLowError,
-	freeRelayerLaneSql,
 	gasLimitWithSafetyMargin,
 	replacementFee,
-	requestTransactionCancellationSql,
 	transactionAttemptHashes,
 	transactionHashMatchesIntentSql,
+	transactionReceiptMatchesCurrentNonce,
 	originRevertFlowPatch,
-	relayerCandidatesForChain,
 	reconcileConsumedNonce,
+	transactionPreparationAllowed,
 	transactionIntentAction,
 	transactionMonitorTiming,
 	withVerifiedChainClient,
 } from "./transactions";
 import { TransactionReceiptNotFoundError } from "viem";
-import { ACTIVE_CHAINS, chainByKey, HUB_CHAIN } from "../src/lib/chains";
+import { ACTIVE_CHAINS, HUB_CHAIN } from "../src/lib/chains";
 
 const DEPOSIT_PROCESSED = parseAbi([
 	"event DepositProcessed(bytes32 indexed labelKey, address indexed wallet, uint256 amount, uint256 remaining)",
@@ -106,15 +105,6 @@ test("settlement checks every same-nonce attempt when an older replacement wins"
 	], "9"), [first, replacement]);
 });
 
-test("duplicate cancellation changes only unresolved transaction intents", () => {
-	const query = new PgDialect().sqlToQuery(requestTransactionCancellationSql(
-		["11111111-1111-4111-8111-111111111111"],
-		new Date("2026-09-04T10:00:00.000Z"),
-	));
-	assert.match(query.sql, /status = 'cancellation_requested'/);
-	assert.match(query.sql, /status in \('prepared', 'broadcast'\)/);
-});
-
 test("indexed evidence matches only attempts from the intent's current nonce", () => {
 	const query = new PgDialect().sqlToQuery(transactionHashMatchesIntentSql(`0x${"d".repeat(64)}`));
 	assert.match(query.sql, /attempt->>'nonce'/);
@@ -150,24 +140,49 @@ test("a nonce-too-low race checks known receipts before the RPC nonce", async ()
 	assert.equal(await reconcileConsumedNonce(8n, async () => undefined, async () => 8n), "not_consumed");
 });
 
-test("the four-wallet pool is limited to Ethereum", () => {
-	const accounts = ["one", "two", "three", "four"];
-	assert.deepEqual(relayerCandidatesForChain(HUB_CHAIN, accounts), accounts);
-	assert.deepEqual(relayerCandidatesForChain(chainByKey("base"), accounts), ["one"]);
+test("every active chain uses the same replacement timeout", () => {
 	for (const chain of ACTIVE_CHAINS) {
 		assert.equal(chain.polling.transactionReplacementMs, 3 * 60_000);
 	}
 });
 
-test("database lane allocation locks one free relayer and skips busy rows", () => {
-	const query = new PgDialect().sqlToQuery(freeRelayerLaneSql(11155111, [
-		"0x1111111111111111111111111111111111111111",
-		"0x2222222222222222222222222222222222222222",
-	]));
-	assert.match(query.sql, /not exists/);
-	assert.match(query.sql, /status in \('prepared', 'broadcast', 'cancellation_requested', 'cancelling'\)/);
-	assert.match(query.sql, /for update of rn skip locked/);
-	assert.match(query.sql, /limit 1/);
+test("post-RPC transaction preparation accepts only the expected flow stage", () => {
+	const statuses = [
+		"queued", "confirming_deposit", "checking_name", "submitting_origin", "waiting_origin",
+		"waiting_attestation", "submitting_claim", "waiting_claim", "held", "unclaimed",
+		"settled", "cancelled", "failed",
+	] as const;
+	for (const status of statuses) {
+		const empty = { status, originTxIntentId: null, claimTxIntentId: null };
+		assert.equal(transactionPreparationAllowed(empty, "origin_renew"), status === "checking_name");
+		assert.equal(
+			transactionPreparationAllowed({ ...empty, originTxIntentId: "origin" }, "origin_renew", "origin"),
+			status === "queued",
+		);
+		assert.equal(
+			transactionPreparationAllowed(empty, "claim"),
+			["waiting_attestation", "unclaimed", "submitting_claim"].includes(status),
+		);
+		assert.equal(
+			transactionPreparationAllowed({ ...empty, claimTxIntentId: "claim" }, "claim", "claim"),
+			status === "unclaimed",
+		);
+	}
+});
+
+test("a receipt must belong to the intent's current nonce", () => {
+	const old = `0x${"a".repeat(64)}`;
+	const current = `0x${"b".repeat(64)}`;
+	const intent = {
+		currentTxHash: current,
+		nonce: "8",
+		attempts: [
+			{ hash: old, nonce: "7" },
+			{ hash: current, nonce: "8" },
+		],
+	};
+	assert.equal(transactionReceiptMatchesCurrentNonce(intent, current), true);
+	assert.equal(transactionReceiptMatchesCurrentNonce(intent, old), false);
 });
 
 test("the transaction monitor warns after 30 seconds and replaces after three minutes", () => {

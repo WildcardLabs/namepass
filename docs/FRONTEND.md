@@ -25,9 +25,9 @@ states why the sender is unavailable. The second value comes from the permanent 
 executor fact. A recent canonical delete removes the row on the next poll.
 
 The API returns canonical flow state. The browser renders every returned flow and does not hide
-duplicates. Exact origin-transaction and Circle-nonce constraints belong to the server and
-database. Separate payments can share a name, chain, and amount, so the browser never combines
-rows by those values.
+duplicates. Exact `DepositProcessed` event and Circle-nonce constraints belong to the server and
+database. A transaction can contain several calls. Separate payments can also share a name, chain,
+and amount. The browser never combines rows by any of those values.
 
 The selected-name endpoints return one indexed native-USDC balance per active chain. Activation
 stores an exact block-pinned chain snapshot. Public reads apply canonical Goldsky deposits and

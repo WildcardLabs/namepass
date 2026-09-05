@@ -86,6 +86,36 @@ Apply migrations to the stable `testnet` branch before production:
 npx tsx server/db/migrate.ts
 ```
 
+Use two release points for the exact flow-identity change. Do not let the migration runner see
+`0007_exact_cctp_identity.sql` during the first release.
+
+Release 1:
+
+1. Apply `0006_transaction_identity_support.sql` with `DATABASE_URL_UNPOOLED`.
+2. Deploy the release-1 application commit. It writes exact origin event and message-index fields.
+3. Keep recovery active until existing workflows finish. Settled workflows clear their run owner.
+   The runtime merge resolves safe source and bare-external duplicate pairs.
+
+Release 2:
+
+1. Stop new deposits and manual triggers. Pause Goldsky delivery and `/api/cron/recover`.
+2. Confirm that every remaining duplicate Circle group has no `workflow_run_id` and no unresolved
+   transaction intent.
+3. Create a Neon restore point or branch.
+4. Apply `0007_exact_cctp_identity.sql`. It locks the affected tables for its transaction.
+5. Stop if the migration reports an ambiguous origin event, conflicting duplicate evidence, a live
+   workflow, or an unresolved transaction. Investigate that exact row. Do not rank or delete rows.
+6. Deploy the release-2 commit.
+7. Verify one owner for each non-null `origin_event_id` and `(origin_chain_id, cctp_nonce)`. Verify
+   that each repaired loser has `duplicate_flow_repaired` and points to its canonical flow.
+8. Resume Goldsky delivery, replay the paused range, resume recovery, and then allow new deposits.
+
+Migration `0006` adds nullable exact identity fields and safely backfills only one-to-one origin
+event matches. Migration `0007` merges only one evidence-rich source row with one bare external
+settlement row. It aborts the complete transaction for every other shape. The full Circle identity
+index includes cancelled rows. A cancelled loser must release its nonce before the source receives
+it.
+
 For the 2026-08-18 explorer repair, use this release order:
 
 1. Apply `0001_flow_expiry_after.sql`.
@@ -181,26 +211,15 @@ secret. Do not target a preview URL.
 
 ### Relayer
 
-Configure four test-only relayer accounts in `RELAYER_PRIVATE_KEYS` and their ordered public
-addresses in `RELAYER_ADDRESSES`. Ethereum Sepolia uses all four. Base Sepolia, Arbitrum Sepolia,
-and Arc Testnet use the first account. Do not use these accounts outside Namepass. Monitor every
-account's native balance on Ethereum Sepolia. Monitor the primary account on the three source
-chains. The external address alert must notify the operator. Do not poll balances from the
-application when no transaction is running.
+Configure one test-only account in `RELAYER_PRIVATE_KEY`. Do not use this account from a wallet,
+script, deployment tool, or another service. Namepass must have exclusive nonce ownership. Fund and
+monitor the same address on every active chain. The external address alert must notify the operator.
+Do not poll balances from the application when no transaction is running.
 
-Use this release order for the pool:
-
-1. Apply `0006_transaction_monitoring.sql`, then `0007_exact_flow_identity.sql`.
-2. Create and fund three additional Ethereum relayers. Keep the existing relayer first.
-3. Set all four keys and addresses in the plural environment variables. Set both variables before
-   the new deployment starts.
-4. Deploy the application. Confirm that `/api/config/public` returns the four expected public
-   addresses and no key.
-5. Run four low-value Ethereum transactions at the same time. Confirm that each intent has a
-   different `from_address` and that a fifth records `relayer_pool_saturated` for durable retry.
-
-The singular environment variables remain a one-relayer fallback during migration. The plural
-variables take priority. Remove the singular variables only after the four-lane canary succeeds.
+Before deployment, confirm that no deployed version created an unresolved intent from an old pool
+address. This branch was not deployed, so the normal release has no pool drain. If such an intent
+exists in another environment, keep its key available until the exact intent gets a receipt. Do not
+move a pending nonce to the new sender.
 
 ## Operations
 
@@ -210,13 +229,13 @@ balance, raw Goldsky payload, or signed transaction.
 
 | Endpoint | Schedule | Action |
 |---|---|---|
-| `/api/cron/recover` | Every minute | Restarts safe unowned work, scans activation failures, and monitors one lowest transaction nonce per relayer lane. |
+| `/api/cron/recover` | Every minute | Restarts safe unowned work, scans activation failures, and monitors the lowest transaction nonce in each sender and chain queue. |
 | `/api/cron/retention` | Daily at 03:17 UTC | Clears at most 500 expired raw payloads. It keeps normalized chain-event data. |
 
 The recovery job has a transaction-scoped PostgreSQL advisory lock. It takes at most 10 rows from
 each recovery category. It checks stale workflow IDs through Vercel Workflow. It restarts any
-resumable workflow stage and reconciles a cancelled row that still owns a non-reverted transaction
-intent. It does not poll terminal `empty_wallet` history. A new Goldsky deposit or an explicit
+resumable workflow stage. It separately drains any durable signed intent without reopening a
+cancelled or failed flow. It does not poll terminal `empty_wallet` history. A new Goldsky deposit or an explicit
 manual trigger supplies new balance evidence. It restarts a flow only when the stored run is
 missing or terminal. It does not replace a pending or running Workflow run. The CCTP workflow owns
 its active Iris polling.
@@ -230,15 +249,14 @@ both EIP-1559 fee fields. An insufficient-funds rejection retries the same bytes
 higher fee cannot repair it. The workflow checks every stored attempt for the current nonce because
 an older same-nonce attempt can be mined after a replacement is broadcast.
 
-When the server cancels a duplicate flow, it requests cancellation for any unresolved transaction
-in the same database transaction. Recovery replaces that call with a zero-value self-transfer at
-the same nonce. Keep the cron active until either the original attempt or cancellation has a
-receipt. Do not free the lane by editing its status because that can leave a nonce gap.
+The service does not create cancellation transactions. If a signed call becomes obsolete, recovery
+keeps its original business bytes until a success or revert receipt exists. Terminal flow guards
+prevent the receipt from reopening canonical state. Do not free the queue by editing an intent
+status because that can leave a nonce gap.
 
-Only the lowest unresolved nonce in a lane can be replaced. A `nonce too low` response causes a
-receipt check across every stored attempt before another broadcast. One unresolved nonce still
-blocks later transactions from the same relayer on that chain. The other three Ethereum lanes can
-continue. If a
+Only the lowest unresolved nonce in a sender and chain queue can be replaced. A `nonce too low`
+response causes a receipt check across every stored attempt before another broadcast. One unresolved
+nonce blocks later transactions from that sender on that chain. If a
 transaction remains pending after repeated automatic replacements:
 
 1. Stop new stable-testnet funding and pause the recovery cron.
@@ -260,8 +278,7 @@ Configure provider alerts before stable-testnet use:
 - Vercel: Function `5xx` rate, cron failures, and Workflow failures.
 - Goldsky: pipeline failure, source lag, and webhook backpressure.
 - Neon: connection saturation, query latency, storage, and restore availability.
-- Relayer: external native-balance alerts for all four Ethereum addresses and the primary address
-  on every source chain.
+- Relayer: an external native-balance alert for the exclusive address on every active chain.
 
 Provider dashboards and alert delivery remain external runtime gates. An alert without a tested
 notification destination is not monitoring.
@@ -277,8 +294,8 @@ Run all drills on the stable testnet environment first. Do not edit production r
 2. **Stored transaction:** use a testnet flow that has signed bytes but no broadcast time. Call the
    recovery endpoint. Confirm that the stored transaction hash is broadcast. Confirm the receipt
    before a flow becomes settled.
-   Repeat with a successful receipt whose flow row says `cancelled`. Confirm that recovery checks
-   the stored receipt instead of the now-empty deposit wallet and changes the same row to `settled`.
+   Repeat with a successful receipt whose flow row says `cancelled`. Confirm that recovery records
+   the intent receipt but does not reopen the terminal flow.
 3. **Iris outage:** cause Iris to return a retryable response in a test environment. Confirm that
    the active workflow backs off. Confirm that the recovery job does not start another active run.
    When the flow becomes `unclaimed`, confirm that its due retry resumes the same Circle message.

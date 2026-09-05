@@ -1,8 +1,6 @@
 import { PUBLIC_CHAINS } from "./chains";
 
 export interface PublicConfigRead {
-	relayerAddress?: string | null;
-	relayerAddresses?: string[];
 	chains: Array<{ chainId: number; minimumTriggerAmount: string }>;
 }
 

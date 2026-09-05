@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { classifyWorkflowFailure } from "./workflow-failures";
+import { classifyWorkflowFailure, workflowFailureAction } from "./workflow-failures";
 
 test("workflow errors separate retryable chain state from invalid configuration", () => {
 	assert.deepEqual(classifyWorkflowFailure("execution reverted: 0xd4c19736"), {
@@ -16,8 +16,10 @@ test("workflow errors separate retryable chain state from invalid configuration"
 		code: "rpc_unavailable",
 		fatal: false,
 	});
-	assert.deepEqual(classifyWorkflowFailure("No relayer lane is free on this chain."), {
-		code: "relayer_pool_saturated",
-		fatal: false,
-	});
+});
+
+test("a failure cannot terminalize a flow with live signed bytes", () => {
+	assert.equal(workflowFailureAction(true, false), "fail");
+	assert.equal(workflowFailureAction(true, true), "retry");
+	assert.equal(workflowFailureAction(false, false), "retry");
 });

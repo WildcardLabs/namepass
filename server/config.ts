@@ -22,60 +22,21 @@ export function minimumTriggerAmount(chainId: number): bigint {
 	return config.minimumTriggerAmount;
 }
 
-function commaSeparated(value: string | undefined): string[] {
-	return value?.split(",").map((item) => item.trim()).filter(Boolean) ?? [];
-}
-
-/** Return one legacy key or the four-key Ethereum relayer pool. */
-export function configuredRelayerPrivateKeys(): readonly Hex[] {
-	const pool = commaSeparated(process.env.RELAYER_PRIVATE_KEYS);
-	const values = pool.length ? pool : commaSeparated(process.env.RELAYER_PRIVATE_KEY);
-	if (pool.length && pool.length !== 4) {
-		throw new Error("RELAYER_PRIVATE_KEYS must contain exactly four keys.");
-	}
-	if (values.some((key) => !/^0x[0-9a-f]{64}$/i.test(key))) {
-		throw new Error("A relayer private key is not configured correctly.");
-	}
-	if (new Set(values.map((key) => key.toLowerCase())).size !== values.length) {
-		throw new Error("Relayer private keys must be unique.");
-	}
-	return values as Hex[];
-}
-
-/** Public addresses only. Derive them from keys when keys exist. */
-export function configuredRelayerAddresses(): readonly string[] {
-	const pool = commaSeparated(process.env.RELAYER_ADDRESSES);
-	const legacy = commaSeparated(process.env.RELAYER_ADDRESS);
-	if (pool.length && pool.length !== 4) {
-		throw new Error("RELAYER_ADDRESSES must contain exactly four addresses.");
-	}
-	const configured = pool.length
-		? pool
-		: commaSeparated(process.env.RELAYER_PRIVATE_KEYS).length
-			? []
-			: legacy;
-	if (configured.some((address) => !/^0x[0-9a-f]{40}$/i.test(address))) {
-		throw new Error("A relayer address is not valid.");
-	}
-	const configuredAddresses = configured.map(checksumAddress);
-	const keys = configuredRelayerPrivateKeys();
-	const derivedAddresses = keys.map((key) => privateKeyToAccount(key).address);
-	if (derivedAddresses.length && configuredAddresses.length) {
-		if (derivedAddresses.length !== configuredAddresses.length
-			|| derivedAddresses.some((address, index) => address !== configuredAddresses[index])) {
-			throw new Error(derivedAddresses.length === 1
-				? "RELAYER_ADDRESS does not match RELAYER_PRIVATE_KEY."
-				: "RELAYER_ADDRESSES do not match RELAYER_PRIVATE_KEYS.");
-		}
-	}
-	const addresses = derivedAddresses.length ? derivedAddresses : configuredAddresses;
-	if (new Set(addresses.map((address) => address.toLowerCase())).size !== addresses.length) {
-		throw new Error("Relayer addresses must be unique.");
-	}
-	return addresses;
-}
-
-/** Compatibility field for clients that know only the primary relayer. */
+/** Public address only. Derive it from the key when the key exists. */
 export function configuredRelayerAddress(): string | null {
-	return configuredRelayerAddresses()[0] ?? null;
+	const configured = process.env.RELAYER_ADDRESS;
+	if (configured && !/^0x[0-9a-f]{40}$/i.test(configured)) {
+		throw new Error("RELAYER_ADDRESS is not a valid address.");
+	}
+	const configuredAddress = configured ? checksumAddress(configured) : null;
+	const key = process.env.RELAYER_PRIVATE_KEY;
+	if (!key) return configuredAddress;
+	if (!/^0x[0-9a-f]{64}$/i.test(key)) {
+		throw new Error("RELAYER_PRIVATE_KEY is not configured correctly.");
+	}
+	const derivedAddress = privateKeyToAccount(key as Hex).address;
+	if (configuredAddress && configuredAddress !== derivedAddress) {
+		throw new Error("RELAYER_ADDRESS does not match RELAYER_PRIVATE_KEY.");
+	}
+	return derivedAddress;
 }

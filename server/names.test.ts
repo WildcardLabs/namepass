@@ -48,11 +48,13 @@ test("an active flow hides an older stopped flow on the same chain", () => {
 	assert.deepEqual(visible.map((item) => item.flow.status), ["queued"]);
 });
 
-test("the name API hides a cancelled duplicate from the failed-flow UI", () => {
-	const duplicate = row("cancelled", "duplicate_message_settled");
-	duplicate.flow.lastErrorCode = "duplicate_message_settled";
-	assert.deepEqual(visibleNameFlows(
-		[duplicate],
-		[{ chainId: "84532", amount: "20000000" }],
-	), []);
+test("the name API hides merged and repaired duplicates from the failed-flow UI", () => {
+	for (const error of ["duplicate_message_settled", "duplicate_flow_merged", "duplicate_flow_repaired"]) {
+		const duplicate = row("cancelled", error);
+		duplicate.flow.lastErrorCode = error;
+		assert.deepEqual(visibleNameFlows(
+			[duplicate],
+			[{ chainId: "84532", amount: "20000000" }],
+		), []);
+	}
 });

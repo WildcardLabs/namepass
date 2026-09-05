@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { privateKeyToAccount } from "viem/accounts";
-import type { Hex } from "viem";
 
-import { CHAIN_TRIGGER_CONFIG, configuredRelayerAddress, configuredRelayerAddresses, minimumTriggerAmount } from "./config";
+import { CHAIN_TRIGGER_CONFIG, configuredRelayerAddress, minimumTriggerAmount } from "./config";
 import { SERVER_CHAINS } from "../src/lib/chains";
 import { publicConfig } from "./reads";
 import { minTrigger, setPublicConfig } from "../src/lib/triggerConfig";
@@ -43,11 +41,7 @@ test("the browser accepts only the complete public trigger configuration", () =>
 test("public configuration exposes only the configured relayer address", () => {
 	const previousAddress = process.env.RELAYER_ADDRESS;
 	const previousKey = process.env.RELAYER_PRIVATE_KEY;
-	const previousAddresses = process.env.RELAYER_ADDRESSES;
-	const previousKeys = process.env.RELAYER_PRIVATE_KEYS;
 	try {
-		delete process.env.RELAYER_ADDRESSES;
-		delete process.env.RELAYER_PRIVATE_KEYS;
 		delete process.env.RELAYER_PRIVATE_KEY;
 		process.env.RELAYER_ADDRESS = "0x0000000000000000000000000000000000000001";
 		const config = publicConfig();
@@ -58,23 +52,15 @@ test("public configuration exposes only the configured relayer address", () => {
 		else process.env.RELAYER_ADDRESS = previousAddress;
 		if (previousKey === undefined) delete process.env.RELAYER_PRIVATE_KEY;
 		else process.env.RELAYER_PRIVATE_KEY = previousKey;
-		if (previousAddresses === undefined) delete process.env.RELAYER_ADDRESSES;
-		else process.env.RELAYER_ADDRESSES = previousAddresses;
-		if (previousKeys === undefined) delete process.env.RELAYER_PRIVATE_KEYS;
-		else process.env.RELAYER_PRIVATE_KEYS = previousKeys;
 	}
 });
 
 test("the configured relayer address derives from and must match the private key", () => {
 	const previousAddress = process.env.RELAYER_ADDRESS;
 	const previousKey = process.env.RELAYER_PRIVATE_KEY;
-	const previousAddresses = process.env.RELAYER_ADDRESSES;
-	const previousKeys = process.env.RELAYER_PRIVATE_KEYS;
 	const key = `0x${"0".repeat(63)}1`;
 	const derived = "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf";
 	try {
-		delete process.env.RELAYER_ADDRESSES;
-		delete process.env.RELAYER_PRIVATE_KEYS;
 		process.env.RELAYER_PRIVATE_KEY = key;
 		delete process.env.RELAYER_ADDRESS;
 		assert.equal(configuredRelayerAddress(), derived);
@@ -89,33 +75,5 @@ test("the configured relayer address derives from and must match the private key
 		else process.env.RELAYER_ADDRESS = previousAddress;
 		if (previousKey === undefined) delete process.env.RELAYER_PRIVATE_KEY;
 		else process.env.RELAYER_PRIVATE_KEY = previousKey;
-		if (previousAddresses === undefined) delete process.env.RELAYER_ADDRESSES;
-		else process.env.RELAYER_ADDRESSES = previousAddresses;
-		if (previousKeys === undefined) delete process.env.RELAYER_PRIVATE_KEYS;
-		else process.env.RELAYER_PRIVATE_KEYS = previousKeys;
-	}
-});
-
-test("the Ethereum pool accepts exactly four ordered relayer keys", () => {
-	const names = ["RELAYER_ADDRESS", "RELAYER_PRIVATE_KEY", "RELAYER_ADDRESSES", "RELAYER_PRIVATE_KEYS"] as const;
-	const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
-	const keys = [1, 2, 3, 4].map((value) => `0x${value.toString(16).padStart(64, "0")}` as Hex);
-	const addresses = keys.map((key) => privateKeyToAccount(key).address);
-	try {
-		delete process.env.RELAYER_ADDRESS;
-		delete process.env.RELAYER_PRIVATE_KEY;
-		process.env.RELAYER_PRIVATE_KEYS = keys.join(",");
-		process.env.RELAYER_ADDRESSES = addresses.join(",");
-		assert.deepEqual(configuredRelayerAddresses(), addresses);
-		assert.equal(configuredRelayerAddress(), addresses[0]);
-		assert.deepEqual(publicConfig().relayerAddresses, addresses);
-
-		process.env.RELAYER_PRIVATE_KEYS = keys.slice(0, 3).join(",");
-		assert.throws(configuredRelayerAddresses, /exactly four keys/);
-	} finally {
-		for (const name of names) {
-			if (previous[name] === undefined) delete process.env[name];
-			else process.env[name] = previous[name];
-		}
 	}
 });

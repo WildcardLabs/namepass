@@ -7,76 +7,46 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
-### 2026-09-04 — Transaction state and exact payment identity are server invariants
+### 2026-09-04 — Use exact event identity and one relayer nonce queue
 
-A review found that the transaction monitor could read a reverted receipt from an earlier nonce,
-and a late broadcast update could change a confirmed intent back to `broadcast`. Receipt lookup now
-uses only attempts with the intent's current nonce. Broadcast writes compare the current status and
-hash. The monitor stores a mined receipt before it releases the nonce lane.
+An origin transaction hash is not a flow identity. One permissionless transaction can contain more
+than one valid `renew` call. Each `DepositProcessed` event now identifies one origin execution. The
+flow also stores the zero-based Circle message index for that transaction. The final CCTP identity
+is the origin chain and the Circle nonce. Amount, name, chain, and transaction hash are validation
+facts only.
 
-Canceling a duplicate flow also changes its unresolved transaction to `cancellation_requested` in
-the same database transaction. The monitor replaces the original call with a zero-value transfer to
-the same relayer at the same nonce. This prevents the duplicate call from being intentionally
-rebroadcast without leaving a nonce gap. The original call can still win a mempool race, so receipt
-lookup keeps every attempt for that nonce.
+A destination settlement can arrive before Iris gives the source flow its final nonce. In that
+case, Goldsky creates a bare external settlement row. When the source flow gets the same nonce, the
+server moves the settlement evidence to the source flow and cancels the bare row. It does not cancel
+the evidence-rich source flow. A settlement reorg can then resume that source flow with its stored
+message. On Ethereum, log order binds each `CCTPClaimed`, ENS `NameRenewed`, and `Renewed` event to
+one helper call. A transaction hash cannot bind events in a batch.
 
-The server never settles CCTP by amount. A non-canceled flow is unique by origin chain plus exact
-origin transaction, and by origin chain plus Circle nonce. Migration `0007_exact_flow_identity`
-cancels existing duplicate rows before it creates both partial unique indexes. The API returns this
-canonical state. The browser no longer hides duplicate rows.
+The service uses one exclusive relayer EOA. Each chain has one database nonce queue for that sender.
+RPC reads finish before the database transaction. The transaction then locks the flow and the one
+nonce row, stores signed bytes, and advances the counter. Only the lowest unresolved nonce is
+broadcast. The monitor warns after 30 seconds and uses same-nonce fee replacement after three
+minutes.
 
-The four-wallet Ethereum pool remains. RPC fee, gas, and pending-nonce reads happen before the short
-database lane lock. A fifth request records `relayer_pool_saturated` and enters normal durable
-workflow recovery. Replacement-count limits and fee ceilings remain outside this change.
+The service does not create cancellation transactions for obsolete work. An already signed intent
+stays durable until it gets a receipt. A terminal flow cannot be reopened by that receipt. This can
+cost gas for a rare reverted call when another executor settled first. It avoids a second
+cancellation state machine and makes a settlement reorg able to reuse the original business intent.
 
----
+Receipt lookup uses only attempts for the intent's current nonce. Post-RPC writers lock the flow,
+lock the intent, and verify that the receipt still belongs to that nonce. Broadcast writes compare
+the status and hash that they read. A late writer therefore cannot replace newer canonical state.
 
-### 2026-09-03 — Use four Ethereum relayer lanes with lane-head recovery
+A pre-sign validation result cannot cancel or hold a flow after an origin intent exists. A workflow
+failure also cannot mark a flow failed while it has prepared, broadcast, or mined bytes. The monitor
+must resolve those bytes first. If the exclusive account nonce advances without a receipt for any
+stored attempt, the queue stops and alerts. It does not skip an unknown transaction.
 
-Ethereum carries direct renewals and every CCTP claim. One EOA therefore made one pending nonce a
-platform-wide Ethereum blocker. The service now supports four exclusive Ethereum relayers. It
-assigns only a wallet with no unresolved intent and stores that address permanently on the intent.
-Base, Arbitrum, and Arc continue to use the primary wallet.
-
-The database owns lane assignment. RPC pending counts alone cannot prevent two serverless requests
-from selecting the same wallet. RPC reads finish before a transaction locks one `relayer_nonces`
-row with `FOR UPDATE SKIP LOCKED`, and each lane accepts one unresolved intent. The recovery cron
-checks the lowest nonce in each lane every minute. It warns after 30 seconds and makes a same-nonce
-fee replacement after three minutes. A rejected prepared transaction can also be replaced.
-
-Receipt reconciliation checks all signed attempts for the current nonce before it handles a
-`nonce too low` response. This closes the race where an older attempt mines while a replacement is
-being sent. Four wallets reduce the effect of a stall. They do not remove the need for same-nonce
-recovery.
-
-Replacement-count limits and fee ceilings are not part of this change.
-
----
-
-### 2026-09-02 — Releasing an origin wallet must not release the burn's identity
-
-The 2026-08-26 change correctly let a new payment start after an earlier CCTP burn left the origin
-wallet. It also introduced a race. If the workflow reached `waiting_attestation` before Goldsky
-delivered `DepositProcessed`, the webhook no longer found that flow among the stages that own the
-wallet. It created an external flow for the same burn. Two workflows then claimed one Circle
-message, and the browser added the duplicated amount.
-
-Do not fix this by making `waiting_attestation`, claim stages, or `unclaimed` own the origin wallet
-again. That restores the old bug where one Circle message blocks a later deposit on the same chain.
-Wallet ownership and message identity are separate rules. A late burn event first matches the exact
-origin transaction across every flow status. The confirmed automatic flow stores that transaction
-as evidence. A canonical settlement cancels any other non-terminal flow with the same origin
-transaction or Circle nonce.
-
-The database enforces the exact-identity rule for non-canceled flows. The API returns canonical
-rows, and the browser does not hide duplicate state. It never combines flows by name, chain, or
-amount because separate payments can share all three values.
-
-The same identity rule covers direct Ethereum renewals and transaction replacements. A logical
-intent can contain several same-nonce signed attempts, and any one of them can be mined. Goldsky
-matches `Renewed` and `DepositProcessed` against every attempt, not only the latest hash. The
-receipt's actual transaction hash becomes permanent origin evidence and public reads prefer that
-mined evidence over the latest signed replacement.
+Schema enforcement uses two release points. Release 1 applies migration `0006`, which adds nullable
+identity fields and backfills only one-to-one origin event matches. The application then starts
+writing exact identity. Release 2 pauses writers and applies migration `0007`. That migration runs a
+guarded duplicate repair and adds the full CCTP nonce unique index. It aborts if a duplicate group
+has conflicting source evidence, a Workflow owner, or unresolved transaction work.
 
 ### 2026-08-26 — CCTP flows release the origin wallet after the burn
 
@@ -306,14 +276,18 @@ needs a Vercel Firewall rate limit before stable-testnet funding. See `docs/RUNB
 
 ### 2026-08-17 — Circle Iris supplies the final CCTP v2 nonce
 
+**Updated on 2026-09-04:** A permissionless transaction can contain several Namepass calls. The
+workflow now selects the `MessageSent` event in the exact `DepositProcessed` call segment and stores
+its zero-based message index. The final nonce still comes from Iris.
+
 The CCTP v2 `MessageSent` event on the origin chain contains a zero nonce placeholder. Circle
 assigns the final nonce off chain. Iris returns that nonce in the final message. Therefore, Goldsky
 does not index Circle `MessageSent` events for Namepass.
 
-The workflow still verifies exactly one `MessageSent` event in the origin transaction. It verifies
-the route, amount, wallet, label, and requested finality. It then requests exactly one message from
-Iris by source domain and origin transaction hash. The workflow verifies the final route and stores
-the final message, nonce, and attestation before it submits the claim.
+The workflow verifies the selected `MessageSent` event in the origin transaction. It verifies the
+route, amount, wallet, label, and requested finality. It then requests the selected message index
+from Iris by source domain and origin transaction hash. The workflow verifies the final route and
+stores the final message, nonce, and attestation before it submits the claim.
 
 Goldsky indexes Namepass contract events. It indexes an ENS `NameRenewed` event only when it has the
 Namepass referrer from the shared deployment registry. This rule prevents unrelated Circle and ENS

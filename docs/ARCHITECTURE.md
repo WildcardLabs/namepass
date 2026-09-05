@@ -626,13 +626,16 @@ Circle Iris:                      final message + nonce + attestation
 Ethereum:                         CCTPClaimed(nonce) + Renewed
 ~~~
 
-The workflow verifies the origin receipt and stores its transaction hash. It requests exactly one
-Iris message for that transaction. It then verifies the final route, nonce, amount, wallet, and
-label. Goldsky does not index global Circle events.
+The workflow verifies the exact `DepositProcessed` log and its call segment. It stores the
+zero-based `MessageSent` index for that transaction. It requests that message index from Iris and
+then verifies the final route, nonce, amount, wallet, and label. Goldsky does not index global
+Circle events.
 
-For a permissionless external CCTP renewal, the claim and renewal events are exact. The origin
-transaction can be unknown because the application did not create its transaction intent. The
-application leaves that field empty. It does not use a heuristic.
+For a permissionless external CCTP renewal, log order binds the nearest preceding `CCTPClaimed`
+event and the matching ENS `NameRenewed` event to one `Renewed` event. This rule also supports two
+helper calls in one transaction. The origin transaction can be unknown because the application did
+not create its transaction intent. The application leaves that field empty. It does not use a
+heuristic.
 
 **ENS reports the expiry after a renewal, so nothing has to derive it.**
 
@@ -701,12 +704,16 @@ This is intentional:
 The webhook has at-least-once delivery. The receiver must expect duplicates. It also must expect a
 reorg delete after a create.
 
-`DepositProcessed` identifies its flow by the exact origin transaction before the receiver checks
-which flow currently owns the origin wallet. This ordering matters after a burn: the flow releases
-the wallet so a later deposit can start, but it keeps ownership of its Circle message. A late
-webhook must attach to that released flow instead of creating an external flow for the same burn.
-Canonical settlement cancels any non-terminal sibling with the same origin transaction or Circle
-nonce.
+Each `DepositProcessed` event ID identifies one origin execution. The transaction hash is evidence,
+not identity, because one transaction can contain several calls. A known Namepass transaction
+intent can match its own event. An external event can attach to an unsigned wallet-owner flow. If a
+different transaction is already signed, the external event gets a separate flow. Each real chain
+action then keeps its own receipt and event identity.
+
+The final Circle identity is the origin chain plus the CCTP nonce. If destination settlement arrives
+first, Goldsky creates a bare external row. Iris later moves that settlement evidence to the source
+flow with the same nonce. The source flow stays canonical. The bare row loses the nonce and becomes
+cancelled.
 
 Goldsky stores the webhook authorization header as an `httpauth` secret. The pipeline file contains
 only the secret name. The Vercel endpoint compares the header in constant time and rejects an
@@ -768,8 +775,9 @@ It performs this sequence:
 12. Return `2xx` only after the durable database write and workflow-start attempt succeed.
 
 A duplicate create changes no money totals and starts no second flow. A duplicate delete changes no
-additional state. Duplicate flow protection uses transaction and message identity, not a one-flow
-per-name-and-chain rule; a second real deposit can start after the first burn confirms.
+additional state. Flow identity uses the exact origin event and Circle nonce. It does not use the
+amount or the transaction hash. A second real deposit can start after the first burn event releases
+the wallet.
 
 If Neon or Workflow is unavailable, return `503`. Goldsky will retry. Do not return `2xx` and hope a
 background callback finishes.
@@ -899,7 +907,8 @@ Base, Arbitrum, and Arc use CCTP.
 confirm deposit
   → verify renewability and balance
   → submit factory.renew(label)
-  → confirm DepositProcessed and one Circle MessageSent with the origin placeholder nonce
+  → confirm one exact DepositProcessed event and its Circle MessageSent log
+  → store that message's index in the origin transaction
   → query Iris by source domain and origin transaction hash
   → wait for status complete
   → verify returned route, nonce, amount, wallet, label, and attestation status
@@ -909,8 +918,10 @@ confirm deposit
 ~~~
 
 One factory `renew` call burns at most Circle's current per-message limit. It produces at most one
-CCTP message. If `DepositProcessed.remaining` is non-zero, the settled workflow queues a new flow
-for the same name and chain. It does not add child-message logic to the current flow.
+CCTP message. A permissionless outer transaction can contain several calls and messages. The exact
+`DepositProcessed` log selects the message in its call segment. The flow stores that message's
+zero-based position among all Circle messages in the transaction. If `DepositProcessed.remaining`
+is non-zero, balance recovery can queue another flow for the same name and chain.
 
 Circle returns messages for a transaction in log-index order. The workflow still verifies that the
 selected message has all Namepass route fields:
@@ -929,6 +940,8 @@ The helper repeats these checks on chain. The off-chain checks prevent gas waste
 
 Use Circle's `GET /v2/messages/{sourceDomainId}` endpoint with the origin transaction hash.
 
+- Select the stored message index. Do not require the response to contain only one message.
+- If a legacy row has no index, recover it from the exact origin receipt before the Iris request.
 - Use the sandbox host for testnets.
 - Use the mainnet host for mainnet.
 - Treat `404` or an incomplete status as “not ready.”
@@ -994,90 +1007,59 @@ The relayer holds no user funds. It pays gas and receives the fixed helper allow
 successful renewal. Its key is still security-sensitive because it can submit transactions and
 consume gas.
 
-Use four exclusive relayer accounts per environment. No other tool or person may send transactions
-from them. Ethereum uses all four accounts. Base, Arbitrum, and Arc use only the first account.
+Use one exclusive relayer account per environment. No other tool or person may send transactions
+from it. The same address can operate on all chains because each chain has its own nonce sequence.
 
-An EOA nonce is sequential per sender and chain. One pending Ethereum transaction therefore blocks
-later Ethereum transactions from the same relayer. For Namepass, that lane contains direct
-Ethereum renewals and every CCTP claim. A pending transaction on Base, Arbitrum, or Arc does not
-block Ethereum or another chain. The current implementation warns after 30 seconds and replaces a
-stale transaction after three minutes with the same nonce and higher fees. Receipt checks inspect
-every signed attempt for the intent's current nonce. Four Ethereum accounts create four independent nonce lanes. One stalled lane
-does not block the other three lanes.
+An EOA nonce is sequential per sender and chain. One pending Ethereum transaction can delay a later
+direct renewal or CCTP claim. The monitor limits this delay with same-nonce replacement. Do not add
+more hot keys until production queue data shows a sustained throughput problem.
 
 Vercel serverless functions can run concurrently. An in-memory nonce manager is not safe. Neon
 therefore stores nonce state.
 
 ### Transaction intent algorithm
 
-1. Build and simulate the call without a nonce.
-2. Read the verified RPC fee quote and pending nonce for each candidate. Do not hold a database
-   connection while these network calls run.
-3. Start a Neon transaction and create missing nonce rows for the allowed relayers on that chain.
-4. Select a relayer that has no unresolved intent. Lock its nonce row with
-   `FOR UPDATE SKIP LOCKED`.
-5. Reserve `max(database_next_nonce, selected_rpc_pending_nonce)`.
-6. Sign the full transaction with the selected relayer and reserved nonce.
-7. Store the selected address, raw transaction, and expected hash in the intent.
-8. Increment `next_nonce` and commit.
-9. Broadcast the stored raw transaction.
-10. Record the receipt or replacement.
+1. Build the call.
+2. Verify the RPC chain ID. Read the gas estimate, fee quote, and pending nonce with the one relayer.
+   Do not hold a database lock during these network calls.
+3. Start a Neon transaction and lock the target flow.
+4. Check the flow status and existing intent again.
+5. Create the chain and relayer nonce row if it does not exist. Lock it with `FOR UPDATE`.
+6. Reserve `max(database_next_nonce, rpc_pending_nonce)`.
+7. Sign and store the full transaction, hash, and attempt history.
+8. Increment `next_nonce`, link the intent to the flow, and commit.
+9. Broadcast the stored bytes only if this intent has the lowest unresolved nonce.
+10. Record the receipt or use a same-nonce fee replacement.
 
-If the process stops after step 8, recovery rebroadcasts the same bytes. If the RPC reports “already
-known,” continue receipt polling. If it reports “nonce too low,” check every stored attempt for the
-current nonce before the system assumes that an unknown transaction consumed the nonce. If a transaction is rejected or
-stuck, sign a higher-fee replacement with the same nonce and selected relayer. Link it to the same
-intent.
+If the process stops after step 8, recovery broadcasts the same bytes. Later prepared intents stay
+in Postgres until all earlier nonces finish. If the RPC reports “already known,” continue receipt
+polling. If it reports “nonce too low,” check every current-nonce attempt before the system assumes
+that an unknown transaction consumed the nonce. If a transaction is rejected or stuck, sign a
+higher-fee replacement with the same nonce and relayer. Link it to the same intent.
+
+The account must remain exclusive to Namepass. If the confirmed account nonce advances and no
+stored attempt has a receipt, keep the queue blocked and alert the operator. Do not skip the nonce.
+An unknown sender transaction is a key-integrity incident. A temporary RPC receipt gap must not
+make the database guess which business call executed.
 
 Goldsky reconciliation matches a canonical transaction against every hash stored in that intent.
 An older attempt can be mined after a replacement was signed. The actual mined hash is stored as
 flow evidence and is preferred in public reads.
 
 An intent that retries after a mined revert gets a new nonce. Its receipt lookup excludes attempts
-from the old nonce. A monitor receipt changes the intent to `mined` before the lane is released.
-Later workflow or Goldsky settlement changes it to `confirmed` or `reverted`. Every broadcast write
-uses the status and hash it originally read, so it cannot reopen a newer terminal state.
+from the old nonce. A monitor receipt changes the intent to `mined` before the queue advances. Later
+workflow or Goldsky settlement changes it to `confirmed` or `reverted`. Post-RPC updates lock the
+flow and intent and verify the current nonce. Broadcast writes compare the status and hash that they
+read, so a late write cannot reopen newer state.
 
-Canceling a duplicate flow requests transaction cancellation in the same database transaction.
-The monitor signs a zero-value self-transfer with the duplicate intent's nonce and replacement
-fees. The original call and cancellation can race, but either receipt consumes the nonce without a
-gap. Cancellation attempts remain in the same audit history and are never treated as a renewal.
+The service does not replace obsolete work with a cancellation transaction. It keeps already signed
+bytes until they receive a success or revert receipt. Terminal flow guards stop that receipt from
+changing canonical flow state. This can spend gas on a rare obsolete call. It keeps reorg recovery
+simple and prevents a cancellation state machine from replacing reusable business bytes.
 
-### Relayer concurrency options
-
-The first relayer pool uses four Ethereum EOAs. The practical alternatives remain:
-
-| Option | Benefit | Cost and risk |
-|---|---|---|
-| One EOA with active replacement | Small key surface | One unresolved Ethereum nonce delays every later direct renewal and CCTP claim |
-| Small EOA pool | Independent nonce lanes bound one stuck transaction to one worker | More hot keys, native-gas balances, monitoring, public relayer identities, and assignment state |
-| Managed relayer service | Outsources signing, nonce allocation, resubmission, and monitoring | Vendor dependency, service cost, migration work, and less control over incident recovery |
-| ERC-4337 smart account | Keyed nonce lanes can execute independently | New account, bundler, signing, monitoring, and contract-call infrastructure; too large a change for the current relayer |
-
-Keep at most one unresolved transaction per relayer and chain. Select a free lane with a durable
-database lock before signing. Keep same-nonce replacement on every lane. Scale the pool only when
-queue and confirmation metrics show sustained saturation.
-
-The pool must not select a wallet from one RPC's pending count alone. Serverless requests can race,
-and node mempools can disagree. Neon owns the assignment. The implementation has:
-
-- four configured relayer keys in the deployment secret store
-- one nonce row and one unresolved-intent lease per relayer and chain
-- atomic free-lane selection, for example `FOR UPDATE SKIP LOCKED`
-- the selected relayer address stored permanently on each transaction intent
-- receipt and replacement signing with that same selected key
-- native-gas monitoring and limited balances for every relayer
-- public configuration that recognizes every Namepass relayer address
-- structured pending, stuck-nonce, and free-lane warning events
-
-The first pool is on Ethereum because it carries both direct renewals and all CCTP claims. Keep
-one source-chain relayer until traffic or incident data justifies more lanes there. The factory and
-helper are permissionless and already pay the transaction executor, so a pool does not require a
-contract allowlist change.
-
-References: [Ethereum transactions](https://ethereum.org/developers/docs/transactions),
-[ERC-4337 keyed nonces](https://eips.ethereum.org/EIPS/eip-4337), and
-[OpenZeppelin Relayer](https://docs.openzeppelin.com/relayer/1.5.x).
+A stale validation step or workflow error cannot move a flow to `cancelled` or `failed` after the
+flow has live signed bytes. The transaction monitor continues the exact intent until a receipt or
+canonical Goldsky event resolves it.
 
 On a successful receipt, the workflow also validates the matching ENS `NameRenewed` log. It stores
 `flows.expiry_after` and updates `names.current_expiry` in the settlement transaction. Goldsky still
@@ -1095,10 +1077,9 @@ one primary operator and one backup operator. Do not put personal names in the p
 document.
 
 Do not automate refills in the first version. An automatic treasury signer would add another key
-that can move funds. Use an external native-balance monitor for all four addresses on Ethereum and
-the primary address on each source chain. The monitor must deliver a real operator notification.
-The application does not poll idle RPC endpoints for gas balances. Keep only a limited gas balance
-on each relayer. The $0.10 USDC
+that can move funds. Use an external native-balance monitor for the relayer address on every active
+chain. The monitor must deliver a real operator notification. The application does not poll idle
+RPC endpoints for gas balances. Keep only a limited gas balance on the relayer. The $0.10 USDC
 allowance does not refill native gas automatically. Treasury operations can account for or convert
 collected allowances outside the renewal workflow.
 
@@ -1235,6 +1216,8 @@ One renewal execution.
 - `hold_reason`
 - `workflow_run_id`
 - `origin_tx_intent_id`
+- `origin_event_id`, nullable exact link to `DepositProcessed`
+- `origin_evidence_tx_hash`, receipt evidence and not an identity
 - `claim_tx_intent_id`
 - `amount_detected`
 - `amount_processed`
@@ -1243,6 +1226,7 @@ One renewal execution.
 - `amount_applied`
 - `duration_seconds`
 - `cctp_nonce`
+- `cctp_message_index`, zero-based within the origin transaction
 - `cctp_message`
 - `cctp_attestation`
 - `last_error_code`
@@ -1279,11 +1263,14 @@ when the flow was created. It does not use an unpinned `latest` read. If an RPC 
 serve the verified block or returns an impossible zero balance, the step retries. It does not
 cancel the flow. Manual and balance-recovery flows without a deposit block use the live balance.
 
-Use a partial unique index for one active flow per name and chain. Active means every state except
-`settled`, `cancelled`, and `failed`. An `unclaimed` flow remains active.
+Use a partial unique index for one origin-wallet owner per name and chain. It covers only early
+stages whose flow has no exact origin event. A verified `DepositProcessed` event releases that
+wallet. Later CCTP stages own their exact Circle message and do not block a new deposit.
 
-Use unique partial indexes for non-null `deposit_event_id`, `renewal_event_id`, and
-`workflow_run_id`. A canonical `Renewed` event links to a known transaction intent when one exists.
+Use unique partial indexes for non-null `deposit_event_id`, `renewal_event_id`, `origin_event_id`,
+and `workflow_run_id`. Use a full unique index on non-null `(origin_chain_id, cctp_nonce)`. A
+cancelled row must release that Circle identity before another row receives it. A canonical
+`Renewed` event links to a known transaction intent when one exists.
 Otherwise it creates one settled `external` flow. A delete removes it from aggregates and public
 activity. A replay restores the same flow. A renewal that arrived before activation remains in
 `chain_events` and is projected when the name is activated.
@@ -1492,25 +1479,23 @@ It uses a transaction-scoped database advisory lock. It finds at most 10 rows fr
 category per run:
 
 - any resumable workflow stage with no workflow run ID or a stale workflow owner
-- cancelled flows that have a prepared, broadcast, mined, or confirmed transaction intent but no
-  linked renewal event or duplicate-settlement reason
 - unclaimed CCTP flows whose next action time passed and have no workflow run ID or a stale owner
 - held `name_not_renewable` flows whose next ENS check is due
-- the lowest unresolved transaction in each relayer and chain lane
+- the lowest unresolved transaction in each sender and chain queue
 - names with a non-empty `unscanned_chain_ids` or a missing indexed balance snapshot
 
 Terminal `empty_wallet` rows are historical failures. The recovery job does not poll them. A new
 Goldsky deposit creates or resumes work. An explicit manual trigger can safely inspect and resume
 the old row when its exact deposit evidence still matches the live balance.
 
-For a resumable, reconcilable cancelled, or due unclaimed flow, the job starts the same idempotent
+For a resumable or due unclaimed flow, the job starts the same idempotent
 workflow. A stale database owner
 does not prove that the Workflow run is dead. The starter checks `getRun(runId).exists` and
 `getRun(runId).status`. It replaces the owner only when Vercel reports that the run is missing or
 terminal. It never replaces a pending or running Workflow run. The workflow itself owns
 active Iris polling. For a stored signed transaction, it broadcasts the exact stored bytes. The
 monitor emits one warning after 30 seconds. After three minutes, it replaces only the lowest
-unresolved nonce in the lane. A rejected prepared transaction is eligible for replacement, except
+unresolved nonce in the queue. A rejected prepared transaction is eligible for replacement, except
 that insufficient funds causes a rebroadcast of the same bytes after funding instead of a fee bump.
 For an unscanned name, it re-reads only the
 listed or missing-snapshot chains, stores each exact snapshot, removes each chain that answers, and
@@ -1612,9 +1597,7 @@ Vercel server variables:
 - `DATABASE_URL`, pooled
 - `DATABASE_URL_UNPOOLED`, migrations only
 - one RPC URL per supported chain
-- `RELAYER_PRIVATE_KEYS` (four comma-separated keys)
-- `RELAYER_ADDRESSES` (the four matching public addresses, in the same order)
-- `RELAYER_PRIVATE_KEY` and `RELAYER_ADDRESS` (legacy one-relayer fallback for local migration)
+- `RELAYER_PRIVATE_KEY` (one exclusive relayer key)
 - `GOLDSKY_WEBHOOK_SECRET`
 - `CRON_SECRET`
 - `CIRCLE_IRIS_URL`
@@ -1861,7 +1844,8 @@ settled through this workflow. The same-chain path now submits without a separat
 wait and needs one more canary for that timing change. Recovery can rebroadcast prepared bytes.
 A transaction that remains pending for three minutes gets a same-nonce fee replacement. The cron
 monitors it even when its Workflow run is active. Receipt checks include every replacement attempt.
-Ethereum uses four independent relayer lanes. Each lane accepts one unresolved intent at a time.
+Ethereum uses the same exclusive relayer as the source chains. One database queue orders its
+unresolved intents by nonce.
 Local tests cover the step logic and ownership guards.
 The Workflow runtime probe
 covers compiler output, durable step persistence, and targeted sleep resume. It does not cover

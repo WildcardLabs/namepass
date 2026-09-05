@@ -3,12 +3,12 @@ import test from "node:test";
 
 import { ethereumResumeStage } from "../workflows/ethereum";
 
-test("a stored Ethereum transaction resumes at its receipt", () => {
+test("a cancelled Ethereum flow never resumes a stored transaction", () => {
 	assert.equal(ethereumResumeStage({
 		status: "cancelled",
 		originIntentId: "origin",
 		originIntentStatus: "broadcast",
-	}), "receipt");
+	}), "done");
 });
 
 test("a reverted Ethereum intent gets one new signed attempt after manual resume", () => {

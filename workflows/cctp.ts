@@ -30,6 +30,7 @@ export interface ReceiptLog {
 	address: Address;
 	data: Hex;
 	topics: [Hex, ...Hex[]];
+	logIndex?: number;
 }
 
 export interface CctpMessage {
@@ -64,6 +65,7 @@ const ZERO_NONCE = `0x${"0".repeat(64)}`;
 
 export interface OriginBurn {
 	message: CctpMessage;
+	messageIndex: number;
 	amount: bigint;
 	remaining: bigint;
 }
@@ -155,14 +157,15 @@ function decodedLogs(
 	logs: readonly ReceiptLog[],
 	address: string,
 	abi: typeof depositAbi | typeof messageAbi | typeof claimAbi,
-): Array<{ eventName: string; args: unknown }> {
-	return logs.flatMap((log) => {
+): Array<{ eventName: string; args: unknown; order: number }> {
+	return logs.flatMap((log, position) => {
 		if (!sameAddress(log.address, address)) return [];
 		try {
-			return [decodeEventLog({ abi, data: log.data, topics: log.topics, strict: true }) as {
+			const decoded = decodeEventLog({ abi, data: log.data, topics: log.topics, strict: true }) as {
 				eventName: string;
 				args: unknown;
-			}];
+			};
+			return [{ ...decoded, order: log.logIndex ?? position }];
 		} catch {
 			return [];
 		}
@@ -171,7 +174,7 @@ function decodedLogs(
 
 export function parseOriginBurnReceipt(
 	logs: readonly ReceiptLog[],
-	expected: ExpectedCctpRoute & { labelHash: Hex },
+	expected: ExpectedCctpRoute & { labelHash: Hex; depositLogIndex?: number },
 ): OriginBurn {
 	const origin = chainById(expected.originChainId);
 	if (!origin?.factoryAddress) fail("factory configuration");
@@ -181,27 +184,44 @@ export function parseOriginBurnReceipt(
 	const sent = decodedLogs(logs, origin.messageTransmitterAddress, messageAbi).filter(
 		(log) => log.eventName === "MessageSent",
 	);
-	if (deposits.length !== 1) fail("DepositProcessed count");
-	if (sent.length !== 1) fail("MessageSent count");
+	const matchingDeposits = deposits.filter((entry) => {
+		const deposit = entry.args as {
+			labelKey: Hex;
+			wallet: Address;
+			amount: bigint;
+		};
+		return HASH.test(expected.labelHash)
+			&& deposit.labelKey.toLowerCase() === expected.labelHash.toLowerCase()
+			&& sameAddress(deposit.wallet, expected.wallet)
+			&& (expected.amount === undefined || deposit.amount === expected.amount);
+	});
+	const selected = expected.depositLogIndex === undefined
+		? matchingDeposits.length === 1 ? matchingDeposits[0] : undefined
+		: matchingDeposits.find((entry) => entry.order === expected.depositLogIndex);
+	if (!selected) fail("DepositProcessed identity");
 
-	const deposit = deposits[0].args as {
+	const deposit = selected.args as {
 		labelKey: Hex;
 		wallet: Address;
 		amount: bigint;
 		remaining: bigint;
 	};
-	if (!HASH.test(expected.labelHash) || deposit.labelKey.toLowerCase() !== expected.labelHash.toLowerCase()) {
-		fail("label hash");
-	}
-	if (!sameAddress(deposit.wallet, expected.wallet)) fail("deposit wallet");
-	if (expected.amount !== undefined && deposit.amount !== expected.amount) fail("deposit amount");
+	const previousDepositOrder = deposits
+		.filter((entry) => entry.order < selected.order)
+		.reduce((highest, entry) => Math.max(highest, entry.order), -1);
+	const callMessages = sent.filter(
+		(entry) => entry.order > previousDepositOrder && entry.order < selected.order,
+	);
+	if (callMessages.length !== 1) fail("MessageSent call segment");
+	const messageIndex = sent.findIndex((entry) => entry === callMessages[0]);
+	if (messageIndex < 0) fail("MessageSent index");
 
 	const message = validateCctpMessage(
-		(sent[0].args as { message: Hex }).message,
+		(callMessages[0].args as { message: Hex }).message,
 		{ ...expected, amount: deposit.amount },
 		false,
 	);
-	return { message, amount: deposit.amount, remaining: deposit.remaining };
+	return { message, messageIndex, amount: deposit.amount, remaining: deposit.remaining };
 }
 
 export function encodeCompleteCctp(message: Hex, attestation: Hex): Hex {

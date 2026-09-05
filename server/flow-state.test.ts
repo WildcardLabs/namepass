@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { flowTransitionAction, originWalletOwnsStatus, type FlowStatus } from "./flow-state";
+import { flowTransitionAction, originWalletOwnsFlow, preOriginFlowAction, type FlowStatus } from "./flow-state";
 
 test("workflow stages move forward and may repeat their current stage", () => {
 	assert.equal(flowTransitionAction("queued", "checking_name"), "apply");
@@ -25,9 +25,16 @@ test("an unclaimed message can continue only through its claim stages", () => {
 	assert.equal(flowTransitionAction("unclaimed", "settled"), "apply");
 });
 
-test("a CCTP flow releases its origin wallet after the burn confirms", () => {
-	assert.equal(originWalletOwnsStatus("waiting_origin"), true);
-	assert.equal(originWalletOwnsStatus("waiting_attestation"), false);
-	assert.equal(originWalletOwnsStatus("submitting_claim"), false);
-	assert.equal(originWalletOwnsStatus("unclaimed"), false);
+test("an exact origin event releases the wallet before receipt parsing finishes", () => {
+	assert.equal(originWalletOwnsFlow("waiting_origin", null), true);
+	assert.equal(originWalletOwnsFlow("waiting_origin", "event-1"), false);
+	assert.equal(originWalletOwnsFlow("waiting_attestation", null), false);
+	assert.equal(originWalletOwnsFlow("submitting_claim", null), false);
+	assert.equal(originWalletOwnsFlow("unclaimed", null), false);
+});
+
+test("a stale validator cannot stop a flow after transaction signing", () => {
+	assert.equal(preOriginFlowAction("checking_name", false, ["checking_name"]), "apply");
+	assert.equal(preOriginFlowAction("checking_name", true, ["checking_name"]), "ignore");
+	assert.equal(preOriginFlowAction("waiting_origin", true, ["checking_name"]), "ignore");
 });

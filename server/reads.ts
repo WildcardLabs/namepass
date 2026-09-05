@@ -7,7 +7,7 @@ import { ApiError } from "./http";
 import type { ActivityCursor } from "./http";
 import { PUBLIC_CHAINS } from "../src/lib/chains";
 import { checksumAddress } from "../src/lib/namepass";
-import { CHAIN_TRIGGER_CONFIG, configuredRelayerAddress, configuredRelayerAddresses } from "./config";
+import { CHAIN_TRIGGER_CONFIG, configuredRelayerAddress } from "./config";
 import { stoppedDepositFlowCandidate, stoppedFlowReason } from "./stopped-flows";
 
 const PUBLIC_CACHE = { "cache-control": "public, s-maxage=30, stale-while-revalidate=60" };
@@ -356,7 +356,7 @@ export async function publicFlow(id: string) {
 	const renewal = linkedRenewal ?? renewals[0];
 	const facts = renewal?.facts as Record<string, unknown> | null;
 	const executor = typeof facts?.executor_address === "string" ? checksumAddress(facts.executor_address) : null;
-	const relayers = new Set(configuredRelayerAddresses());
+	const relayer = configuredRelayerAddress();
 	return {
 		flow: publicFlowView({
 			...row.flow,
@@ -367,7 +367,7 @@ export async function publicFlow(id: string) {
 			claimTxHash: facts?.from_cctp === "true" && renewal ? renewal.txHash : row.claim?.currentTxHash ?? null,
 			renewalTxHash: renewal?.txHash ?? null,
 			executorAddress: executor,
-			executorIsRelayer: executor !== null && relayers.has(executor),
+			executorIsRelayer: executor !== null && executor === relayer,
 		}),
 	};
 }
@@ -382,7 +382,7 @@ export function publicRenewalView(
 ) {
 	const facts = event.facts as Record<string, unknown>;
 	const executorAddress = checksumAddress(String(facts.executor_address));
-	const relayers = new Set(configuredRelayerAddresses());
+	const relayer = configuredRelayerAddress();
 	const expiry = ensFacts && typeof ensFacts === "object"
 		? String((ensFacts as Record<string, unknown>).new_expiry ?? "")
 		: "";
@@ -402,7 +402,7 @@ export function publicRenewalView(
 				? "multiple_deposits"
 				: "deposit_not_linked",
 		executorAddress,
-		executorIsRelayer: relayers.has(executorAddress),
+		executorIsRelayer: relayer !== null && executorAddress === relayer,
 		amountReceived: String(facts.amount_received),
 		gasAllowance: String(facts.gas_allowance),
 		amountApplied: String(facts.amount_applied),
@@ -420,7 +420,6 @@ export function publicRenewalView(
 export function publicConfig() {
 	return {
 		relayerAddress: configuredRelayerAddress(),
-		relayerAddresses: configuredRelayerAddresses(),
 		chains: PUBLIC_CHAINS.map((chain) => ({
 			...chain,
 			minimumTriggerAmount: CHAIN_TRIGGER_CONFIG.find(
