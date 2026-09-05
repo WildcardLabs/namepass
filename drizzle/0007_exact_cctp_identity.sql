@@ -96,6 +96,7 @@ SELECT
 	"flow"."origin_evidence_tx_hash",
 	"flow"."claim_tx_intent_id",
 	"flow"."amount_processed",
+	"flow"."remaining_amount",
 	"flow"."gas_allowance",
 	"flow"."amount_applied",
 	"flow"."duration_seconds",
@@ -157,6 +158,269 @@ BEGIN
 	RETURN "result";
 END
 $$;
+--> statement-breakpoint
+
+/*
+ * Repair one historical race only when origin and settlement evidence prove
+ * that two rows describe the same completed automatic flow.
+ */
+CREATE TEMP TABLE "_cctp_split_repair_map" ON COMMIT DROP AS
+SELECT
+	"canonical"."id" AS "canonical_id",
+	"duplicate"."id" AS "loser_id",
+	"duplicate"."status" AS "loser_status",
+	"canonical"."origin_chain_id",
+	"canonical"."cctp_nonce",
+	"duplicate"."origin_event_id",
+	"duplicate"."origin_evidence_tx_hash",
+	"duplicate"."cctp_message_index"
+FROM "_cctp_duplicate_members" AS "canonical"
+INNER JOIN "_cctp_duplicate_members" AS "duplicate"
+	ON "duplicate"."origin_chain_id" = "canonical"."origin_chain_id"
+	AND "duplicate"."cctp_nonce" = "canonical"."cctp_nonce"
+	AND "duplicate"."id" <> "canonical"."id"
+INNER JOIN "names" AS "name" ON "name"."id" = "canonical"."name_id"
+INNER JOIN "deposits" AS "deposit"
+	ON "deposit"."event_id" = "canonical"."deposit_event_id"
+INNER JOIN "chain_events" AS "deposit_event"
+	ON "deposit_event"."event_id" = "deposit"."event_id"
+INNER JOIN "chain_events" AS "origin_event"
+	ON "origin_event"."event_id" = "duplicate"."origin_event_id"
+INNER JOIN "transaction_intents" AS "origin_intent"
+	ON "origin_intent"."id" = "canonical"."origin_tx_intent_id"
+INNER JOIN "transaction_intents" AS "canonical_claim_intent"
+	ON "canonical_claim_intent"."id" = "canonical"."claim_tx_intent_id"
+INNER JOIN "transaction_intents" AS "duplicate_claim_intent"
+	ON "duplicate_claim_intent"."id" = "duplicate"."claim_tx_intent_id"
+INNER JOIN "chain_events" AS "renewal"
+	ON "renewal"."event_id" = "canonical"."renewal_event_id"
+LEFT JOIN (
+	VALUES
+		('84532', '6'),
+		('421614', '3'),
+		('5042002', '26'),
+		('8453', '6'),
+		('42161', '3')
+) AS "domain" ("chain_id", "source_domain")
+	ON "domain"."chain_id" = "canonical"."origin_chain_id"::text
+LEFT JOIN LATERAL (
+	SELECT "candidate".*
+	FROM "chain_events" AS "candidate"
+	WHERE "candidate"."chain_id" = "renewal"."chain_id"
+		AND lower("candidate"."tx_hash") = lower("renewal"."tx_hash")
+		AND "candidate"."log_index" < "renewal"."log_index"
+		AND "candidate"."event_family" = 'namepass'
+		AND "candidate"."event_type" IN ('CCTPClaimed', 'Renewed')
+	ORDER BY "candidate"."log_index" DESC
+	LIMIT 1
+) AS "claim" ON true
+WHERE (
+		SELECT count(*)
+		FROM "_cctp_duplicate_members" AS "group_member"
+		WHERE "group_member"."origin_chain_id" = "canonical"."origin_chain_id"
+			AND "group_member"."cctp_nonce" = "canonical"."cctp_nonce"
+	) = 2
+	AND "canonical"."trigger" = 'automatic'
+	AND "canonical"."status" = 'settled'
+	AND "canonical"."deposit_event_id" IS NOT NULL
+	AND "canonical"."renewal_event_id" IS NOT NULL
+	AND "canonical"."origin_tx_intent_id" IS NOT NULL
+	AND "canonical"."claim_tx_intent_id" IS NOT NULL
+	AND "canonical"."origin_event_id" IS NULL
+	AND "canonical"."origin_evidence_tx_hash" IS NULL
+	AND "canonical"."cctp_message" IS NOT NULL
+	AND "canonical"."cctp_attestation" IS NOT NULL
+	AND "duplicate"."trigger" = 'external'
+	AND "duplicate"."status" = 'unclaimed'
+	AND "duplicate"."workflow_run_id" IS NULL
+	AND "duplicate"."deposit_event_id" IS NULL
+	AND "duplicate"."renewal_event_id" IS NULL
+	AND "duplicate"."origin_tx_intent_id" IS NULL
+	AND "duplicate"."claim_tx_intent_id" IS NOT NULL
+	AND "duplicate"."origin_event_id" IS NOT NULL
+	AND "duplicate"."origin_evidence_tx_hash" IS NOT NULL
+	AND "duplicate"."cctp_message" IS NOT NULL
+	AND "duplicate"."cctp_attestation" IS NOT NULL
+	AND "canonical"."name_id" = "duplicate"."name_id"
+	AND "canonical"."amount_processed" IS NOT NULL
+	AND "canonical"."amount_processed" = "duplicate"."amount_processed"
+	AND "canonical"."remaining_amount" IS NOT DISTINCT FROM "duplicate"."remaining_amount"
+	AND (
+		"canonical"."cctp_message_index" IS NULL
+		OR "duplicate"."cctp_message_index" IS NULL
+		OR "canonical"."cctp_message_index" = "duplicate"."cctp_message_index"
+	)
+	AND lower("canonical"."cctp_message") = lower("duplicate"."cctp_message")
+	AND lower("canonical"."cctp_attestation") = lower("duplicate"."cctp_attestation")
+	AND "domain"."source_domain" IS NOT NULL
+	AND substring("canonical"."cctp_message" from 11 for 8)
+		= lpad(to_hex("domain"."source_domain"::integer), 8, '0')
+	AND lower('0x' || substring("canonical"."cctp_message" from 27 for 64))
+		= lower("claim"."facts"->>'nonce')
+	AND CASE
+		WHEN coalesce("claim"."facts"->>'nonce', '') !~ '^0x[0-9a-fA-F]{64}$'
+			THEN false
+		ELSE pg_temp."_hex_uint256_to_numeric"("claim"."facts"->>'nonce')
+			= "canonical"."cctp_nonce"
+	END
+	AND pg_temp."_hex_uint256_to_numeric"(
+		'0x' || substring("canonical"."cctp_message" from 435 for 64)
+	) = "canonical"."amount_processed"
+	AND lower('0x' || substring("canonical"."cctp_message" from 523 for 40))
+		= lower("name"."deposit_address")
+	AND "deposit"."name_id" = "canonical"."name_id"
+	AND "deposit"."chain_id" = "canonical"."origin_chain_id"
+	AND "deposit"."amount" = "canonical"."amount_processed"
+	AND "deposit"."status" <> 'orphaned'
+	AND "deposit_event"."canonical" = true
+	AND "deposit_event"."event_family" = 'deposit'
+	AND "deposit_event"."event_type" = 'Transfer'
+	AND "deposit_event"."chain_id" = "canonical"."origin_chain_id"
+	AND lower("deposit_event"."tx_hash") = lower("deposit"."tx_hash")
+	AND "deposit_event"."log_index" = "deposit"."log_index"
+	AND lower(coalesce("deposit_event"."facts"->>'recipient_address', ''))
+		= lower("name"."deposit_address")
+	AND coalesce("deposit_event"."facts"->>'amount', '')
+		= "canonical"."amount_processed"::text
+	AND "origin_event"."canonical" = true
+	AND "origin_event"."event_family" = 'namepass'
+	AND "origin_event"."event_type" = 'DepositProcessed'
+	AND "origin_event"."chain_id" = "canonical"."origin_chain_id"
+	AND lower("origin_event"."tx_hash") = lower("duplicate"."origin_evidence_tx_hash")
+	AND lower(coalesce("origin_event"."facts"->>'label_key', '')) = lower("name"."label_hash")
+	AND lower(coalesce("origin_event"."facts"->>'wallet_address', ''))
+		= lower("name"."deposit_address")
+	AND coalesce("origin_event"."facts"->>'amount', '')
+		= "canonical"."amount_processed"::text
+	AND coalesce("origin_event"."facts"->>'remaining_amount', '')
+		= "canonical"."remaining_amount"::text
+	AND "origin_intent"."flow_id" = "canonical"."id"
+	AND "origin_intent"."kind" = 'origin_renew'
+	AND "origin_intent"."status" = 'confirmed'
+	AND lower("origin_intent"."current_tx_hash") = lower("origin_event"."tx_hash")
+	AND "canonical_claim_intent"."flow_id" = "canonical"."id"
+	AND "canonical_claim_intent"."kind" = 'claim'
+	AND "canonical_claim_intent"."status" = 'confirmed'
+	AND lower("canonical_claim_intent"."current_tx_hash") = lower("renewal"."tx_hash")
+	AND "duplicate_claim_intent"."flow_id" = "duplicate"."id"
+	AND "duplicate_claim_intent"."kind" = 'claim'
+	AND "duplicate_claim_intent"."status" = 'reverted'
+	AND "renewal"."canonical" = true
+	AND "renewal"."event_family" = 'namepass'
+	AND "renewal"."event_type" = 'Renewed'
+	AND lower(coalesce("renewal"."facts"->>'label_hash', '')) = lower("name"."label_hash")
+	AND lower(coalesce("renewal"."facts"->>'wallet_address', ''))
+		= lower("name"."deposit_address")
+	AND coalesce("renewal"."facts"->>'from_cctp', '') = 'true'
+	AND coalesce("renewal"."facts"->>'gas_allowance', '')
+		= "canonical"."gas_allowance"::text
+	AND coalesce("renewal"."facts"->>'amount_applied', '')
+		= "canonical"."amount_applied"::text
+	AND coalesce("renewal"."facts"->>'duration', '')
+		= "canonical"."duration_seconds"::text
+	AND "claim"."event_id" IS NOT NULL
+	AND "claim"."canonical" = true
+	AND "claim"."event_type" = 'CCTPClaimed'
+	AND coalesce("claim"."facts"->>'source_domain', '') = "domain"."source_domain"
+	AND lower(coalesce("claim"."facts"->>'wallet_address', ''))
+		= lower("name"."deposit_address")
+	AND coalesce("claim"."facts"->>'burn_amount', '')
+		= "canonical"."amount_processed"::text
+	AND CASE
+		WHEN coalesce("claim"."facts"->>'burn_amount', '') !~ '^(0|[1-9][0-9]*)$'
+			OR coalesce("claim"."facts"->>'fee_executed', '') !~ '^(0|[1-9][0-9]*)$'
+			OR coalesce("claim"."facts"->>'minted_amount', '') !~ '^(0|[1-9][0-9]*)$'
+			OR coalesce("renewal"."facts"->>'amount_received', '') !~ '^(0|[1-9][0-9]*)$'
+			OR coalesce("renewal"."facts"->>'gas_allowance', '') !~ '^(0|[1-9][0-9]*)$'
+			OR coalesce("renewal"."facts"->>'amount_applied', '') !~ '^(0|[1-9][0-9]*)$'
+			OR coalesce("renewal"."facts"->>'remainder', '') !~ '^(0|[1-9][0-9]*)$'
+			THEN false
+		ELSE ("claim"."facts"->>'fee_executed')::numeric
+				<= ("claim"."facts"->>'burn_amount')::numeric
+			AND ("claim"."facts"->>'burn_amount')::numeric
+				- ("claim"."facts"->>'fee_executed')::numeric
+				= ("claim"."facts"->>'minted_amount')::numeric
+			AND ("claim"."facts"->>'minted_amount')::numeric
+				= ("renewal"."facts"->>'amount_received')::numeric
+			AND ("renewal"."facts"->>'gas_allowance')::numeric
+				<= ("renewal"."facts"->>'amount_received')::numeric
+			AND ("renewal"."facts"->>'amount_applied')::numeric
+				<= ("renewal"."facts"->>'amount_received')::numeric
+					- ("renewal"."facts"->>'gas_allowance')::numeric
+			AND ("renewal"."facts"->>'remainder')::numeric
+				= ("renewal"."facts"->>'amount_received')::numeric
+					- ("renewal"."facts"->>'gas_allowance')::numeric
+					- ("renewal"."facts"->>'amount_applied')::numeric
+	END
+	AND NOT EXISTS (
+		SELECT 1
+		FROM "transaction_intents" AS "unresolved"
+		WHERE "unresolved"."flow_id" IN ("canonical"."id", "duplicate"."id")
+			AND "unresolved"."status" NOT IN ('confirmed', 'reverted')
+	);
+--> statement-breakpoint
+
+INSERT INTO "flow_transitions" (
+	"flow_id", "from_status", "to_status", "actor", "reason_code", "detail"
+)
+SELECT
+	"loser_id", "loser_status", 'cancelled', 'migration', 'duplicate_flow_repaired',
+	jsonb_build_object(
+		'canonicalFlowId', "canonical_id",
+		'originChainId', "origin_chain_id"::text,
+		'cctpNonce', "cctp_nonce"::text,
+		'evidenceShape', 'split_origin_and_settlement'
+	)
+FROM "_cctp_split_repair_map";
+--> statement-breakpoint
+
+/* Release exact origin and Circle identity before the canonical row receives it. */
+UPDATE "flows" AS "loser"
+SET
+	"origin_event_id" = NULL,
+	"origin_evidence_tx_hash" = NULL,
+	"cctp_message_index" = NULL,
+	"cctp_message" = NULL,
+	"cctp_nonce" = NULL,
+	"cctp_attestation" = NULL,
+	"status" = 'cancelled',
+	"hold_reason" = NULL,
+	"workflow_run_id" = NULL,
+	"amount_processed" = NULL,
+	"remaining_amount" = NULL,
+	"gas_allowance" = NULL,
+	"amount_applied" = NULL,
+	"duration_seconds" = NULL,
+	"expiry_after" = NULL,
+	"last_error_code" = 'duplicate_flow_repaired',
+	"last_error_detail" = "repair"."canonical_id"::text,
+	"next_action_at" = NULL,
+	"settled_at" = NULL,
+	"failed_at" = NULL,
+	"cancelled_at" = now(),
+	"updated_at" = now()
+FROM "_cctp_split_repair_map" AS "repair"
+WHERE "loser"."id" = "repair"."loser_id";
+--> statement-breakpoint
+
+UPDATE "flows" AS "canonical"
+SET
+	"origin_event_id" = "repair"."origin_event_id",
+	"origin_evidence_tx_hash" = "repair"."origin_evidence_tx_hash",
+	"cctp_message_index" = coalesce(
+		"canonical"."cctp_message_index",
+		"repair"."cctp_message_index"
+	),
+	"workflow_run_id" = NULL,
+	"updated_at" = now()
+FROM "_cctp_split_repair_map" AS "repair"
+WHERE "canonical"."id" = "repair"."canonical_id";
+--> statement-breakpoint
+
+DELETE FROM "_cctp_duplicate_members" AS "member"
+USING "_cctp_split_repair_map" AS "repair"
+WHERE "member"."id" = "repair"."canonical_id"
+	OR "member"."id" = "repair"."loser_id";
 --> statement-breakpoint
 
 /* A migration must not change a flow that still has an active owner or write. */
