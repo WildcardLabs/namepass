@@ -26,3 +26,25 @@ test("Circle duplicate repair fails closed before the full unique index", () => 
 	assert.doesNotMatch(stageTwo, /row_number\s*\(/i);
 	assert.doesNotMatch(stageTwo.slice(uniqueIndex), /status/);
 });
+
+test("Circle duplicate repair verifies the exact preceding claim bundle", () => {
+	const verification = stageTwo.slice(
+		stageTwo.indexOf("Verify the exact canonical settlement"),
+		stageTwo.indexOf('CREATE TEMP TABLE "_cctp_repair_map"'),
+	);
+	assert.match(verification, /LEFT JOIN LATERAL/);
+	assert.match(verification, /event_type" IN \('CCTPClaimed', 'Renewed'\)/);
+	assert.match(verification, /ORDER BY "candidate"\."log_index" DESC/);
+	assert.match(verification, /_hex_uint256_to_numeric/);
+	for (const field of [
+		"source_domain",
+		"nonce",
+		"wallet_address",
+		"burn_amount",
+		"fee_executed",
+		"minted_amount",
+		"amount_received",
+	]) {
+		assert.match(verification, new RegExp(field));
+	}
+});
