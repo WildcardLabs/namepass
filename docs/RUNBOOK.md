@@ -89,6 +89,12 @@ npx tsx server/db/migrate.ts
 Use two release points for the exact flow-identity change. Do not let the migration runner see
 `0007_exact_cctp_identity.sql` during the first release.
 
+- Release 1 target commit: `1f6f88a`.
+- Release 2 migration commit: `2041990`.
+
+Commit `1f6f88a` is the last commit without migration `0007`. Commit `2041990` adds migration
+`0007`.
+
 Release 1:
 
 1. Apply `0006_transaction_identity_support.sql` with `DATABASE_URL_UNPOOLED`.
@@ -112,9 +118,10 @@ Release 2:
 
 Migration `0006` adds nullable exact identity fields and safely backfills only one-to-one origin
 event matches. Migration `0007` merges only one evidence-rich source row with one bare external
-settlement row. It aborts the complete transaction for every other shape. The full Circle identity
-index includes cancelled rows. A cancelled loser must release its nonce before the source receives
-it.
+settlement row. It verifies the exact preceding `CCTPClaimed` event by log order. The claim source
+domain, full nonce, wallet, burn amount, and accounting values must match. It aborts the complete
+transaction for every other shape. The full Circle identity index includes cancelled rows. A
+cancelled loser must release its nonce before the source receives it.
 
 For the 2026-08-18 explorer repair, use this release order:
 

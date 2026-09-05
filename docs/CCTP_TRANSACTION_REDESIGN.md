@@ -211,6 +211,12 @@ creates a bare external projection. When Iris returns the same nonce, the source
 settlement event and settlement facts. The bare row clears the nonce and renewal identity, and then
 becomes cancelled. Source trigger data, detected amount, and origin-wallet remainder do not change.
 
+Before Iris moves the settlement facts, it loads all indexed events for the renewal transaction. It
+selects the exact helper-call segment by log order. Both `Renewed` and its preceding `CCTPClaimed`
+must be canonical. The claim source domain, nonce, wallet, and burn amount must match the validated
+source message. The Circle accounting values must also match the renewal. A mismatch stops the
+merge. A legacy row with `origin_evidence_tx_hash` or `cctp_message_index` is not a bare projection.
+
 ### Reorg handling
 
 A settlement delete resolves the current renewal-event owner again after it gets the CCTP identity
@@ -226,6 +232,12 @@ claim evidence conflicts with the deleted origin event.
 ## Database rollout
 
 This change requires two release points. Do not deploy both commits in one automatic migration run.
+
+- Release 1 target commit: `1f6f88a`.
+- Release 2 migration commit: `2041990`.
+
+Commit `1f6f88a` is the last commit that does not contain migration `0007`. Use this exact commit for
+the first release. Commit `2041990` adds migration `0007` and is the second release boundary.
 
 ### Release 1
 
@@ -251,8 +263,10 @@ CCTP nonce index.
 7. Resume the services after the migration commits.
 
 Migration `0007` locks the affected tables for the repair transaction. It repeats safe origin
-backfill, rejects ambiguous external origins, merges only the guarded duplicate shape, and creates
-the full Circle nonce unique index.
+backfill and rejects ambiguous external origins. It also verifies the exact preceding
+`CCTPClaimed` event by log order. The source domain, full 256-bit nonce, wallet, burn amount, and
+Circle accounting must match before the migration moves evidence. It merges only the guarded
+duplicate shape and creates the full Circle nonce unique index.
 
 ## Accepted limits
 
@@ -260,6 +274,8 @@ the full Circle nonce unique index.
   EOA rule. Same-nonce fee replacement is the normal repair.
 - One obsolete business call can spend gas. This is safer than changing transaction purpose after
   signing.
+- Fee replacement has no attempt limit or configured fee ceiling. This is an explicit policy for
+  this branch. Change this policy before you add either limit.
 - An unknown consumed nonce requires operator action. The service fails closed.
 - The migration intentionally stops on ambiguous historical data. It does not guess.
 - Database tests in this repository validate decision functions and generated SQL shape. The final
@@ -271,9 +287,9 @@ The completed local verification covers:
 
 - Production TypeScript and Vite build.
 - Server TypeScript check.
-- Server unit tests, including nonce, retry, race, exact identity, batch, and migration guards.
-- Frontend tests.
-- Workflow test.
+- 121 server unit tests, including nonce, retry, race, exact identity, batch, and migration guards.
+- 32 frontend tests.
+- One Workflow test.
 - Drizzle migration validation.
 
 The branch is not deployed or pushed by this work.
