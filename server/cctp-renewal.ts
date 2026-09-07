@@ -20,6 +20,7 @@ import {
 } from "../workflows/cctp";
 import { pollIris, type IrisResult } from "../workflows/iris";
 import { cctpFlowRowsLockSql, cctpIdentityAction, cctpIdentityLockSql } from "./cctp-identity";
+import { markBalanceScanRequested, originWalletLockSql, requestBalanceScanSql } from "./balance-scan";
 import { labelHash, readEnsState } from "./chain";
 import { database } from "./db/client";
 import {
@@ -30,8 +31,8 @@ import {
 	names,
 	transactionIntents,
 } from "./db/schema";
-import { flowTransitionAction, NAME_RECHECK_MS, setFlowStatus, setPreOriginFlowStatus } from "./flow-state";
-import { automaticDepositBalanceBlock, depositBalanceAction } from "./deposit-eligibility";
+import { ABSORBED_BY_PRIOR_FLOW, flowTransitionAction, NAME_RECHECK_MS, setFlowStatus, setPreOriginFlowStatus } from "./flow-state";
+import { automaticDepositBalanceBlock, liveDepositBalanceAction } from "./deposit-eligibility";
 import { parseEnsRenewalExpiry } from "./ens-renewal";
 import {
 	assertExactCctpSettlement,
@@ -296,9 +297,26 @@ export async function checkCctpEligibility(flowId: string): Promise<"ready" | "h
 	const balanceBlock = flow.eligibilityBlockNumber !== null
 		? BigInt(flow.eligibilityBlockNumber)
 		: undefined;
-	const [ens, balance] = await Promise.all([
+	const [ens, liveBlock] = await Promise.all([
 		readEnsState(flow.label),
-		rpc.readContract({
+		rpc.getBlockNumber(),
+	]);
+	if (balanceBlock !== undefined && liveBlock < balanceBlock) {
+		throw new Error("The origin RPC has not reached the verified deposit block.");
+	}
+	const liveBalancePromise = rpc.readContract({
+		address: chain.usdcAddress as Address,
+		abi: ERC20_ABI,
+		functionName: "balanceOf",
+		args: [flow.depositAddress],
+		authorizationList: undefined,
+		blockNumber: liveBlock,
+	});
+	const [liveBalance, verifiedBalance] = await Promise.all([
+		liveBalancePromise,
+		balanceBlock === undefined || balanceBlock === liveBlock
+			? liveBalancePromise
+			: rpc.readContract({
 			address: chain.usdcAddress as Address,
 			abi: ERC20_ABI,
 			functionName: "balanceOf",
@@ -307,6 +325,31 @@ export async function checkCctpEligibility(flowId: string): Promise<"ready" | "h
 			blockNumber: balanceBlock,
 		}),
 	]);
+	const balanceAction = liveDepositBalanceAction({
+		verifiedBalance,
+		verifiedBlock: balanceBlock,
+		liveBalance,
+		liveBlock,
+	});
+	if (balanceAction !== "ready") {
+		if (balanceAction === "retry") {
+			throw new Error("The deposit block does not contain the verified wallet balance.");
+		}
+		const reason = balanceAction === "absorbed" ? ABSORBED_BY_PRIOR_FLOW : "empty_wallet";
+		if (balanceAction === "absorbed") {
+			await markBalanceScanRequested({
+				nameId: flow.nameId,
+				chainId: flow.originChainId,
+				requestedThroughBlock: liveBlock,
+			});
+		}
+		const outcome = await setPreOriginFlowStatus(flowId, ["checking_name"], "cancelled", {
+			holdReason: null,
+			lastErrorDetail: null,
+		}, reason);
+		const cancelled = outcome.applied || outcome.status === "cancelled";
+		return cancelled ? "cancelled" : "ready";
+	}
 	if (!ens.renewableBy) {
 		const outcome = await setPreOriginFlowStatus(flowId, ["checking_name"], "held", {
 			holdReason: "name_not_renewable",
@@ -314,18 +357,10 @@ export async function checkCctpEligibility(flowId: string): Promise<"ready" | "h
 		}, "name_not_renewable");
 		return outcome.applied || outcome.status === "held" ? "held" : "ready";
 	}
-	const balanceAction = depositBalanceAction(balance, balanceBlock);
-	if (balanceAction !== "ready") {
-		if (balanceAction === "retry") {
-			throw new Error("The deposit block does not contain the verified wallet balance.");
-		}
-		const outcome = await setPreOriginFlowStatus(flowId, ["checking_name"], "cancelled", {}, "empty_wallet");
-		return outcome.applied || outcome.status === "cancelled" ? "cancelled" : "ready";
-	}
 	return "ready";
 }
 
-export async function prepareCctpOrigin(flowId: string): Promise<string> {
+export async function prepareCctpOrigin(flowId: string): Promise<string | null> {
 	"use step";
 	const flow = await loadCctpFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
@@ -337,13 +372,51 @@ export async function prepareCctpOrigin(flowId: string): Promise<string> {
 			: flow.originIntentId;
 	}
 	const chain = originChain(flow);
-	return prepareTransaction({
-		flowId,
-		kind: "origin_renew",
-		chain,
-		to: chain.factoryAddress! as Address,
-		callData: encodeFunctionData({ abi: FACTORY_ABI, functionName: "renew", args: [flow.label] }),
-	});
+	try {
+		return await prepareTransaction({
+			flowId,
+			kind: "origin_renew",
+			chain,
+			to: chain.factoryAddress! as Address,
+			callData: encodeFunctionData({ abi: FACTORY_ABI, functionName: "renew", args: [flow.label] }),
+		});
+	} catch (error) {
+		let liveBlock: bigint;
+		let liveBalance: bigint;
+		try {
+			const rpc = await verifiedChainClient(chain);
+			liveBlock = await rpc.getBlockNumber();
+			liveBalance = await rpc.readContract({
+				address: chain.usdcAddress as Address,
+				abi: ERC20_ABI,
+				functionName: "balanceOf",
+				args: [flow.depositAddress],
+				authorizationList: undefined,
+				blockNumber: liveBlock,
+			});
+		} catch {
+			throw error;
+		}
+		if (
+			flow.eligibilityBlockNumber === null
+			|| liveBlock <= BigInt(flow.eligibilityBlockNumber)
+			|| liveBalance > 0n
+		) throw error;
+		await markBalanceScanRequested({
+			nameId: flow.nameId,
+			chainId: flow.originChainId,
+			requestedThroughBlock: liveBlock,
+		});
+		const outcome = await setPreOriginFlowStatus(
+			flowId,
+			["checking_name"],
+			"cancelled",
+			{ holdReason: null, lastErrorDetail: null },
+			ABSORBED_BY_PRIOR_FLOW,
+		);
+		if (outcome.applied || outcome.status === "cancelled") return null;
+		throw error;
+	}
 }
 
 async function markCctpOriginReverted(
@@ -465,6 +538,7 @@ export async function confirmCctpOrigin(
 	const burn = parseFlowOriginBurn(flow, receipt.logs);
 	const now = new Date();
 	const outcome = await database().transaction(async (tx) => {
+		await tx.execute(originWalletLockSql(flow.nameId, flow.originChainId));
 		const [current] = await tx.select({
 			status: flows.status,
 			originEventId: flows.originEventId,
@@ -499,6 +573,7 @@ export async function confirmCctpOrigin(
 		await tx.update(flows).set({
 			status: "waiting_attestation",
 			originEvidenceTxHash: receipt.transactionHash,
+			originEvidenceBlockNumber: receipt.blockNumber.toString(),
 			amountProcessed: burn.amount.toString(),
 			remainingAmount: burn.remaining.toString(),
 			cctpNonce: null,
@@ -508,6 +583,11 @@ export async function confirmCctpOrigin(
 			updatedAt: now,
 		}).where(eq(flows.id, flowId));
 		if (burn.remaining > 0n) {
+			await tx.execute(requestBalanceScanSql({
+				nameId: flow.nameId,
+				chainId: flow.originChainId,
+				requestedThroughBlock: receipt.blockNumber,
+			}));
 			await tx.update(names).set({
 				unscannedChainIds: sql`case
 					when ${String(flow.originChainId)}::numeric = any(${names.unscannedChainIds})

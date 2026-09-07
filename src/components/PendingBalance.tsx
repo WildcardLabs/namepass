@@ -19,6 +19,8 @@ function holdCopy(reason: HoldReason, minimum: bigint | undefined, chainId: stri
 	return {
 	flow_in_progress:
 		"A renewal is already running on this chain. These funds are queued and go out with the next one.",
+	scan_pending:
+		"Namepass recorded new activity on this chain. The recovery scan will check the current balance before it starts another renewal.",
 	name_inactive:
 		"This name isn't currently registered. It may have expired, be in its premium auction, or never have been registered. The funds stay here until it can be renewed again.",
 	below_threshold: floor,
@@ -34,6 +36,7 @@ function holdCopy(reason: HoldReason, minimum: bigint | undefined, chainId: stri
 function holdLabel(reason: HoldReason, minimum: bigint | undefined, chainId: string, errorCode?: string | null): string {
 	return {
 	flow_in_progress: "Queued behind the current renewal",
+	scan_pending: "Queued for balance scan",
 	name_inactive: "Name isn't registered right now",
 	/* States the number — "too small" alone leaves nobody able to act on it. */
 	below_threshold: minimum === undefined ? "Chain minimum unavailable" : `Under the ${fmtUsdc(minimum)} minimum on this chain`,
@@ -176,14 +179,14 @@ export default function PendingBalance({ record, onSettled }: Props) {
 					>
 						<div className="mt-4 space-y-3.5">
 							{chains.map((chain) => {
-								const flow = p.flows.find((f) => f.chain === chain);
+								const flows = p.flows.filter((f) => f.chain === chain);
 								const balance = p.balances.find((b) => b.chain === chain);
 								const recheckName = balance ? canRecheckName(balance) : false;
 								return (
 									<ChainRow
 										key={chain}
 										chain={chain}
-										flow={flow}
+										flows={flows}
 										balance={balance}
 										detecting={balance ? detectingChainIds.has(balance.chainId) : false}
 										triggerable={balance ? (canTrigger(p, balance) && !detectingChainIds.has(balance.chainId)) || recheckName : false}
@@ -220,7 +223,7 @@ export default function PendingBalance({ record, onSettled }: Props) {
 
 function ChainRow({
 	chain,
-	flow,
+	flows,
 	balance,
 	detecting,
 	triggerable,
@@ -228,7 +231,7 @@ function ChainRow({
 	onTrigger,
 }: {
 	chain: string;
-	flow?: ChainFlow;
+	flows: ChainFlow[];
 	balance?: ChainBalance;
 	detecting: boolean;
 	triggerable: boolean;
@@ -239,7 +242,6 @@ function ChainRow({
 	const balanceLabel = balance
 		? detecting ? "Payment detected · preparing renewal" : holdLabel(balance.holdReason, minimum, balance.chainId, balance.flowErrorCode)
 		: "";
-	const transactions = flow ? completedFlowTransactions(flow.api) : [];
 	return (
 		<div className="flex items-start justify-between gap-3">
 			<div className="min-w-0 flex-1">
@@ -247,8 +249,10 @@ function ChainRow({
 					<ChainTag chain={chain} />
 				</div>
 
-				{flow && (
-					<>
+				{flows.map((flow) => {
+					const transactions = completedFlowTransactions(flow.api);
+					return (
+					<div key={flow.id} className="mt-1">
 						<div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-[rgba(30,50,90,0.65)]">
 							<Loader2 className="w-3 h-3 animate-spin shrink-0" />
 							{fmtUsdc(flow.amount)} · {flowPresentation(flow.status, flow.originChainId).detail}
@@ -274,8 +278,9 @@ function ChainRow({
 								))}
 							</ol>
 						)}
-					</>
-				)}
+					</div>
+					);
+				})}
 
 				{balance && (
 					<div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-[rgba(30,50,90,0.55)]">

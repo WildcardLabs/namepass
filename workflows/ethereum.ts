@@ -46,6 +46,7 @@ export async function ethereumRenewal(
 		let intentId = flow.originIntentId;
 		if (resume !== "receipt") {
 			intentId = await prepareEthereumRenewalStep(flowId);
+			if (!intentId) return "cancelled";
 		}
 		if (!intentId) throw new Error("The Ethereum flow has no transaction intent.");
 		await broadcastEthereumRenewalStep(intentId);

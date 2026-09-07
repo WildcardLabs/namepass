@@ -493,12 +493,14 @@ an address. It therefore needs an explicit set of addresses to watch.
 3. Reject invalid, dotted, empty, or over-length labels.
 4. Read ENS renewability and expiry from the authoritative renewers.
 5. Derive the deposit address with the deployed factory constants.
-6. In one Neon transaction, insert the name and insert the lowercase address into
-   `goldsky.watched_addresses`.
+6. In one Neon transaction, insert the name, insert the lowercase address into
+   `goldsky.watched_addresses`, and create one versioned balance-scan request per chain.
 7. Read the native USDC balance at one exact block on each chain and store the snapshots.
 8. If the balance is positive, create or find a queued flow. This recovers funds that arrived before
    activation.
-9. Return the activated name and address.
+9. Clear only the scan-request versions from step 6 whose snapshots completed. A deposit that
+   advances a request while the RPC reads run remains queued for another scan.
+10. Return the activated name and address.
 
 The endpoint is idempotent. The normalized label and deposit address both have unique constraints.
 A repeated activation returns the existing row.
@@ -524,16 +526,15 @@ endpoint must not block an activation or blank a card.
 
 Three rules follow:
 
-- **Activate on partial success.** Record the balances that came back, and write the chains that did
-  not answer to `names.unscanned_chain_ids`.
+- **Activate on partial success.** Record the balances that came back. Keep an incomplete chain's
+  versioned scan request and mirror it in `names.unscanned_chain_ids`.
 - **Render an unanswered chain as unknown.** Never as zero and never as absent. Both state a fact
   the application does not have, and "no balance on Arc" is the sentence that stops a person
   chasing money they actually sent.
-- **The recovery job retries it.** This matters more than it looks. The recovery job does not scan
-  deposit addresses, and a failed read creates no queued flow, so nothing else would ever look
-  again. Without this retry, a funded chain that was unreachable for one second at activation stays
-  invisible to the backend permanently, and the only recovery is a person noticing and pressing the
-  manual trigger.
+- **The recovery job retries it.** Each request identifies one name and chain, carries a monotonic
+  version, and can carry a deposit-block watermark. A scan clears only its captured version after a
+  block-pinned snapshot reaches the watermark. A newer deposit therefore cannot be erased by an
+  older scan that was already running.
 
 Names remain in the watched set. Deleting them would make later deposits invisible. The table is
 therefore small, append-only application data, not an expiring cache.
@@ -710,6 +711,12 @@ intent can match its own event. An external event can attach to an unsigned wall
 different transaction is already signed, the external event gets a separate flow. Each real chain
 action then keeps its own receipt and event identity.
 
+The origin receipt block is also permanent execution evidence. The receipt writer and deposit
+webhook serialize on one transaction-scoped lock for the exact name and origin chain. If a deposit
+block is earlier than a later origin execution whose `DepositProcessed.remaining` is zero, that
+execution consumed the late deposit. Goldsky records the contribution but does not create another
+flow. This rule never compares payment amounts.
+
 The final Circle identity is the origin chain plus the CCTP nonce. If destination settlement arrives
 first, Goldsky creates a bare external row. Iris later moves that settlement evidence to the source
 flow with the same nonce. The source flow stays canonical. The bare row loses the nonce and becomes
@@ -750,6 +757,13 @@ Before the first origin transaction, the workflow verifies all of these facts:
 - no other active flow owns this name and chain
 - the factory and token addresses match the chain registry
 
+The balance check reads both the deposit block and a later live block. A verified deposit followed
+by a zero balance at that later block means an origin transaction already consumed the wallet. This
+also covers a deposit and burn in the same block, whose end-of-block historical balance is already
+zero. The workflow cancels the evidence-only row as `absorbed_by_prior_flow` before it signs
+anything and queues a block-pinned recovery scan. A zero read while the RPC is still at the deposit
+block is treated as provider lag and retried, not as absorption.
+
 If Goldsky sends `_gs_op = d` before a transaction is broadcast, the receiver marks the deposit as
 orphaned and cancels a flow that has no origin transaction. If a reorg occurs after the origin
 transaction, contract state and transaction receipts control recovery. The webhook alone cannot
@@ -777,7 +791,8 @@ It performs this sequence:
 A duplicate create changes no money totals and starts no second flow. A duplicate delete changes no
 additional state. Flow identity uses the exact origin event and Circle nonce. It does not use the
 amount or the transaction hash. A second real deposit can start after the first burn event releases
-the wallet.
+the wallet. If that burn consumed a deposit whose webhook arrived concurrently, the receipt block
+and zero remainder suppress the absorbed flow instead.
 
 If Neon or Workflow is unavailable, return `503`. Goldsky will retry. Do not return `2xx` and hope a
 background callback finishes.
@@ -802,7 +817,7 @@ The first production queueing policy is:
 eligible =
   canonical deposit exists
   AND on-chain wallet balance > GAS_ALLOWANCE
-  AND no active flow exists for (name, chain)
+  AND no pre-origin wallet-owning flow exists for (name, chain)
   AND subsidy policy permits the transaction
 ~~~
 
@@ -816,6 +831,11 @@ waiting to create a flow would leave no event that starts the work.
 The contract uses the wallet's live balance. The database does not attempt to allocate exact
 deposit rows to a flow. Deposits are contribution history. The `DepositProcessed` event is the
 authority for the amount a flow actually consumed.
+
+The active-flow guard covers `queued`, `confirming_deposit`, `checking_name`,
+`submitting_origin`, `waiting_origin`, and a held pre-origin flow. A CCTP flow releases the wallet
+after the origin receipt. Its later attestation and claim work can run concurrently with another
+deposit on that name and chain.
 
 This removes `deposit_allocations` as an execution ledger. The public pending balance comes from a
 block-pinned chain snapshot, later canonical events, and the active flow state.
@@ -884,6 +904,11 @@ deposit balance or ENS eligibility checks for that transaction.
 
 The simulation is a safety check, not a guarantee. State can change before inclusion. A revert keeps
 the funds at the deposit address and is retryable after classification.
+
+Receipt confirmation stores the actual mined block as origin evidence. In the same database
+transaction, it locks the name-and-chain wallet route, releases the pre-origin ownership state, and
+queues a versioned balance scan when `DepositProcessed.remaining` is non-zero. This prevents a
+deposit webhook at the release boundary from creating work for funds the receipt already consumed.
 
 ### Ethereum-origin flow
 

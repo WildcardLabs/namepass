@@ -40,7 +40,11 @@ test("recovery repairs queued, overdue, unscanned, and unbroadcast rows without 
 		resumableFlowIds: ["queued", "shared"],
 		overdueUnclaimedFlowIds: ["overdue", "shared"],
 		dueHeldFlowIds: ["held-name"],
-		unscannedNames: [{ id: "name-1", depositAddress: "0x0", chainIds: [84532] }],
+		unscannedNames: [{
+			id: "name-1",
+			depositAddress: "0x0",
+			requests: [{ chainId: 84532, version: 1n, requestedThroughBlock: "10" }],
+		}],
 		monitoredIntents: [{
 			id: "intent-1",
 			flowId: "queued",

@@ -43,6 +43,8 @@ An eligible indexed balance can become visible before its automatic flow row. Th
 gap as `preparing renewal`. It does not offer a manual retry until the balance remains unmatched for
 two reads and at least 20 seconds. A recent stopped flow with eligible funds shows its safe error
 code and deposit evidence. It is immediately retryable.
+When the server has a versioned balance-scan request for the chain, the card says `Queued for
+balance scan`. It does not expose a manual trigger until the server has reconciled that request.
 
 The live feed polls every 12 seconds. An explicit name lookup reads current ENS state on chain
 through the public API before the browser uses registration or renewability. Opening a selected
@@ -72,8 +74,12 @@ state through the activation endpoint. If ENS can renew the name, it calls the a
 trigger endpoint to resume the held flow. This is a fallback action. An ordinary name lookup now
 performs the same refresh and resumes matching held flows without a click.
 
-The browser preserves each active backend flow status. `flowPresentation.ts` supplies only the
-user-facing copy. It also uses the origin chain. `submitting_origin` and `waiting_origin` describe
+The browser preserves every active backend flow status. A chain row renders all flows returned for
+that chain; it does not select the first one. Only pre-origin wallet-owning flows are subtracted from
+the indexed wallet balance. Post-burn attestation and claim flows appear separately, so a new
+deposit stays visible while older Base, Arbitrum, or Arc renewals continue.
+`flowPresentation.ts` supplies only the user-facing copy. It also uses the origin chain.
+`submitting_origin` and `waiting_origin` describe
 an Ethereum renewal when the origin is Ethereum. The same states describe a Circle transfer for
 Base, Arbitrum, or Arc. A direct Ethereum renewal must not show transfer or burn copy. After an
 origin receipt is available, flow cards show `amountProcessed` instead of the earlier detected
@@ -338,7 +344,8 @@ an owner or ENS migration can also change the expiry.
    address-swap attack lands. The ENS profile's *resolved* address is informational and may be.
 2. `holdReason` non-nullable; every resting balance explained.
 3. Balances per chain; never summed into one figure.
-4. One flow per `(name, chain)` — a stuck Base transfer must not block a fresh Ethereum payment.
+4. One pre-origin wallet-owning flow per `(name, chain)`. Post-burn CCTP flows can coexist, and the
+   UI renders every one. Work on one chain must not block a payment on another chain.
 5. `seconds` and `off` always solved from `amountApplied`, never the deposited amount.
 6. Amounts in the breakdown panel use `fmtUsdcExact`; a tier can turn on a micro-unit.
 7. `chains.ts` defines Base, Arbitrum, Arc, and Ethereum. **No Optimism.**

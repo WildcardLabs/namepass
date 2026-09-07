@@ -1,9 +1,10 @@
 import { and, eq, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
 
 import { readEnsState, readNativeUsdcBalanceSnapshots } from "./chain";
+import { balanceScanCanComplete } from "./balance-scan";
 import { minimumTriggerAmount } from "./config";
 import { withDatabaseLease, database } from "./db/client";
-import { balanceSnapshots, chainEvents, flows, flowTransitions, names } from "./db/schema";
+import { balanceScanRequests, balanceSnapshots, chainEvents, flows, flowTransitions, names } from "./db/schema";
 import { NAME_RECHECK_MS } from "./flow-state";
 import { ORIGIN_WALLET_ACTIVE_STATUSES } from "./flow-state";
 import { logOperation } from "./log";
@@ -31,7 +32,15 @@ export interface RecoveryBatch {
 	readonly resumableFlowIds: readonly string[];
 	readonly overdueUnclaimedFlowIds: readonly string[];
 	readonly dueHeldFlowIds: readonly string[];
-	readonly unscannedNames: ReadonlyArray<{ id: string; depositAddress: string; chainIds: readonly number[] }>;
+	readonly unscannedNames: ReadonlyArray<{
+		id: string;
+		depositAddress: string;
+		requests: ReadonlyArray<{
+			chainId: number;
+			version: bigint;
+			requestedThroughBlock: string | null;
+		}>;
+	}>;
 	readonly monitoredIntents: ReadonlyArray<{
 		id: string;
 		flowId: string;
@@ -44,7 +53,7 @@ export interface RecoveryBatch {
 export interface RecoveryActions {
 	startFlow(flowId: string): Promise<unknown>;
 	recheckHeldFlow(flowId: string): Promise<unknown>;
-	scanName(name: { id: string; depositAddress: string; chainIds: readonly number[] }): Promise<readonly string[]>;
+	scanName(name: RecoveryBatch["unscannedNames"][number]): Promise<readonly string[]>;
 	monitorIntent(intentId: string): Promise<unknown>;
 }
 
@@ -90,10 +99,10 @@ export async function processRecoveryBatch(
 		try {
 			const started = await actions.scanName(name);
 			for (const flowId of started) await actions.startFlow(flowId);
-			logOperation("recovery.name_scanned", { chainId: name.chainIds.join(","), step: "balance_scan" });
+			logOperation("recovery.name_scanned", { chainId: name.requests.map((item) => item.chainId).join(","), step: "balance_scan" });
 		} catch {
 			failed += 1;
-			logOperation("recovery.name_failed", { chainId: name.chainIds.join(","), step: "balance_scan", errorCode: "balance_scan_failed" });
+			logOperation("recovery.name_failed", { chainId: name.requests.map((item) => item.chainId).join(","), step: "balance_scan", errorCode: "balance_scan_failed" });
 		}
 	}
 	for (const intent of batch.monitoredIntents) {
@@ -119,27 +128,23 @@ export async function processRecoveryBatch(
 	};
 }
 
-async function scanUnscannedName(name: { id: string; depositAddress: string; chainIds: readonly number[] }): Promise<readonly string[]> {
+async function scanUnscannedName(name: RecoveryBatch["unscannedNames"][number]): Promise<readonly string[]> {
 	const active = await database().select({ chainId: flows.originChainId }).from(flows).where(and(
 		eq(flows.nameId, name.id),
 		isNull(flows.originEventId),
 		inArray(flows.status, ORIGIN_WALLET_ACTIVE_STATUSES),
 	));
 	const activeChainIds = new Set(active.map((row) => Number(row.chainId)));
-	const scanChainIds = name.chainIds.filter((chainId) => !activeChainIds.has(chainId));
+	const scanRequests = name.requests.filter((request) => !activeChainIds.has(request.chainId));
+	const scanChainIds = scanRequests.map((request) => request.chainId);
 	if (!scanChainIds.length) return [];
 	const balances = await readNativeUsdcBalanceSnapshots(name.depositAddress, [...scanChainIds]);
-	const answered = new Set(balances
-		.filter((balance) => balance.amount !== undefined && balance.blockNumber !== undefined)
-		.map((balance) => balance.chainId));
-	const remaining = new Set(name.chainIds.filter(
-		(chainId) => activeChainIds.has(chainId) || !answered.has(chainId),
-	));
 	const eligible = balances.filter(
 		(balance): balance is Required<typeof balance> =>
 			balance.amount !== undefined && BigInt(balance.amount) >= minimumTriggerAmount(balance.chainId),
 	);
 	const created = await database().transaction(async (tx) => {
+		const blockedByFlow = new Set<number>();
 		for (const balance of balances) {
 			if (balance.amount === undefined || balance.blockNumber === undefined) continue;
 			await tx.insert(balanceSnapshots).values({
@@ -168,9 +173,26 @@ async function scanUnscannedName(name: { id: string; depositAddress: string; cha
 				.onConflictDoNothing()
 				.returning({ id: flows.id });
 			if (flow) result.push(flow.id);
-			else remaining.add(balance.chainId);
+			else blockedByFlow.add(balance.chainId);
 		}
-		await tx.update(names).set({ unscannedChainIds: [...remaining].map(String) }).where(eq(names.id, name.id));
+		for (const request of scanRequests) {
+			const balance = balances.find((item) => item.chainId === request.chainId);
+			if (balance?.amount === undefined || balance.blockNumber === undefined) continue;
+			if (!balanceScanCanComplete({
+				requestedThroughBlock: request.requestedThroughBlock,
+				snapshotBlock: balance.blockNumber,
+				blockedByFlow: blockedByFlow.has(request.chainId),
+			})) continue;
+			const [cleared] = await tx.delete(balanceScanRequests).where(and(
+				eq(balanceScanRequests.nameId, name.id),
+				eq(balanceScanRequests.chainId, String(request.chainId)),
+				eq(balanceScanRequests.version, request.version),
+			)).returning({ chainId: balanceScanRequests.chainId });
+			if (!cleared) continue;
+			await tx.update(names).set({
+				unscannedChainIds: sql`array_remove(${names.unscannedChainIds}, ${String(request.chainId)}::numeric)`,
+			}).where(eq(names.id, name.id));
+		}
 		return result;
 	});
 	return created;
@@ -287,19 +309,31 @@ export async function recheckHeldNameFlow(flowId: string, knownEns?: EnsState): 
 
 async function recoveryBatch(now: Date): Promise<RecoveryBatch> {
 	const db = database();
-	const unscanned = await db.select({
+	const requestRows = await db.select({
 		id: names.id,
 		depositAddress: names.depositAddress,
-		chainIds: names.unscannedChainIds,
-	}).from(names).where(or(
-		sql`cardinality(${names.unscannedChainIds}) > 0`,
-		sql`(select count(*) from ${balanceSnapshots} where ${balanceSnapshots.nameId} = ${names.id}) < ${SERVER_CHAINS.length}`,
-	)).limit(RECOVERY_LIMIT);
-	const snapshotRows = unscanned.length
-		? await db.select({ nameId: balanceSnapshots.nameId, chainId: balanceSnapshots.chainId })
-			.from(balanceSnapshots)
-			.where(inArray(balanceSnapshots.nameId, unscanned.map((row) => row.id)))
-		: [];
+		chainId: balanceScanRequests.chainId,
+		version: balanceScanRequests.version,
+		requestedThroughBlock: balanceScanRequests.requestedThroughBlock,
+	}).from(balanceScanRequests)
+		.innerJoin(names, eq(names.id, balanceScanRequests.nameId))
+		.where(sql`not exists (
+			select 1
+			from ${flows}
+			where ${flows.nameId} = ${balanceScanRequests.nameId}
+				and ${flows.originChainId} = ${balanceScanRequests.chainId}
+				and ${flows.originEventId} is null
+				and ${flows.status} in (
+					'queued',
+					'confirming_deposit',
+					'checking_name',
+					'submitting_origin',
+					'waiting_origin',
+					'held'
+				)
+		)`)
+		.orderBy(balanceScanRequests.updatedAt)
+		.limit(RECOVERY_LIMIT * SERVER_CHAINS.length);
 	const [resumable, overdueUnclaimed, dueHeld, monitored] = await Promise.all([
 		db.select({ id: flows.id }).from(flows).where(resumableRecoveryCandidate(now)).limit(RECOVERY_LIMIT),
 		db.select({ id: flows.id }).from(flows).where(overdueUnclaimedRecoveryCandidate(now)).limit(RECOVERY_LIMIT),
@@ -316,14 +350,15 @@ async function recoveryBatch(now: Date): Promise<RecoveryBatch> {
 		resumableFlowIds: resumable.map((row) => row.id),
 		overdueUnclaimedFlowIds: overdueUnclaimed.map((row) => row.id),
 		dueHeldFlowIds: dueHeld.map((row) => row.id),
-		unscannedNames: unscanned.map((row) => {
-			const existing = new Set(snapshotRows
-				.filter((snapshot) => snapshot.nameId === row.id)
-				.map((snapshot) => Number(snapshot.chainId)));
-			const requested = new Set(row.chainIds.map(Number).filter(Number.isSafeInteger));
-			for (const chain of SERVER_CHAINS) if (!existing.has(chain.chainId)) requested.add(chain.chainId);
-			return { id: row.id, depositAddress: row.depositAddress, chainIds: [...requested] };
-		}),
+		unscannedNames: [...new Map(requestRows.map((row) => [row.id, {
+			id: row.id,
+			depositAddress: row.depositAddress,
+			requests: requestRows.filter((item) => item.id === row.id).map((item) => ({
+				chainId: Number(item.chainId),
+				version: item.version,
+				requestedThroughBlock: item.requestedThroughBlock,
+			})),
+		}])).values()].slice(0, RECOVERY_LIMIT),
 		monitoredIntents: monitored.rows.map((row) => ({
 			id: row.id,
 			flowId: row.flow_id,

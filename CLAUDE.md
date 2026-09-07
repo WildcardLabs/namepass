@@ -118,6 +118,11 @@ recovery, manual trigger, and workflows still read the chain when their decision
 Do not add scheduled RPC health polling. Use an external address monitor with real notification
 delivery for relayer gas. With no live read, deposit, due recovery, or workflow, RPC usage is zero.
 
+Balance recovery uses one versioned `balance_scan_requests` row for each name and chain. A scan
+clears only the version that it read and only after its snapshot reaches the requested block.
+Origin receipt writers and deposit webhooks use the same name-and-chain advisory lock. A later
+zero-remainder origin receipt can absorb an earlier deposit without creating a duplicate flow.
+
 **Circle Iris supplies the final CCTP v2 nonce.** The origin-chain `MessageSent` event has a zero
 nonce placeholder. The workflow binds it to an exact `DepositProcessed` event, stores its index in
 the transaction, and requests that final message from Iris. Goldsky does not index global Circle events. It

@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 
 import { HUB_CHAIN, SERVER_CHAINS } from "../src/lib/chains";
 import { normalizeLabel } from "../src/lib/namepass";
@@ -20,6 +20,8 @@ import {
 } from "./settlement-identity";
 import { STOPPED_DEPOSIT_ERROR, stoppedFlowReason } from "./stopped-flows";
 import { ORIGIN_WALLET_ACTIVE_STATUSES } from "./flow-state";
+import { originWalletLockSql, requestBalanceScanSql } from "./balance-scan";
+import { depositWasAbsorbed } from "./deposit-eligibility";
 import {
 	transactionHashMatchesIntentSql,
 } from "./transactions";
@@ -116,8 +118,8 @@ export interface GoldskyTransaction {
 	reconcileRenewal(event: GoldskyEvent): Promise<string | undefined>;
 	refreshRenewalAggregates(nameId: string): Promise<void>;
 	refreshEnsExpiry(event: GoldskyEvent): Promise<void>;
-	ensureFlow(nameId: string, chainId: number, amount: string, depositEventId: string | null): Promise<string>;
-	markChainForScan(nameId: string, chainId: number): Promise<void>;
+	ensureFlow(nameId: string, chainId: number, amount: string, depositEventId: string | null): Promise<string | undefined>;
+	markChainForScan(nameId: string, chainId: number, requestedThroughBlock?: string): Promise<void>;
 	cancelUnbroadcastFlow(nameId: string, chainId: number, depositEventId: string): Promise<void>;
 }
 
@@ -410,7 +412,7 @@ export async function ingestGoldskyEvent(
 			await tx.cancelUnbroadcastFlow(nameId, event.chainId, event.eventId);
 			return undefined;
 		}
-		if (balanceReadFailed) await tx.markChainForScan(nameId, event.chainId);
+		if (balanceReadFailed) await tx.markChainForScan(nameId, event.chainId, event.blockNumber);
 		const eventAmount = BigInt(amount);
 		const balance = observedBalance === undefined ? eventAmount : BigInt(observedBalance);
 		const amountDetected = balance > eventAmount ? balance : eventAmount;
@@ -579,6 +581,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 					const [name] = await tx.select({ id: names.id }).from(names).where(eq(names.depositAddress, wallet));
 					if (!name) return undefined;
 					const originChainId = String(event.chainId);
+					await tx.execute(originWalletLockSql(name.id, originChainId));
 					const now = new Date();
 					const eventOwners = await tx.select({
 						id: flows.id,
@@ -657,18 +660,23 @@ export const postgresGoldskyStore: GoldskyStore = {
 						await tx.update(flows).set(event.gsOp === "d" ? {
 							originEventId: null,
 							originEvidenceTxHash: null,
+							originEvidenceBlockNumber: null,
 							amountProcessed: null,
 							remainingAmount: null,
 							updatedAt: now,
 						} : {
 							originEventId: event.eventId,
 							originEvidenceTxHash: event.txHash,
+							originEvidenceBlockNumber: event.blockNumber,
 							amountProcessed: String(facts.amount),
 							remainingAmount: String(facts.remaining_amount),
 							updatedAt: now,
 						}).where(and(eq(flows.id, owner.id), eq(flows.status, lockedOwner.status)));
-						if (event.gsOp !== "d" && BigInt(String(facts.remaining_amount)) > 0n) {
+						if (event.gsOp === "d") {
 							await this.markChainForScan(name.id, event.chainId);
+						}
+						if (event.gsOp !== "d" && BigInt(String(facts.remaining_amount)) > 0n) {
+							await this.markChainForScan(name.id, event.chainId, event.blockNumber);
 						}
 						return undefined;
 					}
@@ -724,6 +732,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 							status,
 							...(hasOriginIntent ? { originEventId: null } : {}),
 							originEvidenceTxHash: null,
+							originEvidenceBlockNumber: null,
 							amountProcessed: null,
 							remainingAmount: null,
 							cctpMessageIndex: null,
@@ -743,6 +752,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 							actor: "webhook",
 							reasonCode: "origin_reorged",
 						});
+						await this.markChainForScan(name.id, event.chainId);
 						return hasOriginIntent ? owner.id : undefined;
 					}
 
@@ -804,6 +814,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 					const values = {
 						originEventId: event.eventId,
 						originEvidenceTxHash: event.txHash,
+						originEvidenceBlockNumber: event.blockNumber,
 						status: restoresExternal ? "waiting_origin" as const : nextStatus,
 						amountProcessed: String(facts.amount),
 						remainingAmount: String(facts.remaining_amount),
@@ -825,7 +836,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 						}).returning({ id: flows.id });
 					if (!flow) return undefined;
 					if (BigInt(String(facts.remaining_amount)) > 0n) {
-						await this.markChainForScan(name.id, event.chainId);
+						await this.markChainForScan(name.id, event.chainId, event.blockNumber);
 					}
 					if (!owner || owner.status !== values.status) {
 						await tx.insert(flowTransitions).values({
@@ -1066,7 +1077,10 @@ export const postgresGoldskyStore: GoldskyStore = {
 						}).where(eq(transactionIntents.id, known.intentId));
 						await tx.update(flows).set({
 							renewalEventId: renewal.eventId,
-							...(known.intentKind === "origin_renew" ? { originEvidenceTxHash: renewal.txHash } : {}),
+							...(known.intentKind === "origin_renew" ? {
+								originEvidenceTxHash: renewal.txHash,
+								originEvidenceBlockNumber: event.blockNumber,
+							} : {}),
 							status: "settled",
 							gasAllowance: String(facts.gas_allowance),
 							amountApplied: String(facts.amount_applied),
@@ -1092,6 +1106,10 @@ export const postgresGoldskyStore: GoldskyStore = {
 						// `Renewed.remainder` is pricing dust. Keep the origin wallet remainder
 						// that `DepositProcessed` stored, and mark only this chain for a balance scan.
 						if (BigInt(current.remainingAmount ?? "0") > 0n) {
+							await tx.execute(requestBalanceScanSql({
+								nameId: known.nameId,
+								chainId: known.originChainId,
+							}));
 							await tx.update(names).set({
 								unscannedChainIds: sql`case
 									when ${known.originChainId}::numeric = any(${names.unscannedChainIds})
@@ -1314,7 +1332,8 @@ export const postgresGoldskyStore: GoldskyStore = {
 					await tx.update(names).set(aggregate)
 						.where(eq(names.normalizedLabel, label));
 				},
-				async markChainForScan(nameId, chainId) {
+				async markChainForScan(nameId, chainId, requestedThroughBlock) {
+					await tx.execute(requestBalanceScanSql({ nameId, chainId, requestedThroughBlock }));
 					await tx.update(names).set({
 						unscannedChainIds: sql`case
 							when ${String(chainId)}::numeric = any(${names.unscannedChainIds})
@@ -1324,6 +1343,67 @@ export const postgresGoldskyStore: GoldskyStore = {
 					}).where(eq(names.id, nameId));
 				},
 				async ensureFlow(nameId, chainId, amount, depositEventId) {
+					await tx.execute(originWalletLockSql(nameId, chainId));
+					if (depositEventId) {
+						const [deposit] = await tx.select({ blockNumber: deposits.blockNumber })
+							.from(deposits)
+							.where(eq(deposits.eventId, depositEventId));
+						if (deposit) {
+							const priorOrigins = await tx.select({
+								id: flows.id,
+								originBlock: flows.originEvidenceBlockNumber,
+								remainingAmount: flows.remainingAmount,
+							}).from(flows).where(and(
+								eq(flows.nameId, nameId),
+								eq(flows.originChainId, String(chainId)),
+								isNotNull(flows.originEvidenceTxHash),
+								isNotNull(flows.originEvidenceBlockNumber),
+								gt(flows.originEvidenceBlockNumber, deposit.blockNumber),
+							));
+							const absorbed = priorOrigins.find((origin) =>
+								origin.originBlock !== null
+								&& origin.remainingAmount !== null
+								&& depositWasAbsorbed({
+									depositBlock: BigInt(deposit.blockNumber),
+									originBlock: BigInt(origin.originBlock),
+									remainingAmount: BigInt(origin.remainingAmount),
+								}));
+							if (absorbed) {
+								const [ghost] = await tx.select({ id: flows.id, status: flows.status })
+									.from(flows)
+									.where(and(
+										eq(flows.depositEventId, depositEventId),
+										isNull(flows.originTxIntentId),
+										inArray(flows.status, ["queued", "confirming_deposit", "checking_name", "held"]),
+									));
+								if (ghost) {
+									const now = new Date();
+									const [cancelled] = await tx.update(flows).set({
+										status: "cancelled",
+										holdReason: null,
+										workflowRunId: null,
+										lastErrorCode: "absorbed_by_prior_flow",
+										lastErrorDetail: null,
+										nextActionAt: null,
+										cancelledAt: now,
+										updatedAt: now,
+									}).where(and(eq(flows.id, ghost.id), eq(flows.status, ghost.status)))
+										.returning({ id: flows.id });
+									if (cancelled) {
+										await tx.insert(flowTransitions).values({
+											flowId: ghost.id,
+											fromStatus: ghost.status,
+											toStatus: "cancelled",
+											actor: "webhook",
+											reasonCode: "absorbed_by_prior_flow",
+											detail: { consumingFlowId: absorbed.id },
+										});
+									}
+								}
+								return undefined;
+							}
+						}
+					}
 					const [created] = await tx
 						.insert(flows)
 						.values({
@@ -1395,7 +1475,11 @@ export const postgresGoldskyStore: GoldskyStore = {
 						holdReason: "multiple_or_unlinked_deposits",
 						updatedAt: new Date(),
 					}).where(eq(flows.id, existing.id));
-					await this.markChainForScan(nameId, chainId);
+					const [triggerDeposit] = depositEventId
+						? await tx.select({ blockNumber: deposits.blockNumber })
+							.from(deposits).where(eq(deposits.eventId, depositEventId))
+						: [];
+					await this.markChainForScan(nameId, chainId, triggerDeposit?.blockNumber);
 					return existing.id;
 				},
 				async cancelUnbroadcastFlow(nameId, chainId, depositEventId) {

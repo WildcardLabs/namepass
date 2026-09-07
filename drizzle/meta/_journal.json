@@ -57,6 +57,13 @@
       "when": 1788557299572,
       "tag": "0007_exact_cctp_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788772800000,
+      "tag": "0008_absorbed_deposit_flows",
+      "breakpoints": true
     }
   ]
 }
