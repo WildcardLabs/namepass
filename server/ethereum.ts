@@ -9,11 +9,12 @@ import {
 	type Hex,
 } from "viem";
 import { HUB_CHAIN } from "../src/lib/chains";
+import { markBalanceScanRequested, originWalletLockSql, requestBalanceScanSql } from "./balance-scan";
 import { labelHash, readEnsState } from "./chain";
 import { database } from "./db/client";
 import { chainEvents, deposits, flows, flowTransitions, names } from "./db/schema";
-import { NAME_RECHECK_MS, setFlowStatus, setPreOriginFlowStatus } from "./flow-state";
-import { automaticDepositBalanceBlock, depositBalanceAction } from "./deposit-eligibility";
+import { ABSORBED_BY_PRIOR_FLOW, NAME_RECHECK_MS, setFlowStatus, setPreOriginFlowStatus } from "./flow-state";
+import { automaticDepositBalanceBlock, liveDepositBalanceAction } from "./deposit-eligibility";
 import { parseEnsRenewalExpiry } from "./ens-renewal";
 import {
 	ensureTransactionBroadcast,
@@ -271,9 +272,26 @@ export async function checkEthereumEligibility(flowId: string): Promise<"ready" 
 	const balanceBlock = flow.eligibilityBlockNumber !== null
 		? BigInt(flow.eligibilityBlockNumber)
 		: undefined;
-	const [ens, balance] = await Promise.all([
+	const [ens, liveBlock] = await Promise.all([
 		readEnsState(flow.label),
-		rpc.readContract({
+		rpc.getBlockNumber(),
+	]);
+	if (balanceBlock !== undefined && liveBlock < balanceBlock) {
+		throw new Error("The origin RPC has not reached the verified deposit block.");
+	}
+	const liveBalancePromise = rpc.readContract({
+		address: HUB_CHAIN.usdcAddress as Address,
+		abi: ERC20_ABI,
+		functionName: "balanceOf",
+		args: [flow.depositAddress as Address],
+		authorizationList: undefined,
+		blockNumber: liveBlock,
+	});
+	const [liveBalance, verifiedBalance] = await Promise.all([
+		liveBalancePromise,
+		balanceBlock === undefined || balanceBlock === liveBlock
+			? liveBalancePromise
+			: rpc.readContract({
 			address: HUB_CHAIN.usdcAddress as Address,
 			abi: ERC20_ABI,
 			functionName: "balanceOf",
@@ -282,6 +300,31 @@ export async function checkEthereumEligibility(flowId: string): Promise<"ready" 
 			blockNumber: balanceBlock,
 		}),
 	]);
+	const balanceAction = liveDepositBalanceAction({
+		verifiedBalance,
+		verifiedBlock: balanceBlock,
+		liveBalance,
+		liveBlock,
+	});
+	if (balanceAction !== "ready") {
+		if (balanceAction === "retry") {
+			throw new Error("The deposit block does not contain the verified wallet balance.");
+		}
+		const reason = balanceAction === "absorbed" ? ABSORBED_BY_PRIOR_FLOW : "empty_wallet";
+		if (balanceAction === "absorbed") {
+			await markBalanceScanRequested({
+				nameId: flow.nameId,
+				chainId: HUB_CHAIN.chainId,
+				requestedThroughBlock: liveBlock,
+			});
+		}
+		const outcome = await setPreOriginFlowStatus(flowId, ["checking_name"], "cancelled", {
+			holdReason: null,
+			lastErrorDetail: null,
+		}, reason);
+		const cancelled = outcome.applied || outcome.status === "cancelled";
+		return cancelled ? "cancelled" : "ready";
+	}
 	if (!ens.renewableBy) {
 		const outcome = await setPreOriginFlowStatus(
 			flowId,
@@ -295,19 +338,11 @@ export async function checkEthereumEligibility(flowId: string): Promise<"ready" 
 		);
 		return outcome.applied || outcome.status === "held" ? "held" : "ready";
 	}
-	const balanceAction = depositBalanceAction(balance, balanceBlock);
-	if (balanceAction !== "ready") {
-		if (balanceAction === "retry") {
-			throw new Error("The deposit block does not contain the verified wallet balance.");
-		}
-		const outcome = await setPreOriginFlowStatus(flowId, ["checking_name"], "cancelled", {}, "empty_wallet");
-		return outcome.applied || outcome.status === "cancelled" ? "cancelled" : "ready";
-	}
 	return "ready";
 }
 
 /** Persist exact signed bytes before any RPC broadcast. */
-export async function prepareEthereumRenewal(flowId: string): Promise<string> {
+export async function prepareEthereumRenewal(flowId: string): Promise<string | null> {
 	"use step";
 	const flow = await loadEthereumFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
@@ -319,13 +354,51 @@ export async function prepareEthereumRenewal(flowId: string): Promise<string> {
 			: flow.originIntentId;
 	}
 	const callData = encodeFunctionData({ abi: FACTORY_ABI, functionName: "renew", args: [flow.label] });
-	return prepareTransaction({
-		flowId,
-		kind: "origin_renew",
-		chain: HUB_CHAIN,
-		to: HUB_CHAIN.factoryAddress! as Address,
-		callData,
-	});
+	try {
+		return await prepareTransaction({
+			flowId,
+			kind: "origin_renew",
+			chain: HUB_CHAIN,
+			to: HUB_CHAIN.factoryAddress! as Address,
+			callData,
+		});
+	} catch (error) {
+		let liveBlock: bigint;
+		let liveBalance: bigint;
+		try {
+			const rpc = await verifiedChainClient(HUB_CHAIN);
+			liveBlock = await rpc.getBlockNumber();
+			liveBalance = await rpc.readContract({
+				address: HUB_CHAIN.usdcAddress as Address,
+				abi: ERC20_ABI,
+				functionName: "balanceOf",
+				args: [flow.depositAddress as Address],
+				authorizationList: undefined,
+				blockNumber: liveBlock,
+			});
+		} catch {
+			throw error;
+		}
+		if (
+			flow.eligibilityBlockNumber === null
+			|| liveBlock <= BigInt(flow.eligibilityBlockNumber)
+			|| liveBalance > 0n
+		) throw error;
+		await markBalanceScanRequested({
+			nameId: flow.nameId,
+			chainId: HUB_CHAIN.chainId,
+			requestedThroughBlock: liveBlock,
+		});
+		const outcome = await setPreOriginFlowStatus(
+			flowId,
+			["checking_name"],
+			"cancelled",
+			{ holdReason: null, lastErrorDetail: null },
+			ABSORBED_BY_PRIOR_FLOW,
+		);
+		if (outcome.applied || outcome.status === "cancelled") return null;
+		throw error;
+	}
 }
 
 export async function broadcastEthereumRenewal(intentId: string): Promise<string> {
@@ -409,6 +482,7 @@ export async function confirmEthereumRenewal(flowId: string, intentId: string): 
 	});
 	const db = database();
 	const outcome = await db.transaction(async (tx) => {
+		await tx.execute(originWalletLockSql(flow.nameId, HUB_CHAIN.chainId));
 		const [current] = await tx.select({
 			status: flows.status,
 			originTxIntentId: flows.originTxIntentId,
@@ -431,10 +505,15 @@ export async function confirmEthereumRenewal(flowId: string, intentId: string): 
 		const now = new Date();
 		await tx.update(transactionIntents).set({ status: "confirmed", confirmedAt: now, receipt: receipt as unknown as Record<string, unknown>, updatedAt: now }).where(eq(transactionIntents.id, intentId));
 		if (current.status === "settled") {
-			await tx.update(flows).set({ originEvidenceTxHash: receipt.transactionHash, workflowRunId: null, updatedAt: now }).where(eq(flows.id, flowId));
+			await tx.update(flows).set({
+				originEvidenceTxHash: receipt.transactionHash,
+				originEvidenceBlockNumber: receipt.blockNumber.toString(),
+				workflowRunId: null,
+				updatedAt: now,
+			}).where(eq(flows.id, flowId));
 			return "settled" as const;
 		}
-		await tx.update(flows).set({ status: "settled", originEvidenceTxHash: receipt.transactionHash, amountProcessed: settlement.amountProcessed, remainingAmount: settlement.remainingAmount, gasAllowance: settlement.gasAllowance, amountApplied: settlement.amountApplied, durationSeconds: settlement.durationSeconds, expiryAfter, workflowRunId: null, settledAt: now, updatedAt: now }).where(eq(flows.id, flowId));
+		await tx.update(flows).set({ status: "settled", originEvidenceTxHash: receipt.transactionHash, originEvidenceBlockNumber: receipt.blockNumber.toString(), amountProcessed: settlement.amountProcessed, remainingAmount: settlement.remainingAmount, gasAllowance: settlement.gasAllowance, amountApplied: settlement.amountApplied, durationSeconds: settlement.durationSeconds, expiryAfter, workflowRunId: null, settledAt: now, updatedAt: now }).where(eq(flows.id, flowId));
 		await tx.update(names).set({ currentExpiry: expiryAfter, ensSyncedAt: now }).where(and(
 			eq(names.id, flow.nameId),
 			or(isNull(names.currentExpiry), lt(names.currentExpiry, expiryAfter)),
@@ -443,6 +522,11 @@ export async function confirmEthereumRenewal(flowId: string, intentId: string): 
 			await tx.update(deposits).set({ status: "finalized" }).where(eq(deposits.eventId, flow.depositEventId));
 		}
 		if (BigInt(settlement.remainingAmount) > 0n) {
+			await tx.execute(requestBalanceScanSql({
+				nameId: flow.nameId,
+				chainId: HUB_CHAIN.chainId,
+				requestedThroughBlock: receipt.blockNumber,
+			}));
 			await tx.update(names).set({
 				unscannedChainIds: sql`case
 					when ${String(HUB_CHAIN.chainId)}::numeric = any(${names.unscannedChainIds})

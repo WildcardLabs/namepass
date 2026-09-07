@@ -157,6 +157,27 @@ export const balanceSnapshots = pgTable(
 	],
 );
 
+/**
+ * One durable balance-scan request per name and chain. The version prevents a
+ * scan from clearing a request that arrived while its RPC read was running.
+ */
+export const balanceScanRequests = pgTable(
+	"balance_scan_requests",
+	{
+		nameId: uuid("name_id")
+			.notNull()
+			.references(() => names.id),
+		chainId: amount("chain_id").notNull(),
+		requestedThroughBlock: amount("requested_through_block"),
+		version: bigint("version", { mode: "bigint" }).default(sql`1`).notNull(),
+		updatedAt: instant("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.nameId, table.chainId] }),
+		index("balance_scan_requests_updated_idx").on(table.updatedAt),
+	],
+);
+
 export const chainEvents = pgTable(
 	"chain_events",
 	{
@@ -234,6 +255,7 @@ export const flows = pgTable(
 		originTxIntentId: uuid("origin_tx_intent_id"),
 		originEventId: text("origin_event_id").references(() => chainEvents.eventId),
 		originEvidenceTxHash: varchar("origin_evidence_tx_hash", { length: 66 }),
+		originEvidenceBlockNumber: amount("origin_evidence_block_number"),
 		claimTxIntentId: uuid("claim_tx_intent_id"),
 		amountDetected: amount("amount_detected").notNull(),
 		amountProcessed: amount("amount_processed"),

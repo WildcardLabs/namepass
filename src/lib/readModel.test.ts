@@ -185,9 +185,51 @@ test("pending balances do not count money owned by an active flow twice", () => 
 	const reason = (chainId: string) => record.pending.balances.find((balance) => balance.chainId === chainId)?.holdReason;
 	expect(reason("421614")).toBe("below_threshold");
 	expect(reason("84532")).toBeUndefined();
-	expect(reason("5042002")).toBe("flow_in_progress");
+	expect(reason("5042002")).toBe("not_detected");
 	expect(reason("11155111")).toBe("flow_failed");
 	expect(record.pending.flows.find((active) => active.id === "active")?.status).toBe("confirming_deposit");
+});
+
+test("the browser keeps every same-chain post-burn flow and shows new wallet funds separately", () => {
+	setPublicConfig({
+		chains: PUBLIC_CHAINS.map((chain) => ({ chainId: chain.chainId, minimumTriggerAmount: "500000" })),
+	});
+	const record = syncName({
+		name: {
+			label: "same-chain-test",
+			displayName: "same-chain-test.eth",
+			depositAddress: "0x0000000000000000000000000000000000000014",
+			activatedAt: "2026-08-10T00:00:00.000Z",
+			currentExpiry: "2027-08-10T00:00:00.000Z",
+			renewableBy: "registrar",
+			ensSyncedAt: "2026-08-11T00:00:00.000Z",
+			unscannedChainIds: ["84532"],
+			lifetimeReceived: "0",
+			lifetimeApplied: "0",
+			timeDeliveredSeconds: "0",
+			renewalCount: "0",
+		},
+		renewals: [],
+		flows: [
+			flow({ id: "base-attestation-1", status: "waiting_attestation", amountProcessed: "7000000" }),
+			flow({ id: "base-attestation-2", status: "waiting_attestation", amountProcessed: "8000000" }),
+		],
+		balances: [{ chainId: "84532", amount: "900000" }],
+		nextCursor: null,
+	});
+
+	expect(record.pending.flows.map((item) => item.id)).toEqual([
+		"base-attestation-1",
+		"base-attestation-2",
+	]);
+	expect(record.pending.balances).toEqual([{
+		chainId: "84532",
+		chain: "Base",
+		amount: 900000n,
+		holdReason: "scan_pending",
+		flowErrorCode: undefined,
+	}]);
+	expect(canTrigger(record.pending, record.pending.balances[0]!)).toBe(false);
 });
 
 test("an inactive name never presents a held balance as queued behind a renewal", () => {

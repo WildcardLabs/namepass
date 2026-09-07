@@ -49,7 +49,12 @@ test("an active flow hides an older stopped flow on the same chain", () => {
 });
 
 test("the name API hides merged and repaired duplicates from the failed-flow UI", () => {
-	for (const error of ["duplicate_message_settled", "duplicate_flow_merged", "duplicate_flow_repaired"]) {
+	for (const error of [
+		"duplicate_message_settled",
+		"duplicate_flow_merged",
+		"duplicate_flow_repaired",
+		"absorbed_by_prior_flow",
+	]) {
 		const duplicate = row("cancelled", error);
 		duplicate.flow.lastErrorCode = error;
 		assert.deepEqual(visibleNameFlows(

@@ -77,6 +77,7 @@ export async function cctpRenewal(
 			let originIntentId = flow.originIntentId;
 			if (resume !== "origin_receipt") {
 				originIntentId = await prepareCctpOriginStep(flowId);
+				if (!originIntentId) return "cancelled";
 			}
 			if (!originIntentId && !flow.originEvidenceTxHash) {
 				throw new Error("The CCTP flow has no origin transaction evidence.");

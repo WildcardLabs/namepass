@@ -10,7 +10,7 @@ export { minTrigger, setPublicConfig } from "./triggerConfig";
 
 export type EventKind = "activated" | "deposit" | "renewal";
 export type FlowStatus = ActiveFlowStatus;
-export type HoldReason = "flow_in_progress" | "below_threshold" | "name_inactive" | "not_detected" | "flow_failed" | "unknown";
+export type HoldReason = "flow_in_progress" | "scan_pending" | "below_threshold" | "name_inactive" | "not_detected" | "flow_failed" | "unknown";
 export type ActivityEmptyState = "no_completed_renewals" | "waiting_first_payment" | null;
 
 export interface FlowStep { kind: "deposit" | "burn" | "renewal"; chain: string; tx: string; }
@@ -63,6 +63,8 @@ export function renewalEvent(renewal: PublicRenewal, label: string): ActivityEve
 function balanceReason(name: PublicName, flow: PublicFlow | undefined, balance: PublicChainBalance): HoldReason {
 	if (balance.amount === null) return "unknown";
 	if (!name.renewableBy) return "name_inactive";
+	if (flow && !["cancelled", "failed"].includes(flow.status)) return holdReason(flow);
+	if (name.unscannedChainIds.includes(balance.chainId)) return "scan_pending";
 	if (flow) return holdReason(flow);
 	const minimum = minTrigger(balance.chainId);
 	if (minimum === undefined) return "unknown";
@@ -83,19 +85,16 @@ const BALANCE_OWNED_FLOW_STATUSES = new Set([
 	"checking_name",
 	"submitting_origin",
 	"waiting_origin",
-	"waiting_attestation",
-	"submitting_claim",
-	"waiting_claim",
-	"unclaimed",
 ]);
 
 function unclaimedBalance(balance: PublicChainBalance, flows: PublicFlow[]): PublicChainBalance | undefined {
-	const flow = flows.find((candidate) =>
+	const owned = flows.filter((candidate) =>
 		candidate.originChainId === balance.chainId
 		&& BALANCE_OWNED_FLOW_STATUSES.has(candidate.status));
-	if (!flow) return balance;
+	if (!owned.length) return balance;
 	if (balance.amount === null) return undefined;
-	const amount = micro(balance.amount) - micro(flow.amountDetected);
+	const claimed = owned.reduce((total, flow) => total + micro(flow.amountDetected), 0n);
+	const amount = micro(balance.amount) - claimed;
 	if (amount <= 0n) return undefined;
 	return { ...balance, amount: amount.toString() };
 }
@@ -133,7 +132,10 @@ function setName(name: PublicName, activity?: NameActivityRead): NameRecord {
 			.map((balance) => {
 				const flow = sourceFlows.find((candidate) =>
 					candidate.originChainId === balance.chainId
-					&& candidate.status !== "settled");
+					&& BALANCE_OWNED_FLOW_STATUSES.has(candidate.status))
+					?? sourceFlows.find((candidate) =>
+					candidate.originChainId === balance.chainId
+					&& ["held", "cancelled", "failed"].includes(candidate.status));
 				return {
 					chainId: balance.chainId,
 					chain: chainName(balance.chainId),

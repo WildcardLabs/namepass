@@ -61,6 +61,7 @@ class MemoryStore implements GoldskyStore, GoldskyTransaction {
 	settlementLocks = 0;
 	lastOperation: "upsert" | "lock" | "reconcile" | undefined;
 	readonly scanMarkers = new Set<string>();
+	readonly absorbedDeposits = new Set<string>();
 
 	async transaction<T>(work: (tx: GoldskyTransaction) => Promise<T>): Promise<T> {
 		return work(this);
@@ -111,7 +112,8 @@ class MemoryStore implements GoldskyStore, GoldskyTransaction {
 		chainId: number,
 		amount: string,
 		depositEventId: string | null,
-	): Promise<string> {
+	): Promise<string | undefined> {
+		if (depositEventId && this.absorbedDeposits.has(depositEventId)) return undefined;
 		const linked = depositEventId
 			? this.flows.find((flow) => flow.depositEventId === depositEventId)
 			: undefined;
@@ -262,6 +264,18 @@ test("a deposit during an active flow leaves a bounded balance-scan marker", asy
 	assert.equal(store.flows.length, 1);
 	assert.equal(store.flows[0]?.depositEventId, null);
 	assert.deepEqual([...store.scanMarkers], ["name-1:84532"]);
+});
+
+test("a late deposit that an earlier burn absorbed does not start a ghost flow", async () => {
+	const store = new MemoryStore();
+	store.absorbedDeposits.add(transfer().event_id);
+	const started: string[] = [];
+	const route = goldskyHandler(store, async (flowId) => void started.push(flowId), () => secret);
+
+	assert.equal((await route.fetch(request(JSON.stringify(transfer())))).status, 200);
+	assert.equal(store.deposits.size, 1);
+	assert.equal(store.flows.length, 0);
+	assert.deepEqual(started, []);
 });
 
 test("a failed small-deposit balance read leaves a recovery marker", async () => {

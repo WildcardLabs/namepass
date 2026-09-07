@@ -7,6 +7,32 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-09-07 — Reconcile late deposits with exact origin-block evidence
+
+A deposit webhook can arrive while an earlier flow's origin transaction is finishing. The earlier
+transaction spends the wallet's full live balance, so it can consume that deposit even when the
+deposit was not known when the flow started. Creating a second flow for the late webhook leaves a
+ghost that has historical deposit evidence but no balance to spend. Amount matching cannot repair
+this safely because separate valid payments can have the same value.
+
+Each confirmed origin execution now stores its receipt block. The origin-receipt writer and deposit
+webhook take the same transaction-scoped lock for one name and origin chain. A deposit is absorbed
+only when a later exact origin receipt reports zero remaining wallet balance. The webhook records
+the deposit contribution but does not create a second flow. A workflow that was created before the
+receipt became visible repeats the same live-balance check before signing and cancels that row with
+`absorbed_by_prior_flow`. It also queues a block-pinned balance scan so a false or lagging RPC read
+cannot suppress real funds. This reason is canonical reconciliation state, not a failed renewal.
+
+Post-burn CCTP flows still release the origin wallet. Several attestation or claim flows can run for
+the same name and chain while a new pre-origin flow spends a later balance. Only pre-origin stages
+participate in the wallet-owner uniqueness rule.
+
+Balance recovery now uses a versioned request for each name and chain. A deposit advances the
+request and records the event block as a watermark. A scan clears only the version it read and only
+after its block-pinned snapshot reaches that watermark. A scan that started before a deposit cannot
+erase the newer request. The legacy `unscanned_chain_ids` array remains a public-read mirror, not
+the recovery queue.
+
 ### 2026-09-05 — Repair the historical split evidence in the guarded migration
 
 The stable testnet database contains one old race with two rows for one Circle nonce. The automatic

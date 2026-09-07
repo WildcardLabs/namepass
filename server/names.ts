@@ -2,8 +2,9 @@ import { and, desc, eq, gte, inArray, notInArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import { readEnsState, readNativeUsdcBalanceSnapshots, ensNamehash, labelHash } from "./chain";
+import { balanceScanCanComplete, requestBalanceScanSql } from "./balance-scan";
 import { database } from "./db/client";
-import { balanceSnapshots, deposits, flows, names, transactionIntents, watchedAddresses } from "./db/schema";
+import { balanceScanRequests, balanceSnapshots, deposits, flows, names, transactionIntents, watchedAddresses } from "./db/schema";
 import { minimumTriggerAmount } from "./config";
 import { ApiError } from "./http";
 import type { ActivityCursor } from "./http";
@@ -22,6 +23,7 @@ const HIDDEN_DUPLICATE_ERRORS = new Set([
 	"duplicate_message_settled",
 	"duplicate_flow_merged",
 	"duplicate_flow_repaired",
+	"absorbed_by_prior_flow",
 ]);
 
 export type NameFlowRow = {
@@ -131,13 +133,21 @@ export async function activateName(input: string) {
 			.insert(watchedAddresses)
 			.values({ value: address.toLowerCase() })
 			.onConflictDoUpdate({ target: watchedAddresses.value, set: { updatedAt: new Date() } });
-		return { row, inserted: Boolean(inserted) };
+		for (const chain of SERVER_CHAINS) {
+			await tx.execute(requestBalanceScanSql({ nameId: row.id, chainId: chain.chainId }));
+		}
+		await tx.update(names).set({
+			unscannedChainIds: SERVER_CHAINS.map((chain) => String(chain.chainId)),
+		}).where(eq(names.id, row.id));
+		const requests = await tx.select({
+			chainId: balanceScanRequests.chainId,
+			version: balanceScanRequests.version,
+			requestedThroughBlock: balanceScanRequests.requestedThroughBlock,
+		}).from(balanceScanRequests).where(eq(balanceScanRequests.nameId, row.id));
+		return { row, inserted: Boolean(inserted), requests };
 	});
 
 	const balances = await readNativeUsdcBalanceSnapshots(address);
-	const unknownChainIds = balances
-		.filter((balance) => balance.amount === undefined || balance.blockNumber === undefined)
-		.map((balance) => String(balance.chainId));
 	const positiveBalances = balances.filter(
 		(balance): balance is Required<typeof balance> =>
 			balance.amount !== undefined &&
@@ -147,10 +157,7 @@ export async function activateName(input: string) {
 
 	const recoveryFlowIds = await db.transaction(async (tx) => {
 		const flowIds: string[] = [];
-		await tx
-			.update(names)
-			.set({ unscannedChainIds: unknownChainIds })
-			.where(eq(names.id, created.row.id));
+		const createdFlowChains = new Set<number>();
 		for (const balance of balances) {
 			if (balance.amount === undefined || balance.blockNumber === undefined) continue;
 			await tx.insert(balanceSnapshots).values({
@@ -177,7 +184,29 @@ export async function activateName(input: string) {
 				})
 				.onConflictDoNothing()
 				.returning({ id: flows.id });
-			if (flow) flowIds.push(flow.id);
+			if (flow) {
+				flowIds.push(flow.id);
+				createdFlowChains.add(balance.chainId);
+			}
+		}
+		for (const request of created.requests) {
+			const balance = balances.find((item) => String(item.chainId) === request.chainId);
+			if (balance?.amount === undefined || balance.blockNumber === undefined) continue;
+			const eligible = BigInt(balance.amount) >= minimumTriggerAmount(balance.chainId);
+			if (!balanceScanCanComplete({
+				requestedThroughBlock: request.requestedThroughBlock,
+				snapshotBlock: balance.blockNumber,
+				blockedByFlow: eligible && !createdFlowChains.has(balance.chainId),
+			})) continue;
+			const [cleared] = await tx.delete(balanceScanRequests).where(and(
+				eq(balanceScanRequests.nameId, created.row.id),
+				eq(balanceScanRequests.chainId, request.chainId),
+				eq(balanceScanRequests.version, request.version),
+			)).returning({ chainId: balanceScanRequests.chainId });
+			if (!cleared) continue;
+			await tx.update(names).set({
+				unscannedChainIds: sql`array_remove(${names.unscannedChainIds}, ${request.chainId}::numeric)`,
+			}).where(eq(names.id, created.row.id));
 		}
 		return flowIds;
 	});

@@ -14,6 +14,8 @@ export const ORIGIN_WALLET_ACTIVE_STATUSES: FlowStatus[] = [
 	"held",
 ];
 
+export const ABSORBED_BY_PRIOR_FLOW = "absorbed_by_prior_flow";
+
 export function originWalletOwnsFlow(status: FlowStatus, originEventId: string | null): boolean {
 	return originEventId === null && ORIGIN_WALLET_ACTIVE_STATUSES.includes(status);
 }
