@@ -21,18 +21,10 @@ export default function PageShell({ children, video, outerClassName = "", cardCl
 			<section
 				className={`relative w-full max-w-[1536px] rounded-[1.5rem] md:rounded-[3rem] overflow-hidden flex flex-col items-center ${video ? "" : "bg-white"} ${cardClassName}`}
 			>
-				{/* `-inset-1` below is a crop, not spacing.
-				    `cinematic2.mp4` has a black 1px column baked into its right
-				    edge and a half-dark one beside it, which show as a hard line
-				    whenever this card is proportionally wider than the video's
-				    16:9 (any laptop-height viewport at full width). Growing the
-				    box 4px on every side pushes them outside the clip.
-
-				    Deliberately sizing rather than `scale`: a transform makes
+				{/* Deliberately size rather than use `scale`: a transform makes
 				    the video a compositing layer whose rounded clip is computed
 				    then scaled, so its corner arc no longer lands on the painted
 				    content's, and the difference shows as a hairline.
-				    Drop this if the asset is ever re-encoded clean.
 
 				    `rounded-br-*` pulls the video back from the card's
 				    bottom-right corner, and it is load-bearing. The card's
@@ -67,8 +59,8 @@ export default function PageShell({ children, video, outerClassName = "", cardCl
 					<video
 						autoPlay
 						muted
-						loop
 						playsInline
+						onEnded={(event) => event.currentTarget.pause()}
 						src={video}
 						className="absolute -inset-1 max-w-none w-[calc(100%_+_0.5rem)] h-[calc(100%_+_0.5rem)] object-cover object-[65%] lg:object-center rounded-br-[4rem] md:rounded-br-[6rem] z-0"
 					/>

@@ -123,12 +123,20 @@ export interface NameActivityRead {
 	flows: PublicFlow[];
 	balances: PublicChainBalance[];
 	nextCursor: string | null;
+	page?: number;
+	pageSize?: number;
+	totalItems?: number;
+	totalPages?: number;
 }
 
 export interface ActivityRead {
 	items: Array<{ name: PublicName; renewal: PublicRenewal }>;
 	flows: Array<{ name: PublicName; flow: PublicFlow }>;
 	nextCursor: string | null;
+	page?: number;
+	pageSize?: number;
+	totalItems?: number;
+	totalPages?: number;
 }
 
 export interface LeaderboardRead {
@@ -161,15 +169,13 @@ export function getName(label: string): Promise<NameRead> {
 	return request(`/api/names/${labelPath(label)}`);
 }
 
-export function getNameActivity(label: string, cursor?: string, limit = 30): Promise<NameActivityRead> {
-	const query = new URLSearchParams({ limit: String(limit) });
-	if (cursor) query.set("cursor", cursor);
+export function getNameActivity(label: string, page = 1, limit = 30): Promise<NameActivityRead> {
+	const query = new URLSearchParams({ page: String(page), limit: String(limit) });
 	return request(`/api/names/${labelPath(label)}/activity?${query}`);
 }
 
-export function getActivity(cursor?: string, limit = 15): Promise<ActivityRead> {
-	const query = new URLSearchParams({ limit: String(limit) });
-	if (cursor) query.set("cursor", cursor);
+export function getActivity(page = 1, limit = 15): Promise<ActivityRead> {
+	const query = new URLSearchParams({ page: String(page), limit: String(limit) });
 	return request(`/api/activity?${query}`);
 }
 

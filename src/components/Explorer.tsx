@@ -64,9 +64,8 @@ import { LABEL_PROBLEM_TEXT, labelProblem, normalizeLabel } from "../lib/namepas
 import { GAS_ALLOWANCE } from "../lib/fees";
 import { fetchProfile, type EnsProfile } from "../lib/ens";
 import { XIcon } from "./icons";
-import { activateName, getActivity, getName, getNameActivity, getPublicConfig, safeInteger, triggerFlow, type ActivityRead, type NameActivityRead, type PublicFlow } from "../lib/publicApi";
+import { activateName, getActivity, getName, getNameActivity, getPublicConfig, safeInteger, triggerFlow, type ActivityRead, type PublicFlow } from "../lib/publicApi";
 import { chainById, HUB_CHAIN } from "../lib/chains";
-import { mergeActivityHistory, mergeNameHistory } from "../lib/activityHistory";
 
 /**
  * "Received" is what the funder sent; the rate and time next to it were bought
@@ -331,36 +330,33 @@ const ACTIVITY_PAGE_SIZE = 10;
 
 function ActivityPagination({
 	page,
-	hasPrevious,
-	hasNext,
-	loadingNext,
-	onPrevious,
-	onNext,
+	totalPages,
+	loading,
+	onPage,
 }: {
 	page: number;
-	hasPrevious: boolean;
-	hasNext: boolean;
-	loadingNext: boolean;
-	onPrevious: () => void;
-	onNext: () => void;
+	totalPages: number;
+	loading: boolean;
+	onPage: (page: number) => void;
 }) {
-	if (!hasPrevious && !hasNext) return null;
+	if (totalPages <= 1) return null;
+	const previous = page > 0;
+	const next = page + 1 < totalPages;
+	const buttonClass = "flex h-10 items-center justify-center rounded-xl border border-[rgba(30,50,90,0.12)] px-3 text-[13px] text-[rgba(30,50,90,0.7)] transition-colors hover:border-[rgba(30,50,90,0.3)] disabled:pointer-events-none disabled:opacity-35";
 	return (
-		<div className="mt-6 flex items-center justify-between">
-			<span className="text-[12.5px] text-[rgba(30,50,90,0.5)] tabular-nums">
-				Page {page + 1}
+		<div className="mt-6 flex items-center justify-center gap-2">
+			<button type="button" onClick={() => onPage(0)} disabled={!previous || loading} className={buttonClass}>First</button>
+			<button type="button" aria-label="Previous page" onClick={() => onPage(page - 1)} disabled={!previous || loading} className={buttonClass}>
+				<ArrowLeft className="h-4 w-4" />
+			</button>
+			<span className="flex h-10 items-center rounded-xl border border-[rgba(30,50,90,0.12)] px-4 text-[13px] text-[rgba(30,50,90,0.7)] tabular-nums">
+				{loading && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+				Page {page + 1} of {totalPages}
 			</span>
-			<div className="flex items-center gap-2">
-				<button type="button" onClick={onPrevious} disabled={!hasPrevious} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[rgba(30,50,90,0.12)] text-[13px] text-[rgba(30,50,90,0.7)] hover:border-[rgba(30,50,90,0.3)] transition-colors disabled:opacity-35 disabled:pointer-events-none">
-					<ArrowLeft className="w-3.5 h-3.5" />
-					Previous
-				</button>
-				<button type="button" onClick={onNext} disabled={!hasNext || loadingNext} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[rgba(30,50,90,0.12)] text-[13px] text-[rgba(30,50,90,0.7)] hover:border-[rgba(30,50,90,0.3)] transition-colors disabled:opacity-35 disabled:pointer-events-none">
-					{loadingNext && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-					Next
-					{!loadingNext && <ArrowRight className="w-3.5 h-3.5" />}
-				</button>
-			</div>
+			<button type="button" aria-label="Next page" onClick={() => onPage(page + 1)} disabled={!next || loading} className={buttonClass}>
+				<ArrowRight className="h-4 w-4" />
+			</button>
+			<button type="button" onClick={() => onPage(totalPages - 1)} disabled={!next || loading} className={buttonClass}>Last</button>
 		</div>
 	);
 }
@@ -383,19 +379,12 @@ type FeedItem = {
 function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 	const [, tick] = useReducer((n: number) => n + 1, 0);
 	const reduced = useReducedMotion() ?? false;
-	const history = useRef<ActivityRead["items"]>([]);
-	const cursor = useRef<string | null>(null);
-	const cursorInitialized = useRef(false);
 	const loading = useRef(false);
-	const [nextCursor, setNextCursor] = useState<string | null>(null);
-	const [loadingOlder, setLoadingOlder] = useState(false);
+	const [feed, setFeed] = useState<ActivityRead | null>(null);
+	const [loadingPage, setLoadingPage] = useState(false);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [pageIndex, setPageIndex] = useState(0);
 	const tableRef = useRef<HTMLDivElement>(null);
-
-	const mergeHistory = (items: ActivityRead["items"]) => {
-		history.current = mergeActivityHistory(history.current, items);
-	};
 
 	useEffect(() => {
 		let stopped = false;
@@ -409,15 +398,12 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 		const load = async () => {
 			if (stopped || document.hidden || loading.current) return;
 			loading.current = true;
+			setLoadingPage(true);
 			try {
-				const feed = await getActivity(undefined, ACTIVITY_PAGE_SIZE);
-				mergeHistory(feed.items);
-				if (!cursorInitialized.current) {
-					cursorInitialized.current = true;
-					cursor.current = feed.nextCursor;
-					setNextCursor(feed.nextCursor);
-				}
-				syncFeed({ ...feed, items: history.current, nextCursor: cursor.current });
+				const nextFeed = await getActivity(pageIndex + 1, ACTIVITY_PAGE_SIZE);
+				if (stopped) return;
+				setFeed(nextFeed);
+				syncFeed(nextFeed);
 				failures = 0;
 				setLoadError(null);
 				tick();
@@ -426,6 +412,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 				setLoadError(cause instanceof Error ? cause.message : "Could not load activity.");
 			} finally {
 				loading.current = false;
+				if (!stopped) setLoadingPage(false);
 				if (!stopped) schedule(Math.min(12_000 * 2 ** failures, 60_000));
 			}
 		};
@@ -446,53 +433,17 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 			window.removeEventListener("focus", focus);
 			document.removeEventListener("visibilitychange", visibility);
 		};
-	}, []);
-
-	const loadOlder = async (): Promise<boolean> => {
-		if (!cursor.current || loading.current) return false;
-		loading.current = true;
-		setLoadingOlder(true);
-		const previousLength = history.current.length;
-		try {
-			const feed = await getActivity(cursor.current, ACTIVITY_PAGE_SIZE);
-			mergeHistory(feed.items);
-			cursor.current = feed.nextCursor;
-			setNextCursor(feed.nextCursor);
-			syncFeed({ ...feed, items: history.current });
-			setLoadError(null);
-			tick();
-			return history.current.length > previousLength;
-		} catch (cause) {
-			setLoadError(cause instanceof Error ? cause.message : "Could not load older activity.");
-			return false;
-		} finally {
-			loading.current = false;
-			setLoadingOlder(false);
-		}
-	};
+	}, [pageIndex]);
 
 	const inFlight = activeFlows().slice(0, MAX_IN_FLIGHT);
-	const settled = history.current.map(({ name, renewal }) => ({
+	const settled = (feed?.items ?? []).map(({ name, renewal }) => ({
 		...renewalEvent(renewal, name.label),
 		name: name.displayName,
 	}));
-	const pageStart = pageIndex * ACTIVITY_PAGE_SIZE;
-	const settledPage = settled.slice(pageStart, pageStart + ACTIVITY_PAGE_SIZE);
-	const nextPageStart = pageStart + ACTIVITY_PAGE_SIZE;
-	const hasCachedNextPage = settled.length > nextPageStart;
-	const hasNext = hasCachedNextPage || nextCursor !== null;
+	const totalPages = feed?.totalPages ?? 1;
 	const goToPage = (next: number) => {
 		setPageIndex(next);
 		tableRef.current?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
-	};
-	const nextPage = async () => {
-		const cachedNextPage = settled.length > nextPageStart;
-		if (cursor.current && settled.length < nextPageStart + ACTIVITY_PAGE_SIZE) {
-			const loaded = await loadOlder();
-			if (cachedNextPage || loaded) goToPage(pageIndex + 1);
-			return;
-		}
-		if (cachedNextPage) goToPage(pageIndex + 1);
 	};
 
 	/* One list, and the key is the payment rather than the row. A settling
@@ -513,7 +464,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 			originChainId: f.originChainId,
 			at: f.startedAt,
 		})),
-		...settledPage.map((e) => ({
+		...settled.map((e) => ({
 			key: e.id,
 			name: e.name,
 			chain: e.chain,
@@ -556,11 +507,9 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 			</div>
 			<ActivityPagination
 				page={pageIndex}
-				hasPrevious={pageIndex > 0}
-				hasNext={hasNext}
-				loadingNext={loadingOlder}
-				onPrevious={() => goToPage(Math.max(0, pageIndex - 1))}
-				onNext={() => void nextPage()}
+				totalPages={totalPages}
+				loading={loadingPage}
+				onPage={goToPage}
 			/>
 		</>
 	);
@@ -751,22 +700,18 @@ function NameDetail({
 	onSupportedTokens,
 	onRefresh,
 	activityPage,
-	hasPreviousActivity,
-	hasNextActivity,
-	loadingNextActivity,
-	onPreviousActivity,
-	onNextActivity,
+	activityTotalPages,
+	activityLoading,
+	onActivityPage,
 }: {
 	record: NameRecord;
 	onBack: () => void;
 	onSupportedTokens: () => void;
 	onRefresh: () => void;
 	activityPage: number;
-	hasPreviousActivity: boolean;
-	hasNextActivity: boolean;
-	loadingNextActivity: boolean;
-	onPreviousActivity: () => void;
-	onNextActivity: () => void;
+	activityTotalPages: number;
+	activityLoading: boolean;
+	onActivityPage: (page: number) => void;
 }) {
 	/* Which renewal has its transaction breakdown open. One at a time. */
 	const [openEvent, setOpenEvent] = useState<string | null>(null);
@@ -774,9 +719,8 @@ function NameDetail({
 	const renewalEvents = allEvents.filter((event) => event.kind === "renewal");
 	const activationEvent = allEvents.find((event) => event.kind === "activated");
 	const emptyActivity = activityEmptyState(record);
-	const activityStart = activityPage * ACTIVITY_PAGE_SIZE;
-	const events = renewalEvents.slice(activityStart, activityStart + ACTIVITY_PAGE_SIZE);
-	if (!hasNextActivity && activationEvent) events.push(activationEvent);
+	const events = [...renewalEvents];
+	if (activityPage + 1 >= activityTotalPages && activationEvent) events.push(activationEvent);
 	const activityRef = useRef<HTMLDivElement>(null);
 	const previousActivityPage = useRef(activityPage);
 	const expiry = nameExpiry(record);
@@ -1259,11 +1203,9 @@ function NameDetail({
 				</div>
 				<ActivityPagination
 					page={activityPage}
-					hasPrevious={hasPreviousActivity}
-					hasNext={hasNextActivity}
-					loadingNext={loadingNextActivity}
-					onPrevious={onPreviousActivity}
-					onNext={onNextActivity}
+					totalPages={activityTotalPages}
+					loading={activityLoading}
+					onPage={onActivityPage}
 				/>
 			</div>
 		</motion.div>
@@ -1289,23 +1231,13 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 	const [, reload] = useReducer((value: number) => value + 1, 0);
 	const [requestError, setRequestError] = useState<string | null>(null);
 	const [configVersion, refreshConfig] = useReducer((value: number) => value + 1, 0);
-	const nameHistory = useRef<NameActivityRead["renewals"]>([]);
-	const nameCursor = useRef<string | null>(null);
-	const nameCursorInitialized = useRef(false);
 	const ensFreshLabel = useRef<string | null>(null);
-	const [nameNextCursor, setNameNextCursor] = useState<string | null>(null);
-	const [loadingOlderName, setLoadingOlderName] = useState(false);
+	const [nameTotalPages, setNameTotalPages] = useState(1);
+	const [loadingNamePage, setLoadingNamePage] = useState(false);
 	const [namePageIndex, setNamePageIndex] = useState(0);
 
-	const mergeLoadedNameHistory = (renewals: NameActivityRead["renewals"]) => {
-		nameHistory.current = mergeNameHistory(nameHistory.current, renewals);
-	};
-
 	useEffect(() => {
-		nameHistory.current = [];
-		nameCursor.current = null;
-		nameCursorInitialized.current = false;
-		setNameNextCursor(null);
+		setNameTotalPages(1);
 		setNamePageIndex(0);
 	}, [selected]);
 
@@ -1350,21 +1282,17 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 		const load = async (refreshEns = false) => {
 			if (stopped || document.hidden || loading) return;
 			loading = true;
+			setLoadingNamePage(true);
 			try {
 				const label = normalizeLabel(selected);
 				if (refreshEns || ensFreshLabel.current !== label) {
 					await getName(label);
 					ensFreshLabel.current = label;
 				}
-				const activity = await getNameActivity(selected, undefined, ACTIVITY_PAGE_SIZE);
+				const activity = await getNameActivity(selected, namePageIndex + 1, ACTIVITY_PAGE_SIZE);
 				if (!stopped) {
-					mergeLoadedNameHistory(activity.renewals);
-					if (!nameCursorInitialized.current) {
-						nameCursorInitialized.current = true;
-						nameCursor.current = activity.nextCursor;
-						setNameNextCursor(activity.nextCursor);
-					}
-					syncName({ ...activity, renewals: nameHistory.current, nextCursor: nameCursor.current });
+					syncName(activity);
+					setNameTotalPages(activity.totalPages ?? 1);
 					setRequestError(null);
 					failures = 0;
 					refresh();
@@ -1375,6 +1303,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 			}
 			finally {
 				loading = false;
+				if (!stopped) setLoadingNamePage(false);
 				const current = findName(selected);
 				const delay = current && hasActiveFlow(current) ? 4_000 : 15_000;
 				if (!stopped) schedule(Math.min(delay * 2 ** failures, 60_000));
@@ -1397,28 +1326,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 			window.removeEventListener("focus", focus);
 			document.removeEventListener("visibilitychange", visibility);
 		};
-	}, [selected, reload, configVersion]);
-
-	const loadOlderName = async (): Promise<boolean> => {
-		if (!selected || !nameCursor.current || loadingOlderName) return false;
-		setLoadingOlderName(true);
-		const previousLength = nameHistory.current.length;
-		try {
-			const activity = await getNameActivity(selected, nameCursor.current, ACTIVITY_PAGE_SIZE);
-			mergeLoadedNameHistory(activity.renewals);
-			nameCursor.current = activity.nextCursor;
-			setNameNextCursor(activity.nextCursor);
-			syncName({ ...activity, renewals: nameHistory.current });
-			setRequestError(null);
-			refresh();
-			return nameHistory.current.length > previousLength;
-		} catch (cause) {
-			setRequestError(cause instanceof Error ? cause.message : "Could not load older activity.");
-			return false;
-		} finally {
-			setLoadingOlderName(false);
-		}
-	};
+	}, [selected, reload, configVersion, namePageIndex]);
 
 	const suggestions = useMemo(() => {
 		const q = query.trim().toLowerCase();
@@ -1427,22 +1335,6 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 			.filter((r) => r.name.includes(q))
 			.slice(0, 6);
 	}, [query]);
-
-	const loadedNameRenewals = record?.events.filter((event) => event.kind === "renewal").length ?? 0;
-	const hasActivationEvent = record?.events.some((event) => event.kind === "activated") ?? false;
-	const loadedNameActivity = loadedNameRenewals + (nameNextCursor === null && hasActivationEvent ? 1 : 0);
-	const nextNamePageStart = (namePageIndex + 1) * ACTIVITY_PAGE_SIZE;
-	const hasCachedNextNamePage = loadedNameActivity > nextNamePageStart;
-	const hasNextNamePage = hasCachedNextNamePage || nameNextCursor !== null;
-	const nextNamePage = async () => {
-		const cachedNextPage = loadedNameActivity > nextNamePageStart;
-		if (nameCursor.current && loadedNameActivity < nextNamePageStart + ACTIVITY_PAGE_SIZE) {
-			const loaded = await loadOlderName();
-			if (cachedNextPage || loaded) setNamePageIndex((page) => page + 1);
-			return;
-		}
-		if (cachedNextPage) setNamePageIndex((page) => page + 1);
-	};
 
 	async function submit(raw = query) {
 		const value = raw.trim();
@@ -1613,11 +1505,9 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 							onSupportedTokens={onSupportedTokens}
 							onRefresh={reload}
 							activityPage={namePageIndex}
-							hasPreviousActivity={namePageIndex > 0}
-							hasNextActivity={hasNextNamePage}
-							loadingNextActivity={loadingOlderName}
-							onPreviousActivity={() => setNamePageIndex((page) => Math.max(0, page - 1))}
-							onNextActivity={() => void nextNamePage()}
+							activityTotalPages={nameTotalPages}
+							activityLoading={loadingNamePage}
+							onActivityPage={setNamePageIndex}
 						/>
 					) : (
 						<LiveFeed onSelect={(n) => onSelect(n)} />

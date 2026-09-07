@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, gte, inArray, isNotNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, gte, inArray, isNotNull, lt, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import { database } from "./db/client";
@@ -81,11 +81,11 @@ export async function publicBalances(nameId: string) {
 	}));
 }
 
-export async function activity(limit: number, cursor?: ActivityCursor) {
+export async function activity(limit: number, cursor?: ActivityCursor, page = 1) {
 	const originIntent = alias(transactionIntents, "activity_live_origin_intent");
 	const claimIntent = alias(transactionIntents, "activity_live_claim_intent");
 	const [result, active] = await Promise.all([
-		renewalActivity(limit, cursor),
+		renewalActivity(limit, cursor, undefined, page),
 		database()
 			.select({
 				flow: flows,
@@ -117,6 +117,10 @@ export async function activity(limit: number, cursor?: ActivityCursor) {
 			name: publicNameView(name),
 		})),
 		nextCursor: result.nextCursor,
+		page,
+		pageSize: limit,
+		totalItems: result.totalItems,
+		totalPages: Math.max(1, Math.ceil(result.totalItems / limit)),
 	};
 }
 
@@ -124,11 +128,29 @@ export async function renewalActivity(
 	limit: number,
 	cursor?: ActivityCursor,
 	nameId?: string,
+	page = 1,
 ) {
 	const ensRenewal = alias(chainEvents, "ens_renewal");
 	const originIntent = alias(transactionIntents, "activity_origin_intent");
 	const claimIntent = alias(transactionIntents, "activity_claim_intent");
-	const rows = await database()
+	const filter = and(
+		eq(chainEvents.canonical, true),
+		eq(chainEvents.eventFamily, "namepass"),
+		eq(chainEvents.eventType, "Renewed"),
+		nameId ? eq(names.id, nameId) : undefined,
+		cursor
+			? or(
+				lt(chainEvents.blockTime, cursor.blockTime),
+				and(
+					eq(chainEvents.blockTime, cursor.blockTime),
+					lt(chainEvents.eventId, cursor.eventId),
+				),
+			)
+			: undefined,
+	);
+	const db = database();
+	const [rows, totals] = await Promise.all([
+		db
 		.select({
 			event: chainEvents,
 			name: names,
@@ -156,30 +178,31 @@ export async function renewalActivity(
 				eq(ensRenewal.canonical, true),
 			),
 		)
-		.where(
-			and(
+		.where(filter)
+		.orderBy(desc(chainEvents.blockTime), desc(chainEvents.eventId))
+		.limit(limit + 1)
+		.offset(cursor ? 0 : (page - 1) * limit),
+		db
+			.select({ total: count() })
+			.from(chainEvents)
+			.innerJoin(
+				names,
+				sql<boolean>`lower(${chainEvents.facts}->>'label_hash') = lower(${names.labelHash})`,
+			)
+			.innerJoin(flows, eq(flows.renewalEventId, chainEvents.eventId))
+			.where(and(
 				eq(chainEvents.canonical, true),
 				eq(chainEvents.eventFamily, "namepass"),
 				eq(chainEvents.eventType, "Renewed"),
 				nameId ? eq(names.id, nameId) : undefined,
-				cursor
-					? or(
-						lt(chainEvents.blockTime, cursor.blockTime),
-						and(
-							eq(chainEvents.blockTime, cursor.blockTime),
-							lt(chainEvents.eventId, cursor.eventId),
-						),
-					)
-					: undefined,
-			),
-		)
-		.orderBy(desc(chainEvents.blockTime), desc(chainEvents.eventId))
-		.limit(limit + 1);
-	const page = rows.slice(0, limit);
-	const recoveredDeposits = await recoveredActivityDeposits(page);
-	const last = page[page.length - 1]?.event;
+			)),
+	]);
+	const pageRows = rows.slice(0, limit);
+	const recoveredDeposits = await recoveredActivityDeposits(pageRows);
+	const last = pageRows[pageRows.length - 1]?.event;
+	const totalItems = Number(totals[0]?.total ?? 0);
 	return {
-		items: page.map(({ event, name, flow, deposit, ensFacts, originTxHash, claimTxHash }) => ({
+		items: pageRows.map(({ event, name, flow, deposit, ensFacts, originTxHash, claimTxHash }) => ({
 			renewal: publicRenewalView(
 				event,
 				flow,
@@ -194,6 +217,7 @@ export async function renewalActivity(
 			rows.length > limit && last
 				? { blockTime: last.blockTime, eventId: last.eventId }
 				: undefined,
+		totalItems,
 	};
 }
 

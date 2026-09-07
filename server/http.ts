@@ -160,10 +160,20 @@ export interface ActivityCursor {
 export function activityPageInput(request: Request): {
 	limit: number;
 	cursor?: ActivityCursor;
+	page: number;
 } {
 	const limit = pageLimitInput(request);
-	const rawCursor = new URL(request.url).searchParams.get("cursor");
-	if (!rawCursor) return { limit };
+	const search = new URL(request.url).searchParams;
+	const rawCursor = search.get("cursor");
+	const rawPage = search.get("page");
+	if (rawCursor && rawPage) {
+		throw new ApiError(400, "invalid_pagination", "Use either cursor or page pagination, not both.");
+	}
+	const page = rawPage === null ? 1 : Number(rawPage);
+	if (!Number.isSafeInteger(page) || page < 1) {
+		throw new ApiError(400, "invalid_pagination", "page must be a positive safe integer.");
+	}
+	if (!rawCursor) return { limit, page };
 	if (rawCursor.length > 512) {
 		throw new ApiError(400, "invalid_pagination", "cursor is not valid activity pagination.");
 	}
@@ -176,7 +186,7 @@ export function activityPageInput(request: Request): {
 		if (!Number.isFinite(blockTime.getTime()) || !eventId || eventId.length > 255) {
 			throw new Error("invalid cursor");
 		}
-		return { limit, cursor: { blockTime, eventId } };
+		return { limit, cursor: { blockTime, eventId }, page: 1 };
 	} catch {
 		throw new ApiError(400, "invalid_pagination", "cursor is not valid activity pagination.");
 	}

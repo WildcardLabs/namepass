@@ -16,7 +16,7 @@ import { loadOracleRates } from "./lib/oracle";
 import { assertGasAllowance } from "./lib/fees";
 import { setRates } from "./lib/pricing";
 
-const VIDEO_URL = `${import.meta.env.BASE_URL}assets/cinematic2.mp4`;
+const VIDEO_URL = `${import.meta.env.BASE_URL}assets/namepass-bg.mp4`;
 
 type Page = "home" | "leaderboard" | "supported" | "terms" | "privacy";
 

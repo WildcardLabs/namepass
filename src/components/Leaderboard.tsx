@@ -199,7 +199,7 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 			},
 		}));
 		try {
-			const activity = await getNameActivity(record.name, undefined, 3);
+			const activity = await getNameActivity(record.name, 1, 3);
 			const events = activity.renewals
 				.map((renewal) => renewalEvent(renewal, activity.name.label))
 				.sort((a, b) => b.at - a.at);
