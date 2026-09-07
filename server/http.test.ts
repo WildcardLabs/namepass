@@ -65,3 +65,14 @@ test("activity cursors preserve both the timestamp and event ID", () => {
 		(error: unknown) => error instanceof ApiError && error.code === "invalid_pagination",
 	);
 });
+
+test("activity pages accept direct positive page numbers", () => {
+	assert.deepEqual(
+		activityPageInput(new Request("https://namepass.test/api/activity?page=38&limit=10")),
+		{ page: 38, limit: 10 },
+	);
+	assert.throws(
+		() => activityPageInput(new Request("https://namepass.test/api/activity?page=0")),
+		(error: unknown) => error instanceof ApiError && error.code === "invalid_pagination",
+	);
+});

@@ -59,8 +59,8 @@ ENS registration, expiry, and renewability from Sepolia. That explicit liveness 
 in the 4-second or 15-second activity loop.
 The inactive-name action calls the manual trigger directly. That endpoint refreshes ENS and checks
 the selected-chain balance. It does not run activation again or rescan every chain first.
-The live feed and per-name activity use ten-row pages with `Previous` and `Next` controls. They
-consume the activity cursor only when the user opens an older page. The per-name flow list contains
+The live feed and per-name activity use ten-row pages. Each view has `First`, previous, next, and
+`Last` controls. The API reads the selected page directly and returns the total page count. The per-name flow list contains
 pending, held, unclaimed, failed, and actionable stopped work. Settled renewals appear only in
 activity. Funding controls appear only after activation returns from the API.
 

@@ -281,17 +281,18 @@ export async function publicName(label: string) {
 	};
 }
 
-export async function nameActivity(label: string, limit: number, cursor?: ActivityCursor) {
+export async function nameActivity(label: string, limit: number, cursor?: ActivityCursor, page = 1) {
 	const normalized = normalizedLabel(label);
 	const db = database();
 	const [name] = await db.select().from(names).where(eq(names.normalizedLabel, normalized));
 	if (!name) throw new ApiError(404, "name_not_found", "This name is not activated.");
-	const renewals = await renewalActivity(limit, cursor, name.id);
+	const renewals = await renewalActivity(limit, cursor, name.id, page);
 	const [flowRows, balances] = await Promise.all([
 		recentNameFlows(name.id),
 		publicBalances(name.id),
 	]);
 	const activityFlows = visibleNameFlows(flowRows, balances).slice(0, limit);
+	const totalItems = renewals.totalItems + 1;
 	return {
 		name: publicNameView(name),
 		renewals: renewals.items.map((item) => item.renewal),
@@ -305,5 +306,9 @@ export async function nameActivity(label: string, limit: number, cursor?: Activi
 		})),
 		balances,
 		nextCursor: renewals.nextCursor,
+		page,
+		pageSize: limit,
+		totalItems,
+		totalPages: Math.max(1, Math.ceil(totalItems / limit)),
 	};
 }

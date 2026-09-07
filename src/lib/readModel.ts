@@ -168,6 +168,7 @@ export function syncFeed(feed: ActivityRead): void {
 			? [...record.events, next]
 			: record.events.map((event, index) => index === existing ? next : event);
 	}
+	if (feed.page !== undefined && feed.page !== 1) return;
 	const cutoff = feed.items.reduce(
 		(oldest, item) => Math.min(oldest, milliseconds(item.renewal.blockTime)),
 		Number.POSITIVE_INFINITY,
