@@ -59,8 +59,8 @@ export default function PageShell({ children, video, outerClassName = "", cardCl
 					<video
 						autoPlay
 						muted
+						loop
 						playsInline
-						onEnded={(event) => event.currentTarget.pause()}
 						src={video}
 						className="absolute -inset-1 max-w-none w-[calc(100%_+_0.5rem)] h-[calc(100%_+_0.5rem)] object-cover object-[65%] lg:object-center rounded-br-[4rem] md:rounded-br-[6rem] z-0"
 					/>
