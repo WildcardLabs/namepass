@@ -51,15 +51,21 @@ export default function CtaBand({ onClaim, onSimulate }: Props) {
 
 				{/* Content: heading left, actions right */}
 				<div className="relative z-10 h-full min-h-[220px] md:min-h-[260px] flex flex-col md:flex-row md:items-center md:justify-between gap-6 px-7 py-10 md:px-14 md:py-12">
-					<motion.h2
+					<motion.div
 						initial={{ opacity: 0, y: 16 }}
 						whileInView={{ opacity: 1, y: 0 }}
 						viewport={{ once: true, margin: "-80px" }}
 						transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-						className="text-[30px] md:text-[42px] font-normal text-white tracking-tight leading-[1.05] max-w-md"
+						className="max-w-md"
 					>
-						Never let a name expire again.
-					</motion.h2>
+						<h2 className="text-[30px] md:text-[42px] font-normal text-white tracking-tight leading-[1.05]">
+							Never let a name expire again.
+						</h2>
+						<p className="mt-3 text-[14px] md:text-[15px] text-white/70 leading-relaxed">
+							Claim a name's permanent deposit address and fund it from any chain.
+							Every payment buys real time on the registry.
+						</p>
+					</motion.div>
 
 					<motion.div
 						initial={{ opacity: 0, y: 12 }}
