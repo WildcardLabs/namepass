@@ -145,25 +145,25 @@ export default function PendingBalance({ record, onSettled }: Props) {
 	}
 
 	return (
-		<div className="mt-5 pt-5 border-t border-[rgba(30,50,90,0.08)]">
+		<div className="mt-5 pt-5 border-t border-[rgba(18,36,26,0.08)]">
 			<button
 				type="button"
 				onClick={() => setOpen(!open)}
 				className="w-full text-left group"
 			>
-				<span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
+				<span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[rgba(18,36,26,0.45)]">
 					<Wallet className="w-3 h-3" />
 					Pending renewal
 				</span>
 				<span className="mt-2 flex items-center justify-between gap-3">
-					<span className="flex items-center gap-2 text-[15px] text-[rgba(30,50,90,0.95)]">
+					<span className="flex items-center gap-2 text-[15px] text-[rgba(18,36,26,0.95)]">
 						{(p.flows.length > 0 || detecting.length > 0) && stuck.length === 0 && (
-							<Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-[rgba(30,50,90,0.5)]" />
+							<Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-[rgba(18,36,26,0.5)]" />
 						)}
 						{summary}
 					</span>
 					<ChevronDown
-						className={`w-4 h-4 shrink-0 text-[rgba(30,50,90,0.35)] group-hover:text-[rgba(30,50,90,0.7)] transition-all ${open ? "rotate-180" : ""}`}
+						className={`w-4 h-4 shrink-0 text-[rgba(18,36,26,0.35)] group-hover:text-[rgba(18,36,26,0.7)] transition-all ${open ? "rotate-180" : ""}`}
 					/>
 				</span>
 			</button>
@@ -209,7 +209,7 @@ export default function PendingBalance({ record, onSettled }: Props) {
 
 						{/* The thing a single balance figure hides. */}
 						{chains.length > 1 && (
-							<p className="mt-4 text-[11.5px] text-[rgba(30,50,90,0.4)] leading-relaxed">
+							<p className="mt-4 text-[11.5px] text-[rgba(18,36,26,0.4)] leading-relaxed">
 								Balances on different chains can't be combined. Each one renews on
 								its own.
 							</p>
@@ -253,7 +253,7 @@ function ChainRow({
 					const transactions = completedFlowTransactions(flow.api);
 					return (
 					<div key={flow.id} className="mt-1">
-						<div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-[rgba(30,50,90,0.65)]">
+						<div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-[rgba(18,36,26,0.65)]">
 							<Loader2 className="w-3 h-3 animate-spin shrink-0" />
 							{fmtUsdc(flow.amount)} · {flowPresentation(flow.status, flow.originChainId).detail}
 						</div>
@@ -261,7 +261,7 @@ function ChainRow({
 							<ol className="mt-2 space-y-1.5">
 								{transactions.map((transaction) => (
 									<li key={`${transaction.label}:${transaction.tx}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px]">
-										<span className="inline-flex items-center gap-1.5 text-[rgba(30,50,90,0.55)]">
+										<span className="inline-flex items-center gap-1.5 text-[rgba(18,36,26,0.55)]">
 											<CheckCircle2 className="w-3 h-3 shrink-0 text-emerald-600" />
 											{transaction.label}
 										</span>
@@ -269,7 +269,7 @@ function ChainRow({
 											href={explorerUrl(transaction.chain, transaction.tx)}
 											target="_blank"
 											rel="noopener noreferrer"
-											className="inline-flex items-center gap-1 font-mono text-[rgba(30,50,90,0.5)] hover:text-[rgba(30,50,90,0.9)] transition-colors"
+											className="inline-flex items-center gap-1 font-mono text-[rgba(18,36,26,0.5)] hover:text-[rgba(18,36,26,0.9)] transition-colors"
 										>
 											{truncTx(transaction.tx)}
 											<ExternalLink className="w-2.5 h-2.5 shrink-0" />
@@ -283,7 +283,7 @@ function ChainRow({
 				})}
 
 				{balance && (
-					<div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-[rgba(30,50,90,0.55)]">
+					<div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-[rgba(18,36,26,0.55)]">
 						<span>
 							{balance.amount === null ? balanceLabel : `${fmtUsdc(balance.amount)} · ${balanceLabel}`}
 						</span>
@@ -304,7 +304,7 @@ function ChainRow({
 				<button
 					type="button"
 					onClick={onTrigger}
-					className="shrink-0 rounded-full border border-[rgba(30,50,90,0.25)] px-3 py-1 text-[12px] text-[rgba(30,50,90,0.8)] hover:bg-[rgba(30,50,90,0.05)] transition-colors"
+					className="shrink-0 rounded-[10px] border border-[rgba(18,36,26,0.25)] px-3 py-1 text-[12px] text-[rgba(18,36,26,0.8)] hover:bg-[rgba(18,36,26,0.05)] transition-colors"
 				>
 					{actionLabel}
 				</button>

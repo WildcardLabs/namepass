@@ -4,8 +4,6 @@ import { Trophy } from "lucide-react";
 import { solve, YEAR_SECONDS } from "../lib/pricing";
 import { fmtMonthYear } from "../lib/format";
 import { chainByKey } from "../lib/chains";
-import ShineBorder from "./magicui/ShineBorder";
-import AnimatedShinyText from "./magicui/AnimatedShinyText";
 
 /* Inbound payments, cycled to show money resolving into renewal time.
    `label` is the display string; `amount` is the exact USDC charged (6dp). */
@@ -28,26 +26,19 @@ const LeaderboardButton = memo(function LeaderboardButton({
 	onLeaderboard: () => void;
 }) {
 	return (
-		<ShineBorder
-			borderRadius={999}
-			borderWidth={2}
-			duration={7}
-			className="w-fit self-start"
+		<motion.button
+			whileHover={{ scale: 1.02 }}
+			whileTap={{ scale: 0.98 }}
+			onClick={onLeaderboard}
+			className="flex items-center bg-white rounded-[10px] pl-1.5 pr-4 py-1.5 gap-2 hover:bg-white/90 transition-colors self-start w-fit"
 		>
-			<motion.button
-				whileHover={{ scale: 1.02 }}
-				whileTap={{ scale: 0.98 }}
-				onClick={onLeaderboard}
-				className="flex items-center bg-white rounded-full pl-1.5 pr-5 py-1.5 gap-2 hover:bg-white/90 transition-colors group"
-			>
-				<div className="bg-[rgba(30,50,90,0.1)] p-1 rounded-full flex items-center justify-center">
-					<Trophy className="w-4 h-4 text-[rgba(30,50,90,0.9)]" />
-				</div>
-				<AnimatedShinyText className="text-[14px] font-normal">
-					Leaderboard
-				</AnimatedShinyText>
-			</motion.button>
-		</ShineBorder>
+			<div className="bg-[rgba(18,36,26,0.1)] p-1 rounded-md flex items-center justify-center">
+				<Trophy className="w-4 h-4 text-[rgba(18,36,26,0.9)]" />
+			</div>
+			<span className="text-[14px] font-normal text-[rgba(18,36,26,0.9)]">
+				Leaderboard
+			</span>
+		</motion.button>
 	);
 });
 
@@ -92,12 +83,12 @@ export default function BottomLeftCard({ onLeaderboard }: { onLeaderboard: () =>
 						animate={{ opacity: 1, y: 0 }}
 						exit={{ opacity: 0, y: -6 }}
 						transition={{ duration: 0.35, ease: "easeOut" }}
-						className="text-2xl md:text-3xl font-normal text-[rgba(30,50,90,0.9)] tracking-tight"
+						className="text-2xl md:text-3xl font-normal text-[rgba(18,36,26,0.9)] tracking-tight"
 					>
 						{fmtMonthYear(expiry)}
 					</motion.span>
 				</AnimatePresence>
-				<span className="text-[10px] md:text-[12px] font-normal text-[rgba(30,50,90,0.6)] uppercase tracking-wider">
+				<span className="text-[10px] md:text-[12px] font-normal text-[rgba(18,36,26,0.6)] uppercase tracking-wider">
 					Renewed Until
 				</span>
 			</div>
@@ -109,12 +100,12 @@ export default function BottomLeftCard({ onLeaderboard }: { onLeaderboard: () =>
 					animate={{ opacity: 1 }}
 					exit={{ opacity: 0 }}
 					transition={{ duration: 0.3 }}
-					className="flex items-baseline gap-1.5 text-[rgba(30,50,90,0.75)]"
+					className="flex items-baseline gap-1.5 text-[rgba(18,36,26,0.75)]"
 				>
 					<span className="text-[13px] md:text-[14px] font-normal">
 						+{current.label}
 					</span>
-					<span className="text-[10px] md:text-[11px] font-normal text-[rgba(30,50,90,0.5)]">
+					<span className="text-[10px] md:text-[11px] font-normal text-[rgba(18,36,26,0.5)]">
 						{current.chain}
 					</span>
 					<span className="text-[13px] md:text-[14px] font-normal ml-auto">

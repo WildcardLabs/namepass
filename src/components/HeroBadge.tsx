@@ -1,24 +1,28 @@
 import { motion } from "motion/react";
-import { ShieldCheck } from "lucide-react";
-import ShineBorder from "./magicui/ShineBorder";
-import AnimatedShinyText from "./magicui/AnimatedShinyText";
+import { ArrowRight } from "lucide-react";
 
+/**
+ * Announcement badge in the Framer convention: a small solid chip + label +
+ * trailing arrow, squared corners. Deliberately no shine/sparkle/animated-
+ * gradient — that treatment read as a generic AI template.
+ */
 export default function HeroBadge() {
 	return (
 		<motion.div
 			initial={{ opacity: 0, y: 20 }}
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: 0.6, ease: "easeOut" }}
-			className="mx-auto mb-3 w-fit"
+			className="mx-auto mb-4 w-fit"
 		>
-			<ShineBorder borderRadius={999} borderWidth={2} duration={7}>
-				<div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 backdrop-blur-md border border-white/40 shadow-[0_1px_2px_rgba(30,50,90,0.06)]">
-					<ShieldCheck className="w-4 h-4 text-[rgba(30,50,90,0.8)] shrink-0" />
-					<AnimatedShinyText className="text-[14px] font-normal whitespace-nowrap">
-						Launching with ENS v2
-					</AnimatedShinyText>
-				</div>
-			</ShineBorder>
+			<button className="group inline-flex items-center gap-2 rounded-[10px] bg-white/70 backdrop-blur-md border border-[rgba(18,36,26,0.1)] pl-1.5 pr-2.5 py-1.5 shadow-[0_1px_2px_rgba(18,36,26,0.05)] hover:bg-white/85 transition-colors">
+				<span className="rounded-[6px] bg-[rgba(18,36,26,0.9)] text-white text-[11px] font-medium px-1.5 py-0.5 leading-none">
+					New
+				</span>
+				<span className="text-[13px] text-[#5E6470] whitespace-nowrap">
+					Launching with ENS v2
+				</span>
+				<ArrowRight className="w-3.5 h-3.5 text-[rgba(18,36,26,0.45)] transition-transform group-hover:translate-x-0.5" />
+			</button>
 		</motion.div>
 	);
 }
