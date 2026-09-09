@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import Navbar from "./components/Navbar";
 import PageShell from "./components/PageShell";
 import Hero from "./components/Hero";
+import Protocol from "./components/Protocol";
+import CtaBand from "./components/CtaBand";
 import Simulator from "./components/Simulator";
 import Explorer from "./components/Explorer";
 import Leaderboard from "./components/Leaderboard";
@@ -180,6 +182,10 @@ export default function App() {
 							/>
 						</PageShell>
 
+						{/* What the protocol actually is — four real properties, in the
+						    RIVR template's bento. Static copy, so it never waits on pricing. */}
+						<Protocol onClaim={() => setClaimOpen(true)} onSupportedTokens={goSupported} />
+
 						{/* Renders its own frame either way — heading, card, tabs — with
 						    skeletons standing in for the two panels that quote a price.
 						    So `#simulator` stays a valid scroll target and the section
@@ -199,6 +205,9 @@ export default function App() {
 								onSupportedTokens={goSupported}
 							/>
 						)}
+
+						{/* Near-footer CTA band with an animated background. */}
+						<CtaBand onClaim={() => setClaimOpen(true)} onSimulate={goSimulate} />
 					</>
 				)}
 

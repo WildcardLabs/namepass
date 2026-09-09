@@ -68,7 +68,7 @@ export default function Tooltip({ text, label }: Props) {
 				onMouseLeave={hide}
 				onFocus={show}
 				onBlur={hide}
-				className="inline-flex text-[rgba(30,50,90,0.35)] hover:text-[rgba(30,50,90,0.75)] focus:text-[rgba(30,50,90,0.75)] transition-colors outline-none"
+				className="inline-flex text-[rgba(28,58,41,0.35)] hover:text-[rgba(28,58,41,0.75)] focus:text-[rgba(28,58,41,0.75)] transition-colors outline-none"
 			>
 				<Info className="w-3.5 h-3.5" />
 			</button>
@@ -90,7 +90,7 @@ export default function Tooltip({ text, label }: Props) {
 								bottom: pos.bottom,
 								width: WIDTH,
 							}}
-							className="z-50 block rounded-xl bg-[rgba(30,50,90,0.96)] px-3.5 py-2.5 text-[12px] leading-relaxed text-white/90 shadow-lg pointer-events-none"
+							className="z-50 block rounded-xl bg-[rgba(28,58,41,0.96)] px-3.5 py-2.5 text-[12px] leading-relaxed text-white/90 shadow-lg pointer-events-none"
 						>
 							{text}
 						</motion.span>

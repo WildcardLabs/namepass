@@ -26,7 +26,7 @@ export default function ShineBorder({
 	borderRadius = 999,
 	borderWidth = 2,
 	duration = 9,
-	color = "rgba(30,50,90,0.55)",
+	color = "rgba(28,58,41,0.55)",
 }: Props) {
 	return (
 		<div
@@ -35,7 +35,7 @@ export default function ShineBorder({
 				{
 					borderRadius,
 					padding: borderWidth,
-					backgroundColor: "rgba(30,50,90,0.08)",
+					backgroundColor: "rgba(28,58,41,0.08)",
 					backgroundImage: `conic-gradient(from var(--shine-angle, 0deg), transparent 0%, ${color} 18%, transparent 40%)`,
 					animation: `shine-rotate ${duration}s linear infinite`,
 				} as CSSProperties

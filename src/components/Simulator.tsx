@@ -88,21 +88,21 @@ export default function Simulator({
 	onRetry: () => void;
 }) {
 	return (
-		<section id="simulator" className="bg-[#f0f0f0] px-5 md:px-10 py-20 md:py-28">
+		<section id="simulator" className="bg-[#f0f0f0] px-5 md:px-10 py-14 md:py-20">
 			<div className="max-w-[1100px] mx-auto">
 				<div className="max-w-2xl">
-					<span className="text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
-						Cost simulator
+					<span className="text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
+						ENS v2 pricing explorer
 					</span>
-					<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(30,50,90,0.95)] tracking-tight leading-[1.05]">
-						See what any amount buys.
+					<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
+						See how USDC becomes renewal time.
 					</h2>
-					<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(30,50,90,0.6)] leading-relaxed">
-						ENS offers better rates for longer renewals. Namepass always locks in the longest period your payment qualifies for, so you never leave a discount on the table.
+					<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] leading-relaxed">
+						Explore ENS v2 pricing by name length and payment amount. Namepass uses the longest discount tier your payment qualifies for, so you do not miss an available rate.
 					</p>
 				</div>
 
-				<div className="mt-10 bg-white rounded-[1.5rem] md:rounded-[2rem] border border-[rgba(30,50,90,0.08)] overflow-hidden">
+				<div className="mt-10 bg-white rounded-[1.5rem] md:rounded-[2rem] border border-[rgba(28,58,41,0.08)] overflow-hidden">
 					{priced ? (
 						<SimulatorBody />
 					) : problem ? (
@@ -122,7 +122,7 @@ export default function Simulator({
 function Bar({ className = "" }: { className?: string }) {
 	return (
 		<div
-			className={`rounded-full bg-[rgba(30,50,90,0.07)] motion-safe:animate-pulse ${className}`}
+			className={`rounded-full bg-[rgba(28,58,41,0.07)] motion-safe:animate-pulse ${className}`}
 		/>
 	);
 }
@@ -130,14 +130,14 @@ function Bar({ className = "" }: { className?: string }) {
 function SimulatorSkeleton() {
 	return (
 		<>
-			<div className="flex flex-col sm:flex-row border-b border-[rgba(30,50,90,0.08)]">
+			<div className="flex flex-col sm:flex-row border-b border-[rgba(28,58,41,0.08)]">
 				{LENGTHS.map((l) => (
 					<div
 						key={l.len}
-						className="flex-1 px-5 py-4 border-b sm:border-b-0 sm:border-r border-[rgba(30,50,90,0.08)] last:border-0"
+						className="flex-1 px-5 py-4 border-b sm:border-b-0 sm:border-r border-[rgba(28,58,41,0.08)] last:border-0"
 					>
 						{/* The labels are ours and known; only the rate beside them is ENS's. */}
-						<div className="text-[15px] text-[rgba(30,50,90,0.6)]">{l.label}</div>
+						<div className="text-[15px] text-[rgba(28,58,41,0.6)]">{l.label}</div>
 						<Bar className="mt-1.5 h-[10px] w-32" />
 					</div>
 				))}
@@ -145,7 +145,7 @@ function SimulatorSkeleton() {
 
 			<div className="p-6 md:p-10 grid md:grid-cols-2 gap-10 md:gap-16 items-start">
 				<div>
-					<div className="text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
+					<div className="text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
 						Payment received
 					</div>
 					<Bar className="mt-3 h-[44px] md:h-[52px] w-48 !rounded-2xl" />
@@ -160,8 +160,8 @@ function SimulatorSkeleton() {
 					</div>
 				</div>
 
-				<div className="md:border-l md:border-[rgba(30,50,90,0.08)] md:pl-16">
-					<div className="text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
+				<div className="md:border-l md:border-[rgba(28,58,41,0.08)] md:pl-16">
+					<div className="text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
 						Renewal time bought
 					</div>
 					<Bar className="mt-3 h-[32px] md:h-[38px] w-40 !rounded-2xl" />
@@ -224,23 +224,23 @@ function SimulatorBody() {
 
 	return (
 		<>
-			<div className="flex flex-col sm:flex-row border-b border-[rgba(30,50,90,0.08)]">
+			<div className="flex flex-col sm:flex-row border-b border-[rgba(28,58,41,0.08)]">
 				{LENGTHS.map((l) => {
 							const on = l.len === len;
 							return (
 								<button
 									key={l.len}
 									onClick={() => setLen(l.len)}
-									className={`flex-1 px-5 py-4 text-left transition-colors border-b sm:border-b-0 sm:border-r border-[rgba(30,50,90,0.08)] last:border-0 ${
-										on ? "bg-[rgba(30,50,90,0.05)]" : "hover:bg-[rgba(30,50,90,0.02)]"
+									className={`flex-1 px-5 py-4 text-left transition-colors border-b sm:border-b-0 sm:border-r border-[rgba(28,58,41,0.08)] last:border-0 ${
+										on ? "bg-[rgba(28,58,41,0.05)]" : "hover:bg-[rgba(28,58,41,0.02)]"
 									}`}
 								>
 									<div
-										className={`text-[15px] ${on ? "text-[rgba(30,50,90,0.95)]" : "text-[rgba(30,50,90,0.6)]"}`}
+										className={`text-[15px] ${on ? "text-[rgba(28,58,41,0.95)]" : "text-[rgba(28,58,41,0.6)]"}`}
 									>
 										{l.label}
 									</div>
-									<div className="mt-0.5 text-[12px] text-[rgba(30,50,90,0.45)]">
+									<div className="mt-0.5 text-[12px] text-[rgba(28,58,41,0.45)]">
 										{l.example} · {fmtUsdc(oneYearCost(l.len))}/year
 									</div>
 								</button>
@@ -251,13 +251,13 @@ function SimulatorBody() {
 					<div className="p-6 md:p-10 grid md:grid-cols-2 gap-10 md:gap-16 items-start">
 						{/* input */}
 						<div>
-							<div className="text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
+							<div className="text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
 								Payment received
 							</div>
 
 							{editing ? (
 								<div className="mt-1 flex items-baseline gap-1">
-									<span className="text-[44px] md:text-[56px] text-[rgba(30,50,90,0.5)] leading-none">
+									<span className="text-[44px] md:text-[56px] text-[rgba(28,58,41,0.5)] leading-none">
 										$
 									</span>
 									<input
@@ -271,7 +271,7 @@ function SimulatorBody() {
 										}}
 										inputMode="decimal"
 										placeholder="0.00"
-										className="w-full min-w-0 bg-transparent outline-none text-[44px] md:text-[56px] font-normal text-[rgba(30,50,90,0.95)] tracking-tight leading-none tabular-nums border-b-2 border-[rgba(30,50,90,0.3)]"
+										className="w-full min-w-0 bg-transparent outline-none text-[44px] md:text-[56px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-none tabular-nums border-b-2 border-[rgba(28,58,41,0.3)]"
 									/>
 								</div>
 							) : (
@@ -281,13 +281,13 @@ function SimulatorBody() {
 										setEditing(true);
 									}}
 									title="Click to type an amount"
-									className="mt-1 block text-[44px] md:text-[56px] font-normal text-[rgba(30,50,90,0.95)] tracking-tight leading-none tabular-nums border-b-2 border-transparent hover:border-[rgba(30,50,90,0.2)] transition-colors"
+									className="mt-1 block text-[44px] md:text-[56px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-none tabular-nums border-b-2 border-transparent hover:border-[rgba(28,58,41,0.2)] transition-colors"
 								>
 									{fmtUsdc(budget)}
 								</button>
 							)}
 
-							<div className="mt-1.5 text-[12px] text-[rgba(30,50,90,0.4)]">
+							<div className="mt-1.5 text-[12px] text-[rgba(28,58,41,0.4)]">
 								Click the amount to type your own
 							</div>
 
@@ -299,7 +299,7 @@ function SimulatorBody() {
 								value={tFor(len, budget)}
 								onChange={(e) => setBudget(budgetFor(len, Number(e.target.value)))}
 								aria-label="Payment amount"
-								className="mt-5 w-full accent-[rgba(30,50,90,0.9)]"
+								className="mt-5 w-full accent-[rgba(28,58,41,0.9)]"
 							/>
 
 							{/* One card per discount tier: the period, and what it saves.
@@ -322,8 +322,8 @@ function SimulatorBody() {
 											aria-pressed={on}
 											className={`relative rounded-2xl border px-1.5 py-4 text-center transition-colors ${
 												on
-													? "border-[rgba(30,50,90,0.5)] bg-[rgba(30,50,90,0.06)]"
-													: "border-[rgba(30,50,90,0.12)] hover:border-[rgba(30,50,90,0.3)] hover:bg-[rgba(30,50,90,0.02)]"
+													? "border-[rgba(28,58,41,0.5)] bg-[rgba(28,58,41,0.06)]"
+													: "border-[rgba(28,58,41,0.12)] hover:border-[rgba(28,58,41,0.3)] hover:bg-[rgba(28,58,41,0.02)]"
 											}`}
 										>
 											{/* Exact, not rounded to a whole percent. "−13%" for a
@@ -346,15 +346,15 @@ function SimulatorBody() {
 													   no better. */
 													className={`absolute -top-[9px] right-1 inline-flex h-[18px] items-center justify-center rounded-full border px-1.5 pb-px text-[10px] leading-none tabular-nums transition-colors ${
 														on
-															? "border-[rgba(30,50,90,0.92)] bg-[rgba(30,50,90,0.92)] text-white"
-															: "border-[rgba(30,50,90,0.12)] bg-white text-[rgba(30,50,90,0.5)]"
+															? "border-[rgba(28,58,41,0.92)] bg-[rgba(28,58,41,0.92)] text-white"
+															: "border-[rgba(28,58,41,0.12)] bg-white text-[rgba(28,58,41,0.5)]"
 													}`}
 												>
 													−{m.off}
 												</span>
 											)}
 											<div
-												className={`text-[14px] ${on ? "text-[rgba(30,50,90,0.95)]" : "text-[rgba(30,50,90,0.65)]"}`}
+												className={`text-[14px] ${on ? "text-[rgba(28,58,41,0.95)]" : "text-[rgba(28,58,41,0.65)]"}`}
 											>
 												{m.years > 0 ? `${m.years} years` : "Bulk rate"}
 											</div>
@@ -366,8 +366,8 @@ function SimulatorBody() {
 						</div>
 
 						{/* result */}
-						<div className="md:border-l md:border-[rgba(30,50,90,0.08)] md:pl-16">
-							<div className="text-[11px] uppercase tracking-wider text-[rgba(30,50,90,0.45)]">
+						<div className="md:border-l md:border-[rgba(28,58,41,0.08)] md:pl-16">
+							<div className="text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
 								Renewal time bought
 							</div>
 							<AnimatePresence mode="popLayout">
@@ -376,7 +376,7 @@ function SimulatorBody() {
 									initial={{ opacity: 0, y: 4 }}
 									animate={{ opacity: 1, y: 0 }}
 									transition={{ duration: 0.18 }}
-									className="mt-1 text-[30px] md:text-[38px] font-normal text-[rgba(30,50,90,0.95)] tracking-tight leading-[1.1]"
+									className="mt-1 text-[30px] md:text-[38px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.1]"
 								>
 									{humanDuration(result.seconds)}
 								</motion.div>
@@ -394,18 +394,18 @@ function SimulatorBody() {
 									>
 										<button
 											onClick={() => setBudget(ceilToCent(hint.payable + ALLOWANCE))}
-											className="mt-4 w-full text-left rounded-2xl border border-[rgba(30,50,90,0.2)] bg-[rgba(30,50,90,0.04)] px-4 py-3 hover:bg-[rgba(30,50,90,0.07)] transition-colors group"
+											className="mt-4 w-full text-left rounded-2xl border border-[rgba(28,58,41,0.2)] bg-[rgba(28,58,41,0.04)] px-4 py-3 hover:bg-[rgba(28,58,41,0.07)] transition-colors group"
 										>
 											<div className="flex items-start gap-2.5">
-												<TrendingUp className="w-4 h-4 mt-0.5 shrink-0 text-[rgba(30,50,90,0.7)]" />
+												<TrendingUp className="w-4 h-4 mt-0.5 shrink-0 text-[rgba(28,58,41,0.7)]" />
 												<div className="min-w-0">
-													<div className="text-[13.5px] text-[rgba(30,50,90,0.95)] leading-snug">
+													<div className="text-[13.5px] text-[rgba(28,58,41,0.95)] leading-snug">
 														Add {fmtUsdc(hint.delta)} to get{" "}
 														<span className="whitespace-nowrap">
 															{Math.round(Number(hint.gain) / 2629800)} more months
 														</span>
 													</div>
-													<div className="mt-0.5 text-[12px] text-[rgba(30,50,90,0.55)]">
+													<div className="mt-0.5 text-[12px] text-[rgba(28,58,41,0.55)]">
 														Unlocks the {hint.years}-year rate · {hint.off} off
 													</div>
 												</div>
@@ -419,42 +419,42 @@ function SimulatorBody() {
 								{/* Same shape as a settled renewal in the Explorer: what went in,
 								    what the bridge takes, what the registry actually sees. */}
 								<div className="flex justify-between gap-4">
-									<dt className="text-[rgba(30,50,90,0.55)]">Gas allowance</dt>
-									<dd className="text-[rgba(30,50,90,0.55)] text-right tabular-nums">
+									<dt className="text-[rgba(28,58,41,0.55)]">Gas allowance</dt>
+									<dd className="text-[rgba(28,58,41,0.55)] text-right tabular-nums">
 										−{fmtUsdc(ALLOWANCE)}
 									</dd>
 								</div>
-								<div className="flex justify-between gap-4 pb-3 border-b border-[rgba(30,50,90,0.08)]">
-									<dt className="text-[rgba(30,50,90,0.55)]">Reaches renewal</dt>
-									<dd className="text-[rgba(30,50,90,0.95)] text-right tabular-nums">
+								<div className="flex justify-between gap-4 pb-3 border-b border-[rgba(28,58,41,0.08)]">
+									<dt className="text-[rgba(28,58,41,0.55)]">Reaches renewal</dt>
+									<dd className="text-[rgba(28,58,41,0.95)] text-right tabular-nums">
 										{fmtUsdc(applied)}
 									</dd>
 								</div>
 								<div className="flex justify-between gap-4">
-									<dt className="text-[rgba(30,50,90,0.55)]">Rate applied</dt>
-									<dd className="text-[rgba(30,50,90,0.95)] text-right">
+									<dt className="text-[rgba(28,58,41,0.55)]">Rate applied</dt>
+									<dd className="text-[rgba(28,58,41,0.95)] text-right">
 										{result.off ? `${result.tierYears}-year bulk` : "Standard"}
 									</dd>
 								</div>
 								<div className="flex justify-between gap-4">
-									<dt className="text-[rgba(30,50,90,0.55)]">Discount</dt>
+									<dt className="text-[rgba(28,58,41,0.55)]">Discount</dt>
 									<dd
-										className={`text-right ${result.off ? "text-[rgba(30,50,90,0.95)]" : "text-[rgba(30,50,90,0.4)]"}`}
+										className={`text-right ${result.off ? "text-[rgba(28,58,41,0.95)]" : "text-[rgba(28,58,41,0.4)]"}`}
 									>
 										{result.off ? `${result.off} off` : "None"}
 									</dd>
 								</div>
 								<div className="flex justify-between gap-4">
-									<dt className="text-[rgba(30,50,90,0.55)]">Effective cost</dt>
-									<dd className="text-[rgba(30,50,90,0.95)] text-right tabular-nums">
+									<dt className="text-[rgba(28,58,41,0.55)]">Effective cost</dt>
+									<dd className="text-[rgba(28,58,41,0.95)] text-right tabular-nums">
 										{years > 0.01
 											? `${fmtUsdc(BigInt(Math.round(Number(budget) / years)))}/year`
 											: "-"}
 									</dd>
 								</div>
-								<div className="flex justify-between gap-4 pt-3 border-t border-[rgba(30,50,90,0.08)]">
-									<dt className="text-[rgba(30,50,90,0.55)]">Exact seconds</dt>
-									<dd className="text-[rgba(30,50,90,0.7)] text-right tabular-nums text-[13px]">
+								<div className="flex justify-between gap-4 pt-3 border-t border-[rgba(28,58,41,0.08)]">
+									<dt className="text-[rgba(28,58,41,0.55)]">Exact seconds</dt>
+									<dd className="text-[rgba(28,58,41,0.7)] text-right tabular-nums text-[13px]">
 										{result.seconds.toLocaleString("en-US")}
 									</dd>
 								</div>
@@ -462,7 +462,7 @@ function SimulatorBody() {
 
 							{/* The ENS math here is exact; the amount reaching it is a dime
 							    less. Say so, but keep it to one line. */}
-							<div className="mt-6 flex items-center gap-1.5 text-[12px] text-[rgba(30,50,90,0.45)]">
+							<div className="mt-6 flex items-center gap-1.5 text-[12px] text-[rgba(28,58,41,0.45)]">
 								<span>Amounts include a {fmtUsdc(ALLOWANCE)} gas allowance.</span>
 								<Tooltip
 									label="What the gas allowance covers"

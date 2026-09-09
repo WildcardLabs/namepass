@@ -45,7 +45,7 @@ export default function TestnetBanner() {
 
 	return (
 		<div
-			className="w-full bg-[rgba(30,50,90,0.95)] text-white/90 overflow-hidden select-none"
+			className="w-full bg-[rgba(28,58,41,0.95)] text-white/90 overflow-hidden select-none"
 			role="status"
 			aria-label="This is a testnet deployment. Testnet USDC only."
 		>

@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { ArrowUpRight, Activity, Search, Calculator } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 
 interface Props {
 	onClaim: () => void;
@@ -10,6 +10,13 @@ interface Props {
 	showMenu?: boolean;
 }
 
+/**
+ * Header in the original RIVR-template design this project was built on: brand
+ * mark left, plain centred text links, one action right. Links use the muted
+ * blue-grey (#5E6470) the template reads over the video with, rather than the
+ * body navy. The button is squared (10px), not a pill, and has no circled-arrow
+ * chrome.
+ */
 export default function Navbar({
 	onClaim,
 	onExplore,
@@ -19,9 +26,9 @@ export default function Navbar({
 	showMenu = true,
 }: Props) {
 	const items = [
-		{ label: "Explorer", action: onExplore, Icon: Activity },
-		{ label: "Search", action: onSearch, Icon: Search },
-		{ label: "Cost simulator", action: onSimulate, Icon: Calculator },
+		{ label: "Explorer", action: onExplore },
+		{ label: "Find a name", action: onSearch },
+		{ label: "ENS v2 pricing", action: onSimulate },
 	];
 
 	return (
@@ -36,18 +43,20 @@ export default function Navbar({
 				className="flex-1 flex items-center gap-2.5 min-w-0"
 			>
 				<img
-					src={`${import.meta.env.BASE_URL}logo.svg`}
-					alt=""
-					className="h-7 md:h-8 w-auto shrink-0"
+					src={`${import.meta.env.BASE_URL}namepass-logo.png`}
+					alt="Namepass"
+					className="h-4 md:h-[18px] w-auto shrink-0"
 				/>
 			</a>
 
 			{showMenu && (
-				<ul className="hidden md:flex items-center text-[rgb(45,45,45)] font-normal text-sm bg-white/50 backdrop-blur-xl border border-white/50 rounded-full px-2 py-1.5 shadow-[0_4px_20px_-8px_rgba(30,50,90,0.25)]">
+				<ul className="hidden md:flex items-center gap-8 text-[#5E6470] font-medium text-[15px]">
 					{items.map((item) => (
-						<li key={item.label} onClick={item.action}>
-							<button className="flex items-center gap-1.5 px-3 py-2 rounded-full cursor-pointer text-[rgba(30,50,90,0.75)] hover:text-[rgba(30,50,90,0.95)] hover:bg-white/70 transition-colors">
-								<item.Icon className="w-4 h-4 opacity-60" />
+						<li key={item.label}>
+							<button
+								onClick={item.action}
+								className="cursor-pointer hover:text-[#3a3f4a] transition-colors"
+							>
 								{item.label}
 							</button>
 						</li>
@@ -60,12 +69,10 @@ export default function Navbar({
 					whileHover={{ scale: 1.02 }}
 					whileTap={{ scale: 0.98 }}
 					onClick={onClaim}
-					className="flex items-center bg-[rgba(30,50,90,0.8)] text-white rounded-full pl-2 pr-4 md:pr-6 py-1.5 md:py-2 gap-2 md:gap-3 hover:bg-[rgba(30,50,90,1)] transition-colors group"
+					className="flex items-center gap-2 bg-[rgba(28,58,41,0.9)] text-white rounded-[10px] px-4 md:px-5 py-2 md:py-2.5 hover:bg-[rgba(28,58,41,1)] transition-colors"
 				>
-					<div className="bg-white/20 p-1 md:p-1.5 rounded-full flex items-center justify-center">
-						<ArrowUpRight className="w-4 h-4 md:w-5 md:h-5 text-white" />
-					</div>
-					<span className="text-[14px] font-normal">Claim address</span>
+					<span className="text-[14px] font-normal">Find a Namepass</span>
+					<ArrowUpRight className="w-4 h-4 md:w-[18px] md:h-[18px]" />
 				</motion.button>
 			</div>
 		</nav>

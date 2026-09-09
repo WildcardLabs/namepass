@@ -60,10 +60,10 @@ export default function PassCard({
 	const glass = surface === "glass";
 	const cardBg = glass
 		? "bg-white/45 border-white/50"
-		: "bg-white border-[rgba(30,50,90,0.1)]";
+		: "bg-white border-[rgba(28,58,41,0.1)]";
 	const fieldBg = glass
 		? "bg-white/50 border-white/60 hover:bg-white/70"
-		: "bg-[rgba(30,50,90,0.03)] border-[rgba(30,50,90,0.1)] hover:border-[rgba(30,50,90,0.25)]";
+		: "bg-[rgba(28,58,41,0.03)] border-[rgba(28,58,41,0.1)] hover:border-[rgba(28,58,41,0.25)]";
 
 	const size = matrix?.length ?? 0;
 	/* Draw at unit scale in a 0..size viewBox — crisp at any rendered size. */
@@ -79,7 +79,7 @@ export default function PassCard({
 				<div className="relative">
 					<div
 						className={`rounded-[1.4rem] p-4 ${glass ? "bg-white/80" : "bg-white"} border ${
-							glass ? "border-white/60" : "border-[rgba(30,50,90,0.08)]"
+							glass ? "border-white/60" : "border-[rgba(28,58,41,0.08)]"
 						}`}
 					>
 						{matrix ? (
@@ -99,7 +99,7 @@ export default function PassCard({
 												y={r}
 												width={1}
 												height={1}
-												fill="rgba(30,50,90,0.92)"
+												fill="rgba(28,58,41,0.92)"
 												initial={
 													animate ? { opacity: 0, scale: 0.4 } : false
 												}
@@ -127,7 +127,7 @@ export default function PassCard({
 				</div>
 			</div>
 
-			<p className="mt-3 text-center text-[12px] text-[rgba(30,50,90,0.5)]">
+			<p className="mt-3 text-center text-[12px] text-[rgba(28,58,41,0.5)]">
 				Scan to send from any wallet
 			</p>
 
@@ -139,28 +139,28 @@ export default function PassCard({
 				onClick={() => copy(address)}
 				className={`${split ? "mt-5 sm:mt-0" : "mt-5"} w-full text-left rounded-[1.4rem] border px-4 py-3 transition-colors group ${fieldBg}`}
 			>
-				<div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.5)]">
+				<div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
 					<InfinityIcon className="w-3 h-3" />
 					Deposit address · any supported chain
 				</div>
 				<div className="mt-1 flex items-center justify-between gap-3">
-					<span className="min-w-0 text-[12.5px] leading-snug text-[rgba(30,50,90,0.95)] font-mono break-all">
+					<span className="min-w-0 text-[12.5px] leading-snug text-[rgba(28,58,41,0.95)] font-mono break-all">
 						{address}
 					</span>
 					{copied ? (
-						<span className="flex items-center gap-1.5 shrink-0 text-[12px] text-[rgba(30,50,90,0.8)]">
+						<span className="flex items-center gap-1.5 shrink-0 text-[12px] text-[rgba(28,58,41,0.8)]">
 							<Check className="w-3.5 h-3.5" />
 							Copied
 						</span>
 					) : (
-						<Copy className="w-4 h-4 shrink-0 text-[rgba(30,50,90,0.35)] group-hover:text-[rgba(30,50,90,0.75)] transition-colors" />
+						<Copy className="w-4 h-4 shrink-0 text-[rgba(28,58,41,0.35)] group-hover:text-[rgba(28,58,41,0.75)] transition-colors" />
 					)}
 				</div>
 			</button>
 
-			<p className="mt-4 text-center text-[12px] text-[rgba(30,50,90,0.5)] leading-relaxed">
+			<p className="mt-4 text-center text-[12px] text-[rgba(28,58,41,0.5)] leading-relaxed">
 				Every payment extends{" "}
-				<span className="text-[rgba(30,50,90,0.8)]">{name}</span>
+				<span className="text-[rgba(28,58,41,0.8)]">{name}</span>
 			</p>
 			</div>
 			</div>
@@ -168,7 +168,7 @@ export default function PassCard({
 			{/* What this address accepts — the question every sender has. */}
 			<div
 				className={`mt-5 rounded-[1.4rem] border px-4 py-3.5 ${
-					glass ? "bg-white/35 border-white/50" : "bg-[rgba(30,50,90,0.025)] border-[rgba(30,50,90,0.08)]"
+					glass ? "bg-white/35 border-white/50" : "bg-[rgba(28,58,41,0.025)] border-[rgba(28,58,41,0.08)]"
 				}`}
 			>
 				<div className="flex items-center justify-center gap-2">
@@ -177,20 +177,20 @@ export default function PassCard({
 						alt=""
 						className="w-[18px] h-[18px]"
 					/>
-					<span className="text-[13.5px] text-[rgba(30,50,90,0.9)]">
+					<span className="text-[13.5px] text-[rgba(28,58,41,0.9)]">
 						USDC accepted
 					</span>
 				</div>
 
-				<div className="mt-3 pt-3 border-t border-[rgba(30,50,90,0.08)]">
-					<div className="text-[10px] uppercase tracking-wider text-[rgba(30,50,90,0.45)] text-center">
+				<div className="mt-3 pt-3 border-t border-[rgba(28,58,41,0.08)]">
+					<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)] text-center">
 						On any of these chains
 					</div>
 					<div className="mt-2.5 flex items-center justify-center gap-x-5 gap-y-2 flex-wrap">
 						{FUNDING_CHAINS.map((c) => (
 							<span
 								key={c.name}
-								className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(30,50,90,0.7)]"
+								className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(28,58,41,0.7)]"
 							>
 								<img
 									src={`${import.meta.env.BASE_URL}logos/${c.logo}`}
@@ -207,7 +207,7 @@ export default function PassCard({
 					    the token isn't enough — point at the exact contracts. */}
 					<button
 						onClick={onSupportedTokens}
-						className="mt-3 w-full inline-flex items-center justify-center gap-1 text-[12px] text-[rgba(30,50,90,0.5)] hover:text-[rgba(30,50,90,0.85)] transition-colors"
+						className="mt-3 w-full inline-flex items-center justify-center gap-1 text-[12px] text-[rgba(28,58,41,0.5)] hover:text-[rgba(28,58,41,0.85)] transition-colors"
 					>
 						Check contract addresses
 						<ArrowUpRight className="w-3.5 h-3.5" />
