@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FlaskConical } from "lucide-react";
 import { IS_TESTNET, TOKEN_CHAINS } from "../lib/chains";
 import { getActivity } from "../lib/publicApi";
@@ -7,7 +7,7 @@ import { fmtDelivered } from "../lib/format";
 /**
  * A slim marquee above the page card, on every route.
  *
- * It scrolls the latest real renewals ("steve.eth renewed for 6 months"), read
+ * It scrolls the latest real renewals ("steve.eth extended by 6 months"), read
  * from the public activity API — never invented. Until that returns something
  * (no backend, or no renewals yet), it falls back to the testnet notices, so
  * the strip is never empty and never implies activity that did not happen.
@@ -40,6 +40,7 @@ const NOTICES = [
 
 export default function TestnetBanner() {
 	const [renewals, setRenewals] = useState<string[] | null>(null);
+	const trackRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		if (!IS_TESTNET) return;
@@ -51,7 +52,7 @@ export default function TestnetBanner() {
 					.filter((it) => it.renewal?.durationSeconds)
 					.map(
 						(it) =>
-							`${it.name.displayName} renewed for ${fmtDelivered(
+							`${it.name.displayName} extended by ${fmtDelivered(
 								BigInt(it.renewal.durationSeconds.split(".")[0] || "0"),
 							)}`,
 					);
@@ -64,6 +65,18 @@ export default function TestnetBanner() {
 			alive = false;
 		};
 	}, []);
+
+	/* Keep the scroll speed constant however much text is in the track. The
+	   track holds two copies, so one loop travels half its width; set the
+	   duration for a fixed pixels-per-second. Without this, a longer renewals
+	   list scrolls noticeably faster than the short notices. */
+	useEffect(() => {
+		const el = trackRef.current;
+		if (!el) return;
+		const distance = el.scrollWidth / 2;
+		const SPEED = 20; // px per second — slow enough to read comfortably
+		el.style.animationDuration = `${Math.max(30, distance / SPEED)}s`;
+	}, [renewals]);
 
 	if (!IS_TESTNET) return null;
 
@@ -110,7 +123,7 @@ export default function TestnetBanner() {
 					}}
 					aria-hidden="true"
 				>
-					<div className="marquee-track flex items-center whitespace-nowrap">
+					<div ref={trackRef} className="marquee-track flex items-center whitespace-nowrap">
 						{track.map((text, i) => (
 							<span
 								key={i}
