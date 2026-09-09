@@ -27,8 +27,8 @@ export default function Navbar({
 }: Props) {
 	const items = [
 		{ label: "Explorer", action: onExplore },
-		{ label: "Search", action: onSearch },
-		{ label: "Cost simulator", action: onSimulate },
+		{ label: "Find a name", action: onSearch },
+		{ label: "ENS v2 pricing", action: onSimulate },
 	];
 
 	return (
@@ -43,14 +43,14 @@ export default function Navbar({
 				className="flex-1 flex items-center gap-2.5 min-w-0"
 			>
 				<img
-					src={`${import.meta.env.BASE_URL}logo.svg`}
-					alt=""
-					className="h-7 md:h-8 w-auto shrink-0"
+					src={`${import.meta.env.BASE_URL}namepass-logo.png`}
+					alt="Namepass"
+					className="h-4 md:h-[18px] w-auto shrink-0"
 				/>
 			</a>
 
 			{showMenu && (
-				<ul className="hidden md:flex items-center gap-8 text-[#5E6470] font-normal text-sm">
+				<ul className="hidden md:flex items-center gap-8 text-[#5E6470] font-medium text-[15px]">
 					{items.map((item) => (
 						<li key={item.label}>
 							<button
@@ -69,9 +69,9 @@ export default function Navbar({
 					whileHover={{ scale: 1.02 }}
 					whileTap={{ scale: 0.98 }}
 					onClick={onClaim}
-					className="flex items-center gap-2 bg-[rgba(18,36,26,0.9)] text-white rounded-[10px] px-4 md:px-5 py-2 md:py-2.5 hover:bg-[rgba(18,36,26,1)] transition-colors"
+					className="flex items-center gap-2 bg-[rgba(28,58,41,0.9)] text-white rounded-[10px] px-4 md:px-5 py-2 md:py-2.5 hover:bg-[rgba(28,58,41,1)] transition-colors"
 				>
-					<span className="text-[14px] font-normal">Claim address</span>
+					<span className="text-[14px] font-normal">Find a Namepass</span>
 					<ArrowUpRight className="w-4 h-4 md:w-[18px] md:h-[18px]" />
 				</motion.button>
 			</div>

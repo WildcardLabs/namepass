@@ -2,6 +2,7 @@ import { motion } from "motion/react";
 import HeroBadge from "./HeroBadge";
 import BottomLeftCard from "./BottomLeftCard";
 import BottomRightCorner from "./BottomRightCorner";
+import { TextAnimate } from "./magicui/TextAnimate";
 
 interface Props {
 	onExplore: () => void;
@@ -21,22 +22,24 @@ export default function Hero({ onExplore, onLeaderboard, priced }: Props) {
 			<div className="w-full flex flex-col items-center pt-12 md:pt-16 px-6 text-center max-w-4xl">
 				<HeroBadge />
 
-				<motion.h1
-					initial={{ opacity: 0, scale: 0.98 }}
-					animate={{ opacity: 1, scale: 1 }}
-					transition={{ duration: 0.8, delay: 0.2 }}
+				<h1
 					className="text-4xl sm:text-5xl md:text-6xl lg:text-[80px] font-normal text-[#5E6470] mb-2 tracking-tight leading-[1.05]"
 				>
-					Keep your name alive
-				</motion.h1>
+					<TextAnimate as="span" by="character" duration={0.55} delay={0.15}>
+						Keep your name
+					</TextAnimate>{" "}
+					<TextAnimate as="span" by="character" duration={0.55} delay={1.35} className="text-[#1c3a29]">
+						alive
+					</TextAnimate>
+				</h1>
 
 				<motion.p
 					initial={{ opacity: 0 }}
 					animate={{ opacity: 1 }}
-					transition={{ duration: 0.8, delay: 0.4 }}
+					transition={{ duration: 3, delay: 2.05, ease: "easeOut" }}
 					className="text-sm sm:text-base md:text-lg text-[#5E6470] opacity-80 leading-relaxed max-w-xl font-normal"
 				>
-					Your name gets its own address. Any USDC that arrives automatically extends your registration for as long as the funds will cover.
+					Every ENS name has a renewal address. Send USDC; Namepass monitors deposits and triggers renewals.
 				</motion.p>
 			</div>
 

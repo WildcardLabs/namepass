@@ -23,7 +23,7 @@ export default function CtaBand({ onClaim, onSimulate }: Props) {
 					className="cta-pan absolute inset-0"
 					style={{
 						background:
-							"linear-gradient(120deg, #12241a 0%, #1c3a29 46%, #0e1c14 100%)",
+							"linear-gradient(120deg, #1c3a29 0%, #1c3a29 46%, #0e1c14 100%)",
 					}}
 				/>
 				{/* Drifting glow */}
@@ -59,11 +59,10 @@ export default function CtaBand({ onClaim, onSimulate }: Props) {
 						className="max-w-md"
 					>
 						<h2 className="text-[30px] md:text-[42px] font-normal text-white tracking-tight leading-[1.05]">
-							Never let a name expire again.
+							Give a name more time.
 						</h2>
 						<p className="mt-3 text-[14px] md:text-[15px] text-white/70 leading-relaxed">
-							Claim a name's permanent deposit address and fund it from any chain.
-							Every payment buys real time on the registry.
+							Send USDC to a Namepass address. Namepass monitors the payment and triggers the renewal.
 						</p>
 					</motion.div>
 
@@ -77,9 +76,9 @@ export default function CtaBand({ onClaim, onSimulate }: Props) {
 						{/* Left: solid white */}
 						<button
 							onClick={onClaim}
-							className="inline-flex items-center gap-2 rounded-[10px] bg-white text-[rgba(18,36,26,0.95)] px-5 py-3 text-[15px] hover:bg-white/90 transition-colors"
+							className="inline-flex items-center gap-2 rounded-[10px] bg-white text-[rgba(28,58,41,0.95)] px-5 py-3 text-[15px] hover:bg-white/90 transition-colors"
 						>
-							Claim address
+							Find a Namepass
 							<ArrowUpRight className="w-4 h-4" />
 						</button>
 						{/* Right: liquid glass */}
@@ -87,7 +86,7 @@ export default function CtaBand({ onClaim, onSimulate }: Props) {
 							onClick={onSimulate}
 							className="inline-flex items-center rounded-[10px] bg-white/10 backdrop-blur-md border border-white/25 text-white px-5 py-3 text-[15px] shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] hover:bg-white/20 transition-colors"
 						>
-							Cost simulator
+							Explore pricing
 						</button>
 					</motion.div>
 				</div>

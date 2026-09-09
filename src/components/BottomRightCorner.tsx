@@ -17,10 +17,10 @@ import { Activity, ChevronRight } from "lucide-react";
 export default function BottomRightCorner({ onOpen }: { onOpen: () => void }) {
 	return (
 		<div
-			className="absolute bottom-0 right-0 p-3 pt-5 pl-8 sm:p-4 sm:pt-6 sm:pl-10 md:p-6 md:pt-8 md:pl-14 bg-[#f0f0f0] rounded-tl-[1.5rem] sm:rounded-tl-[2rem] md:rounded-tl-[3.5rem] flex items-center gap-3 sm:gap-4 md:gap-6"
+			className="absolute bottom-0 right-0 p-3 pt-5 pl-7 sm:p-4 sm:pt-6 sm:pl-8 md:p-6 md:pt-7 md:pl-10 bg-[#f0f0f0] rounded-tl-[1rem] sm:rounded-tl-[1.25rem] md:rounded-tl-[1.5rem] flex items-center gap-3 sm:gap-4 md:gap-6"
 		>
 			{/* Top intersection mask */}
-			<div className="absolute -top-[1.5rem] sm:-top-[2rem] md:-top-[3.5rem] right-0 w-[1.5rem] sm:w-[2rem] md:w-[3.5rem] h-[1.5rem] sm:h-[2rem] md:h-[3.5rem] pointer-events-none">
+			<div className="absolute -top-[1rem] sm:-top-[1.25rem] md:-top-[1.5rem] right-0 w-[1rem] sm:w-[1.25rem] md:w-[1.5rem] h-[1rem] sm:h-[1.25rem] md:h-[1.5rem] pointer-events-none">
 				<svg
 					width="100%"
 					height="100%"
@@ -33,7 +33,7 @@ export default function BottomRightCorner({ onOpen }: { onOpen: () => void }) {
 			</div>
 
 			{/* Left intersection mask */}
-			<div className="absolute bottom-0 -left-[1.5rem] sm:-left-[2rem] md:-left-[3.5rem] w-[1.5rem] sm:w-[2rem] md:w-[3.5rem] h-[1.5rem] sm:h-[2rem] md:h-[3.5rem] pointer-events-none">
+			<div className="absolute bottom-0 -left-[1rem] sm:-left-[1.25rem] md:-left-[1.5rem] w-[1rem] sm:w-[1.25rem] md:w-[1.5rem] h-[1rem] sm:h-[1.25rem] md:h-[1.5rem] pointer-events-none">
 				<svg
 					width="100%"
 					height="100%"
@@ -48,18 +48,18 @@ export default function BottomRightCorner({ onOpen }: { onOpen: () => void }) {
 			<button
 				onClick={onOpen}
 				aria-label="Open Explorer"
-				className="bg-[rgba(18,36,26,0.05)] w-10 h-10 md:w-14 md:h-14 rounded-[14px] flex items-center justify-center border border-[rgba(18,36,26,0.1)] hover:bg-[rgba(18,36,26,0.1)] transition-colors"
+				className="bg-[rgba(28,58,41,0.05)] w-10 h-10 md:w-14 md:h-14 rounded-[14px] flex items-center justify-center border border-[rgba(28,58,41,0.1)] hover:bg-[rgba(28,58,41,0.1)] transition-colors"
 			>
-				<Activity className="w-5 h-5 md:w-6 md:h-6 text-[rgba(18,36,26,0.8)]" />
+				<Activity className="w-5 h-5 md:w-6 md:h-6 text-[rgba(28,58,41,0.8)]" />
 			</button>
 
 			<div className="flex flex-col">
-				<span className="text-[16px] md:text-[20px] font-normal text-[rgba(18,36,26,0.95)]">
+				<span className="text-[16px] md:text-[20px] font-normal text-[rgba(28,58,41,0.95)]">
 					Explorer
 				</span>
 				<button
 					onClick={onOpen}
-					className="flex items-center gap-1 text-[rgba(18,36,26,0.6)] cursor-pointer hover:text-[rgba(18,36,26,0.8)] transition-colors"
+					className="flex items-center gap-1 text-[rgba(28,58,41,0.6)] cursor-pointer hover:text-[rgba(28,58,41,0.8)] transition-colors"
 				>
 					<span className="text-[10px] md:text-[11px] font-normal">
 						Live renewals
