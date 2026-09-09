@@ -1394,20 +1394,27 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 						</p>
 					</div>
 
-					<div className="w-full md:w-[300px] shrink-0">
-						<div className="flex items-center bg-white border border-[rgba(28,58,41,0.15)] rounded-[0.9rem] pl-4 pr-2 py-2.5 focus-within:border-[rgba(28,58,41,0.4)] transition-colors">
-							<Search className="w-4 h-4 text-[rgba(28,58,41,0.4)] shrink-0" />
-								<input
-									aria-label="Search an ENS name"
+					<div className="w-full md:w-[340px] shrink-0">
+						<div className="flex items-center gap-2 bg-white border border-[rgba(28,58,41,0.15)] rounded-[12px] pl-4 pr-1.5 py-1.5 focus-within:border-[rgba(28,58,41,0.45)] transition-colors">
+							<input
+								aria-label="Search an ENS name"
 								value={query}
 								onChange={(e) => {
 									setQuery(e.target.value);
 									setNotFound(null);
 								}}
 								onKeyDown={(e) => e.key === "Enter" && submit()}
-								placeholder="Search an ENS name…"
-								className="flex-1 min-w-0 bg-transparent outline-none px-3 text-[14px] text-[rgba(28,58,41,0.95)] placeholder:text-[rgba(28,58,41,0.35)]"
+								placeholder="Search a name, e.g. vitalik.eth"
+								className="flex-1 min-w-0 bg-transparent outline-none text-[14px] text-[rgba(28,58,41,0.95)] placeholder:text-[rgba(28,58,41,0.4)]"
 							/>
+							<button
+								type="button"
+								onClick={() => void submit()}
+								aria-label="Search"
+								className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-[9px] bg-[rgba(28,58,41,0.95)] text-white hover:bg-[rgba(28,58,41,1)] transition-colors"
+							>
+								<Search className="w-4 h-4" />
+							</button>
 						</div>
 
 						{suggestions.length > 0 && (

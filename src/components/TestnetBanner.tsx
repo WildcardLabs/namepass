@@ -1,43 +1,74 @@
+import { useEffect, useState } from "react";
 import { FlaskConical } from "lucide-react";
 import { IS_TESTNET, TOKEN_CHAINS } from "../lib/chains";
+import { getActivity } from "../lib/publicApi";
+import { fmtDelivered } from "../lib/format";
 
 /**
  * A slim marquee above the page card, on every route.
  *
- * Why a strip rather than a dismissible banner: "this is a testnet" is not a
- * notice someone should be able to close and then forget while looking at a
- * deposit address. It stays, and it costs ~28px.
+ * It scrolls the latest real renewals ("steve.eth renewed for 6 months"), read
+ * from the public activity API — never invented. Until that returns something
+ * (no backend, or no renewals yet), it falls back to the testnet notices, so
+ * the strip is never empty and never implies activity that did not happen.
  *
- * Why it lives *outside* `PageShell` rather than inside it: the shell is the
- * app, and this is a statement about the deployment. Putting it inside would
- * make it look like a feature of the page it happens to be on.
+ * Why a strip rather than a dismissible banner: "this is a testnet" is not a
+ * notice someone should be able to close and forget while looking at a deposit
+ * address. It stays, and it costs ~28px. It lives *outside* `PageShell` because
+ * it is a statement about the deployment, not a feature of any one page.
  *
  * The marquee is CSS-only and duplicated once so the loop is seamless. It is
- * paused for anyone who asks for reduced motion — see `index.css` — because a
- * permanent moving element is exactly what that setting is for.
+ * paused for anyone who asks for reduced motion — see `index.css`.
  */
+
 /**
  * Height for a section that should fill the viewport *below* the strip.
- *
- * Lives here rather than in `App` so it cannot drift from the strip's own
- * height: `h-8` is 2rem and `md:h-9` is 2.25rem, and if those change this must
- * change with them. Falls back to a plain `h-screen` when the strip is off.
+ * Lives here so it cannot drift from the strip's own height.
  */
 export const VIEWPORT_BELOW_BANNER = IS_TESTNET
 	? "h-[calc(100vh-2rem)] md:h-[calc(100vh-2.25rem)]"
 	: "h-screen";
 
+const NOTICES = [
+	"Testnet preview",
+	`Addresses are on ${TOKEN_CHAINS.map((chain) => chain.network)
+		.join(", ")
+		.replace(/, ([^,]*)$/, " and $1")}`,
+	"Testnet USDC only",
+	"Public activity needs the testnet backend",
+];
+
 export default function TestnetBanner() {
+	const [renewals, setRenewals] = useState<string[] | null>(null);
+
+	useEffect(() => {
+		if (!IS_TESTNET) return;
+		let alive = true;
+		getActivity(1, 12)
+			.then((res) => {
+				if (!alive) return;
+				const lines = res.items
+					.filter((it) => it.renewal?.durationSeconds)
+					.map(
+						(it) =>
+							`${it.name.displayName} renewed for ${fmtDelivered(
+								BigInt(it.renewal.durationSeconds.split(".")[0] || "0"),
+							)}`,
+					);
+				if (lines.length) setRenewals(lines);
+			})
+			.catch(() => {
+				/* No backend / no activity — the notices fallback stands. */
+			});
+		return () => {
+			alive = false;
+		};
+	}, []);
+
 	if (!IS_TESTNET) return null;
 
-	const items = [
-		"Testnet preview",
-		`Addresses are on ${TOKEN_CHAINS.map((chain) => chain.network)
-			.join(", ")
-			.replace(/, ([^,]*)$/, " and $1")}`,
-		"Testnet USDC only",
-		"Public activity needs the testnet backend",
-	];
+	const live = Boolean(renewals?.length);
+	const items = live ? (renewals as string[]) : NOTICES;
 
 	/* Rendered twice; the track translates by exactly -50% so the second copy
 	   lands where the first began. */
@@ -45,20 +76,30 @@ export default function TestnetBanner() {
 
 	return (
 		<div
-			className="w-full bg-[rgba(28,58,41,0.95)] text-white/90 overflow-hidden select-none"
+			className="w-full bg-[#1c3a29] text-white/90 overflow-hidden select-none"
 			role="status"
-			aria-label="This is a testnet deployment. Testnet USDC only."
+			aria-label={
+				live
+					? "Latest renewals on the testnet deployment."
+					: "This is a testnet deployment. Testnet USDC only."
+			}
 		>
 			<div className="flex items-center gap-2 h-8 md:h-9">
-				{/* Kept visible at every width — the icon alone doesn't say
-				    "testnet" to anyone who hasn't already been told. */}
+				{/* Label: a live pulse when showing renewals, the flask otherwise. */}
 				<div className="flex items-center gap-1.5 shrink-0 pl-4 md:pl-6 text-[11px] uppercase tracking-wider text-white">
-					<FlaskConical className="w-3.5 h-3.5" />
-					<span>Testnet</span>
+					{live ? (
+						<span className="relative flex h-1.5 w-1.5">
+							<span className="absolute inline-flex h-full w-full rounded-full bg-white/70 motion-safe:animate-ping" />
+							<span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
+						</span>
+					) : (
+						<FlaskConical className="w-3.5 h-3.5" />
+					)}
+					<span>{live ? "Latest renewals" : "Testnet"}</span>
 				</div>
 
-				{/* Fades the scrolling text in at the left edge, so it doesn't
-				    read as sliding out from underneath the label. */}
+				{/* Fades the scrolling text in at the left edge, so it doesn't read
+				    as sliding out from underneath the label. */}
 				<div
 					className="relative flex-1 overflow-hidden"
 					style={{
