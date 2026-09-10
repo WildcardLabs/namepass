@@ -1062,6 +1062,20 @@ polling. If it reports “nonce too low,” check every current-nonce attempt be
 that an unknown transaction consumed the nonce. If a transaction is rejected or stuck, sign a
 higher-fee replacement with the same nonce and relayer. Link it to the same intent.
 
+The active workflow also advances a prepared intent when it reaches the queue head. It does not
+need to wait for recovery. A fresh intent with one current-nonce attempt and no recorded broadcast
+attempt checks its queue position in Postgres every five seconds. While an earlier nonce remains
+unresolved, this check makes no chain RPC call. Queue waits do not advance the receipt backoff.
+When the intent reaches the head, the workflow broadcasts its stored bytes before reading its
+receipt. The broadcaster repeats the queue guard. A crash after an unrecorded send can cause the
+same bytes to be sent again.
+
+Prepared replacements, uncertain attempt history, and intents with a recorded broadcast attempt
+still check all current-nonce receipts before replacement. An older attempt can already be mined.
+After broadcast, the existing receipt backoff applies. Recovery remains the fallback for stopped
+workflows and unresolved transactions. A shorter recovery interval does not replace these active
+workflow checks. See `docs/STRESS_TEST_2026-09-10.md` for the measured delay and regression review.
+
 The account must remain exclusive to Namepass. If the confirmed account nonce advances and no
 stored attempt has a receipt, keep the queue blocked and alert the operator. Do not skip the nonce.
 An unknown sender transaction is a key-integrity incident. A temporary RPC receipt gap must not
