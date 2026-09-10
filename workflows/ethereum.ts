@@ -52,6 +52,11 @@ export async function ethereumRenewal(
 		await broadcastEthereumRenewalStep(intentId);
 		for (let attempt = 0; ; attempt += 1) {
 			const result = await confirmEthereumRenewalStep(flowId, intentId);
+			if (result === "queued") {
+				attempt = -1;
+				await sleep("5s");
+				continue;
+			}
 			if (result === "superseded") {
 				const current = await loadEthereumFlowStep(flowId);
 				if (current && ["settled", "held", "cancelled", "failed"].includes(current.status)) {

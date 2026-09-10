@@ -52,6 +52,9 @@ jobs:
       - name: Test the server
         run: npm run test:server
 
+      - name: Test transaction polling and workflow composition
+        run: npm run test:transactions
+
       - name: Test the Workflow runtime
         run: npm run test:workflow
 

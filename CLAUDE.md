@@ -151,11 +151,14 @@ npm run preview   # serve the production build locally
 npm run check:server
 npm run test:frontend
 npm run test:server
+npm run test:transactions
 npm run test:workflow
 ```
 
 There is no lint script and no `npm test` alias. Server tests use Node's test runner through
-`npm run test:server`. Frontend adapter tests and the Workflow runtime probe use Vitest.
+`npm run test:server`. Frontend adapter tests, transaction polling tests, and the Workflow runtime
+probe use Vitest. Transaction tests exercise the real polling code with mocked RPC and database
+boundaries. They also exercise workflow control flow with mocked steps and sleeps.
 Use the exact scripts above.
 
 ## Git workflow
@@ -340,6 +343,7 @@ payment target) is still truncated elsewhere.
 ## CI
 
 GitHub Actions runs the application build, server and workflow type checks, frontend tests, server
-tests, Workflow runtime tests, chain-registry check, generated Goldsky pipeline check, and Foundry
+tests, transaction polling and workflow composition tests, Workflow runtime tests, chain-registry
+check, generated Goldsky pipeline check, and Foundry
 tests on each pull request and each push to `main`. Keep the `Checks` job free of deployment
 credentials and live-service calls. GitHub branch protection must require this job before merge.

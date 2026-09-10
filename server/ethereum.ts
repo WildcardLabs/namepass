@@ -19,8 +19,7 @@ import { parseEnsRenewalExpiry } from "./ens-renewal";
 import {
 	ensureTransactionBroadcast,
 	prepareTransaction,
-	readTransactionReceipt,
-	replaceStaleTransaction,
+	pollTransactionReceipt,
 	retryTransaction,
 	transactionIntentAction,
 	transactionReceiptMatchesCurrentNonce,
@@ -459,16 +458,14 @@ async function markEthereumOriginReverted(
 	});
 }
 
-export async function confirmEthereumRenewal(flowId: string, intentId: string): Promise<"waiting" | "held" | "settled" | "cancelled" | "failed" | "superseded"> {
+export async function confirmEthereumRenewal(flowId: string, intentId: string): Promise<"queued" | "waiting" | "held" | "settled" | "cancelled" | "failed" | "superseded"> {
 	"use step";
 	const flow = await loadEthereumFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
 	if (flow.status === "cancelled") return "cancelled";
-	const receipt = await readTransactionReceipt(intentId);
-	if (!receipt) {
-		await replaceStaleTransaction(intentId);
-		return "waiting";
-	}
+	const receipt = await pollTransactionReceipt(intentId);
+	if (receipt === "queued") return "queued";
+	if (!receipt) return "waiting";
 	if (receipt.status !== "success") {
 		return markEthereumOriginReverted(flowId, intentId, receipt as unknown as Record<string, unknown>);
 	}
