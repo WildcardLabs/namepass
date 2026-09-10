@@ -10,7 +10,7 @@ import {
 	YEAR_SECONDS,
 } from "../lib/pricing";
 import { GAS_ALLOWANCE } from "../lib/fees";
-import { fmtUsdc } from "../lib/format";
+import { fmtDurationPrecise, fmtUsdc } from "../lib/format";
 import Tooltip from "./Tooltip";
 import PricingError from "./PricingError";
 
@@ -39,33 +39,6 @@ function budgetFor(len: number, t: number): bigint {
 
 function tFor(len: number, budget: bigint): number {
 	return Math.min(1, Math.max(0, Number(budget) / Number(maxFor(len))));
-}
-
-/* A twelfth of the oracle's year, exactly. Months have to be defined against
-   YEAR_SECONDS rather than as a flat 30 days: 12 × 30 is 360, not 365, so a
-   30-day month leaves a five-day seam at the top of every year and a duration
-   just under a year renders as "12 months, 4 days" — a unit that should have
-   rolled over. Here `months` cannot exceed 11 by construction. */
-const MONTH_SECONDS = YEAR_SECONDS / 12n;
-
-/**
- * Day-accurate duration. Days are shown at every scale, because "2 years"
- * and "2 years, 11 months, 20 days" are very different purchases — and a
- * payment a few seconds short of a whole year must not round up to one.
- */
-function humanDuration(seconds: bigint): string {
-	if (seconds < 86400n) return "-";
-
-	const years = seconds / YEAR_SECONDS;
-	const afterYears = seconds % YEAR_SECONDS;
-	const months = afterYears / MONTH_SECONDS;
-	const days = (afterYears % MONTH_SECONDS) / 86400n;
-
-	const parts: string[] = [];
-	if (years) parts.push(`${years} year${years === 1n ? "" : "s"}`);
-	if (months) parts.push(`${months} month${months === 1n ? "" : "s"}`);
-	if (days) parts.push(`${days} day${days === 1n ? "" : "s"}`);
-	return parts.join(", ");
 }
 
 /**
@@ -378,7 +351,7 @@ function SimulatorBody() {
 									transition={{ duration: 0.18 }}
 									className="mt-1 text-[30px] md:text-[38px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.1]"
 								>
-									{humanDuration(result.seconds)}
+									{fmtDurationPrecise(result.seconds)}
 								</motion.div>
 							</AnimatePresence>
 
