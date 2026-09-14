@@ -79,6 +79,23 @@ export function fmtDelivered(seconds: bigint): string {
 	return m > 0n ? `${yPart} ${m} month${m === 1n ? "" : "s"}` : yPart;
 }
 
+/* One twelfth of the display year. Twelve months add up to one 365-day year. */
+const MONTH_SECONDS = YEAR_SECONDS / 12n;
+
+/** Day-accurate renewal duration, shared with the pricing calculator. */
+export function fmtDurationPrecise(seconds: bigint): string {
+	if (seconds < 86_400n) return "-";
+	const years = seconds / YEAR_SECONDS;
+	const afterYears = seconds % YEAR_SECONDS;
+	const months = afterYears / MONTH_SECONDS;
+	const days = (afterYears % MONTH_SECONDS) / 86_400n;
+	const parts: string[] = [];
+	if (years) parts.push(`${years} year${years === 1n ? "" : "s"}`);
+	if (months) parts.push(`${months} month${months === 1n ? "" : "s"}`);
+	if (days) parts.push(`${days} day${days === 1n ? "" : "s"}`);
+	return parts.join(", ");
+}
+
 /** "+6.0y", "+228d", "+12h", or "+1m" for compact renewal durations. */
 export function fmtDuration(seconds: bigint): string {
 	const tenths = (seconds * 10n + YEAR_SECONDS / 2n) / YEAR_SECONDS;

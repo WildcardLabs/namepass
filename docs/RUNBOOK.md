@@ -345,6 +345,7 @@ npm run build
 npm run check:server
 npm run test:frontend
 npm run test:server
+npm run test:transactions
 npm run test:workflow
 node scripts/check-chains.mjs
 node goldsky/generate-testnet.mjs --check

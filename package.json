@@ -10,6 +10,7 @@
 		"check:server": "tsc --noEmit -p tsconfig.server.json",
 		"test:frontend": "vitest run --config vitest.frontend.config.ts",
 		"test:server": "tsx --test server/**/*.test.ts",
+		"test:transactions": "vitest run --config vitest.transactions.config.ts",
 		"test:workflow": "vitest run --config vitest.workflow.config.ts"
 	},
 	"dependencies": {

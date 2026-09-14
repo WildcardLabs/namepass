@@ -21,6 +21,30 @@ explicit button press and use a short cache; the removed scheduled health poll s
 The dashboard does not sum flow amounts as wallet balances or infer gas runway from arbitrary
 thresholds. No new event ledger, queue, migration, or service is added. Embedded PostgreSQL is a
 test dependency only. See `docs/MONITORING.md` for metric definitions and remaining provider checks.
+### 2026-09-10 — Separate queue waits from receipt waits
+
+The stress test exposed avoidable delay in the single-sender transaction queue. Active workflows
+queried receipts before checking whether a prepared intent could broadcast. A queued transaction
+also consumed the receipt backoff, so a long queue made later queue checks less frequent. The
+inspected Arc flow spent about 14 minutes between claim preparation and broadcast. Its 51 claim
+poll steps spent about 311 seconds executing. These measurements do not isolate each RPC call or
+prove how much of the total delay this change will remove.
+
+Keep the nonce queue and transaction safety rules from PRs 57–59. A fresh intent now checks its
+queue position in Postgres every five seconds without chain RPC calls. Queue waits reset the
+receipt poll counter. The active workflow broadcasts the same stored bytes when the intent reaches
+the head. Prepared replacements and uncertain histories keep receipt lookup first. This preserves
+the chance to observe an older mined attempt before another broadcast.
+
+Do not shorten the recovery cron to drive active queues. The existing workflow already advances
+eligible intents through `replaceStaleTransaction`. Recovery is a fallback. Do not add sender keys,
+skip unresolved nonces, broadcast later nonces, or create cancellation transactions for this fix.
+Exact CCTP identity, origin-wallet locks, late-deposit absorption, and versioned balance scans remain
+unchanged. More frequent queue checks use more Workflow steps and database reads during a backlog.
+They stop when the flow stops; there is no new idle poller. Measure queue delay and service usage
+in a controlled stable-testnet run before claiming a throughput improvement.
+
+See `docs/STRESS_TEST_2026-09-10.md` for evidence, prior failure modes, and release checks.
 
 ### 2026-09-07 — Reconcile late deposits with exact origin-block evidence
 

@@ -136,6 +136,7 @@ type ApiErrorBody = { error?: { message?: unknown } };
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
 	const response = await fetch(`${API_BASE}${path}`, {
 		...init,
+		cache: "no-store",
 		headers: { accept: "application/json", ...init?.headers },
 	});
 	const body = (await response.json().catch(() => null)) as T | ApiErrorBody | null;

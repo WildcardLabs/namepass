@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import { YEAR_SECONDS } from "./pricing";
-import { fmtDuration } from "./format";
+import { fmtDuration, fmtDurationPrecise } from "./format";
 
 describe("compact renewal duration", () => {
 	test("shows the live three-character renewal in hours instead of zero days", () => {
@@ -18,5 +18,15 @@ describe("compact renewal duration", () => {
 
 	test("keeps year formatting for long renewals", () => {
 		expect(fmtDuration(YEAR_SECONDS)).toBe("+1.0y");
+	});
+});
+
+describe("precise renewal duration", () => {
+	test("does not round a short renewal to one month", () => {
+		expect(fmtDurationPrecise(26n * 86_400n)).toBe("26 days");
+	});
+
+	test("uses the calculator's year, month, and day breakdown", () => {
+		expect(fmtDurationPrecise(YEAR_SECONDS + 2n * (YEAR_SECONDS / 12n) + 3n * 86_400n)).toBe("1 year, 2 months, 3 days");
 	});
 });
