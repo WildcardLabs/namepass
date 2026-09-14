@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { Skeleton } from "./components/ui/skeleton";
 import Navbar from "./components/Navbar";
 import PageShell from "./components/PageShell";
 import Hero from "./components/Hero";
@@ -18,9 +19,10 @@ import { loadOracleRates } from "./lib/oracle";
 import { assertGasAllowance } from "./lib/fees";
 import { setRates } from "./lib/pricing";
 
+const Monitoring = lazy(() => import("./components/Monitoring"));
 const VIDEO_URL = `${import.meta.env.BASE_URL}assets/namepass-bg.mp4`;
 
-type Page = "home" | "leaderboard" | "supported" | "terms" | "privacy";
+type Page = "monitoring" | "home" | "leaderboard" | "supported" | "terms" | "privacy";
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -28,6 +30,7 @@ function pathToPage(pathname: string): Page {
 	const rel = pathname.startsWith(BASE)
 		? pathname.slice(BASE.length)
 		: pathname.replace(/^\//, "");
+	if (rel.startsWith("monitoring")) return "monitoring";
 	if (rel.startsWith("leaderboard")) return "leaderboard";
 	if (rel.startsWith("supported")) return "supported";
 	if (rel.startsWith("terms")) return "terms";
@@ -82,7 +85,9 @@ export default function App() {
 			});
 	}, []);
 
-	useEffect(loadPricing, [loadPricing]);
+	useEffect(() => {
+		if (page !== "monitoring" && boot.status === "loading") loadPricing();
+	}, [page, loadPricing]);
 
 	useEffect(() => {
 		if ("scrollRestoration" in window.history) {
@@ -157,6 +162,14 @@ export default function App() {
 		onSearch: focusSearch,
 		onHome: goHome,
 	};
+
+	if (page === "monitoring") {
+		return (
+			<Suspense fallback={<Skeleton className="m-8 h-96" />}>
+				<Monitoring onBack={goHome} />
+			</Suspense>
+		);
+	}
 
 	return (
 		<main className="min-h-screen bg-[#f0f0f0] flex flex-col">
@@ -255,6 +268,7 @@ export default function App() {
 			</div>
 
 			<Footer
+				onMonitoring={() => navigate("monitoring")}
 				onExplore={goExplorer}
 				onSimulate={goSimulate}
 				onLeaderboard={goLeaderboard}

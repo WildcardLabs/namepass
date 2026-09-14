@@ -7,6 +7,20 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-09-14 — Public shadcn monitoring with explicit evidence boundaries
+
+Add `/monitoring` as a read-only dashboard. Use official shadcn registry components; do not build
+new visual primitives. Canonical events own usage totals. Stored flow state owns the operational
+queue. An overdue step is a review signal, not proof that a transaction failed. Step-entry time
+must survive routine retries. A generic short Circle timeout was rejected because standard L2
+finality is much slower than Arc finality.
+
+Keep provider health and alert delivery explicitly unverified until their evidence is connected.
+A quiet filtered event feed cannot prove an indexer outage. Relayer gas reads run only after an
+explicit button press and use a short cache; the removed scheduled health poll stays removed.
+The dashboard does not sum flow amounts as wallet balances or infer gas runway from arbitrary
+thresholds. No new event ledger, queue, migration, or service is added. Embedded PostgreSQL is a
+test dependency only. See `docs/MONITORING.md` for metric definitions and remaining provider checks.
 ### 2026-09-10 — Separate queue waits from receipt waits
 
 The stress test exposed avoidable delay in the single-sender transaction queue. Active workflows
