@@ -163,6 +163,13 @@ Use the exact scripts above.
 Create a `codex/` branch before you edit files. Commit and push changes only to that branch. Do not
 commit or push directly to `main`.
 
+Production releases must use the GitHub-connected deployment flow. Commit on the feature branch,
+open a PR, wait for CI and deployment checks, then merge through GitHub when authorized. Never
+publish local files with `vercel deploy --prod`, promote a CLI deployment, or change production
+aliases to bypass that flow unless the user explicitly requests that exception. Inspect the
+current remote main branch before preparing a release. Verify the production deployment's Git
+commit after merge.
+
 **The contracts do have tests**, in Foundry:
 
 ```bash
@@ -182,6 +189,10 @@ bugs this repo has shipped would have passed against a mocked oracle. If you cha
 `_quote`, `_settle`, or the CCTP offsets, run `forge test` before believing it.
 
 ## Architecture
+
+**The monitoring page uses official shadcn components only.** `/monitoring` is lazy-loaded and
+independent of pricing. Read `docs/MONITORING.md` before changing metrics, review budgets, gas checks,
+or monitoring coverage. Keep all background health RPC polling disabled.
 
 **Routing is hand-rolled, not a library.** `App.tsx` holds a `page` state
 (`"home" | "leaderboard" | "supported" | "terms" | "privacy"`), synced to `window.location` via

@@ -60,6 +60,13 @@ gave them one status and became inaccurate. Keep them separate.
 Do not write copy that says the contracts are hypothetical. Do not describe the stable-testnet
 automation as a production or mainnet service.
 
+## Platform monitoring
+
+The public, read-only `/monitoring` page shows platform usage and operational evidence. It uses
+shadcn components. Active flows, held flows, unclaimed messages, and failed flows remain separate.
+It exposes monitoring gaps instead of claiming complete platform health. Gas checks are explicit;
+external alert delivery is still required. See `docs/MONITORING.md` for definitions and limits.
+
 ## Supported chains
 
 The stable testnet supports Base Sepolia, Arbitrum Sepolia, Arc Testnet, and Ethereum Sepolia. The

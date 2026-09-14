@@ -9,6 +9,13 @@ read public data through the Vercel API. They do not connect to Neon or chain RP
 
 Read `CLAUDE.md` first for the short version and the working conventions. This is the long version.
 
+### Monitoring page
+
+`/monitoring` is a separate lazy-loaded page built from official shadcn registry components in
+`src/components/ui`. It reads `/api/monitoring` through `publicApi.ts`. It does not load pricing or
+poll RPC. The gas button explicitly reads `/api/monitoring/gas`. API failures remain visible and
+never become zero metrics. See `docs/MONITORING.md` for data definitions and review budgets.
+
 ### Current public read model
 
 `publicApi.ts` is the browser boundary for `GET /api/activity`, `GET /api/names/:label`,

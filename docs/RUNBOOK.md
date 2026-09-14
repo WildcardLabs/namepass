@@ -282,6 +282,13 @@ transaction remains pending after repeated automatic replacements:
    integrity incident. Keep the service paused until the transaction and key use are explained.
 7. Confirm the receipt and expected contract events, then restore recovery and funding.
 
+### Platform monitoring page
+
+Use `/monitoring` for the read-only usage and flow dashboard. Use its manual gas check to inspect
+current balances. This does not replace external balance alerts. Review
+[metric definitions and coverage](MONITORING.md) before interpreting a review flag or a missing
+provider signal. This feature needs the existing database and RPC configuration, with no migration.
+
 ### Dashboards and alerts
 
 Configure provider alerts before stable-testnet use:
