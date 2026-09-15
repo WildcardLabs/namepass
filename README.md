@@ -195,7 +195,7 @@ The full frontend, server, workflow, chain-registry, and contract verification c
 
 ## Platform monitoring
 
-Open `/monitoring` or use **Platform monitoring** in the footer. The shadcn dashboard shows
+Approved developers can open `/monitoring` and sign in with GitHub. The shadcn dashboard shows
 canonical usage totals, renewal charts, per-chain delivery times, the flow review queue, recovery
 backlog, and manual relayer gas checks. It marks stale or unavailable data explicitly. Provider
 alerts remain external. See [the metric definitions and monitoring plan](docs/MONITORING.md).

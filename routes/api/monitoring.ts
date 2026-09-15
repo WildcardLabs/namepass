@@ -1,6 +1,8 @@
 import { ApiError, handler, json } from "../../server/http";
 import { monitoring } from "../../server/monitoring";
+import { requireMonitoringSession } from "../../server/monitoring-auth";
 export default handler("GET", async (request) => {
+  requireMonitoringSession(request);
   const params = new URL(request.url).searchParams;
   const days = Number(params.get("days") ?? 30);
   const page = Number(params.get("page") ?? 1);
@@ -22,6 +24,6 @@ export default handler("GET", async (request) => {
   if (![7, 30, 90].includes(days))
     throw new ApiError(400, "invalid_window", "Choose 7, 30, or 90 days.");
   return json(await monitoring(days, { page, chainId, search, status }), 200, {
-    "cache-control": "public, s-maxage=30, max-age=0",
+    "cache-control": "private, no-store",
   });
 });
