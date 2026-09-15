@@ -1,6 +1,8 @@
+import { Button } from "./ui/button";
 import { XIcon } from "./icons";
 
 interface Props {
+	onMonitoring: () => void;
 	onExplore: () => void;
 	onSimulate: () => void;
 	onLeaderboard: () => void;
@@ -10,6 +12,7 @@ interface Props {
 }
 
 export default function Footer({
+	onMonitoring,
 	onExplore,
 	onSimulate,
 	onLeaderboard,
@@ -58,6 +61,13 @@ export default function Footer({
 							<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
 								Product
 							</div>
+							<Button
+								variant="link"
+								className="mt-3 h-auto p-0 text-[13.5px]"
+								onClick={onMonitoring}
+							>
+								Platform monitoring
+							</Button>
 							<ul className="mt-3 space-y-2.5">
 								{product.map((l) => (
 									<li key={l.label}>
