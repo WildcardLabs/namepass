@@ -268,7 +268,6 @@ export default function App() {
 			</div>
 
 			<Footer
-				onMonitoring={() => navigate("monitoring")}
 				onExplore={goExplorer}
 				onSimulate={goSimulate}
 				onLeaderboard={goLeaderboard}

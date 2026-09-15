@@ -1,6 +1,7 @@
 # Platform monitoring
 
-The read-only dashboard is at `/monitoring`. The product footer links to it. It uses official
+The developer dashboard is at `/monitoring`. It is GitHub-authenticated and limited to the two
+usernames in `MONITORING_GITHUB_USERS`. It uses official
 shadcn Card, Alert, Badge, Button, Input, Select, Table, Tabs, Skeleton, and Chart components.
 The registry source is `https://ui.shadcn.com/r/styles/new-york/{component}.json`.
 Local changes adapt imports and styling. Chart uses the compatible Recharts 2 dependency.
@@ -78,16 +79,24 @@ later canonical events. Flow amounts are not another balance aggregate.
 
 ## API and operations
 
+GitHub login requires `MONITORING_GITHUB_CLIENT_ID`, `MONITORING_GITHUB_CLIENT_SECRET`,
+`MONITORING_GITHUB_USERS` (two distinct usernames separated by a comma), and
+`MONITORING_SESSION_SECRET` (at least 32 random characters). Keep secrets in server environment
+variables. Configure the OAuth callback as `https://<deployment-host>/api/auth/github/callback`.
+Sessions expire after 12 hours. Both monitoring endpoints enforce the session and current allowlist.
+Without configuration, access fails closed. GitHub login has not been verified against a configured
+OAuth app; tests cover mocked GitHub responses and session validation.
+
 - `GET /api/monitoring?days=30&page=1&status=all`: one read-only SQL statement provides a consistent
   database snapshot. Optional `chain` is a chain ID; `search` matches a name substring. Queue pages
   contain 50 rows. Filters search all open flows. Global review counts do not depend on pagination.
 - Allowed windows: 7, 30, 90 days. Allowed queue filters: all, attention, active, held, unclaimed,
   failed. The route validates filter bounds and parameterizes all user input.
-- The response uses a 30-second shared cache. The browser refreshes on explicit request or filter
+- The response is private and must not be stored in shared caches. The browser refreshes on explicit request or filter
   change. After two minutes it labels the snapshot stale. A failed refresh keeps the old snapshot
   with an error. Missing data is not zero.
 - `GET /api/monitoring/gas`: manual balance checks only, with an eight-second RPC timeout and no
-  retries. Shared and in-process caches last 60 seconds. Concurrent checks in one process share a
+  retries. The in-process cache lasts 60 seconds; HTTP responses are private and not cached. Concurrent checks in one process share a
   request. No scheduler calls this route. External gas alerts remain required.
 - The gas route requires the existing `RELAYER_ADDRESS` or `RELAYER_PRIVATE_KEY` and chain RPC
   environment variables. Only the public address and balance result leave the server.
