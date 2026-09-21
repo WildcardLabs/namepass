@@ -7,6 +7,22 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-09-21 — Acknowledge invalid Goldsky rows and keep safe replay evidence
+
+An authenticated Goldsky row can fail application validation after Goldsky has delivered it. The
+webhook returns `200` for that row so one invalid row does not stop the complete pipeline. It emits
+a structured warning with the safe event ID, chain, block, validation error, receipt time, and a
+SHA-256 payload hash. It does not log the raw payload or authorization header.
+
+Configure a Vercel alert for `goldsky.rejected_payload`. After the parser or pipeline is fixed, use
+a temporary, block-bounded Goldsky pipeline to replay the source row. Normal event IDs and database
+constraints make the replay idempotent. Do not add a second event ledger or a dead-letter database
+table. Those systems would add another writer and still would not replace the public chain source.
+
+When a reorg deletes the only indexed ENS `NameRenewed` event for a name, clear
+`names.current_expiry`. A later canonical event restores it. A null value is safer than displaying
+an expiry that the canonical event set no longer supports.
+
 ### 2026-09-14 — Public shadcn monitoring with explicit evidence boundaries
 
 Add `/monitoring` as a read-only dashboard. Use official shadcn registry components; do not build
@@ -161,8 +177,8 @@ chain verification remains inside every transaction path that can spend relayer 
 monitoring belongs in an external address-balance alert that has real notification delivery. With
 no browser, deposit, due recovery, or active workflow, Namepass now makes zero chain RPC calls.
 
-The same audit removed a temporary rejected-Goldsky-payload log. Invalid authenticated rows still
-receive a safe `200` acknowledgement and a structured error event, but the service no longer copies
+The same audit removed temporary raw rejected-payload logging. Invalid authenticated rows still
+receive a safe `200` acknowledgement and a structured error event, but the service does not copy
 their complete payload into Vercel logs. It also removed the inactive-name button's duplicate
 activation scan. The manual trigger already verifies current ENS state and the selected-chain
 balance, so rescanning ENS and all four balances first had no effect. The remaining RPC paths are
@@ -1917,3 +1933,20 @@ the address, not the headline noun.
 > **Update 2026-07-29.** Under CREATE2-derived addresses the original wording is now accurate.
 > The framing was not retrofitted to the architecture — the architecture moved and the claim
 > became true. See the CREATE2/CCTP entry at the top.
+
+
+### 2026-09-21 — Bound rejected-body evidence and serialize ENS expiry projections
+
+Authenticate Goldsky before reading its body. Read at most 8 KiB into memory. Decode JSON and
+validate event fields inside the same rejection path. Hash the exact bytes, not re-encoded JSON.
+For an oversized body, cancel the stream and identify the hash as a bounded prefix. Return 200
+for authenticated invalid rows so subsequent rows can continue; do not store their raw bodies.
+Transport failures remain retryable. Alert delivery and 30-day operator-only retention are release
+gates, not properties that a console warning proves.
+
+Serialize ENS expiry projection by chain and label across separate settlement transactions.
+For reorg deletes, choose the latest remaining canonical event by block number and block-wide log
+index. Timestamps alone cannot distinguish two renewals within one block. Clear the name expiry
+when no canonical event remains. Database regression tests cover deletion, linked flow evidence,
+replay, and same-block ordering. Apply these requirements to gateway facts during the separate
+contract migration; keep this fix deployable on the current service.

@@ -698,12 +698,21 @@ This is intentional:
 
 - Goldsky already checkpoints the source and retries the webhook indefinitely for network errors,
   timeouts, `408`, `429`, and `5xx` responses.
-- The Vercel endpoint upserts the event into Neon before it returns `2xx`.
+- For a valid event, the Vercel endpoint upserts the event into Neon before it returns `2xx`.
 - A second sink would create two writers, a delivery-order race, and a second schema to operate.
 - Neon is already the queryable application index.
 
 The webhook has at-least-once delivery. The receiver must expect duplicates. It also must expect a
 reorg delete after a create.
+
+An authenticated row that fails strict payload validation is the exception. The receiver returns
+`200` so the row does not stop later pipeline rows. It emits `goldsky.rejected_payload` as a
+structured warning with the safe event ID, chain, block, validation error, receipt time, and a
+SHA-256 hash of the exact request bytes. Authenticated malformed JSON and unknown fields use this
+same path. Bodies over 8 KiB are cancelled and their hash is marked as a prefix hash. It does not log the raw payload. A Vercel alert routes this warning to an
+operator. After the parser or pipeline is fixed, the operator replays the affected chain and block
+with a temporary, bounded Goldsky pipeline. Event IDs and database constraints make this replay
+idempotent. Namepass does not add a second event ledger or a dead-letter table.
 
 Each `DepositProcessed` event ID identifies one origin execution. The transaction hash is evidence,
 not identity, because one transaction can contain several calls. A known Namepass transaction
@@ -787,6 +796,10 @@ It performs this sequence:
 10. Commit.
 11. Start or resume the Vercel Workflow when a queued flow exists.
 12. Return `2xx` only after the durable database write and workflow-start attempt succeed.
+
+If step 3 or 4 rejects an authenticated payload, emit the safe rejection evidence described above
+and return `200` without writing the invalid row. This explicit poison-row path is the only
+exception to step 12.
 
 A duplicate create changes no money totals and starts no second flow. A duplicate delete changes no
 additional state. Flow identity uses the exact origin event and Circle nonce. It does not use the
@@ -1206,7 +1219,7 @@ canonical flag.
 Add a unique constraint on `(chain_id, tx_hash, log_index, event_type)`. A reorg delete updates
 `canonical`.
 
-Keep the raw Goldsky payload for 30 days. Keep the validated `facts`, normalized columns, canonical
+Keep each accepted raw Goldsky payload for 30 days. Keep the validated `facts`, normalized columns, canonical
 state, domain rows, and transaction evidence without a time limit. Public reads use `facts`, never
 the expiring payload. Raw payloads contain public chain data and are useful for incident diagnosis,
 but Goldsky can replay them.
@@ -1712,6 +1725,8 @@ Log structured fields:
 - normalized label hash, not a free-form label where it is not needed
 - chain ID
 - event ID
+- source block number and SHA-256 payload hash for rejected Goldsky rows
+- receipt time for rejected Goldsky rows
 - transaction hash
 - workflow step
 - error code
@@ -1722,6 +1737,7 @@ Do not log private keys, raw authorization headers, database URLs, or signed raw
 Alert on:
 
 - Goldsky pipeline failure or increasing lag
+- any `goldsky.rejected_payload` warning
 - webhook `5xx` rate
 - queued flow without a workflow run
 - flow past its state service-level objective
