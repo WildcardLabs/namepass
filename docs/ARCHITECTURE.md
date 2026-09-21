@@ -708,7 +708,8 @@ reorg delete after a create.
 An authenticated row that fails strict payload validation is the exception. The receiver returns
 `200` so the row does not stop later pipeline rows. It emits `goldsky.rejected_payload` as a
 structured warning with the safe event ID, chain, block, validation error, receipt time, and a
-SHA-256 payload hash. It does not log the raw payload. A Vercel alert routes this warning to an
+SHA-256 hash of the exact request bytes. Authenticated malformed JSON and unknown fields use this
+same path. Bodies over 8 KiB are cancelled and their hash is marked as a prefix hash. It does not log the raw payload. A Vercel alert routes this warning to an
 operator. After the parser or pipeline is fixed, the operator replays the affected chain and block
 with a temporary, bounded Goldsky pipeline. Event IDs and database constraints make this replay
 idempotent. Namepass does not add a second event ledger or a dead-letter table.

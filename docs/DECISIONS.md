@@ -1933,3 +1933,20 @@ the address, not the headline noun.
 > **Update 2026-07-29.** Under CREATE2-derived addresses the original wording is now accurate.
 > The framing was not retrofitted to the architecture — the architecture moved and the claim
 > became true. See the CREATE2/CCTP entry at the top.
+
+
+### 2026-09-21 — Bound rejected-body evidence and serialize ENS expiry projections
+
+Authenticate Goldsky before reading its body. Read at most 8 KiB into memory. Decode JSON and
+validate event fields inside the same rejection path. Hash the exact bytes, not re-encoded JSON.
+For an oversized body, cancel the stream and identify the hash as a bounded prefix. Return 200
+for authenticated invalid rows so subsequent rows can continue; do not store their raw bodies.
+Transport failures remain retryable. Alert delivery and 30-day operator-only retention are release
+gates, not properties that a console warning proves.
+
+Serialize ENS expiry projection by chain and label across separate settlement transactions.
+For reorg deletes, choose the latest remaining canonical event by block number and block-wide log
+index. Timestamps alone cannot distinguish two renewals within one block. Clear the name expiry
+when no canonical event remains. Database regression tests cover deletion, linked flow evidence,
+replay, and same-block ordering. Apply these requirements to gateway facts during the separate
+contract migration; keep this fix deployable on the current service.

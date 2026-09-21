@@ -7,6 +7,7 @@ type LogFields = {
 	eventId?: string;
 	blockNumber?: number;
 	payloadHash?: string;
+	payloadHashScope?: "complete_body" | "first_8192_bytes";
 	receivedAt?: string;
 	retryCount?: number;
 };
@@ -33,6 +34,7 @@ function serializedLog(event: string, fields: LogFields): string {
 		eventId: fields.eventId ?? null,
 		blockNumber: fields.blockNumber ?? null,
 		payloadHash: fields.payloadHash ?? null,
+		payloadHashScope: fields.payloadHashScope ?? null,
 		receivedAt: fields.receivedAt ?? null,
 		retryCount: fields.retryCount ?? null,
 	});

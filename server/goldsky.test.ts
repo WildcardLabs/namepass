@@ -159,8 +159,8 @@ test("authentication runs before JSON parsing and body limits", async () => {
 	assert.equal(store.events.size, 0);
 
 	const tooLarge = await route.fetch(request(`{"padding":"${"x".repeat(8_192)}"}`));
-	assert.equal(tooLarge.status, 413);
-	assert.equal((await tooLarge.json()).error.code, "body_too_large");
+	assert.equal(tooLarge.status, 200);
+	assert.equal((await tooLarge.json()).skipped, true);
 });
 
 test("a duplicate create upserts one deposit and one active flow", async () => {
@@ -616,4 +616,45 @@ test("bytes32 event fields accept Goldsky's bare hex and normalize to 0x", () =>
 	assert.equal(claimed.facts.nonce, "0x9c56f340be94d5291d773298b09f7a5b18c4fff2802b3a35bddf6d3609e6843c");
 	// The normalized nonce must be BigInt-parseable (externalRenewalProjection needs it).
 	assert.equal(BigInt(String(claimed.facts.nonce)) > 0n, true);
+});
+
+for (const [label, body, code] of [
+ ["unknown fields", JSON.stringify({ ...transfer(), added_column: "private payload text" }), "invalid_goldsky_event"],
+ ["malformed JSON", "{not-json", "invalid_json"],
+ ["non-object JSON", "[]", "invalid_request"],
+ ["oversize body", "x".repeat(8193), "body_too_large"],
+] as const) {
+ test(`authenticated ${label} retain bounded rejection evidence without stopping later events`, async () => {
+  const store = new MemoryStore();
+  const route = goldskyHandler(store, async () => {}, () => secret);
+  const warnings: string[] = [];
+  const previous = console.warn;
+  console.warn = message => { warnings.push(String(message)); };
+  try {
+   const result = await route.fetch(request(body));
+   assert.equal(result.status, 200);
+   assert.equal((await result.json()).skipped, true);
+   const evidence = JSON.parse(warnings[0]!);
+   assert.equal(evidence.errorCode, code);
+   assert.equal(evidence.payloadHashScope, label === "oversize body" ? "first_8192_bytes" : "complete_body");
+   const { createHash } = await import("node:crypto");
+   assert.equal(evidence.payloadHash, createHash("sha256").update(body.slice(0, 8192)).digest("hex"));
+   assert.ok(!warnings[0]!.includes("private payload text"));
+   assert.ok(!warnings[0]!.includes(secret));
+   assert.equal(store.events.size, 0);
+   assert.equal((await route.fetch(request(JSON.stringify(transfer())))).status, 200);
+   assert.equal(store.events.size, 1);
+  } finally { console.warn = previous; }
+ });
+}
+
+test("unauthenticated invalid JSON is rejected before rejection evidence is logged", async () => {
+ const warnings: string[] = [];
+ const previous = console.warn;
+ console.warn = message => { warnings.push(String(message)); };
+ try {
+  const route = goldskyHandler(new MemoryStore(), async () => {}, () => secret);
+  assert.equal((await route.fetch(request("{invalid", "wrong-secret"))).status, 401);
+  assert.equal(warnings.length, 0);
+ } finally { console.warn = previous; }
 });

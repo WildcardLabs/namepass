@@ -1,3 +1,4 @@
+import { readGoldskyBody, decodeGoldskyBody } from "./goldsky-body";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 
@@ -8,7 +9,7 @@ import { minimumTriggerAmount } from "./config";
 import { database } from "./db/client";
 import { chainEvents, deposits, flows, flowTransitions, names, transactionIntents } from "./db/schema";
 import { cctpFlowRowsLockSql, cctpIdentityLockSql, hasCctpSourceEvidence } from "./cctp-identity";
-import { ApiError, handler, json, readObject } from "./http";
+import { ApiError, handler, json } from "./http";
 import { logOperation, logWarning } from "./log";
 import { startRenewalWorkflow } from "./workflows";
 import { rawPayloadExpiresAt } from "./retention";
@@ -82,7 +83,6 @@ const EVENT_FIELDS = {
 	],
 } as const;
 
-const ALL_FIELDS = [...new Set([...COMMON_FIELDS, ...Object.values(EVENT_FIELDS).flat()])];
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const HASH = /^0x[0-9a-f]{64}$/;
 const DECIMAL = /^(?:0|[1-9][0-9]*)$/;
@@ -480,22 +480,26 @@ export function goldskyHandler(
 		if (!equalSecret(request.headers.get("authorization") ?? "", expected)) {
 			throw new ApiError(401, "invalid_webhook_auth", "The webhook authorization is invalid.");
 		}
-		const object = await readObject(request, ALL_FIELDS);
+		const body = await readGoldskyBody(request);
+		let object: Record<string, unknown> = {};
 		let event: GoldskyEvent;
 		try {
+			if (body.truncated) throw new ApiError(413, "body_too_large", "The request body is too large.");
+			object = decodeGoldskyBody(body.bytes);
 			event = parseGoldskyEvent(object);
 		} catch (error) {
 			logWarning("goldsky.rejected_payload", {
 				chainId: Number.isSafeInteger(object.chain_id) ? Number(object.chain_id) : undefined,
 				step: "payload_validation",
 				errorCode: error instanceof ApiError ? error.code : "parse_error",
-				eventId: typeof object.event_id === "string" && object.event_id.length <= 512
+				eventId: typeof object.event_id === "string" && /^\d{1,10}:[a-zA-Z0-9:_-]{1,480}$/.test(object.event_id)
 					? object.event_id
 					: undefined,
 				blockNumber: Number.isSafeInteger(object.block_number)
 					? Number(object.block_number)
 					: undefined,
-				payloadHash: createHash("sha256").update(JSON.stringify(object)).digest("hex"),
+				payloadHash: createHash("sha256").update(body.bytes).digest("hex"),
+				payloadHashScope: body.truncated ? "first_8192_bytes" : "complete_body",
 				receivedAt: new Date().toISOString(),
 			});
 			return json({ accepted: false, skipped: true }, 200);
@@ -1305,6 +1309,8 @@ export const postgresGoldskyStore: GoldskyStore = {
 						.where(eq(names.id, nameId));
 				},
 				async refreshEnsExpiry(event) {
+					// Serialize projections for one name across different settlement transactions.
+					await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`ens-expiry:${event.chainId}:${String(event.facts.label).toLowerCase()}`}, 0))`);
 					const transactionEvents = await tx.select({
 						eventId: chainEvents.eventId,
 						eventFamily: chainEvents.eventFamily,
@@ -1336,7 +1342,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 								eq(chainEvents.eventType, "NameRenewed"),
 								sql`lower(${chainEvents.facts}->>'label') = lower(${String(event.facts.label)})`,
 							))
-							.orderBy(sql`${chainEvents.blockTime} desc`)
+							.orderBy(sql`${chainEvents.blockNumber} desc`, sql`${chainEvents.logIndex} desc`, sql`${chainEvents.eventId} desc`)
 							.limit(1);
 						previousFacts = previous?.facts;
 					}

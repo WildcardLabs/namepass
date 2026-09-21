@@ -308,10 +308,24 @@ An authenticated payload that fails validation returns `200`. This keeps later r
 Vercel warning contains the event ID when safe, chain ID, source block, validation error, receipt
 time, and SHA-256 payload hash. It does not contain the raw payload or authorization header.
 
+Before deployment, configure and test delivery of this warning to the on-call operator. Retain
+these structured warning fields for at least 30 days in the approved operational log destination.
+Limit access to operators and project administrators. Expire the warning evidence after 30 days
+unless an active incident requires longer retention. Do not export request bodies, authorization
+headers, or environment variables. Record the tested destination and retention setting in the
+release evidence. Until delivery and retention are verified, issue #71 remains open.
+
+`payloadHash` is SHA-256 of the exact request bytes. `payloadHashScope = complete_body` identifies
+a complete request. Oversized bodies are cancelled after the 8 KiB limit; their scope is
+`first_8192_bytes`, and the hash covers that prefix only. These authenticated rows are acknowledged
+and skipped, with no database write. Malformed JSON and unknown fields use the same rejection
+path. Unauthorized requests still return 401 before their body is read. A transport failure while
+reading the body remains retryable and is not acknowledged as a rejected payload.
+
 When the alert fires:
 
 1. Save the warning fields and inspect the Goldsky row at that receipt time. Confirm the chain,
-   block, event ID, and payload hash. Do not paste the raw payload or secrets into an issue.
+   block, event ID, and payload hash (using its recorded scope). Do not paste the raw payload or secrets into an issue.
 2. Fix and deploy the parser or pipeline mismatch. Test the rejected event shape locally.
 3. Copy the affected source, transform, and webhook sink to a temporary backfill pipeline. Use the
    same pinned dataset version. Set `start_at: earliest`, set `end_block` to the rejected block, and
