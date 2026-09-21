@@ -7,6 +7,22 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-09-21 — Acknowledge invalid Goldsky rows and keep safe replay evidence
+
+An authenticated Goldsky row can fail application validation after Goldsky has delivered it. The
+webhook returns `200` for that row so one invalid row does not stop the complete pipeline. It emits
+a structured warning with the safe event ID, chain, block, validation error, receipt time, and a
+SHA-256 payload hash. It does not log the raw payload or authorization header.
+
+Configure a Vercel alert for `goldsky.rejected_payload`. After the parser or pipeline is fixed, use
+a temporary, block-bounded Goldsky pipeline to replay the source row. Normal event IDs and database
+constraints make the replay idempotent. Do not add a second event ledger or a dead-letter database
+table. Those systems would add another writer and still would not replace the public chain source.
+
+When a reorg deletes the only indexed ENS `NameRenewed` event for a name, clear
+`names.current_expiry`. A later canonical event restores it. A null value is safer than displaying
+an expiry that the canonical event set no longer supports.
+
 ### 2026-09-14 — Public shadcn monitoring with explicit evidence boundaries
 
 Add `/monitoring` as a read-only dashboard. Use official shadcn registry components; do not build
@@ -161,8 +177,8 @@ chain verification remains inside every transaction path that can spend relayer 
 monitoring belongs in an external address-balance alert that has real notification delivery. With
 no browser, deposit, due recovery, or active workflow, Namepass now makes zero chain RPC calls.
 
-The same audit removed a temporary rejected-Goldsky-payload log. Invalid authenticated rows still
-receive a safe `200` acknowledgement and a structured error event, but the service no longer copies
+The same audit removed temporary raw rejected-payload logging. Invalid authenticated rows still
+receive a safe `200` acknowledgement and a structured error event, but the service does not copy
 their complete payload into Vercel logs. It also removed the inactive-name button's duplicate
 activation scan. The manual trigger already verifies current ENS state and the selected-chain
 balance, so rescanning ENS and all four balances first had no effect. The remaining RPC paths are

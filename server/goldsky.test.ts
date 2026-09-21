@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
 	goldskyHandler,
+	ensExpiryProjection,
 	ensRenewalLabel,
 	externalRenewalProjection,
 	externalSettlementPatch,
@@ -330,12 +331,43 @@ test("the receiver skips an invalid event with 200 so it cannot crash the pipeli
 	const store = new MemoryStore();
 	const route = goldskyHandler(store, async () => {}, () => secret);
 	const body = { ...transfer(), token_address: "0x0000000000000000000000000000000000000000" };
-	const response = await route.fetch(request(JSON.stringify(body)));
-	// A non-retriable 4xx makes Goldsky treat the row as a poison pill and crash the
-	// whole pipeline. An invalid event is acknowledged (200) and skipped, not ingested.
-	assert.equal(response.status, 200);
-	assert.equal((await response.json()).skipped, true);
-	assert.equal(store.events.size, 0);
+	const warnings: string[] = [];
+	const warn = console.warn;
+	console.warn = (message) => void warnings.push(String(message));
+	try {
+		const response = await route.fetch(request(JSON.stringify(body)));
+		// A non-retriable 4xx makes Goldsky treat the row as a poison pill and crash the
+		// whole pipeline. An invalid event is acknowledged (200) and skipped, not ingested.
+		assert.equal(response.status, 200);
+		assert.equal((await response.json()).skipped, true);
+		assert.equal(store.events.size, 0);
+		const warning = JSON.parse(warnings[0] ?? "{}") as Record<string, unknown>;
+		assert.equal(warning.event, "goldsky.rejected_payload");
+		assert.equal(warning.errorCode, "invalid_goldsky_event");
+		assert.equal(warning.eventId, body.event_id);
+		assert.equal(warning.blockNumber, body.block_number);
+		assert.match(String(warning.payloadHash), /^[0-9a-f]{64}$/);
+		assert.ok(!warnings[0]?.includes(body.token_address));
+		assert.ok(!Number.isNaN(Date.parse(String(warning.receivedAt))));
+
+		assert.equal((await route.fetch(request(JSON.stringify(transfer())))).status, 200);
+		assert.equal(store.events.size, 1);
+	} finally {
+		console.warn = warn;
+	}
+});
+
+test("an ENS delete clears the only indexed expiry and preserves a newer indexed expiry", () => {
+	const event = { label: "alice", new_expiry: "2000000000" };
+	assert.deepEqual(ensExpiryProjection(event, undefined, true), { label: "alice", expiry: null });
+	assert.deepEqual(
+		ensExpiryProjection(event, { label: "alice", new_expiry: "2100000000" }, true),
+		{ label: "alice", expiry: new Date(2_100_000_000_000) },
+	);
+	assert.deepEqual(ensExpiryProjection(event, undefined, false), {
+		label: "alice",
+		expiry: new Date(2_000_000_000_000),
+	});
 });
 
 test("all protocol event shapes match their registry allowlists", () => {

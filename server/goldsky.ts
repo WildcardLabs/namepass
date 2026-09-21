@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 
 import { HUB_CHAIN, SERVER_CHAINS } from "../src/lib/chains";
@@ -9,7 +9,7 @@ import { database } from "./db/client";
 import { chainEvents, deposits, flows, flowTransitions, names, transactionIntents } from "./db/schema";
 import { cctpFlowRowsLockSql, cctpIdentityLockSql, hasCctpSourceEvidence } from "./cctp-identity";
 import { ApiError, handler, json, readObject } from "./http";
-import { logOperation } from "./log";
+import { logOperation, logWarning } from "./log";
 import { startRenewalWorkflow } from "./workflows";
 import { rawPayloadExpiresAt } from "./retention";
 import {
@@ -186,6 +186,19 @@ function ensExpiry(facts: unknown): Date | null {
 	const milliseconds = BigInt(value) * 1_000n;
 	if (milliseconds > 8_640_000_000_000_000n) return null;
 	return new Date(Number(milliseconds));
+}
+
+export function ensExpiryProjection(
+	eventFacts: unknown,
+	previousFacts: unknown | undefined,
+	deleted: boolean,
+): { label: string; expiry: Date | null } | undefined {
+	const label = ensRenewalLabel(eventFacts);
+	if (!label) return undefined;
+	const expiry = deleted
+		? previousFacts === undefined ? null : ensExpiry(previousFacts)
+		: ensExpiry(eventFacts);
+	return deleted || expiry ? { label, expiry } : undefined;
 }
 
 export function ensRenewalLabel(facts: unknown): string | undefined {
@@ -472,9 +485,18 @@ export function goldskyHandler(
 		try {
 			event = parseGoldskyEvent(object);
 		} catch (error) {
-			logOperation("goldsky.rejected_payload", {
+			logWarning("goldsky.rejected_payload", {
+				chainId: Number.isSafeInteger(object.chain_id) ? Number(object.chain_id) : undefined,
 				step: "payload_validation",
 				errorCode: error instanceof ApiError ? error.code : "parse_error",
+				eventId: typeof object.event_id === "string" && object.event_id.length <= 512
+					? object.event_id
+					: undefined,
+				blockNumber: Number.isSafeInteger(object.block_number)
+					? Number(object.block_number)
+					: undefined,
+				payloadHash: createHash("sha256").update(JSON.stringify(object)).digest("hex"),
+				receivedAt: new Date().toISOString(),
 			});
 			return json({ accepted: false, skipped: true }, 200);
 		}
@@ -1304,7 +1326,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 							updatedAt: new Date(),
 						}).where(eq(flows.renewalEventId, bundle.renewal.eventId));
 					}
-					let facts = event.facts;
+					let previousFacts: unknown;
 					if (event.gsOp === "d") {
 						const [previous] = await tx.select({ facts: chainEvents.facts })
 							.from(chainEvents)
@@ -1316,21 +1338,21 @@ export const postgresGoldskyStore: GoldskyStore = {
 							))
 							.orderBy(sql`${chainEvents.blockTime} desc`)
 							.limit(1);
-						if (!previous) return;
-						facts = previous.facts as Record<string, unknown>;
+						previousFacts = previous?.facts;
 					}
-					const expiry = ensExpiry(facts);
-					if (!expiry) return;
-					const label = ensRenewalLabel(facts);
-					if (!label) return;
+					const projection = ensExpiryProjection(event.facts, previousFacts, event.gsOp === "d");
+					if (!projection) return;
 					const aggregate = event.gsOp === "d"
-						? { currentExpiry: expiry, ensSyncedAt: event.blockTime }
+						? {
+							currentExpiry: projection.expiry,
+							ensSyncedAt: sql<Date>`greatest(${names.ensSyncedAt}, ${event.blockTime})`,
+						}
 						: {
-							currentExpiry: sql<Date>`greatest(coalesce(${names.currentExpiry}, ${expiry}), ${expiry})`,
+							currentExpiry: sql<Date>`greatest(coalesce(${names.currentExpiry}, ${projection.expiry}), ${projection.expiry})`,
 							ensSyncedAt: sql<Date>`greatest(${names.ensSyncedAt}, ${event.blockTime})`,
 						};
 					await tx.update(names).set(aggregate)
-						.where(eq(names.normalizedLabel, label));
+						.where(eq(names.normalizedLabel, projection.label));
 				},
 				async markChainForScan(nameId, chainId, requestedThroughBlock) {
 					await tx.execute(requestBalanceScanSql({ nameId, chainId, requestedThroughBlock }));
