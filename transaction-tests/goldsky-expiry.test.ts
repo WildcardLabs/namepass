@@ -31,10 +31,10 @@ test("database expiry projection handles last deletion, same-block order, older 
   expect(await expiry()).toBe(1800000000);
   await apply(event("e1", 1, 1, 1800000000, true));
   expect(await expiry()).toBeNull();
-  expect((await pg.query("select expiry_after from flows")).rows[0].expiry_after).toBeNull();
+  expect((await pg.query<{ expiry_after: Date | null }>("select expiry_after from flows")).rows[0].expiry_after).toBeNull();
   await apply(event("e1", 1, 1, 1800000000));
   expect(await expiry()).toBe(1800000000);
-  expect((await pg.query("select extract(epoch from expiry_after)::int as expiry from flows")).rows[0].expiry).toBe(1800000000);
+  expect((await pg.query<{ expiry: number | null }>("select extract(epoch from expiry_after)::int as expiry from flows")).rows[0].expiry).toBe(1800000000);
   await apply(event("e2", 2, 3, 1900000000));
   await apply(event("e3", 2, 7, 2000000000));
   await apply(event("e4", 3, 0, 2100000000));
