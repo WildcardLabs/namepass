@@ -15,7 +15,7 @@ import { database } from "./db/client";
 import { chainEvents, deposits, flows, flowTransitions, names } from "./db/schema";
 import { ABSORBED_BY_PRIOR_FLOW, NAME_RECHECK_MS, setFlowStatus, setPreOriginFlowStatus } from "./flow-state";
 import { automaticDepositBalanceBlock, liveDepositBalanceAction } from "./deposit-eligibility";
-import { parseEnsRenewalExpiry } from "./ens-renewal";
+import { readReceiptEnsExpiry } from "./ens-renewal";
 import {
 	ensureTransactionBroadcast,
 	prepareTransaction,
@@ -105,12 +105,12 @@ export function parseEthereumRenewalReceipt(
 	logs: readonly ReceiptLog[],
 	expected: { wallet: Address; label: string; labelHash: Hex },
 ): ReceiptSettlement {
-	if (!HUB_CHAIN.factoryAddress || !HUB_CHAIN.helperAddress) {
+	if (!HUB_CHAIN.factoryAddress || !HUB_CHAIN.gatewayAddress) {
 		throw new Error("The Ethereum Namepass deployment is incomplete.");
 	}
 	const processed = decodedEvents(logs, HUB_CHAIN.factoryAddress as Address, DEPOSIT_PROCESSED)
 		.filter((event) => event.eventName === "DepositProcessed");
-	const renewed = decodedEvents(logs, HUB_CHAIN.helperAddress as Address, RENEWED)
+	const renewed = decodedEvents(logs, HUB_CHAIN.gatewayAddress as Address, RENEWED)
 		.filter((event) => event.eventName === "Renewed");
 	if (processed.length !== 1 || renewed.length !== 1) {
 		throw new Error("The Ethereum receipt does not contain exactly one expected Namepass event.");
@@ -474,9 +474,7 @@ export async function confirmEthereumRenewal(flowId: string, intentId: string): 
 		label: flow.label,
 		labelHash: labelHash(flow.label) as Hex,
 	});
-	const expiryAfter = parseEnsRenewalExpiry(receipt.logs as ReceiptLog[], {
-		label: flow.label,
-	});
+	const expiryAfter = await readReceiptEnsExpiry(receipt.logs as ReceiptLog[], flow.label, receipt.blockNumber);
 	const db = database();
 	const outcome = await db.transaction(async (tx) => {
 		await tx.execute(originWalletLockSql(flow.nameId, HUB_CHAIN.chainId));

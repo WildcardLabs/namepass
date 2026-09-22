@@ -1,30 +1,8 @@
-/**
- * ENS's live pricing configuration, read from the chain.
- *
- * `pricing.ts` does the arithmetic; this module supplies the numbers it does
- * it with. Nothing here is a constant that a person typed — the base rates,
- * the discount tiers, the discount denominator and the USDC conversion ratio
- * all come off ENS's own `StandardRentPriceOracle` at boot, the same values
- * `ENSV2RenewalHelper._quote` reads on every renewal.
- *
- * **How the oracle is found matters.** It is not pinned. The helper reads
- * `rentPriceOracle()` off the renewer it is about to call, deliberately —
- * "reading the oracle from anywhere other than the contract about to be called
- * is how the three-way agreement stops being an invariant." Same reasoning
- * here: the two renewer addresses are pinned, and the oracle is whatever they
- * currently say it is. ENS governance can repoint an oracle without telling us
- * and the app follows; it would take a change to the *renewers* to strand this.
- *
- * The one thing this can't do is pick per label. The helper selects a renewer
- * with `isRenewable(label)` and prices against that one's oracle; the app shows
- * a generic table for 3 / 4 / 5+ characters, which has no label to select with.
- * So it reads both renewers' oracles and requires them to agree. Today they do
- * — both Sepolia renewers point at `0x8914b662…` (`docs/DEPLOYMENTS.md`). If
- * they ever diverge there is no single price table to draw, and this fails
- * loudly rather than picking one and being wrong for half of ENS.
- */
+/** ENS pricing follows the pointer-selected helper at one block. */
 
 import {
+	configurationBlock,
+	SEPOLIA_RPC,
 	decodeAddress,
 	decodeArray,
 	decodeUint,
@@ -32,19 +10,11 @@ import {
 	ethCallBatch,
 	RpcError,
 } from "./rpc";
+import { createPublicClient, http, type Address } from "viem";
+import { assertEnsV2Adapter } from "./helperAdapter";
 import { HUB_CHAIN } from "./chains";
 
-/**
- * ENS v2 on Sepolia — `docs/DEPLOYMENTS.md`.
- *
- * Two renewers, not one: `ETHRegistrar` prices migrated names and
- * `ETHRenewerV1` prices premigrated v1 reservations, and both populations
- * coexist during the migration. These are addresses, not prices — pinning them
- * is the same kind of constant as a contract address in `tokens.ts`, and the
- * helper stores them for exactly this reason.
- */
-export const ETH_REGISTRAR = HUB_CHAIN.ensRegistrarAddress!;
-export const ETH_RENEWER_V1 = HUB_CHAIN.ensRenewerV1Address!;
+import { discoverHelper, readEnsV2Metadata } from "./helperDiscovery";
 
 /** USDC on Sepolia, from the list the supported-tokens page publishes. */
 const SEPOLIA_USDC = HUB_CHAIN.usdcAddress;
@@ -90,10 +60,15 @@ export class OracleConfigError extends Error {
  * getters can be called. Everything within a trip is batched.
  */
 export async function loadOracleRates(): Promise<OracleRates> {
+	const block = await configurationBlock();
+	const read = (calls: import("./rpc").Call[]) => ethCallBatch(calls, undefined, block);
+	const helper = await discoverHelper(read);
+	assertEnsV2Adapter(await createPublicClient({ transport: http(SEPOLIA_RPC) }).getCode({ address: helper as Address, blockNumber: BigInt(block) }));
+	const metadata = await readEnsV2Metadata(read, helper);
 	const [registrarOracle, v1Oracle] = (
-		await ethCallBatch([
-			{ to: ETH_REGISTRAR, signature: "rentPriceOracle()" },
-			{ to: ETH_RENEWER_V1, signature: "rentPriceOracle()" },
+		await read([
+			{ to: metadata.registrar, signature: "rentPriceOracle()" },
+			{ to: metadata.renewerV1, signature: "rentPriceOracle()" },
 		])
 	).map(decodeAddress);
 
@@ -110,7 +85,7 @@ export async function loadOracleRates(): Promise<OracleRates> {
 		throw new OracleConfigError("ENS's renewer reports no price oracle.");
 	}
 
-	const [rawDenom, rawRates, rawPoints, rawRatio] = await ethCallBatch([
+	const [rawDenom, rawRates, rawPoints, rawRatio] = await read([
 		{ to: oracle, signature: "DISCOUNT_DENOMINATOR()" },
 		{ to: oracle, signature: "getBaseRates()" },
 		{ to: oracle, signature: "getDiscountPoints()" },

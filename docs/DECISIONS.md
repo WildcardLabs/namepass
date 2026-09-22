@@ -7,6 +7,68 @@ otherwise only live in a PR conversation or a chat transcript.
 
 ---
 
+### 2026-09-19 — Rehearse helper replacement without changing the ENS adapter
+
+The deployment console uses a second deployment of the reviewed immutable helper for the
+in-flight CCTP gate. Its code and immutable configuration match the original helper; only its
+CREATE2 address differs. This isolates pointer routing, delayed governance, and the permanent
+gateway from ENS compatibility changes. The user burns 1 test USDC on Arc while A is selected,
+activates B, claims through B, and restores A through a second timelock operation. Restoration
+keeps the verified deployment manifest valid for the later application cutover. This test does
+not replace adapter tests for future ENS releases. The live rehearsal passed on 2026-09-19. Independent receipt checks confirmed burn-before-switch,
+claim-through-B, exact message and accounting, and restoration of A. Evidence is in
+`docs/deployments/2026-09-18/helper-rehearsal-verification.json`.
+
+### 2026-09-18 — Implement the contract split and use a clean testnet reset
+
+The temporary `tools/deployment-console` runs separately from the public frontend.
+Rainbow signs each of its 14 testnet transactions. A dedicated test timelock lets the
+deployer test scheduling and execution without implying ENS DAO control. Mainnet must
+use the actual ENS executor. The console uses fresh CREATE2 salts, exact runtime
+checks, transaction simulation, receipt checks, and resumable manifests. It exports
+compiler inputs for explorer verification. It contains no database reset controls;
+the reset follows contract verification and canaries. See its README for the sequence.
+
+The user asked to begin and explicitly requires all current data, flows, and addresses to be
+cleared. This replaces the initial plan's legacy migration. Reset names, watched addresses,
+balances, event facts, flows, transitions, transaction intents, and nonce records at cutover.
+Stop old writers and workflows first. Replace indexer checkpoints and delivery credentials so
+old data cannot reappear. The on-chain contracts and transfers remain on chain.
+
+The source now separates the governance pointer, permanent gateway, and immutable ENS helper.
+The gateway fixes the executor allowance and residue recipient. Only earned residue can be
+withdrawn, and anyone can send it to that recipient. The helper has no owner, renewer setters,
+referrer setter, or withdrawal method. The pointer binds one gateway on first activation and
+requires a two-step executor handover. Its authority is broader than selecting ENS addresses:
+governance selects renewal code.
+
+The factory creation code and build configuration are unchanged. A new factory salt will create
+the replacement address generation. Local tests cover delayed governance, helper replacement
+between message creation and claim, replay rejection, failed-claim rollback, reentrancy, bounded
+allowances, and residue isolation. Pinned Sepolia fork tests execute both new ENS renewal paths.
+The fork execution uses Cancun for deployed ENS code while our compilation remains Shanghai.
+
+No deployment, service cutover, or data reset has run. See `CONTRACTS_V2.md` for the implementation
+and remaining gates. See `TESTNET_RESET.md` for the reset scope and sequence.
+
+### 2026-09-18 — Plan immutable ENS helpers behind a governance pointer
+
+The new Sepolia ENS deployments change the renewal call from four arguments to a `RenewData`
+tuple and payment token. The current helper cannot follow that change through `setRenewers`.
+The requested direction is an ENS Timelock-controlled pointer to replaceable immutable helpers.
+Each helper fixes its ENS renewal contract addresses at deployment.
+
+`docs/CONTRACTS_OVERHAUL_PLAN.md` records the proposed design and ordered release gates. It
+recommends a separate fixed L1 gateway so CCTP messages remain claimable across helper changes.
+The pointer stores configuration; the gateway authenticates funds; the helper handles ENS.
+This split remains a design proposal. No runtime contracts or deployment values changed.
+
+The existing factory freezes its helper destination. Adopting the new design therefore requires
+a new deployment generation and new deposit addresses. Old balances and messages must retain
+their original contract identities. Future compatible helper replacements should preserve the
+new generation's addresses. Governance will control replacement logic, which is broader authority
+than changing only ENS addresses. The final design and trust statement must state this clearly.
+
 ### 2026-09-21 — Acknowledge invalid Goldsky rows and keep safe replay evidence
 
 An authenticated Goldsky row can fail application validation after Goldsky has delivered it. The
@@ -1933,6 +1995,32 @@ the address, not the headline noun.
 > **Update 2026-07-29.** Under CREATE2-derived addresses the original wording is now accurate.
 > The framing was not retrofitted to the architecture — the architecture moved and the claim
 > became true. See the CREATE2/CCTP entry at the top.
+
+## 2026-09-21 — Follow helper selection in application reads and index the fixed gateway
+
+The local system migration uses separate gateway and pointer addresses. ENS state and pricing
+reads discover the helper at a fixed block. Generic price tables require the reviewed helper
+runtime algorithm; mask only compiler-reported immutable slots when checking its fingerprint.
+Unknown code must stop pricing until reviewed. Interface compatibility alone does not prove the
+price simulator's math.
+
+The replacement Goldsky pipeline indexes fixed gateway settlement events. On a canonical renewal,
+the webhook reads its receipt and validates the exact gateway event and ENS expiry segment. Store
+expiry on the canonical renewal fact. This removes the static ENS-emitter dependency and the public
+activity join that could mix multiple renewals in one transaction. The cost is an event-driven RPC
+read; unavailable historical receipts must retry. Public activity polls still use the database only.
+A future helper with a different ENS event ABI needs a reviewed decoder before activation.
+
+The deployment and reset remain pending. See `SYSTEM_CUTOVER_STATUS.md` for the current gate.
+
+### 2026-09-22 — Fix native Arc deposits before system cutover
+
+Issue #69 also affects the September 18 replacement factory. Accept empty native calls only in
+wallet context on Arc testnet with the Sepolia hub. Keep execution authorization unchanged.
+Replace the factory and its immutable dependencies; reuse the test timelock. Preserve prior
+manifests as historical evidence. Require two live native Arc deposit/renewal rounds per name,
+including ERC20 balance checks after proxy deployment. The previous ERC20 funding tests did not
+cover this failure. No hosted reset or resolver change may precede these checks.
 
 
 ### 2026-09-21 — Bound rejected-body evidence and serialize ENS expiry projections

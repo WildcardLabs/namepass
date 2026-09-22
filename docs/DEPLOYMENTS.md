@@ -1,5 +1,103 @@
 # Deployments
 
+## Replacement testnet set — 2026-09-18
+
+All 14 deployment, activation, and initialization transactions were independently checked on
+2026-09-18. Canonical successful receipts, transaction sender and calldata, exact runtime
+bytecode including immutable values, governance configuration, factory routes, and deposit
+derivation match the saved plan. The application still uses the previous set below.
+
+| Contract | Address |
+|---|---|
+| Factory — all four testnets | `0xfe41CCe685c6F2317B387FBFbe2132073181626d` |
+| Sepolia test timelock | `0x996cbd179f361B1043Ad1999864eD41496C633c8` |
+| Sepolia helper pointer | `0x59200a0f65D11A25A9CC2322CB63F3bBCd27156A` |
+| Sepolia L1 gateway | `0x3ef9C6B1b8023AcBe13173A187F78eaA14C2b0f6` |
+| Sepolia immutable helper | `0x24A88f2Cb4B1dd833e0745C1A71209B6b077bc40` |
+
+The test timelock delay is **60 seconds**. The deployment wallet
+`0x1208a26FAa0F4AC65B42098419EB4dAA5e580AC6` has proposer, executor, and canceller roles.
+The timelock administers itself. This is not ENS DAO governance. The helper is active and the
+pointer is permanently bound to the gateway. All four factories are initialized.
+
+| Chain | Factory deployment block | Initialization block |
+|---|---:|---:|
+| Sepolia | 11732565 | 11732628 |
+| Base Sepolia | 46994775 | 46995127 |
+| Arbitrum Sepolia | 310278371 | 310281137 |
+| Arc Testnet | 62789380 | 62789899 |
+
+Evidence: [wallet manifest](deployments/2026-09-18/manifest.json) and
+[independent chain checks](deployments/2026-09-18/verification.json).
+Repeat the read-only checks with:
+
+```bash
+npx tsx tools/deployment-console/verify.ts docs/deployments/2026-09-18/manifest.json /tmp/namepass-verification.json
+```
+
+All eight deployments have matching creation and runtime bytecode verified on Sourcify.
+See [source verification results](deployments/2026-09-18/source-verification.json) and
+[the helper source](https://repo.sourcify.dev/11155111/0x24A88f2Cb4B1dd833e0745C1A71209B6b077bc40).
+Sourcify's automatic Etherscan forwarding hit rate/daily limits, and Arc explorer forwarding
+returned an error. Do not infer Etherscan or Arc explorer badges from the Sourcify result.
+### Live canary results — 2026-09-19
+
+Independent RPC checks verified all 22 transactions in the completed canary export.
+All eight name-and-chain tests are complete. Both ENS paths work directly on Sepolia
+and through CCTP from Base Sepolia, Arbitrum Sepolia, and Arc Testnet.
+Every completed renewal applied 0.9 test USDC, paid the 0.1 USDC executor allowance,
+left zero residue, added 3,547,790 seconds, and cleared the checked allowances.
+All eight deposit balances are zero. The six claims are bound to their exact source burns.
+
+| Name | Sepolia | Base Sepolia | Arbitrum Sepolia | Arc Testnet |
+|---|---|---|---|---|
+| `steve.eth` | Complete | Complete | Complete | Complete |
+| `vitalik.eth` | Complete | Complete | Complete | Complete |
+
+The first export omitted the `vitalik.eth` Arc burn. It was recovered from the factory event
+at Arc block 62828380, transaction
+`0x8ed795443a251a76d9f5ce774fe1fbfac172d2e0ab095dbcf17d1365eb5cf4ca`.
+The user restored that receipt and completed the existing transfer with Sepolia claim
+`0x98ac0d31f178f76b2e844a07aa3410350fc9d9617ac4e6ecc48a45d564db52a4`.
+No second funding or burn was needed.
+
+Evidence: [completed export](deployments/2026-09-18/canaries-complete.json) and
+[independent completed-set checks](deployments/2026-09-18/canary-verification-complete.json).
+The original export and recovery report remain in the same directory as historical evidence.
+### In-flight helper replacement — passed 2026-09-19
+
+All eight rehearsal transactions passed independent receipt and state checks. Helper B
+`0xFF4F3a9a416a51b8A2b601F5e17c94635b5aaCf4` has the same reviewed code and immutable
+settings as A, with a distinct CREATE2 address. Its source is verified on Sourcify.
+
+| Step | Chain | Block |
+|---|---|---:|
+| Deploy B | Sepolia | 11737171 |
+| Schedule B | Sepolia | 11737176 |
+| Fund `steve.eth` | Arc | 62901811 |
+| Burn with A active | Arc | 62902154 |
+| Activate B | Sepolia | 11737256 |
+| Claim through B | Sepolia | 11737261 |
+| Schedule A | Sepolia | 11737266 |
+| Restore A | Sepolia | 11737287 |
+
+The source burn preceded activation. The claim followed activation and emitted `HelperUsed`
+for B. The exact attested message matched the Arc burn. The renewal applied 0.9 test USDC,
+paid 0.1 USDC to the executor, left zero residue, cleared allowances, and extended expiry
+by 3,547,790 seconds. Restoration followed the claim. The pointer currently selects A:
+`0x24A88f2Cb4B1dd833e0745C1A71209B6b077bc40`. The factory, gateway, and deposit addresses
+remain unchanged. This proves replacement routing, not compatibility with an untested future
+ENS release.
+
+Evidence: [rehearsal export](deployments/2026-09-18/helper-rehearsal.json),
+[independent verification](deployments/2026-09-18/helper-rehearsal-verification.json), and
+[helper B source verification](deployments/2026-09-18/helper-b-source-verification.json).
+
+The resolver, application, and services have not switched. No data reset has run.
+Follow `CONTRACTS_OVERHAUL_PLAN.md` for the remaining gates.
+
+## Previous deployment — still used by the application
+
 Live contract addresses. Every value here was read back off the chain rather than copied from a
 deployment script.
 
@@ -161,3 +259,23 @@ Helper dust after all four renewals: **zero**.
 
 Everything the contracts do is now proven on chain. What remains untested is the governance path,
 which testnet cannot exercise — see the note on `ensGovernanceExecutor` above.
+
+### Local system migration — 2026-09-21
+
+The shared application registry now contains the verified replacement factory, gateway, pointer,
+and factory deployment blocks. The resolver source also derives replacement deposit addresses.
+These are local changes. The hosted app, database, old workflows, and Goldsky pipeline have not
+switched. The replacement resolver is not deployed. Follow `SYSTEM_CUTOVER_STATUS.md` and
+`TESTNET_RESET.md` before deploying the changed application.
+
+## Replacement deployment — 2026-09-22
+
+The Arc native-deposit correction is deployed on all four testnets. Factory:
+`0x2dCB5CA6b21372b43e37C35Da8D5D15160423150`. Sepolia pointer:
+`0x774f942194d612e126A05Ce40a3A4D88AfBB6ae6`; gateway:
+`0x39351C9f9eAb6093eFB4e865a6330ECd2a756F0f`; active helper:
+`0x7Bfee7c257ff48f8D787A61F15925e24743C8F88`. The test timelock is reused.
+See `deployments/2026-09-22/` for verified receipts and source matches. The reduced live checks
+passed: Sepolia steve renewal, then two native Arc deposits and completed claims, including a
+deposit after wallet deployment. Service cutover remains blocked by Neon quota; these addresses
+are not yet published by the hosted application.

@@ -1,4 +1,4 @@
-import { readGoldskyBody, decodeGoldskyBody } from "./goldsky-body";
+import { indexedRenewalExpiry } from "./indexed-renewal";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 
@@ -10,6 +10,7 @@ import { database } from "./db/client";
 import { chainEvents, deposits, flows, flowTransitions, names, transactionIntents } from "./db/schema";
 import { cctpFlowRowsLockSql, cctpIdentityLockSql, hasCctpSourceEvidence } from "./cctp-identity";
 import { ApiError, handler, json } from "./http";
+import { readGoldskyBody, decodeGoldskyBody } from "./goldsky-body";
 import { logOperation, logWarning } from "./log";
 import { startRenewalWorkflow } from "./workflows";
 import { rawPayloadExpiresAt } from "./retention";
@@ -116,7 +117,7 @@ export interface GoldskyTransaction {
 	upsertDeposit(event: GoldskyEvent, nameId: string): Promise<void>;
 	reconcileOriginBurn(event: GoldskyEvent): Promise<string | undefined>;
 	reconcileRenewal(event: GoldskyEvent): Promise<string | undefined>;
-	refreshRenewalAggregates(nameId: string): Promise<void>;
+	refreshRenewalAggregates(nameId: string, invalidated?: boolean): Promise<void>;
 	refreshEnsExpiry(event: GoldskyEvent): Promise<void>;
 	ensureFlow(nameId: string, chainId: number, amount: string, depositEventId: string | null): Promise<string | undefined>;
 	markChainForScan(nameId: string, chainId: number, requestedThroughBlock?: string): Promise<void>;
@@ -291,7 +292,7 @@ function assertAllowlisted(
 	if (key === "namepass:WalletDeployed" || key === "namepass:DepositProcessed") {
 		if (contract !== chain.factoryAddress?.toLowerCase()) invalid("contract_address");
 	} else if (key === "namepass:CCTPClaimed" || key === "namepass:Renewed") {
-		if (contract !== chain.helperAddress?.toLowerCase()) invalid("contract_address");
+		if (contract !== chain.gatewayAddress?.toLowerCase()) invalid("contract_address");
 	} else if (
 		contract !== chain.ensRegistrarAddress?.toLowerCase() &&
 		contract !== chain.ensRenewerV1Address?.toLowerCase()
@@ -406,7 +407,7 @@ export async function ingestGoldskyEvent(
 			&& (event.eventType === "Renewed" || event.eventType === "CCTPClaimed")
 		) {
 			const nameId = await tx.reconcileRenewal(event);
-			if (nameId) await tx.refreshRenewalAggregates(nameId);
+			if (nameId) await tx.refreshRenewalAggregates(nameId, event.gsOp === "d");
 			return undefined;
 		}
 		if (event.eventFamily === "ens" && event.eventType === "NameRenewed") {
@@ -471,6 +472,7 @@ export function goldskyHandler(
 	secret: () => string | undefined = () => process.env.GOLDSKY_WEBHOOK_SECRET,
 	readBalance: (address: string, chainId: number) => Promise<string | undefined> = async (address, chainId) =>
 		(await readNativeUsdcBalances(address, [chainId]))[0]?.amount,
+	readRenewalExpiry: (event: GoldskyEvent) => Promise<string> = indexedRenewalExpiry,
 ) {
 	return handler("POST", async (request) => {
 		const expected = secret();
@@ -503,6 +505,9 @@ export function goldskyHandler(
 				receivedAt: new Date().toISOString(),
 			});
 			return json({ accepted: false, skipped: true }, 200);
+		}
+		if (event.eventFamily === "namepass" && event.eventType === "Renewed" && event.gsOp === "c") {
+			event.facts.new_expiry = await readRenewalExpiry(event);
 		}
 		let observedBalance: string | undefined;
 		let balanceReadFailed = false;
@@ -916,7 +921,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 					assertCctpSettlementPair(bundle);
 					const expiryAfter = bundle.ensRenewal?.canonical
 						? ensExpiry(bundle.ensRenewal.facts)
-						: null;
+						: ensExpiry(facts);
 					const expiryPatch = expiryAfter ? { expiryAfter } : {};
 
 					if (!renewal.canonical || (bundle.claim !== undefined && !bundle.claim.canonical)) {
@@ -989,6 +994,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 							if (!recoverable) {
 								await tx.update(flows).set({
 									status: "cancelled",
+									expiryAfter: null,
 									cctpNonce: null,
 									workflowRunId: null,
 									lastErrorCode: "settlement_reorged",
@@ -1293,7 +1299,8 @@ export const postgresGoldskyStore: GoldskyStore = {
 					}
 					return name.id;
 				},
-				async refreshRenewalAggregates(nameId) {
+				async refreshRenewalAggregates(nameId, invalidated = false) {
+					await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`renewal-aggregate:${nameId}`}, 0))`);
 					const isRenewedForName = sql`${chainEvents.canonical} = true
 						and ${chainEvents.eventFamily} = 'namepass'
 						and ${chainEvents.eventType} = 'Renewed'
@@ -1305,6 +1312,9 @@ export const postgresGoldskyStore: GoldskyStore = {
 							lifetimeApplied: sql`coalesce((select sum((${chainEvents.facts}->>'amount_applied')::numeric) from ${chainEvents} where ${isRenewedForName}), 0)`,
 							timeDeliveredSeconds: sql`coalesce((select sum((${chainEvents.facts}->>'duration')::numeric) from ${chainEvents} where ${isRenewedForName}), 0)`,
 							renewalCount: sql`(select count(*) from ${chainEvents} where ${isRenewedForName})`,
+							currentExpiry: invalidated
+								? sql`(select to_timestamp(max((${chainEvents.facts}->>'new_expiry')::numeric)) from ${chainEvents} where ${isRenewedForName})`
+								: sql`greatest(${names.currentExpiry}, (select to_timestamp(max((${chainEvents.facts}->>'new_expiry')::numeric)) from ${chainEvents} where ${isRenewedForName}))`,
 						})
 						.where(eq(names.id, nameId));
 				},

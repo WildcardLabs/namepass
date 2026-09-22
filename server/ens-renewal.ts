@@ -1,4 +1,4 @@
-import { decodeEventLog, getAddress, parseAbi, type Address, type Hex } from "viem";
+import { decodeEventLog, getAddress, parseAbi, keccak256, stringToHex, createPublicClient, http, type Address, type Hex } from "viem";
 
 import { HUB_CHAIN } from "../src/lib/chains";
 
@@ -11,9 +11,9 @@ type ReceiptLog = { address: Address; data: Hex; topics: readonly Hex[] };
 /** Read the authoritative ENS expiry from the same receipt as a Namepass renewal. */
 export function parseEnsRenewalExpiry(
 	logs: readonly ReceiptLog[],
-	expected: { label: string },
+	expected: { label: string; registrar: string; renewerV1: string; referrer: string },
 ): Date {
-	const renewers = [HUB_CHAIN.ensRegistrarAddress, HUB_CHAIN.ensRenewerV1Address]
+	const renewers = [expected.registrar, expected.renewerV1]
 		.filter((address): address is string => Boolean(address))
 		.map((address) => getAddress(address));
 	const events = logs.flatMap((log) => {
@@ -43,11 +43,45 @@ export function parseEnsRenewalExpiry(
 	if (
 		args.label !== expected.label
 		|| getAddress(args.paymentToken) !== getAddress(HUB_CHAIN.usdcAddress)
-		|| args.referrer.toLowerCase() !== HUB_CHAIN.ensReferrer?.toLowerCase()
+		|| args.referrer.toLowerCase() !== expected.referrer.toLowerCase()
 	) {
 		throw new Error("The ENS renewal event does not match the expected Namepass renewal.");
 	}
 	const milliseconds = args.newExpiry * 1_000n;
 	if (milliseconds > 8_640_000_000_000_000n) throw new Error("The ENS expiry is outside the date range.");
 	return new Date(Number(milliseconds));
+}
+
+const HELPER_USED = parseAbi(["event HelperUsed(address indexed helper, bytes32 indexed labelHash, address indexed wallet)"]);
+const METADATA = parseAbi([
+	"function ethRegistrar() view returns (address)",
+	"function ethRenewerV1() view returns (address)",
+	"function referrer() view returns (bytes32)",
+]);
+
+/** Bind expiry to the helper actually used, even if the pointer changed later in this block. */
+export function receiptHelper(logs: readonly ReceiptLog[], label: string): Address {
+	const matching = logs.flatMap((log) => {
+		if (getAddress(log.address) !== getAddress(HUB_CHAIN.gatewayAddress!)) return [];
+		try {
+			const event = decodeEventLog({ abi: HELPER_USED, ...log, topics: log.topics as [Hex, ...Hex[]], strict: true });
+			return event.args.labelHash === keccak256(stringToHex(label)) ? [event.args.helper] : [];
+		} catch { return []; }
+	});
+	if (matching.length !== 1) throw new Error("The receipt has no unique gateway helper selection.");
+	return matching[0];
+}
+
+export async function readReceiptEnsExpiry(logs: readonly ReceiptLog[], label: string, blockNumber: bigint): Promise<Date> {
+	const helper = receiptHelper(logs, label);
+	const rpcUrl = process.env[HUB_CHAIN.rpcEnv];
+	if (!rpcUrl) throw new Error(`${HUB_CHAIN.rpcEnv} is not configured.`);
+	const client = createPublicClient({ transport: http(rpcUrl) });
+	if (await client.getChainId() !== HUB_CHAIN.chainId) throw new Error("The receipt RPC serves the wrong chain.");
+	const [registrar, renewerV1, referrer] = await Promise.all([
+		client.readContract({ address: helper, abi: METADATA, functionName: "ethRegistrar", blockNumber }),
+		client.readContract({ address: helper, abi: METADATA, functionName: "ethRenewerV1", blockNumber }),
+		client.readContract({ address: helper, abi: METADATA, functionName: "referrer", blockNumber }),
+	]);
+	return parseEnsRenewalExpiry(logs, { label, registrar, renewerV1, referrer });
 }

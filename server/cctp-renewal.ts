@@ -33,7 +33,7 @@ import {
 } from "./db/schema";
 import { ABSORBED_BY_PRIOR_FLOW, flowTransitionAction, NAME_RECHECK_MS, setFlowStatus, setPreOriginFlowStatus } from "./flow-state";
 import { automaticDepositBalanceBlock, liveDepositBalanceAction } from "./deposit-eligibility";
-import { parseEnsRenewalExpiry } from "./ens-renewal";
+import { readReceiptEnsExpiry } from "./ens-renewal";
 import {
 	assertExactCctpSettlement,
 	settlementBundleForEvent,
@@ -881,7 +881,7 @@ export async function simulateCctpClaim(flowId: string): Promise<"ready" | "uncl
 	try {
 		const rpc = await verifiedChainClient(HUB_CHAIN);
 		await rpc.simulateContract({
-			address: HUB_CHAIN.helperAddress! as Address,
+			address: HUB_CHAIN.gatewayAddress! as Address,
 			abi: HELPER_ABI,
 			functionName: "completeCCTP",
 			args: [flow.cctpMessage, flow.cctpAttestation],
@@ -917,7 +917,7 @@ export async function prepareCctpClaim(flowId: string): Promise<string> {
 		flowId,
 		kind: "claim",
 		chain: HUB_CHAIN,
-		to: HUB_CHAIN.helperAddress! as Address,
+		to: HUB_CHAIN.gatewayAddress! as Address,
 		callData: encodeCompleteCctp(flow.cctpMessage, flow.cctpAttestation),
 	});
 }
@@ -946,7 +946,7 @@ export async function confirmCctpClaim(
 		})
 		: undefined;
 	const expiryAfter = receipt.status === "success"
-		? parseEnsRenewalExpiry(receiptLogs(receipt.logs), { label: flow.label })
+		? await readReceiptEnsExpiry(receiptLogs(receipt.logs), flow.label, receipt.blockNumber)
 		: undefined;
 	const now = new Date();
 	const outcome = await database().transaction(async (tx) => {

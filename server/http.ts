@@ -21,6 +21,7 @@ export function handler(method: "GET" | "POST", route: Route) {
 		async fetch(request: Request): Promise<Response> {
 			const requestId = request.headers.get("x-vercel-id") ?? crypto.randomUUID();
 			try {
+				if (process.env.NAMEPASS_MAINTENANCE === "1") throw new ApiError(503, "maintenance", "Namepass is being upgraded. Please return shortly.");
 				if (request.method !== method) {
 					return json(
 						{ error: { code: "method_not_allowed", message: "Method not allowed." }, requestId },

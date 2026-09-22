@@ -66,3 +66,6 @@ jobs:
 
       - name: Test the contracts
         run: forge test
+
+      - name: Check the helper pricing adapter fingerprint
+        run: node scripts/generate-helper-adapter.mjs --check

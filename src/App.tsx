@@ -1,5 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { Skeleton } from "./components/ui/skeleton";
+import { lazy, Suspense, useCallback, useRef, useEffect, useState } from "react";
 import Navbar from "./components/Navbar";
 import PageShell from "./components/PageShell";
 import Hero from "./components/Hero";
@@ -44,12 +44,17 @@ function pageToPath(page: Page): string {
 }
 
 export default function App() {
+	if (import.meta.env.VITE_NAMEPASS_MAINTENANCE === "1") return <main style={{ padding: "4rem", fontFamily: "sans-serif" }}><h1>Namepass is being upgraded</h1><p>Deposits and renewals are temporarily paused. Please return shortly.</p></main>;
+	return <ActiveApp/>;
+}
+
+function ActiveApp() {
 	const [page, setPage] = useState<Page>(() => pathToPage(window.location.pathname));
 	const [claimOpen, setClaimOpen] = useState(false);
 	const [selected, setSelected] = useState<string | null>(null);
 
 	/**
-	 * ENS's live pricing, read once at boot.
+	 * ENS's live pricing, read at boot, on name selection, and on window focus.
 	 *
 	 * Everything that quotes a price is downstream of this. `pricing.ts`
 	 * throws until the live values arrive.
@@ -67,17 +72,21 @@ export default function App() {
 
 	const [boot, setBoot] = useState<Boot>({ status: "loading" });
 
+	const pricingRequest = useRef(0);
 	const loadPricing = useCallback(() => {
+		const request = ++pricingRequest.current;
 		setBoot({ status: "loading" });
 		/* In parallel: ENS's rates, which the app can't price without, and a
-		   check that the helper's gas allowance is still the dime every quoted
+		   check that the gateway's gas allowance is still the dime every quoted
 		   send amount is built around. */
 		Promise.all([loadOracleRates(), assertGasAllowance()])
 			.then(([live]) => {
+				if (request !== pricingRequest.current) return;
 				setRates(live);
 				setBoot({ status: "ready" });
 			})
 			.catch((err: unknown) => {
+				if (request !== pricingRequest.current) return;
 				setBoot({
 					status: "error",
 					message: err instanceof Error ? err.message : String(err),
@@ -85,9 +94,12 @@ export default function App() {
 			});
 	}, []);
 
+	useEffect(() => { if (page !== "monitoring") loadPricing(); }, [loadPricing, selected, page]);
 	useEffect(() => {
-		if (page !== "monitoring" && boot.status === "loading") loadPricing();
-	}, [page, loadPricing]);
+		const refresh = () => { if (document.visibilityState === "visible" && page !== "monitoring") loadPricing(); };
+		window.addEventListener("focus", refresh);
+		return () => { window.removeEventListener("focus", refresh); pricingRequest.current++; };
+	}, [loadPricing, page]);
 
 	useEffect(() => {
 		if ("scrollRestoration" in window.history) {

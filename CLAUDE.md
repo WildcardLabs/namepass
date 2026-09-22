@@ -193,6 +193,26 @@ bugs this repo has shipped would have passed against a mocked oracle. If you cha
 
 ## Architecture
 
+**Contract overhaul, 2026-09-18:** current Solidity source differs from the deployed testnet set.
+Read `docs/CONTRACTS_V2.md` before contract work. The new `NamepassL1Gateway` owns wallet pulls,
+CCTP claims, the fixed executor allowance, settlement events, and earned residue. It has no owner.
+`RenewalHelperPointer` gives the ENS governance executor control over immutable helper replacement.
+The pointer binds one gateway at first activation. `ENSV2RenewalHelper` has immutable ENS addresses
+and referrer, no owner or setters, and only the gateway can fund its execution. It uses the new
+`RenewData` ABI. The factory source and compiler settings remain unchanged. New deployment uses a
+new salt and initializes factories with the gateway. The older helper-governance descriptions
+below apply only to the existing deployment until cutover. The user requires a complete testnet
+data, flow, and address reset; follow `docs/TESTNET_RESET.md`. Do not build legacy data migration.
+Replacement contracts are deployed and initialized on all four testnets. The 2026-09-18 manifest
+and independent read-only verification are in `docs/deployments/2026-09-18/`. All eight direct/CCTP canaries passed on 2026-09-19.
+The in-flight helper replacement rehearsal passed and helper A is restored. System cutover remains pending. Fork tests in `test/SepoliaFork.t.sol` use the real ENS
+contracts and require `NAMEPASS_FORK_RPC`; the default suite skips those tests explicitly.
+
+The temporary Rainbow deployment console lives in `tools/deployment-console`. Start it with
+`npm run deploy:ui`. It builds contract artifacts and serves localhost:4177 with public RPC
+proxies. Read its README before deployment. It uses a dedicated test timelock, not ENS DAO
+governance. It does not reset data or change the live application configuration.
+
 **The monitoring page uses official shadcn components only.** `/monitoring` is lazy-loaded and
 independent of pricing. Read `docs/MONITORING.md` before changing metrics, review budgets, gas checks,
 or monitoring coverage. Keep all background health RPC polling disabled.
@@ -358,3 +378,11 @@ tests, transaction polling and workflow composition tests, Workflow runtime test
 check, generated Goldsky pipeline check, and Foundry
 tests on each pull request and each push to `main`. Keep the `Checks` job free of deployment
 credentials and live-service calls. GitHub branch protection must require this job before merge.
+
+**Local system migration, 2026-09-21:** source configuration now uses the new factory, fixed gateway,
+and helper pointer. Do not deploy it onto the old data set. Follow `docs/SYSTEM_CUTOVER_STATUS.md`
+and `docs/TESTNET_RESET.md`. Helper discovery is block-pinned. Pricing checks the helper runtime
+algorithm with immutable positions masked; regenerate its fingerprint only after a reviewed
+contract change. Goldsky's new `namepass-testnet-v2` definition uses gateway events and event-driven
+receipt enrichment instead of the old static ENS feed. Historical receipts are a cutover gate.
+The replacement resolver source is prepared but its wallet deployment is still pending.

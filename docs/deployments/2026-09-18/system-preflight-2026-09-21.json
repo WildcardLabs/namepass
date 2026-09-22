@@ -1,0 +1,20 @@
+{
+  "checkedAt": "2026-09-21T13:10:02.961Z",
+  "helper": "0x24A88f2Cb4B1dd833e0745C1A71209B6b077bc40",
+  "states": [
+    {
+      "label": "steve",
+      "expiry": "2029-04-11T04:16:46.000Z",
+      "renewableBy": "registrar"
+    },
+    {
+      "label": "vitalik",
+      "expiry": "2068-08-18T22:45:18.000Z",
+      "renewableBy": "v1"
+    }
+  ],
+  "addressDerivation": "passed",
+  "adapterFingerprint": "passed",
+  "indexedReceipt": "blocked",
+  "error": "Transaction receipt with hash \"0x4696f93ad6cd6562f694463371468ea9c0ffcd4b40a2a4e8c9c79dd2c4b813c8\" could not be found. The Transaction may not be processed on a block yet.\n\nVersion: viem@2.55.13"
+}

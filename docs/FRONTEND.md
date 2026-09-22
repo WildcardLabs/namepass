@@ -386,3 +386,12 @@ const pricing = await import('/src/lib/pricing.ts');
 pricing.solve(8000000n, 7).seconds;   // 31535917n
 // cast call $HELPER 'quote(string,uint256)(uint64,uint256)' vitalik 8000000
 ```
+
+## Contract-generation update — 2026-09-21 (local, not deployed)
+
+The registry now derives new deposit addresses from the replacement factory. Price reads discover
+`currentHelper()` from the configured pointer and pin all configuration calls to one block. The
+browser accepts the reviewed ENS V2 helper algorithm with different immutable addresses. Unknown
+runtime code stops pricing. Initial load, name selection, and window focus refresh the snapshot;
+there is no scheduled RPC price polling. The gateway supplies the fixed executor allowance.
+See `SYSTEM_CUTOVER_STATUS.md` before deploying this source against the existing service data.

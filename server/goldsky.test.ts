@@ -373,8 +373,8 @@ test("an ENS delete clears the only indexed expiry and preserves a newer indexed
 test("all protocol event shapes match their registry allowlists", () => {
 	const hash = `0x${"2".repeat(64)}`;
 	const wallet = recipient;
-	const factory = "0xe0b155fdb1104824d7e0568aeafcc52823edd00f";
-	const helper = "0xf1b51552098ffa7dc2cd83d0fb6508e57db8acc1";
+	const factory = "0x2dcb5ca6b21372b43e37c35da8d5d15160423150";
+	const helper = "0x39351C9f9eAb6093eFB4e865a6330ECd2a756F0f";
 	const hubCommon = {
 		chain_id: 11155111,
 		block_number: 10,
@@ -440,7 +440,7 @@ test("all protocol event shapes match their registry allowlists", () => {
 			event_id: "11155111:ens",
 			event_family: "ens",
 			event_type: "NameRenewed",
-			contract_address: "0xa88553f454b77203b0d036a05c894d555eaaa2cc",
+			contract_address: "0xabe76f6c8dfced81aa5a2bb8034202a7136b94ca",
 			token_id: "1",
 			label: "vitalik",
 			duration: "31536000",
@@ -458,7 +458,7 @@ test("all protocol event shapes match their registry allowlists", () => {
 
 test("protocol events route to renewal and ENS projections", async () => {
 	const store = new MemoryStore();
-	const route = goldskyHandler(store, async () => {}, () => secret);
+	const route = goldskyHandler(store, async () => {}, () => secret, undefined, async () => "2000000000");
 	const common = {
 		chain_id: 11155111,
 		block_number: 10,
@@ -472,7 +472,7 @@ test("protocol events route to renewal and ENS projections", async () => {
 		event_id: "11155111:renewed-route",
 		event_family: "namepass",
 		event_type: "Renewed",
-		contract_address: "0xf1b51552098ffa7dc2cd83d0fb6508e57db8acc1",
+		contract_address: "0x39351C9f9eAb6093eFB4e865a6330ECd2a756F0f",
 		label_hash: `0x${"2".repeat(64)}`,
 		wallet_address: recipient,
 		executor_address: "0x0000000000000000000000000000000000000001",
@@ -490,7 +490,7 @@ test("protocol events route to renewal and ENS projections", async () => {
 		event_family: "ens",
 		event_type: "NameRenewed",
 		log_index: 2,
-		contract_address: "0xa88553f454b77203b0d036a05c894d555eaaa2cc",
+		contract_address: "0xabe76f6c8dfced81aa5a2bb8034202a7136b94ca",
 		token_id: "1",
 		label: "vitalik",
 		duration: "31536000",
@@ -580,7 +580,7 @@ test("bytes32 event fields accept Goldsky's bare hex and normalize to 0x", () =>
 		block_time: 1787052840,
 		tx_hash: "0x5b564d19f06f8ad36bd3e682bc5502d041514f818b74cf61d223548a80309dbc",
 		log_index: 94,
-		contract_address: "0xf1b51552098ffa7dc2cd83d0fb6508e57db8acc1",
+		contract_address: "0x39351C9f9eAb6093eFB4e865a6330ECd2a756F0f",
 		label_hash: "e9cc90d595d428aa07c91e6ff64a1eb5ccd8cb9490ebba9e4d30eb20e822c443",
 		wallet_address: "0xaf34cb930f362be3fd07fbc837be56ee2f257ddd",
 		executor_address: "0xd3f6f8f45f1cc6dca75b918311302e852d268d9c",
@@ -604,7 +604,7 @@ test("bytes32 event fields accept Goldsky's bare hex and normalize to 0x", () =>
 		block_time: 1787054196,
 		tx_hash: "0x2f4bf716db37503cbc71aa56bf279604031ffe48b67c185cf118c660680d5588",
 		log_index: 288,
-		contract_address: "0xf1b51552098ffa7dc2cd83d0fb6508e57db8acc1",
+		contract_address: "0x39351C9f9eAb6093eFB4e865a6330ECd2a756F0f",
 		nonce: "9c56f340be94d5291d773298b09f7a5b18c4fff2802b3a35bddf6d3609e6843c",
 		wallet_address: "0xaf34cb930f362be3fd07fbc837be56ee2f257ddd",
 		source_domain: "6",

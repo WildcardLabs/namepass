@@ -1,5 +1,13 @@
 # Architecture — contracts (built) and production system (partly deployed to stable testnet)
 
+**2026-09-18 contract update:** replacement contracts are deployed and initialized on testnet.
+Independent runtime and receipt checks passed. All eight direct/CCTP canaries passed on
+2026-09-19. The in-flight helper replacement rehearsal also passed and helper A is restored.
+Service cutover remains pending. Their
+boundary and tests are in [CONTRACTS_V2.md](CONTRACTS_V2.md). The contract descriptions below
+describe the previous deployment. The replacement will use a clean testnet reset, with no legacy
+data migration. See [TESTNET_RESET.md](TESTNET_RESET.md).
+
 **This file covers two parts at two different stages. Check which part you are reading.**
 
 - **Contracts: built.** The sections from here to the end of "CCTP at contract level" describe
@@ -2036,3 +2044,10 @@ Settled points:
   operations: an "is the helper empty" check must use a threshold rather than zero, or it alerts
   forever.
 - A balance read fails soft. Show the chains that answered and render the rest as unknown.
+
+## Local gateway-system migration — 2026-09-21
+
+Application transaction routing now uses the fixed gateway. Pointer discovery supplies live helper
+metadata for ENS and pricing reads. The new Goldsky definition indexes the gateway and enriches
+canonical renewals with validated receipt expiry. No hosted cutover or data reset has run.
+`SYSTEM_CUTOVER_STATUS.md` records implementation scope, adapter compatibility limits, and open gates.
