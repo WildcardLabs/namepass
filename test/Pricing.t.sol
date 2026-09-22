@@ -220,7 +220,7 @@ contract PricingTest is Test {
      *
      * The figure the UI shows as "11 months, 30 days" and the reason
      * there is no one-year quick-select. If this changes, the copy in
-     * `CLAUDE.md` and `docs/DECISIONS.md` is wrong.
+     * `docs/DECISIONS.md` is wrong.
      */
     function test_eightDollarsIsShortOfAYear() public view {
         (uint64 duration,) = helper.quote(_label(5), 8_000_000);

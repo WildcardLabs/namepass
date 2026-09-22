@@ -1,7 +1,7 @@
-# Contract replacement implementation
+# Contracts
 
-Current deployment status and completed verification belong in
-[SYSTEM_CUTOVER_STATUS.md](SYSTEM_CUTOVER_STATUS.md). This document describes the replacement
+Deployment addresses and verification evidence are in
+[DEPLOYMENTS.md](DEPLOYMENTS.md). This document describes the
 contract boundaries. The contracts are not externally audited.
 
 ## Contract boundary
@@ -97,21 +97,3 @@ and cleared allowances through the real factory-wallet-gateway-helper path. They
 execution EVM to Cancun because deployed ENS uses Cancun opcodes. The compilation target stays
 Shanghai. No test broadcasts a transaction. Without the RPC variable, these two tests are marked
 skipped rather than reported as deployment verification.
-
-## Original release checklist (historical)
-
-This checklist records the original rollout requirements. It is not an outstanding task list.
-Use `SYSTEM_CUTOVER_STATUS.md` to distinguish completed evidence from remaining work.
-
-- Review the new fund and governance boundaries. Interface checks and accounting do not prove that
-  arbitrary governance-selected code renews a name. ENS governance controls replacement logic.
-- Verify the exact timelock, residue recipient, referrer, and new factory salt before deployment.
-- Deploy and verify the new set. Exercise a real delayed pointer change.
-- Run actual CCTP burns and claims from every supported source chain. The current local CCTP tests
-  use a mock transmitter. They prove parser, accounting, retry, replay, and helper-change behavior;
-  they are not evidence of a new live Circle route.
-- Execute the clean data reset only with old services stopped and the replacement system ready.
-- Update application discovery, pricing, receipts, indexing, and address publication afterward.
-
-Source contracts and local tests are a contract milestone. They do not mean that deployment,
-testnet reset, application cutover, or a security audit is complete.

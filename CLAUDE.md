@@ -2,7 +2,7 @@
 
 Namepass turns USDC deposits at deterministic ENS-name addresses into renewal time.
 The application uses Goldsky Turbo, Neon, Vercel Functions and Vercel Workflow.
-Deployment status and remaining wallet steps belong in `docs/SYSTEM_CUTOVER_STATUS.md`.
+Deployment status and release limitations belong in `docs/DEPLOYMENTS.md`.
 
 ## Working agreement
 
@@ -29,20 +29,20 @@ reading list. Search headings or symbols before opening a large file.
 
 | Task | Reference |
 | --- | --- |
-| Product scope, wording | `PRODUCT.md` |
+| Product scope, wording | `README.md` |
 | Frontend state, components, data boundaries | `docs/FRONTEND.md` |
 | Backend flows, schema, service boundaries | Relevant section of `docs/ARCHITECTURE.md` |
 | Payment, pricing, concurrency or contract constraints | Relevant section of `docs/ENGINEERING_CONSTRAINTS.md` |
 | Contract design | `docs/CONTRACTS_V2.md` |
-| Deployment or migration | Current handoff in `docs/SYSTEM_CUTOVER_STATUS.md`; referenced manifest/evidence |
+| Deployment or migration | `docs/DEPLOYMENTS.md` and `docs/RUNBOOK.md` |
 | Address history | `docs/DEPLOYMENTS.md` |
 | Rainbow deployment console | `tools/deployment-console/README.md` |
 | Monitoring metrics | `docs/MONITORING.md` |
-| Rationale for a specific past choice | Search `docs/DECISIONS.md` by topic/date |
+| Rationale for a specific past choice | Relevant rationale in `docs/DECISIONS.md` |
 
 Dated plans and historical notes are not instructions to repeat completed work. Use current code
 for implementation facts and dated receipts/manifests for deployment facts. Update the document
-that owns a changed fact; add decision history only for a durable tradeoff. Do not copy status
+that owns a changed fact; record rationale only for a durable tradeoff. Do not copy status
 into every document or grow this file into an implementation diary.
 
 ## Verification

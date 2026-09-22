@@ -1,7 +1,6 @@
 # Engineering constraints
 
-Targeted reference extracted from repository instructions. Read the section affected by the
-change. Current deployment evidence lives in [SYSTEM_CUTOVER_STATUS.md](SYSTEM_CUTOVER_STATUS.md).
+Constraints for changes to payment routing, accounting and presentation. Current deployment evidence lives in [DEPLOYMENTS.md](DEPLOYMENTS.md).
 Implementation detail remains in source; this document records constraints that are easy to lose.
 
 ## Contract and address changes
