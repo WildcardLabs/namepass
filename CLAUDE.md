@@ -23,57 +23,35 @@ includes agent responses, documentation, issues, pull requests, plans, and code 
 The purpose of this rule is to make technical communication easier to understand. It must not
 limit analysis, technical accuracy, or the ability to explain a complex subject.
 
-## Read these too
+## Read only what the task needs
 
-- **`README.md`** — the protocol entry point: contracts, trust boundaries, permissionless use,
-  ENS v2 pricing and migration support, and testnet evidence.
-- **`PRODUCT.md`** — the detailed "what and why": the problem being solved, the core mechanic,
-  positioning/tone decisions made through design iteration, and what's explicitly *not* decided
-  yet. Read this before making product-facing decisions (copy, new features, framing) that aren't
-  already covered below.
-- **`docs/FRONTEND.md`** — **the long version of this file.** How the app works: the `lib/`
-  boundaries, the public API read model, the state model, the component map, the invariants list,
-  and how to verify a change. Read it before any non-trivial change; it is written so you do not
-  have to re-derive the mechanics from the code.
-- **`docs/ARCHITECTURE.md`** — CREATE2-derived addresses, Circle CCTP with a hook that renews on the
-  mint, and the planned Goldsky + Neon + Vercel production system. **This file has a mixed status
-  and marks each part.** The contracts are deployed to four testnets and proven on chain. The
-  shared chain registry, Neon schema/API, Goldsky pipeline definition, webhook receiver, relayer,
-  durable workflows, recovery jobs, and frontend cutover exist in the repository. The stable
-  testnet Neon schema and database roles are deployed. The stable Vercel API and Workflow
-  environment are deployed. The `namepass-testnet` Goldsky pipeline is running. A stable-testnet
-  automated renewal has completed end to end. Read this file before you change
-  anything that models activation, deposits, flows, pending balances, or backend services.
-- **`docs/DEPLOYMENTS.md`** — live contract addresses, the salt and creation-code hashes behind
-  them, per-chain configuration, and what has actually been proven on chain. Read it before
-  touching anything deployment-shaped; the addresses are not recoverable from the source alone.
-- **`docs/DECISIONS.md`** — a dated log of non-obvious architecture/product calls and why they
-  were made, e.g. why routing has no library, why certain copy avoids certain words. Check here
-  before re-litigating something that looks like it could've been done differently — it might
-  already have been tried and rejected for a reason.
+Start with the requested outcome, relevant source files, and current git state. Search the
+specific headings or symbols needed; do not load the documentation set for each task.
 
-## Keeping these docs current
+- Product scope or copy: relevant sections of `PRODUCT.md`.
+- Frontend state and component boundaries: relevant sections of `docs/FRONTEND.md`.
+- Backend flows or balances: relevant sections of `docs/ARCHITECTURE.md`.
+- Monitoring metrics: `docs/MONITORING.md`.
+- Deployment or migration: current handoff in `docs/SYSTEM_CUTOVER_STATUS.md`, then the
+  relevant manifest in `docs/deployments/`. `docs/DEPLOYMENTS.md` provides address history.
+- Contract design: `docs/CONTRACTS_V2.md`.
+- A disputed previous decision: search `docs/DECISIONS.md` for that decision. It is a
+  historical reference, not required reading for every change.
 
-`README.md`, `PRODUCT.md`, this file, and `docs/DECISIONS.md` drift out of date unless updated
-deliberately. **After any substantial change** — a new feature or page, a meaningful architecture
-change, a new dependency/service integration, or a shift in product goals/positioning discussed
-with the user — update whichever doc actually covers that change:
+Current source and dated deployment evidence take precedence over historical descriptions.
+Update the one document that owns a changed fact. Add a decision entry only for a durable
+tradeoff. Do not duplicate status reports across documents.
 
-- New feature/page/user-facing behavior → `README.md` (feature tour) and, if it changes the
-  product's scope or story, `PRODUCT.md`.
-- New architectural pattern, convention, or constraint another session would need to know →
-  this file, under Architecture.
-- New product decision (positioning, tone, business/goal clarification, something moved from
-  "not yet defined" to defined) → `PRODUCT.md`'s current-state summary.
-- **Any non-obvious call that could reasonably have gone differently** — a rejected alternative,
-  a tradeoff knowingly accepted, a "we tried X, it looked wrong, went with Y instead" — append a
-  dated entry to `docs/DECISIONS.md`. This is the one most likely to be forgotten because it's
-  easy to just make the change and move on; it's also the one most valuable to a future session
-  trying to understand *why* something is the way it is instead of re-litigating it.
+## Work and verification budget
 
-Don't do this reflexively for every small fix — only when the change is substantial enough that a
-future session (or the user, months later) would otherwise be working from a stale picture of the
-app.
+Define completion from the user request. Inspect the smallest relevant code path, make the
+change, and run focused checks. Expand testing only for an affected boundary, a failure, or
+an explicit required check. CI runs the full suite. Do not repeat successful wallet canaries
+or live deployments for unrelated UI or documentation changes. Use local fixtures for regression
+tests. Do not add live polling to verify a static change.
+
+Report the outcome, evidence, and any remaining blocker briefly. Keep progress updates factual.
+Use `goldsky turbo` for this project's Turbo pipeline; `goldsky pipeline` is a different API.
 
 ## What this is
 
@@ -125,13 +103,12 @@ zero-remainder origin receipt can absorb an earlier deposit without creating a d
 
 **Circle Iris supplies the final CCTP v2 nonce.** The origin-chain `MessageSent` event has a zero
 nonce placeholder. The workflow binds it to an exact `DepositProcessed` event, stores its index in
-the transaction, and requests that final message from Iris. Goldsky does not index global Circle events. It
-filters ENS `NameRenewed` events by the Namepass referrer in the shared chain registry. See the
-2026-08-17 decision before changing this flow.
+the transaction, and requests that final message from Iris. Goldsky does not index global Circle events. The current pipeline indexes gateway events
+and enriches receipts for ENS expiry evidence. See `docs/CONTRACTS_V2.md` for the current design.
 
 **The initial production scope is settled.** Mainnet starts on Ethereum, Base, and Arbitrum; Arc
 stays testnet-only until Circle and Goldsky support Arc mainnet. Stable testnet uses the free
-Goldsky Starter plan. Its allowance covers the one continuously active small `namepass-testnet`
+Goldsky Starter plan. Its allowance covers the one continuously active small `namepass-testnet-v2`
 pipeline, which reads all four testnet chains. Goldsky Scale is a production decision and is
 required only if the testnet and mainnet pipelines must run at the same time. Production starts on
 Vercel Pro and Neon Launch. Raw Goldsky payloads expire after 30 days, but normalized event facts
@@ -193,20 +170,13 @@ bugs this repo has shipped would have passed against a mocked oracle. If you cha
 
 ## Architecture
 
-**Contract overhaul, 2026-09-18:** current Solidity source differs from the deployed testnet set.
-Read `docs/CONTRACTS_V2.md` before contract work. The new `NamepassL1Gateway` owns wallet pulls,
-CCTP claims, the fixed executor allowance, settlement events, and earned residue. It has no owner.
-`RenewalHelperPointer` gives the ENS governance executor control over immutable helper replacement.
-The pointer binds one gateway at first activation. `ENSV2RenewalHelper` has immutable ENS addresses
-and referrer, no owner or setters, and only the gateway can fund its execution. It uses the new
-`RenewData` ABI. The factory source and compiler settings remain unchanged. New deployment uses a
-new salt and initializes factories with the gateway. The older helper-governance descriptions
-below apply only to the existing deployment until cutover. The user requires a complete testnet
-data, flow, and address reset; follow `docs/TESTNET_RESET.md`. Do not build legacy data migration.
-Replacement contracts are deployed and initialized on all four testnets. The 2026-09-18 manifest
-and independent read-only verification are in `docs/deployments/2026-09-18/`. All eight direct/CCTP canaries passed on 2026-09-19.
-The in-flight helper replacement rehearsal passed and helper A is restored. System cutover remains pending. Fork tests in `test/SepoliaFork.t.sol` use the real ENS
-contracts and require `NAMEPASS_FORK_RPC`; the default suite skips those tests explicitly.
+**Contract cutover, 2026-09-22:** the replacement factory, fixed `NamepassL1Gateway`,
+`RenewalHelperPointer`, and immutable `ENSV2RenewalHelper` are deployed on testnet. The hosted
+data reset and service cutover are complete. The mainnet resolver wallet steps remain pending.
+Use `docs/SYSTEM_CUTOVER_STATUS.md` for the current handoff and
+`docs/deployments/2026-09-22/` for evidence. Older deployment descriptions below are historical.
+The test timelock is wallet-governed; it is not ENS DAO governance. Fork tests require
+`NAMEPASS_FORK_RPC`; do not rerun live canaries for unrelated changes.
 
 The temporary Rainbow deployment console lives in `tools/deployment-console`. Start it with
 `npm run deploy:ui`. It builds contract artifacts and serves localhost:4177 with public RPC
@@ -345,9 +315,8 @@ constraints that are easy to break by accident:
   mutable the guard is theatre. Relatedly, `usdc`/`tokenMessenger`/`l1Helper` are set once in
   `initialize` and frozen; **only `setFinality` stays mutable**, the CCTP per-burn cap is read live
   from Circle's TokenMinter rather than stored, and the CCTP fee ceiling is a per-call argument
-  rather than state — so no owner setting can price or block a transfer. The helper's renewer
-  pointers are movable only by ENS's own governance executor (the DAO **Timelock**, not the
-  Governor), never by a Namepass key. **The helper holds two ENS renewers, not one** —
+  rather than state — so no owner setting can price or block a transfer. The immutable helper's renewer addresses cannot change. The pointer's timelock can
+  select a replacement helper; ENS DAO governance is the intended production authority. **The helper holds two ENS renewers, not one** —
   `ETHRegistrar` for migrated names and `ETHRenewerV1` for premigrated v1 reservations — and picks
   per label via `isRenewable`, because both populations coexist during the migration. Its oracle
   must be read from whichever renewer was selected; see `docs/ARCHITECTURE.md`. Don't add an owner-settable address that
