@@ -1,7 +1,7 @@
 # Goldsky Turbo
 
-`namepass-testnet.yaml` is the stable testnet pipeline. It starts at the latest block when Goldsky
-first deploys it. Source names must not change after deployment because Goldsky binds checkpoints
+`namepass-testnet.yaml` is the stable testnet pipeline. Protocol-event sources start from configured deployment blocks; deposit sources start at the
+latest block on initial deployment. Source names must not change after deployment because Goldsky binds checkpoints
 to those names.
 
 The pipeline preserves `_gs_op`. Goldsky documents inserts as `i`, while some CDC delivery paths
@@ -20,17 +20,16 @@ does not emit an ERC-20 `Transfer` log.
 | Arc Testnet | `arc_testnet.erc20_transfers` `1.1.0` and `arc_testnet.receipt_transactions` `1.0.0` | `arc_testnet.raw_logs` `1.1.0` |
 
 Goldsky verified all nine dataset names, versions, and schemas. The current Turbo CLI validated
-the full pipeline. The `namepass-testnet` pipeline runs in the active `Namepass` project.
+the full pipeline. The `namepass-testnet-v2` pipeline runs in the active `Namepass` project.
 
 Arc transaction `value` has 18 decimals. The Arc USDC system contract uses 6 decimals. The
 pipeline divides native transaction value by `10^12` before it emits the normalized deposit row.
 The workflow then verifies the mined transaction recipient and the same conversion before it uses
 the deposit. Circle applies the configured finality requirement after the origin burn.
 
-The raw-log sources include only Namepass contract addresses and the two Ethereum ENS renewers.
-The ENS transform keeps `NameRenewed` only when it has the Namepass referrer from the shared
-deployment registry. The pipeline does not index Circle `MessageSent`. CCTP v2 assigns the final
-nonce off chain, so the workflow gets the final message, nonce, and attestation from Circle Iris.
+The raw-log sources filter the configured Namepass factory and gateway addresses. Gateway renewal
+receipts are enriched with ENS expiry evidence. The pipeline does not index global Circle
+`MessageSent` events. The workflow gets the final CCTP message, nonce and attestation from Iris.
 
 The pipeline needs two Goldsky secrets:
 

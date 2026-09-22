@@ -44,8 +44,10 @@ export function monitoringQuery(days: number, filters: MonitorFilters = {}) {
     when 'held' then f.held_at when 'unclaimed' then f.unclaimed_at when 'failed' then f.failed_at
    end, f.created_at) as "stageAt",
    f.next_action_at as "nextActionAt", coalesce(f.last_error_code, f.hold_reason) as reason,
-   f.origin_evidence_tx_hash as "txHash"
-  from flows f join names n on n.id = f.name_id where f.status not in ('settled', 'cancelled')
+   coalesce(f.origin_evidence_tx_hash, d.tx_hash) as "txHash"
+  from flows f join names n on n.id = f.name_id
+  left join inbound d on d.event_id = f.deposit_event_id and d.chain_id = f.origin_chain_id
+  where f.status not in ('settled', 'cancelled')
  ), days as (
   select generate_series((now() at time zone 'UTC')::date - (${days}::int - 1),
    (now() at time zone 'UTC')::date, interval '1 day')::date as day

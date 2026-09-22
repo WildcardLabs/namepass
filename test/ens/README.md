@@ -8,8 +8,7 @@ They are here so the pricing tests run against **ENS's own arithmetic** rather t
 reimplementation of it. `StandardRentPriceOracle` is the contract the helper inverts, and two real
 bugs have already come from guessing at its behaviour instead of reading it:
 
-- rates derived from a Julian year rather than the oracle's 365-day one (`docs/DECISIONS.md`,
-  2026-08-06);
+- rates derived from a Julian year rather than the oracle's 365-day one (`docs/DECISIONS.md`, Exact oracle arithmetic);
 - `getPaymentTokenRatio` treated as a single divisor when it returns `(numer, denom)`, which agreed
   with the live configuration only because `numer` happens to be 1.
 

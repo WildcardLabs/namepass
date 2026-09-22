@@ -1,17 +1,17 @@
-# Contract replacement implementation
+# Contracts
 
-Status: deployed and initialized on testnet on 2026-09-18. Runtime, receipts, and configuration
-checks passed; see `DEPLOYMENTS.md`. All eight direct/CCTP canaries passed on 2026-09-19. The in-flight helper replacement rehearsal also passed; helper A is restored. Not externally audited. The application
-still targets the previous deployment. Do not replace its addresses until the new contracts have
-completed the deployment gates in `CONTRACTS_OVERHAUL_PLAN.md`.
+Deployment addresses and verification evidence are in
+[DEPLOYMENTS.md](DEPLOYMENTS.md). This document describes the
+contract boundaries. The contracts are not externally audited.
 
 ## Contract boundary
 
-`NamepassFactory` is unchanged. Its creation-code hash remains
-`0x810529be6f75680bc17e9770c73c070b0585056518868b722be84f6ed600f476`.
-Deploy it with a new salt on each chain. Initialize its fixed `l1Helper` value to the new gateway.
-Its wallet interface, source-chain CCTP encoding, token addresses, and initialization rules remain
-unchanged. New factory addresses produce new deposit addresses.
+`NamepassFactory` supports native reception through its deposit wallets on Arc testnet with
+Sepolia as hub. This supersedes the September 18 factory that rejected native deposits after
+wallet deployment. Other networks, direct factory deposits and unknown calldata remain rejected.
+Its fixed `l1Helper` configuration points to the gateway. Exact hashes, addresses and receipts
+are in `deployments/2026-09-22/manifest.json` and its verification files; a changed factory
+address changes derived deposit addresses.
 
 `RenewalHelperPointer` stores the active helper. Its constructor fixes the factory and payment
 token. Only the governance executor can activate a helper. The executor must be an ENS Timelock
@@ -97,18 +97,3 @@ and cleared allowances through the real factory-wallet-gateway-helper path. They
 execution EVM to Cancun because deployed ENS uses Cancun opcodes. The compilation target stays
 Shanghai. No test broadcasts a transaction. Without the RPC variable, these two tests are marked
 skipped rather than reported as deployment verification.
-
-## Remaining release gates
-
-- Review the new fund and governance boundaries. Interface checks and accounting do not prove that
-  arbitrary governance-selected code renews a name. ENS governance controls replacement logic.
-- Verify the exact timelock, residue recipient, referrer, and new factory salt before deployment.
-- Deploy and verify the new set. Exercise a real delayed pointer change.
-- Run actual CCTP burns and claims from every supported source chain. The current local CCTP tests
-  use a mock transmitter. They prove parser, accounting, retry, replay, and helper-change behavior;
-  they are not evidence of a new live Circle route.
-- Execute the clean data reset only with old services stopped and the replacement system ready.
-- Update application discovery, pricing, receipts, indexing, and address publication afterward.
-
-Source contracts and local tests are a contract milestone. They do not mean that deployment,
-testnet reset, application cutover, or a security audit is complete.

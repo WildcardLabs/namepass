@@ -57,6 +57,18 @@ test("monitoring SQL excludes reorgs, deduplicates senders, preserves amounts an
       1,
     );
 
+    // Held funds have deposit evidence before an origin renewal is submitted.
+    await db.exec(`insert into flows (id,name_id,origin_chain_id,trigger,status,amount_detected,deposit_event_id)
+      values ('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000001',84532,'automatic','held',1000000,'d2')`);
+    const held = async () => (await read()).flows.find(f => f.status === "held")!;
+    assert.equal((await held()).txHash, "tx2");
+    await db.exec(`update chain_events set canonical=false where event_id='d2'`);
+    assert.equal((await held()).txHash, null);
+    await db.exec(`update chain_events set canonical=true where event_id='d2';
+      update flows set origin_evidence_tx_hash='origin-tx' where status='held'`);
+    assert.equal((await held()).txHash, "origin-tx");
+    await db.exec(`delete from flows where status='held'`);
+
     await db.exec(`insert into flows (name_id,origin_chain_id,trigger,status,amount_detected,waiting_attestation_at)
      select '00000000-0000-0000-0000-000000000001',84532,'automatic','waiting_attestation',1000000,now()-interval '2 hours' from generate_series(1,55)`);
     const all = await read();

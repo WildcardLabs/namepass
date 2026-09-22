@@ -29,9 +29,9 @@ The connected account controls the **test** timelock. This is not ENS DAO govern
 Mainnet requires the actual ENS governance executor and a separate deployment plan.
 
 The console does not clear databases, stop workflows, or update the public application.
-After explorer verification, run renewal and CCTP canaries. Then follow
-`docs/TESTNET_RESET.md` and `docs/CONTRACTS_OVERHAUL_PLAN.md` for the complete reset
-and system cutover. The resolver also requires the new factory before cutover.
+For a new deployment, verify the applicable renewal routes before publishing addresses.
+See [deployments](../../docs/DEPLOYMENTS.md) for existing evidence and
+[operations](../../docs/RUNBOOK.md) for service configuration.
 
 ## Live renewal tests
 
@@ -110,15 +110,14 @@ only with explicit publication authorization. The user approved the 2026-09-18 s
 
 ## Mainnet wildcard resolver for this test period
 
-The user approved serving the new testnet deposit addresses from `namepass.eth` on Ethereum
+The testing configuration serves testnet deposit addresses from `namepass.eth` on Ethereum
 mainnet. The resolver panel deploys only the resolver and uses real mainnet gas through Rainbow.
 It reads the current ENS owner, apex address, and supported text records before preparing the
 transaction. It checks the singleton runtime, exact deployed resolver runtime, stored strings,
 and steve/vitalik callback addresses. Its separate artifact leaves completed testnet manifests
 valid. Export `namepass-resolver.json` after verification.
 
-This panel does not update the parent ENS resolver record. That update must follow the service
-cutover. The mainnet deployment does not enable mainnet renewals or mainnet USDC funding.
+The panel can update the parent ENS resolver record after the corresponding services are ready. The mainnet deployment does not enable mainnet renewals or mainnet USDC funding.
 
 ## Final ENS update after the September 22 cutover
 

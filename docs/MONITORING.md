@@ -101,7 +101,9 @@ OAuth app; tests cover mocked GitHub responses and session validation.
 - The gas route requires the existing `RELAYER_ADDRESS` or `RELAYER_PRIVATE_KEY` and chain RPC
   environment variables. Only the public address and balance result leave the server.
 - The database route needs `DATABASE_URL` and the existing migrations. No new schema or service is
-  required. No transaction, activation, or recovery action is available on this page.
+  required. Flow evidence links to the origin transaction when recorded, or to the exact linked canonical
+  deposit transaction before execution. A recovered balance without a linked deposit has no
+  fabricated transaction link. No transaction, activation, or recovery action is available on this page.
 - The dashboard loads as a separate frontend chunk. Opening it does not read the pricing oracle.
 
 The local checkout may have frontend configuration without `DATABASE_URL`. In that case the API
