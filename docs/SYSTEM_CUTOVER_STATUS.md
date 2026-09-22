@@ -3,7 +3,8 @@
 ## Current handoff
 
 The September 22 testnet service cutover is live at https://demo-five-gray-37.vercel.app.
-Production deployment: `namepass-v2-bi7eu2rhr-wildcard-labs.vercel.app`.
+Deployment that performed the cutover: `namepass-v2-bi7eu2rhr-wildcard-labs.vercel.app`.
+Later Git deployments can supersede it; this identifier is cutover evidence, not a live alias lookup.
 
 - Neon access was restored. All ten application/watch tables were cleared on testnet branch
   `br-noisy-bird-avey45an`; schemas, roles and migrations remain. See `reset.json`.
@@ -38,7 +39,7 @@ Afterward, verify standard ENS/CCIP resolution and publish the resolver source.
 The application migration is local. No hosted service has switched. No database reset has run.
 The resolver source has changed, but the replacement resolver is not deployed.
 
-## Implemented locally
+### Implemented locally
 
 - The shared registry uses the new factory, fixed gateway, pointer, and deployment blocks.
 - Wallet renewal and CCTP transaction builders and receipt filters use the fixed gateway.
@@ -65,7 +66,7 @@ The resolver source has changed, but the replacement resolver is not deployed.
   Deleted renewals do not require RPC and remove their expiry from the canonical projection.
 - Resolver callbacks derive the new deposit addresses. Independent CREATE2 vectors cover this.
 
-## Remaining work before reset
+### Remaining work before reset
 
 1. Complete the live historical-receipt check in `tools/verify-system-migration.ts`.
    Current-state reads for steve and vitalik and the active helper fingerprint pass on PublicNode.
@@ -88,13 +89,13 @@ The resolver source has changed, but the replacement resolver is not deployed.
    the new services and pipeline, then prove new database-backed end-to-end canaries.
 6. Enable normal funding and activation only after the cutover checks pass.
 
-## Local checks
+### Local checks
 
 Application and deployment-console builds, server type checking, frontend tests, server tests,
 Workflow tests, Foundry tests, registry checks, and generated-pipeline checks passed during this
 change. Re-run affected checks after any further edits. No commit or push was made.
 
-## Mainnet ENS decision and related review
+### Mainnet ENS decision and related review
 
 The user confirmed that the mainnet resolver should expose the testnet deposit addresses during
 this testing period. Mainnet `namepass.eth` is owned by the deployment wallet. Its current resolver
@@ -108,7 +109,7 @@ Issues 70 and 71 and PR 74 were reviewed at the user's request. See `PR74_REVIEW
 write action was taken. Carry the rejection-evidence requirement and adapted expiry-reorg tests
 into the cutover gates.
 
-## Arc correction — 2026-09-22
+### Arc correction — 2026-09-22
 
 Issue #69 blocks cutover. The September 18 factory does not accept native Arc deposits after
 wallet deployment. Source now accepts empty native calls only through wallets on Arc testnet,

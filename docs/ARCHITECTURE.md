@@ -1,38 +1,12 @@
 # Architecture — contracts (built) and production system (partly deployed to stable testnet)
 
-**2026-09-18 contract update:** replacement contracts are deployed and initialized on testnet.
-Independent runtime and receipt checks passed. All eight direct/CCTP canaries passed on
-2026-09-19. The in-flight helper replacement rehearsal also passed and helper A is restored.
-Service cutover remains pending. Their
-boundary and tests are in [CONTRACTS_V2.md](CONTRACTS_V2.md). The contract descriptions below
-describe the previous deployment. The replacement will use a clean testnet reset, with no legacy
-data migration. See [TESTNET_RESET.md](TESTNET_RESET.md).
-
-**This file covers two parts at two different stages. Check which part you are reading.**
-
-- **Contracts: built.** The sections from here to the end of "CCTP at contract level" describe
-  `contracts/NamepassFactory.sol` and `contracts/ENSV2RenewalHelper.sol`. Both are **deployed to
-  four testnets**. Both have been run against the deployed ENS and Circle contracts.
-  `docs/DEPLOYMENTS.md` records the addresses, the configuration, and the transactions that prove
-  each claim. **The contracts have no external audit. There is no mainnet deployment.**
-- **Production system: implemented in code and partly deployed to stable testnet.** The repository
-  contains the shared chain registry, Neon schema and migration, API, Goldsky pipeline definition,
-  relayer transaction logic, durable workflows, recovery jobs, and frontend API cutover. The
-  sections from "Production system" to the end describe this code and its remaining deployment,
-  testnet, operations, audit, and mainnet gates. The stable testnet Neon schema, database roles,
-  Vercel API, Workflow environment, and Goldsky pipeline are deployed. The relayer key is
-  configured. A stable-testnet automated renewal is proven end to end.
-
-Use the runbook before additional test funding. Track any remaining per-chain canaries separately
-from the verified end-to-end path.
-The on-chain path works. `renew(label)` is permissionless, so any person can push a deposit through
-it manually. The testnet flows below were run this way.
-
-**For the app that does exist, see `docs/FRONTEND.md`.** That covers the running frontend in
-detail: public API boundary, legacy local fixture, state model, component map, and invariants.
-
-Settled calls and their rationale live in `docs/DECISIONS.md`; this file is the current picture,
-not the history.
+This is a detailed design reference, including historical implementation plans.
+For current deployment state and remaining work, use
+[SYSTEM_CUTOVER_STATUS.md](SYSTEM_CUTOVER_STATUS.md). For the replacement gateway, pointer,
+immutable helper and native Arc reception, use [CONTRACTS_V2.md](CONTRACTS_V2.md).
+The older contract and static ENS-indexing descriptions below predate that replacement and
+must not be used as a current deployment runbook. Search the backend section needed for a task;
+completed phases are not new work. The frontend reference is [FRONTEND.md](FRONTEND.md).
 
 ## Addresses — CREATE2 derivation
 
@@ -2045,9 +2019,10 @@ Settled points:
   forever.
 - A balance read fails soft. Show the chains that answered and render the rest as unknown.
 
-## Local gateway-system migration — 2026-09-21
+## Historical gateway-system migration note — 2026-09-21
 
 Application transaction routing now uses the fixed gateway. Pointer discovery supplies live helper
 metadata for ENS and pricing reads. The new Goldsky definition indexes the gateway and enriches
-canonical renewals with validated receipt expiry. No hosted cutover or data reset has run.
+canonical renewals with validated receipt expiry. At the time of this note, no hosted cutover or data reset had run.
+The current handoff supersedes that status.
 `SYSTEM_CUTOVER_STATUS.md` records implementation scope, adapter compatibility limits, and open gates.

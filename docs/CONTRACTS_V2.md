@@ -1,17 +1,17 @@
 # Contract replacement implementation
 
-Status: deployed and initialized on testnet on 2026-09-18. Runtime, receipts, and configuration
-checks passed; see `DEPLOYMENTS.md`. All eight direct/CCTP canaries passed on 2026-09-19. The in-flight helper replacement rehearsal also passed; helper A is restored. Not externally audited. The application
-still targets the previous deployment. Do not replace its addresses until the new contracts have
-completed the deployment gates in `CONTRACTS_OVERHAUL_PLAN.md`.
+Current deployment status and completed verification belong in
+[SYSTEM_CUTOVER_STATUS.md](SYSTEM_CUTOVER_STATUS.md). This document describes the replacement
+contract boundaries. The contracts are not externally audited.
 
 ## Contract boundary
 
-`NamepassFactory` is unchanged. Its creation-code hash remains
-`0x810529be6f75680bc17e9770c73c070b0585056518868b722be84f6ed600f476`.
-Deploy it with a new salt on each chain. Initialize its fixed `l1Helper` value to the new gateway.
-Its wallet interface, source-chain CCTP encoding, token addresses, and initialization rules remain
-unchanged. New factory addresses produce new deposit addresses.
+`NamepassFactory` supports native reception through its deposit wallets on Arc testnet with
+Sepolia as hub. This supersedes the September 18 factory that rejected native deposits after
+wallet deployment. Other networks, direct factory deposits and unknown calldata remain rejected.
+Its fixed `l1Helper` configuration points to the gateway. Exact hashes, addresses and receipts
+are in `deployments/2026-09-22/manifest.json` and its verification files; a changed factory
+address changes derived deposit addresses.
 
 `RenewalHelperPointer` stores the active helper. Its constructor fixes the factory and payment
 token. Only the governance executor can activate a helper. The executor must be an ENS Timelock
@@ -98,7 +98,10 @@ execution EVM to Cancun because deployed ENS uses Cancun opcodes. The compilatio
 Shanghai. No test broadcasts a transaction. Without the RPC variable, these two tests are marked
 skipped rather than reported as deployment verification.
 
-## Remaining release gates
+## Original release checklist (historical)
+
+This checklist records the original rollout requirements. It is not an outstanding task list.
+Use `SYSTEM_CUTOVER_STATUS.md` to distinguish completed evidence from remaining work.
 
 - Review the new fund and governance boundaries. Interface checks and accounting do not prove that
   arbitrary governance-selected code renews a name. ENS governance controls replacement logic.

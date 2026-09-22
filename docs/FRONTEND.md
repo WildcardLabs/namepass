@@ -7,7 +7,8 @@ It gives enough detail to change the app without re-reading the code.
 The app derives each deposit address to match the deployed factory. The Explorer and Leaderboard
 read public data through the Vercel API. They do not connect to Neon or chain RPC directly.
 
-Read `CLAUDE.md` first for the short version and the working conventions. This is the long version.
+Use the relevant section for the task. `CLAUDE.md` contains working conventions; deployment
+status belongs in `SYSTEM_CUTOVER_STATUS.md`.
 
 ### Monitoring page
 
@@ -369,29 +370,16 @@ an owner or ENS migration can also change the expiry.
 
 ## 6. Verifying a change
 
-`npm run build` type-checks the browser and builds the Vite, Nitro, and Workflow output. Run
-`npm run check:server` for the server TypeScript check. Run `npm run test:frontend` for the browser
-adapter checks, `npm run test:server` for the Node server tests, and `npm run test:workflow` for the
-Workflow runtime probe. There is no lint script and no `npm test` alias. The contracts have 61
-Foundry tests. Run them with `forge test`; `npm run build` does not build `contracts/`.
+Choose verification for the changed behavior using the command map in `CLAUDE.md`.
+Pricing changes need boundary and rounding coverage; deployed-helper comparison is useful
+when adapter compatibility changes, not for an unrelated component edit. No app build compiles
+Solidity. Full required CI remains in `.github/workflows/ci.yml`.
 
-Run `node scripts/check-chains.mjs` after a chain registry change. It checks completeness, unique
-identifiers, generated views, and logo assets.
-
-The strongest check available for pricing is the deployed helper itself — `quote(label, amount)`
-answers what the contract would actually charge, and `solve()` must match it to the second:
-
-```js
-const pricing = await import('/src/lib/pricing.ts');
-pricing.solve(8000000n, 7).seconds;   // 31535917n
-// cast call $HELPER 'quote(string,uint256)(uint64,uint256)' vitalik 8000000
-```
-
-## Contract-generation update — 2026-09-21 (local, not deployed)
+## Current helper discovery
 
 The registry now derives new deposit addresses from the replacement factory. Price reads discover
 `currentHelper()` from the configured pointer and pin all configuration calls to one block. The
 browser accepts the reviewed ENS V2 helper algorithm with different immutable addresses. Unknown
 runtime code stops pricing. Initial load, name selection, and window focus refresh the snapshot;
 there is no scheduled RPC price polling. The gateway supplies the fixed executor allowance.
-See `SYSTEM_CUTOVER_STATUS.md` before deploying this source against the existing service data.
+See `SYSTEM_CUTOVER_STATUS.md` for deployment evidence and remaining work.
