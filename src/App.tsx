@@ -177,7 +177,7 @@ function ActiveApp() {
 
 	if (page === "monitoring") {
 		return (
-			<Suspense fallback={<Skeleton className="m-8 h-96" />}>
+			<Suspense fallback={<Skeleton role="status" aria-label="Loading dashboard" className="min-h-[100dvh] w-full animate-none rounded-none bg-[#f7f8fb]" />}>
 				<Monitoring onBack={goHome} />
 			</Suspense>
 		);
