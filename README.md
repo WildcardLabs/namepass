@@ -4,7 +4,7 @@
 
 # Namepass
 
-Permissionless ENS renewal from deterministic USDC deposit wallets.
+Permissionless ENS renewals from deterministic USDC deposit wallets.
 
 ![Testnet](https://img.shields.io/badge/environment-testnet-2E466F)
 ![Mainnet disabled](https://img.shields.io/badge/mainnet-disabled-A23B3B)
