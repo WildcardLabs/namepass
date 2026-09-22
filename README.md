@@ -16,7 +16,7 @@ Permissionless ENS renewals from deterministic USDC deposit wallets.
 </div>
 
 > Namepass is testnet-only and has not had an external contract audit. Do not send mainnet
-> funds to the testnet deposit addresses. A mainnet ENS resolver does not enable mainnet renewals.
+> funds to the testnet deposit addresses.
 
 Namepass gives each normalized `.eth` name one deterministic deposit wallet across a supported
 deployment set. Anyone can fund that wallet with the configured USDC. The funds buy renewal time
