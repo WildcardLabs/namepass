@@ -9,6 +9,13 @@ read public data through the Vercel API. They do not connect to Neon or chain RP
 
 Read `CLAUDE.md` first for the short version and the working conventions. This is the long version.
 
+### Monitoring page
+
+`/monitoring` is a separate lazy-loaded, GitHub-authenticated page built from official shadcn registry components in
+`src/components/ui`. It reads `/api/monitoring` through `publicApi.ts`. It does not load pricing or
+poll RPC. The gas button explicitly reads `/api/monitoring/gas`. API failures remain visible and
+never become zero metrics. See `docs/MONITORING.md` for data definitions and review budgets.
+
 ### Current public read model
 
 `publicApi.ts` is the browser boundary for `GET /api/activity`, `GET /api/names/:label`,
@@ -379,3 +386,12 @@ const pricing = await import('/src/lib/pricing.ts');
 pricing.solve(8000000n, 7).seconds;   // 31535917n
 // cast call $HELPER 'quote(string,uint256)(uint64,uint256)' vitalik 8000000
 ```
+
+## Contract-generation update — 2026-09-21 (local, not deployed)
+
+The registry now derives new deposit addresses from the replacement factory. Price reads discover
+`currentHelper()` from the configured pointer and pin all configuration calls to one block. The
+browser accepts the reviewed ENS V2 helper algorithm with different immutable addresses. Unknown
+runtime code stops pricing. Initial load, name selection, and window focus refresh the snapshot;
+there is no scheduled RPC price polling. The gateway supplies the fixed executor allowance.
+See `SYSTEM_CUTOVER_STATUS.md` before deploying this source against the existing service data.

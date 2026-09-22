@@ -33,7 +33,7 @@ import {
 } from "./db/schema";
 import { ABSORBED_BY_PRIOR_FLOW, flowTransitionAction, NAME_RECHECK_MS, setFlowStatus, setPreOriginFlowStatus } from "./flow-state";
 import { automaticDepositBalanceBlock, liveDepositBalanceAction } from "./deposit-eligibility";
-import { parseEnsRenewalExpiry } from "./ens-renewal";
+import { readReceiptEnsExpiry } from "./ens-renewal";
 import {
 	assertExactCctpSettlement,
 	settlementBundleForEvent,
@@ -43,7 +43,7 @@ import {
 import {
 	ensureTransactionBroadcast,
 	prepareTransaction,
-	readTransactionReceipt,
+	pollTransactionReceipt,
 	replaceStaleTransaction,
 	isMissingTransactionReceipt,
 	relayerAccount,
@@ -474,13 +474,16 @@ async function markCctpOriginReverted(
 
 async function readCctpOriginReceipt(flow: CctpFlow, intentId: string | null) {
 	if (!flow.originEvidenceTxHash) {
-		return intentId ? readTransactionReceipt(intentId) : undefined;
+		return intentId ? pollTransactionReceipt(intentId) : undefined;
 	}
 	const rpc = await verifiedChainClient(originChain(flow));
 	try {
 		return await rpc.getTransactionReceipt({ hash: flow.originEvidenceTxHash });
 	} catch (error) {
-		if (isMissingTransactionReceipt(error)) return undefined;
+		if (isMissingTransactionReceipt(error)) {
+			if (intentId) await replaceStaleTransaction(intentId);
+			return undefined;
+		}
 		throw error;
 	}
 }
@@ -516,7 +519,7 @@ function parseFlowOriginBurn(
 export async function confirmCctpOrigin(
 	flowId: string,
 	intentId: string | null,
-): Promise<"waiting" | "held" | "cancelled" | "attestation" | "settled" | "failed" | "superseded"> {
+): Promise<"queued" | "waiting" | "held" | "cancelled" | "attestation" | "settled" | "failed" | "superseded"> {
 	"use step";
 	const flow = await loadCctpFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
@@ -524,10 +527,8 @@ export async function confirmCctpOrigin(
 	if (flow.status === "settled" || flow.status === "failed") return flow.status;
 	if (flow.cctpMessage) return "attestation";
 	const receipt = await readCctpOriginReceipt(flow, intentId);
-	if (!receipt) {
-		if (intentId) await replaceStaleTransaction(intentId);
-		return "waiting";
-	}
+	if (receipt === "queued") return "queued";
+	if (!receipt) return "waiting";
 	if (receipt.status !== "success") {
 		if (intentId) {
 			return markCctpOriginReverted(flowId, intentId, receipt as unknown as Record<string, unknown>);
@@ -880,7 +881,7 @@ export async function simulateCctpClaim(flowId: string): Promise<"ready" | "uncl
 	try {
 		const rpc = await verifiedChainClient(HUB_CHAIN);
 		await rpc.simulateContract({
-			address: HUB_CHAIN.helperAddress! as Address,
+			address: HUB_CHAIN.gatewayAddress! as Address,
 			abi: HELPER_ABI,
 			functionName: "completeCCTP",
 			args: [flow.cctpMessage, flow.cctpAttestation],
@@ -916,7 +917,7 @@ export async function prepareCctpClaim(flowId: string): Promise<string> {
 		flowId,
 		kind: "claim",
 		chain: HUB_CHAIN,
-		to: HUB_CHAIN.helperAddress! as Address,
+		to: HUB_CHAIN.gatewayAddress! as Address,
 		callData: encodeCompleteCctp(flow.cctpMessage, flow.cctpAttestation),
 	});
 }
@@ -924,17 +925,15 @@ export async function prepareCctpClaim(flowId: string): Promise<string> {
 export async function confirmCctpClaim(
 	flowId: string,
 	intentId: string,
-): Promise<"waiting" | "unclaimed" | "settled" | "cancelled" | "failed"> {
+): Promise<"queued" | "waiting" | "unclaimed" | "settled" | "cancelled" | "failed"> {
 	"use step";
 	const flow = await loadCctpFlow(flowId);
 	if (!flow) throw new Error("The flow does not exist.");
 	if (flow.status === "cancelled") return "cancelled";
 	if (flow.status === "settled" && flow.claimIntentStatus === "confirmed") return "settled";
-	const receipt = await readTransactionReceipt(intentId);
-	if (!receipt) {
-		await replaceStaleTransaction(intentId);
-		return "waiting";
-	}
+	const receipt = await pollTransactionReceipt(intentId);
+	if (receipt === "queued") return "queued";
+	if (!receipt) return "waiting";
 	if (!flow.cctpNonce || !flow.amountProcessed) throw new Error("The CCTP claim evidence is missing.");
 	const settlement = receipt.status === "success"
 		? parseClaimReceipt(receiptLogs(receipt.logs), {
@@ -947,7 +946,7 @@ export async function confirmCctpClaim(
 		})
 		: undefined;
 	const expiryAfter = receipt.status === "success"
-		? parseEnsRenewalExpiry(receiptLogs(receipt.logs), { label: flow.label })
+		? await readReceiptEnsExpiry(receiptLogs(receipt.logs), flow.label, receipt.blockNumber)
 		: undefined;
 	const now = new Date();
 	const outcome = await database().transaction(async (tx) => {

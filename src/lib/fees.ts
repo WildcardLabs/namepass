@@ -25,10 +25,10 @@ import { HUB_CHAIN } from "./chains";
 export const GAS_ALLOWANCE = 100000n;
 
 /**
- * The renewal helper on Sepolia — `docs/DEPLOYMENTS.md`. Not deterministic,
+ * The renewal gateway on Sepolia — `docs/DEPLOYMENTS.md`. Not deterministic,
  * so unlike the factory there is nothing to derive; it has to be pinned.
  */
-export const NAMEPASS_HELPER = HUB_CHAIN.helperAddress!;
+export const NAMEPASS_GATEWAY = HUB_CHAIN.gatewayAddress!;
 
 /**
  * Check the allowance above against the deployed contract.
@@ -37,24 +37,24 @@ export const NAMEPASS_HELPER = HUB_CHAIN.helperAddress!;
  * rates, and the distinction is worth stating. The rates are **ENS's**, they
  * are mutable by ENS governance, and a stale copy silently mis-quotes someone
  * else's price — so the app refuses to hold one. The allowance is
- * **Namepass's own**, and it is `uint256 public constant` in the helper's
+ * **Namepass's own**, and it is `uint256 public constant` in the gateway's
  * bytecode: it cannot change without a redeployment, which is a fact about
  * which contract we point at rather than a value that drifts underneath us.
  *
  * A constant that can't drift still doesn't need to be taken on faith, though,
  * which is what this is for. Verified at boot alongside the oracle read; a
- * mismatch means the app is quoting send amounts against a helper that will
+ * mismatch means the app is quoting send amounts against a gateway that will
  * take a different cut, so it stops rather than being a dime wrong on every
  * figure it shows.
  */
 export async function assertGasAllowance(): Promise<void> {
 	const [raw] = await ethCallBatch([
-		{ to: NAMEPASS_HELPER, signature: "GAS_ALLOWANCE()" },
+		{ to: NAMEPASS_GATEWAY, signature: "GAS_ALLOWANCE()" },
 	]);
 	const onChain = decodeUint(raw);
 	if (onChain !== GAS_ALLOWANCE) {
 		throw new Error(
-			`The renewal helper takes ${onChain} in gas allowance, not ${GAS_ALLOWANCE}.`,
+			`The renewal gateway takes ${onChain} in gas allowance, not ${GAS_ALLOWANCE}.`,
 		);
 	}
 }

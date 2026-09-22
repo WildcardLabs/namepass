@@ -21,6 +21,14 @@ Permissionless ENS renewal from deterministic USDC deposit wallets.
 > Namepass is testnet-only and has not had an external contract audit. There is no mainnet
 > deployment. Do not send mainnet funds to the testnet addresses in this repository.
 
+**Contract overhaul deployed to testnet:** the replacement uses a fixed L1 gateway, a helper
+pointer, and immutable ENS helpers. The test pointer uses a wallet-controlled timelock; mainnet
+requires ENS governance. Runtime and initialization checks passed. All eight direct/CCTP canaries and the in-flight helper replacement rehearsal passed.
+The app and the deployment descriptions
+below still refer to the previous testnet set. See [the contract implementation](docs/CONTRACTS_V2.md)
+and [the clean testnet reset](docs/TESTNET_RESET.md). Current application data and addresses will be
+cleared at cutover; they will not be migrated.
+
 <img src=".github/assets/hero.png" width="100%" alt="Namepass payment interface" />
 
 Namepass gives each normalized `.eth` label one deterministic deposit wallet. The wallet has the
@@ -193,6 +201,13 @@ forge test
 The full frontend, server, workflow, chain-registry, and contract verification commands are in
 [CLAUDE.md](CLAUDE.md#commands).
 
+## Platform monitoring
+
+Approved developers can open `/monitoring` and sign in with GitHub. The shadcn dashboard shows
+canonical usage totals, renewal charts, per-chain delivery times, the flow review queue, recovery
+backlog, and manual relayer gas checks. It marks stale or unavailable data explicitly. Provider
+alerts remain external. See [the metric definitions and monitoring plan](docs/MONITORING.md).
+
 ## Documentation
 
 | Document | Scope |
@@ -203,6 +218,16 @@ The full frontend, server, workflow, chain-registry, and contract verification c
 | [docs/RUNBOOK.md](docs/RUNBOOK.md) | Service deployment, recovery, and monitoring |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Dated architecture and product decisions |
 
+## Temporary deployment console
+
+The temporary [testnet deployment console](tools/deployment-console/README.md) guides
+the contract overhaul through Rainbow. Run `npm run deploy:ui` to start it locally.
+It is separate from the public application and does not execute the data reset.
+
 ## License
 
 No license file is present. All rights are reserved by default.
+
+The local application migration now routes through the new gateway and discovers ENS helpers
+through the pointer. It has not been deployed to the hosted services. The data reset and resolver
+deployment remain pending. See [system cutover status](docs/SYSTEM_CUTOVER_STATUS.md).

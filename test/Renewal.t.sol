@@ -4,13 +4,12 @@ pragma solidity 0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+import {NamepassL1Gateway} from "../contracts/NamepassL1Gateway.sol";
+import {RenewalHelperPointer} from "../contracts/RenewalHelperPointer.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {ENSV2RenewalHelper} from "../contracts/ENSV2RenewalHelper.sol";
 
-import {
-    StandardRentPriceOracle,
-    DiscountPoint,
-    PaymentRatio
-} from "./ens/registrar/StandardRentPriceOracle.sol";
+import {StandardRentPriceOracle, DiscountPoint, PaymentRatio} from "./ens/registrar/StandardRentPriceOracle.sol";
 import {IRentPriceOracle} from "./ens/registrar/interfaces/IRentPriceOracle.sol";
 
 import {MockUSDC, MockRenewer, MockFactory, MockMessageTransmitter, Dummy} from "./mocks/Mocks.sol";
@@ -20,7 +19,9 @@ import {MockUSDC, MockRenewer, MockFactory, MockMessageTransmitter, Dummy} from 
  * and the assertions that make a mis-buy impossible.
  */
 contract RenewalTest is Test {
-    ENSV2RenewalHelper internal helper;
+    NamepassL1Gateway internal helper;
+    ENSV2RenewalHelper internal adapter;
+    RenewalHelperPointer internal pointer;
     StandardRentPriceOracle internal oracle;
     MockRenewer internal ethRegistrar;
     MockRenewer internal ethRenewerV1;
@@ -35,6 +36,8 @@ contract RenewalTest is Test {
     string constant LABEL = "vitalik";
 
     function setUp() public {
+        vm.chainId(11155111);
+        vm.etch(GOVERNANCE, hex"00");
         usdc = new MockUSDC();
         oracle = _deployOracle();
 
@@ -48,16 +51,20 @@ contract RenewalTest is Test {
         factory = new MockFactory();
         factory.setWallet(LABEL, WALLET);
 
-        helper = new ENSV2RenewalHelper(
+        pointer = new RenewalHelperPointer(address(factory), address(usdc), GOVERNANCE);
+        helper = new NamepassL1Gateway(
             address(factory),
             address(usdc),
             address(new MockMessageTransmitter(usdc)),
             address(new Dummy()),
-            address(ethRegistrar),
-            address(ethRenewerV1),
-            GOVERNANCE,
-            REFERRER
+            address(pointer),
+            address(0xD57)
         );
+        adapter = new ENSV2RenewalHelper(
+            address(helper), address(factory), address(usdc), address(ethRegistrar), address(ethRenewerV1), REFERRER
+        );
+        vm.prank(GOVERNANCE);
+        pointer.setHelper(address(adapter));
     }
 
     function _deployOracle() internal returns (StandardRentPriceOracle) {
@@ -74,9 +81,7 @@ contract RenewalTest is Test {
         PaymentRatio[] memory ratios = new PaymentRatio[](1);
         ratios[0] = PaymentRatio({paymentToken: IERC20(address(usdc)), numer: 1, denom: 1e6});
 
-        return new StandardRentPriceOracle(
-            address(this), rates, points, 1e38, 0, 1, 1, ratios
-        );
+        return new StandardRentPriceOracle(address(this), rates, points, 1e38, 0, 1, 1, ratios);
     }
 
     /// @dev Fund the wallet and approve the helper, as the factory does.
@@ -97,11 +102,7 @@ contract RenewalTest is Test {
         vm.prank(WALLET);
         helper.renewFromWallet(LABEL, 27_110_000, EXECUTOR);
 
-        assertEq(
-            usdc.balanceOf(EXECUTOR),
-            helper.GAS_ALLOWANCE(),
-            "executor was not paid the allowance"
-        );
+        assertEq(usdc.balanceOf(EXECUTOR), helper.GAS_ALLOWANCE(), "executor was not paid the allowance");
     }
 
     /**
@@ -120,11 +121,7 @@ contract RenewalTest is Test {
         vm.prank(WALLET);
         helper.renewFromWallet(LABEL, sent, EXECUTOR);
 
-        assertEq(
-            ethRegistrar.lastDuration(),
-            expected,
-            "duration was not solved from the post-allowance amount"
-        );
+        assertEq(ethRegistrar.lastDuration(), expected, "duration was not solved from the post-allowance amount");
     }
 
     function test_rejectsPaymentAtOrBelowTheAllowance() public {
@@ -137,7 +134,7 @@ contract RenewalTest is Test {
         _fundWallet(allowance);
 
         vm.prank(WALLET);
-        vm.expectRevert(ENSV2RenewalHelper.InsufficientAmount.selector);
+        vm.expectRevert(NamepassL1Gateway.InsufficientAmount.selector);
         helper.renewFromWallet(LABEL, allowance, EXECUTOR);
     }
 
@@ -183,62 +180,77 @@ contract RenewalTest is Test {
         helper.renewFromWallet(LABEL, 27_110_000, EXECUTOR);
 
         assertEq(
-            usdc.allowance(address(helper), address(ethRegistrar)),
-            0,
-            "a standing allowance survived the renewal"
+            usdc.allowance(address(adapter), address(ethRegistrar)), 0, "a standing allowance survived the renewal"
         );
+        assertEq(usdc.allowance(address(helper), address(adapter)), 0);
+        assertEq(usdc.balanceOf(address(adapter)), 0);
     }
 
-    function test_ownerMaySetReferrer() public {
-        bytes32 updated = bytes32(uint256(0xFEED));
+    function test_onlyGatewayMayExecuteAdapter() public {
+        vm.expectRevert(ENSV2RenewalHelper.NotGateway.selector);
+        adapter.execute(LABEL, 8_000_000);
+    }
 
-        helper.setReferrer(updated);
-        assertEq(helper.referrer(), updated, "referrer did not update");
-
+    function test_donationsAreNotEarnedResidue() public {
+        factory.setWallet("abc", WALLET);
+        usdc.mint(address(helper), 5_000_000);
+        usdc.mint(address(adapter), 7_000_000);
         _fundWallet(27_110_000);
         vm.prank(WALLET);
-        helper.renewFromWallet(LABEL, 27_110_000, EXECUTOR);
-
-        assertEq(ethRegistrar.lastReferrer(), updated, "the new referrer was not used");
-    }
-
-    function test_onlyOwnerMaySetReferrer() public {
+        helper.renewFromWallet("abc", 27_110_000, EXECUTOR);
+        assertEq(usdc.balanceOf(address(adapter)), 7_000_000);
+        uint256 earned = helper.earnedResidue();
+        assertEq(usdc.balanceOf(address(helper)), 5_000_000 + earned);
+        assertGt(earned, 0);
         vm.prank(address(0xBAD));
-        vm.expectRevert(ENSV2RenewalHelper.NotOwner.selector);
-        helper.setReferrer(bytes32(uint256(0xFEED)));
+        helper.withdrawDust();
+        assertEq(usdc.balanceOf(address(0xD57)), earned);
+        assertEq(usdc.balanceOf(address(helper)), 5_000_000);
+        vm.expectRevert(NamepassL1Gateway.InsufficientAmount.selector);
+        helper.withdrawDust();
     }
 
-    /// @dev Zero is a legitimate value: unattributed.
-    function test_referrerMayBeCleared() public {
-        helper.setReferrer(bytes32(0));
-        assertEq(helper.referrer(), bytes32(0), "referrer could not be cleared");
+    function test_failedRenewalLeavesWalletFundsAndAllowancesUnchanged() public {
+        ethRegistrar.setRenewable(false);
+        ethRenewerV1.setRenewable(false);
+        _fundWallet(27_110_000);
+        vm.prank(WALLET);
+        vm.expectRevert(ENSV2RenewalHelper.NameNotRenewable.selector);
+        helper.renewFromWallet(LABEL, 27_110_000, EXECUTOR);
+        assertEq(usdc.balanceOf(WALLET), 27_110_000);
+        assertEq(usdc.balanceOf(EXECUTOR), 0);
+        assertEq(usdc.allowance(address(helper), address(adapter)), 0);
+        assertEq(helper.earnedResidue(), 0);
     }
 
-    /**
-     * @dev Attribution only. Changing it must not move a single unit
-     * of anyone's money — that is what makes an owner setter here
-     * different from one on `GAS_ALLOWANCE`.
-     */
-    function test_referrerDoesNotAffectPricing() public {
+    function test_rejectsFalseSettlementAndExcessSpend() public {
+        for (uint256 mode; mode < 3; ++mode) {
+            AdversarialAdapter bad = new AdversarialAdapter(helper, usdc, address(factory), mode);
+            vm.prank(GOVERNANCE);
+            pointer.setHelper(address(bad));
+            usdc.mint(address(helper), 99_000_000);
+            _fundWallet(27_110_000);
+            uint256 beforeWallet = usdc.balanceOf(WALLET);
+            vm.prank(WALLET);
+            vm.expectRevert();
+            helper.renewFromWallet(LABEL, 27_110_000, EXECUTOR);
+            assertEq(usdc.balanceOf(WALLET), beforeWallet);
+            assertEq(usdc.allowance(address(helper), address(bad)), 0);
+            assertEq(usdc.balanceOf(EXECUTOR), 0);
+            assertEq(usdc.balanceOf(address(bad)), 0);
+        }
+    }
+
+    function test_rejectsReentrantHelperAndRollsBack() public {
+        AdversarialAdapter bad = new AdversarialAdapter(helper, usdc, address(factory), 3);
+        vm.prank(GOVERNANCE);
+        pointer.setHelper(address(bad));
         _fundWallet(27_110_000);
         vm.prank(WALLET);
+        vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
         helper.renewFromWallet(LABEL, 27_110_000, EXECUTOR);
-
-        uint256 chargedBefore = usdc.balanceOf(ethRegistrar.beneficiary());
-        uint64 durationBefore = ethRegistrar.lastDuration();
-
-        helper.setReferrer(bytes32(uint256(0xFEED)));
-
-        _fundWallet(27_110_000);
-        vm.prank(WALLET);
-        helper.renewFromWallet(LABEL, 27_110_000, EXECUTOR);
-
-        assertEq(
-            usdc.balanceOf(ethRegistrar.beneficiary()) - chargedBefore,
-            chargedBefore,
-            "changing the referrer changed what ENS charged"
-        );
-        assertEq(ethRegistrar.lastDuration(), durationBefore, "duration changed");
+        assertEq(usdc.balanceOf(WALLET), 27_110_000);
+        assertEq(usdc.allowance(address(helper), address(bad)), 0);
     }
 
     function test_referrerIsPassedThrough() public {
@@ -247,7 +259,7 @@ contract RenewalTest is Test {
         vm.prank(WALLET);
         helper.renewFromWallet(LABEL, 27_110_000, EXECUTOR);
 
-        assertEq(ethRegistrar.lastReferrer(), helper.referrer(), "referrer was not forwarded");
+        assertEq(ethRegistrar.lastReferrer(), adapter.referrer(), "referrer was not forwarded");
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -319,8 +331,11 @@ contract RenewalTest is Test {
 
     /// @dev A retired `ETHRenewerV1` (address zero) must not be called.
     function test_toleratesRetiredRenewerV1() public {
+        adapter = new ENSV2RenewalHelper(
+            address(helper), address(factory), address(usdc), address(ethRegistrar), address(0), REFERRER
+        );
         vm.prank(GOVERNANCE);
-        helper.setRenewers(address(ethRegistrar), address(0));
+        pointer.setHelper(address(adapter));
 
         _fundWallet(27_110_000);
 
@@ -338,65 +353,32 @@ contract RenewalTest is Test {
         _fundWallet(27_110_000);
 
         vm.prank(address(0xBAD));
-        vm.expectRevert(ENSV2RenewalHelper.InvalidWallet.selector);
+        vm.expectRevert(NamepassL1Gateway.InvalidWallet.selector);
         helper.renewFromWallet(LABEL, 27_110_000, EXECUTOR);
     }
+}
 
-    function test_onlyGovernanceMaySetRenewers() public {
-        vm.prank(address(0xBAD));
-        vm.expectRevert(ENSV2RenewalHelper.NotGovernance.selector);
-        helper.setRenewers(address(ethRegistrar), address(0));
+/// @dev Governance can select arbitrary code. Test the gateway's remaining accounting limits.
+contract AdversarialAdapter {
+    uint256 public constant interfaceVersion = 1;
+    NamepassL1Gateway public immutable gateway;
+    address public immutable factory;
+    address public immutable paymentToken;
+    MockUSDC private immutable usdc;
+    uint256 private immutable mode;
+
+    constructor(NamepassL1Gateway gateway_, MockUSDC usdc_, address factory_, uint256 mode_) {
+        gateway = gateway_;
+        usdc = usdc_;
+        paymentToken = address(usdc_);
+        factory = factory_;
+        mode = mode_;
     }
 
-    /// @dev The Namepass owner has no say over ENS's contracts.
-    function test_ownerMayNotSetRenewers() public {
-        vm.expectRevert(ENSV2RenewalHelper.NotGovernance.selector);
-        helper.setRenewers(address(ethRegistrar), address(0));
-    }
-
-    function test_governanceMayHandOverToASuccessor() public {
-        address successor = address(0x5CC);
-
-        vm.prank(GOVERNANCE);
-        helper.setGovernanceExecutor(successor);
-
-        assertEq(helper.ensGovernanceExecutor(), successor, "handover did not take");
-
-        vm.prank(GOVERNANCE);
-        vm.expectRevert(ENSV2RenewalHelper.NotGovernance.selector);
-        helper.setRenewers(address(ethRegistrar), address(0));
-
-        vm.prank(successor);
-        helper.setRenewers(address(ethRegistrar), address(0));
-    }
-
-    function test_onlyGovernanceMayHandOver() public {
-        vm.prank(address(0xBAD));
-        vm.expectRevert(ENSV2RenewalHelper.NotGovernance.selector);
-        helper.setGovernanceExecutor(address(0x5CC));
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                               DUST
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-     * @dev Withdrawal, independent of how the residue got there —
-     * whether a given payment leaves any is the accounting tests'
-     * business, not this one's.
-     */
-    function test_ownerMayWithdrawDust() public {
-        usdc.mint(address(helper), 42);
-
-        helper.withdrawDust(address(0xD57), 42);
-
-        assertEq(usdc.balanceOf(address(0xD57)), 42, "dust was not withdrawn");
-        assertEq(usdc.balanceOf(address(helper)), 0, "helper still holds residue");
-    }
-
-    function test_onlyOwnerMayWithdrawDust() public {
-        vm.prank(address(0xBAD));
-        vm.expectRevert(ENSV2RenewalHelper.NotOwner.selector);
-        helper.withdrawDust(address(0xBAD), 1);
+    function execute(string calldata, uint256 budget) external returns (uint64, uint256) {
+        if (mode == 3) gateway.withdrawDust();
+        if (mode == 2) require(usdc.transferFrom(msg.sender, address(this), budget + 1));
+        if (mode == 1) require(usdc.transferFrom(msg.sender, address(this), budget));
+        return (1, mode == 0 ? budget + 1 : 1);
     }
 }

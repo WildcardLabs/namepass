@@ -272,6 +272,16 @@ library MinimalProxy {
  * UI is responsible for saying so plainly.
  */
 contract NamepassFactory {
+    error UnsupportedNativeDeposit();
+
+    /// @notice Accept native USDC through deposit wallets on Arc testnet.
+    /// @dev No token movement or execution is authorized by this entrypoint.
+    receive() external payable {
+        if (address(this) == SELF || block.chainid != 5042002 || HUB_CHAIN_ID != 11155111) {
+            revert UnsupportedNativeDeposit();
+        }
+    }
+
     /*//////////////////////////////////////////////////////////////
                               CONSTANTS
     //////////////////////////////////////////////////////////////*/
@@ -1281,7 +1291,7 @@ contract NamepassFactory {
             address messenger,
             address helper,
             uint32 minFinalityThreshold
-        ) = NamepassFactory(SELF).walletParams();
+        ) = NamepassFactory(payable(SELF)).walletParams();
 
         if (
             block.chainid ==

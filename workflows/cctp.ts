@@ -126,7 +126,7 @@ export function validateCctpMessage(
 	if (!origin || origin.key === "ethereum" || !origin.tokenMessengerAddress) {
 		fail("origin chain");
 	}
-	if (!HUB_CHAIN.tokenMessengerAddress || !HUB_CHAIN.helperAddress) {
+	if (!HUB_CHAIN.tokenMessengerAddress || !HUB_CHAIN.gatewayAddress) {
 		fail("destination configuration");
 	}
 	const message = parseCctpMessage(raw);
@@ -135,7 +135,7 @@ export function validateCctpMessage(
 	if (message.destinationDomain !== HUB_CHAIN.circleDomain) fail("destination domain");
 	if (!sameAddress(message.sender, origin.tokenMessengerAddress)) fail("sender");
 	if (!sameAddress(message.recipient, HUB_CHAIN.tokenMessengerAddress)) fail("recipient");
-	if (!sameAddress(message.destinationCaller, HUB_CHAIN.helperAddress)) fail("destination caller");
+	if (!sameAddress(message.destinationCaller, HUB_CHAIN.gatewayAddress)) fail("destination caller");
 	if (
 		message.minFinalityThreshold !== origin.circleFinalityThreshold ||
 		(requireFinalMessage && message.finalityThresholdExecuted < message.minFinalityThreshold)
@@ -144,7 +144,7 @@ export function validateCctpMessage(
 	}
 	if (requireFinalMessage && message.nonce.toLowerCase() === ZERO_NONCE) fail("nonce placeholder");
 	if (!sameAddress(message.burnToken, origin.usdcAddress)) fail("burn token");
-	if (!sameAddress(message.mintRecipient, HUB_CHAIN.helperAddress)) fail("mint recipient");
+	if (!sameAddress(message.mintRecipient, HUB_CHAIN.gatewayAddress)) fail("mint recipient");
 	if (!sameAddress(message.messageSender, expected.wallet)) fail("wallet");
 	if (message.label !== expected.label) fail("label");
 	if (expected.amount !== undefined && message.amount !== expected.amount) fail("amount");
@@ -241,8 +241,8 @@ export function parseClaimReceipt(
 	logs: readonly ReceiptLog[],
 	expected: ExpectedCctpRoute & { labelHash: Hex },
 ): ClaimSettlement {
-	if (!HUB_CHAIN.helperAddress) fail("helper configuration");
-	const events = decodedLogs(logs, HUB_CHAIN.helperAddress, claimAbi);
+	if (!HUB_CHAIN.gatewayAddress) fail("helper configuration");
+	const events = decodedLogs(logs, HUB_CHAIN.gatewayAddress, claimAbi);
 	const claimed = events.filter((event) => event.eventName === "CCTPClaimed");
 	const renewed = events.filter((event) => event.eventName === "Renewed");
 	if (claimed.length !== 1 || renewed.length !== 1) fail("claim event count");

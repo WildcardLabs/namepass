@@ -282,17 +282,64 @@ transaction remains pending after repeated automatic replacements:
    integrity incident. Keep the service paused until the transaction and key use are explained.
 7. Confirm the receipt and expected contract events, then restore recovery and funding.
 
+### Platform monitoring page
+
+Use `/monitoring` for the read-only usage and flow dashboard. Use its manual gas check to inspect
+current balances. This does not replace external balance alerts. Review
+[metric definitions and coverage](MONITORING.md) before interpreting a review flag or a missing
+provider signal. This feature needs the existing database and RPC configuration, with no migration.
+
 ### Dashboards and alerts
 
 Configure provider alerts before stable-testnet use:
 
 - Vercel: Function `5xx` rate, cron failures, and Workflow failures.
+- Vercel: any structured warning with `event = goldsky.rejected_payload`.
 - Goldsky: pipeline failure, source lag, and webhook backpressure.
 - Neon: connection saturation, query latency, storage, and restore availability.
 - Relayer: an external native-balance alert for the exclusive address on every active chain.
 
 Provider dashboards and alert delivery remain external runtime gates. An alert without a tested
 notification destination is not monitoring.
+
+### Rejected Goldsky payload
+
+An authenticated payload that fails validation returns `200`. This keeps later rows moving. The
+Vercel warning contains the event ID when safe, chain ID, source block, validation error, receipt
+time, and SHA-256 payload hash. It does not contain the raw payload or authorization header.
+
+Before deployment, configure and test delivery of this warning to the on-call operator. Retain
+these structured warning fields for at least 30 days in the approved operational log destination.
+Limit access to operators and project administrators. Expire the warning evidence after 30 days
+unless an active incident requires longer retention. Do not export request bodies, authorization
+headers, or environment variables. Record the tested destination and retention setting in the
+release evidence. Until delivery and retention are verified, issue #71 remains open.
+
+`payloadHash` is SHA-256 of the exact request bytes. `payloadHashScope = complete_body` identifies
+a complete request. Oversized bodies are cancelled after the 8 KiB limit; their scope is
+`first_8192_bytes`, and the hash covers that prefix only. These authenticated rows are acknowledged
+and skipped, with no database write. Malformed JSON and unknown fields use the same rejection
+path. Unauthorized requests still return 401 before their body is read. A transport failure while
+reading the body remains retryable and is not acknowledged as a rejected payload.
+
+When the alert fires:
+
+1. Save the warning fields and inspect the Goldsky row at that receipt time. Confirm the chain,
+   block, event ID, and payload hash (using its recorded scope). Do not paste the raw payload or secrets into an issue.
+2. Fix and deploy the parser or pipeline mismatch. Test the rejected event shape locally.
+3. Copy the affected source, transform, and webhook sink to a temporary backfill pipeline. Use the
+   same pinned dataset version. Set `start_at: earliest`, set `end_block` to the rejected block, and
+   add a source filter that starts and ends at that block. Keep the existing address filters.
+4. On Starter, pause `namepass-testnet`, validate and apply the temporary pipeline, and wait until
+   that bounded row reaches the stable webhook. Do not run two pipelines at the same time.
+5. Confirm the expected canonical `chain_events` row and domain state in Neon. Duplicate delivery
+   is safe because the event ID and on-chain position are unique.
+6. Delete the temporary pipeline and resume `namepass-testnet`. Confirm that source lag returns to
+   normal and that no new rejection warning appears.
+
+Do not use `restart --clear-state` for this repair. Deposit sources use `start_at: latest`, so a
+checkpoint reset does not reliably replay an old deposit. Do not insert a `chain_events` row by
+hand.
 
 ### Recovery drills
 
@@ -338,6 +385,7 @@ npm run build
 npm run check:server
 npm run test:frontend
 npm run test:server
+npm run test:transactions
 npm run test:workflow
 node scripts/check-chains.mjs
 node goldsky/generate-testnet.mjs --check

@@ -11,20 +11,8 @@ export class PublicApiError extends Error {
 	}
 }
 
-export type FlowStatus =
-	| "queued"
-	| "confirming_deposit"
-	| "checking_name"
-	| "submitting_origin"
-	| "waiting_origin"
-	| "waiting_attestation"
-	| "submitting_claim"
-	| "waiting_claim"
-	| "held"
-	| "unclaimed"
-	| "settled"
-	| "cancelled"
-	| "failed";
+import type { FlowStatus } from "./flowTypes";
+export type { FlowStatus } from "./flowTypes";
 
 export interface PublicName {
 	label: string;
@@ -148,6 +136,7 @@ type ApiErrorBody = { error?: { message?: unknown } };
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
 	const response = await fetch(`${API_BASE}${path}`, {
 		...init,
+		cache: "no-store",
 		headers: { accept: "application/json", ...init?.headers },
 	});
 	const body = (await response.json().catch(() => null)) as T | ApiErrorBody | null;
@@ -221,4 +210,17 @@ export function safeInteger(value: string): number | undefined {
 	if (!/^\d+$/.test(value)) return undefined;
 	const integer = BigInt(value);
 	return integer <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(integer) : undefined;
+}
+
+export async function fetchMonitoring(days: number, signal?: AbortSignal, filters: { page: number; chain: string; search: string; status: string } = {page: 1, chain: "all", search: "", status: "all"}): Promise<import("./monitoring").MonitorRead> {
+ const params = new URLSearchParams({days: String(days), page: String(filters.page), search: filters.search, status: filters.status});
+ if (filters.chain !== "all") params.set("chain", filters.chain);
+ const response = await fetch(`${API_BASE}/api/monitoring?${params}`, { signal });
+ if (!response.ok) throw new PublicApiError(response.status, "Monitoring data could not be loaded.");
+ return response.json();
+}
+export async function fetchMonitoringGas(): Promise<import("./monitoring").GasRead> {
+ const response = await fetch(`${API_BASE}/api/monitoring/gas`);
+ if (!response.ok) throw new PublicApiError(response.status, "Relayer balances could not be loaded.");
+ return response.json();
 }

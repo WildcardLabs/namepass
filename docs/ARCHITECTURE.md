@@ -1,5 +1,13 @@
 # Architecture — contracts (built) and production system (partly deployed to stable testnet)
 
+**2026-09-18 contract update:** replacement contracts are deployed and initialized on testnet.
+Independent runtime and receipt checks passed. All eight direct/CCTP canaries passed on
+2026-09-19. The in-flight helper replacement rehearsal also passed and helper A is restored.
+Service cutover remains pending. Their
+boundary and tests are in [CONTRACTS_V2.md](CONTRACTS_V2.md). The contract descriptions below
+describe the previous deployment. The replacement will use a clean testnet reset, with no legacy
+data migration. See [TESTNET_RESET.md](TESTNET_RESET.md).
+
 **This file covers two parts at two different stages. Check which part you are reading.**
 
 - **Contracts: built.** The sections from here to the end of "CCTP at contract level" describe
@@ -698,12 +706,21 @@ This is intentional:
 
 - Goldsky already checkpoints the source and retries the webhook indefinitely for network errors,
   timeouts, `408`, `429`, and `5xx` responses.
-- The Vercel endpoint upserts the event into Neon before it returns `2xx`.
+- For a valid event, the Vercel endpoint upserts the event into Neon before it returns `2xx`.
 - A second sink would create two writers, a delivery-order race, and a second schema to operate.
 - Neon is already the queryable application index.
 
 The webhook has at-least-once delivery. The receiver must expect duplicates. It also must expect a
 reorg delete after a create.
+
+An authenticated row that fails strict payload validation is the exception. The receiver returns
+`200` so the row does not stop later pipeline rows. It emits `goldsky.rejected_payload` as a
+structured warning with the safe event ID, chain, block, validation error, receipt time, and a
+SHA-256 hash of the exact request bytes. Authenticated malformed JSON and unknown fields use this
+same path. Bodies over 8 KiB are cancelled and their hash is marked as a prefix hash. It does not log the raw payload. A Vercel alert routes this warning to an
+operator. After the parser or pipeline is fixed, the operator replays the affected chain and block
+with a temporary, bounded Goldsky pipeline. Event IDs and database constraints make this replay
+idempotent. Namepass does not add a second event ledger or a dead-letter table.
 
 Each `DepositProcessed` event ID identifies one origin execution. The transaction hash is evidence,
 not identity, because one transaction can contain several calls. A known Namepass transaction
@@ -787,6 +804,10 @@ It performs this sequence:
 10. Commit.
 11. Start or resume the Vercel Workflow when a queued flow exists.
 12. Return `2xx` only after the durable database write and workflow-start attempt succeed.
+
+If step 3 or 4 rejects an authenticated payload, emit the safe rejection evidence described above
+and return `200` without writing the invalid row. This explicit poison-row path is the only
+exception to step 12.
 
 A duplicate create changes no money totals and starts no second flow. A duplicate delete changes no
 additional state. Flow identity uses the exact origin event and Circle nonce. It does not use the
@@ -1062,6 +1083,20 @@ polling. If it reports “nonce too low,” check every current-nonce attempt be
 that an unknown transaction consumed the nonce. If a transaction is rejected or stuck, sign a
 higher-fee replacement with the same nonce and relayer. Link it to the same intent.
 
+The active workflow also advances a prepared intent when it reaches the queue head. It does not
+need to wait for recovery. A fresh intent with one current-nonce attempt and no recorded broadcast
+attempt checks its queue position in Postgres every five seconds. While an earlier nonce remains
+unresolved, this check makes no chain RPC call. Queue waits do not advance the receipt backoff.
+When the intent reaches the head, the workflow broadcasts its stored bytes before reading its
+receipt. The broadcaster repeats the queue guard. A crash after an unrecorded send can cause the
+same bytes to be sent again.
+
+Prepared replacements, uncertain attempt history, and intents with a recorded broadcast attempt
+still check all current-nonce receipts before replacement. An older attempt can already be mined.
+After broadcast, the existing receipt backoff applies. Recovery remains the fallback for stopped
+workflows and unresolved transactions. A shorter recovery interval does not replace these active
+workflow checks. See `docs/STRESS_TEST_2026-09-10.md` for the measured delay and regression review.
+
 The account must remain exclusive to Namepass. If the confirmed account nonce advances and no
 stored attempt has a receipt, keep the queue blocked and alert the operator. Do not skip the nonce.
 An unknown sender transaction is a key-integrity incident. A temporary RPC receipt gap must not
@@ -1192,7 +1227,7 @@ canonical flag.
 Add a unique constraint on `(chain_id, tx_hash, log_index, event_type)`. A reorg delete updates
 `canonical`.
 
-Keep the raw Goldsky payload for 30 days. Keep the validated `facts`, normalized columns, canonical
+Keep each accepted raw Goldsky payload for 30 days. Keep the validated `facts`, normalized columns, canonical
 state, domain rows, and transaction evidence without a time limit. Public reads use `facts`, never
 the expiring payload. Raw payloads contain public chain data and are useful for incident diagnosis,
 but Goldsky can replay them.
@@ -1698,6 +1733,8 @@ Log structured fields:
 - normalized label hash, not a free-form label where it is not needed
 - chain ID
 - event ID
+- source block number and SHA-256 payload hash for rejected Goldsky rows
+- receipt time for rejected Goldsky rows
 - transaction hash
 - workflow step
 - error code
@@ -1708,6 +1745,7 @@ Do not log private keys, raw authorization headers, database URLs, or signed raw
 Alert on:
 
 - Goldsky pipeline failure or increasing lag
+- any `goldsky.rejected_payload` warning
 - webhook `5xx` rate
 - queued flow without a workflow run
 - flow past its state service-level objective
@@ -2006,3 +2044,10 @@ Settled points:
   operations: an "is the helper empty" check must use a threshold rather than zero, or it alerts
   forever.
 - A balance read fails soft. Show the chains that answered and render the rest as unknown.
+
+## Local gateway-system migration — 2026-09-21
+
+Application transaction routing now uses the fixed gateway. Pointer discovery supplies live helper
+metadata for ENS and pricing reads. The new Goldsky definition indexes the gateway and enriches
+canonical renewals with validated receipt expiry. No hosted cutover or data reset has run.
+`SYSTEM_CUTOVER_STATUS.md` records implementation scope, adapter compatibility limits, and open gates.
