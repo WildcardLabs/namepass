@@ -328,6 +328,12 @@ function StatusCell({ row, reduced }: { row: FeedItem; reduced: boolean }) {
 const MAX_IN_FLIGHT = 6;
 const ACTIVITY_PAGE_SIZE = 10;
 
+function publicApiStatus(cause: unknown): number | undefined {
+	return cause && typeof cause === "object" && "status" in cause
+		? (cause as { status?: number }).status
+		: undefined;
+}
+
 function ActivityPagination({
 	page,
 	totalPages,
@@ -376,7 +382,7 @@ type FeedItem = {
 	| { pending: false; at: number }
 );
 
-function LiveFeed({ onSelect, active }: { onSelect: (n: string) => void; active: boolean }) {
+function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 	const [, tick] = useReducer((n: number) => n + 1, 0);
 	const reduced = useReducedMotion() ?? false;
 	const [feed, setFeed] = useState<ActivityRead | null>(null);
@@ -386,7 +392,6 @@ function LiveFeed({ onSelect, active }: { onSelect: (n: string) => void; active:
 	const tableRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
-		if (!active) return;
 		let loading = false;
 		let stopped = false;
 		let timer = 0;
@@ -435,7 +440,7 @@ function LiveFeed({ onSelect, active }: { onSelect: (n: string) => void; active:
 			window.removeEventListener("focus", focus);
 			document.removeEventListener("visibilitychange", visibility);
 		};
-	}, [pageIndex, active]);
+	}, [pageIndex]);
 
 	const inFlight = activeFlows().slice(0, MAX_IN_FLIGHT);
 	const settled = (feed?.items ?? []).map(({ name, renewal }) => ({
@@ -717,6 +722,7 @@ function NameDetail({
 }) {
 	/* Which renewal has its transaction breakdown open. One at a time. */
 	const [openEvent, setOpenEvent] = useState<string | null>(null);
+	const reducedMotion = useReducedMotion() ?? false;
 	const allEvents = [...record.events].reverse();
 	const renewalEvents = allEvents.filter((event) => event.kind === "renewal");
 	const activationEvent = allEvents.find((event) => event.kind === "activated");
@@ -799,7 +805,11 @@ function NameDetail({
 	).filter((l): l is typeof l & { value: string } => Boolean(l.value));
 
 	return (
-		<div>
+		<motion.div
+			initial={reducedMotion ? false : { opacity: 0, y: 12 }}
+			animate={{ opacity: 1, y: 0 }}
+			transition={{ duration: reducedMotion ? 0 : 0.4, ease: [0.16, 1, 0.3, 1] }}
+		>
 			<button
 				onClick={onBack}
 				className="flex items-center gap-2 text-[13px] text-[rgba(28,58,41,0.55)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
@@ -1206,7 +1216,7 @@ function NameDetail({
 					onPage={onActivityPage}
 				/>
 			</div>
-		</div>
+		</motion.div>
 	);
 }
 
@@ -1287,6 +1297,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 					await getName(label);
 					ensFreshLabel.current = label;
 				}
+				if (stopped) return;
 				const activity = await getNameActivity(selected, namePageIndex + 1, ACTIVITY_PAGE_SIZE);
 				if (!stopped) {
 					syncName(activity);
@@ -1296,7 +1307,13 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 					refresh();
 				}
 			} catch (cause) {
-				if (!stopped) setRequestError(cause instanceof Error ? cause.message : "Could not load this name.");
+				if (!stopped && publicApiStatus(cause) === 404) {
+					setNotFound(`${normalizeLabel(selected)}.eth`);
+					setRequestError(null);
+					onSelect(null);
+				} else if (!stopped) {
+					setRequestError(cause instanceof Error ? cause.message : "Could not load this name.");
+				}
 				failures += 1;
 			}
 			finally {
@@ -1324,7 +1341,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 			window.removeEventListener("focus", focus);
 			document.removeEventListener("visibilitychange", visibility);
 		};
-	}, [selected, reloadVersion, configVersion, namePageIndex]);
+	}, [selected, reloadVersion, configVersion, namePageIndex, onSelect]);
 
 	const suggestions = useMemo(() => {
 		const q = query.trim().toLowerCase();
@@ -1334,7 +1351,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 			.slice(0, 6);
 	}, [query]);
 
-	async function submit(raw = query) {
+	function submit(raw = query) {
 		const value = raw.trim();
 		if (!value) return;
 		if (labelProblem(value)) {
@@ -1343,25 +1360,15 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 		}
 		try {
 			const label = normalizeLabel(value);
-			if (findName(label)) {
-				onSelect(`${label}.eth`);
-				setQuery("");
-				setNotFound(null);
-				setRequestError(null);
-				return;
-			}
-			await getName(label);
-			ensFreshLabel.current = label;
+			/* Switch to the selected-name loading state before any request. The detail
+			   effect checks whether Namepass monitors this label and then loads its
+			   activity. */
 			onSelect(`${label}.eth`);
 			setQuery("");
 			setNotFound(null);
 			setRequestError(null);
 		} catch (cause) {
-			const status = cause && typeof cause === "object" && "status" in cause
-				? (cause as { status?: number }).status
-				: undefined;
-			if (status === 404) setNotFound(`${normalizeLabel(value)}.eth`);
-			else setRequestError(cause instanceof Error ? cause.message : "Search failed.");
+			setRequestError(cause instanceof Error ? cause.message : "Search failed.");
 		}
 	}
 
@@ -1531,10 +1538,9 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 							<h3 className="mt-6 text-[32px] md:text-[44px] tracking-tight">{selected}</h3>
 							<p role="status" className="mt-4 text-[13px] text-[rgba(28,58,41,0.55)]">Loading name details…</p>
 						</div>
-					) : null}
-					<div hidden={selected !== null}>
-						<LiveFeed onSelect={onSelect} active={selected === null} />
-					</div>
+					) : (
+						<LiveFeed onSelect={onSelect} />
+					)}
 				</div>
 			</div>
 		</section>
