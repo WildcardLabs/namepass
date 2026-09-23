@@ -10,6 +10,7 @@ import {
 import {
 	Search,
 	ArrowLeft,
+	CornerUpLeft,
 	ArrowRight,
 	ArrowUpRight,
 	Clock,
@@ -924,11 +925,13 @@ function NameDetail({
 			transition={{ duration: reducedMotion ? 0 : 0.4, ease: [0.16, 1, 0.3, 1] }}
 		>
 			<button
+				type="button"
 				onClick={onBack}
-				className="flex items-center gap-2 text-[13px] text-[rgba(28,58,41,0.55)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
+				aria-label="Back to Explorer"
+				title="Back to Explorer"
+				className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-[9px] bg-[rgba(28,58,41,0.95)] text-white hover:bg-[rgba(28,58,41,1)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 			>
-				<ArrowLeft className="w-4 h-4" />
-				All activity
+				<CornerUpLeft aria-hidden="true" className="w-4 h-4" />
 			</button>
 
 			<h3 className="mt-6 text-[32px] md:text-[44px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-none">
