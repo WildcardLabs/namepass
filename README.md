@@ -28,7 +28,8 @@ same address on every chain in a deployment set. A funder sends native USDC to t
 funds can only follow the configured route to an ENS renewal on Ethereum.
 
 The Namepass website is one client of the protocol. It shows addresses, activity, and renewal
-progress. It also runs automation for users who do not want to submit transactions. The contracts
+progress. Its deposit card shows a copyable `<label>.namepass.eth` subdomain, the full deposit
+address, and an address QR code. It also runs automation for users who do not want to submit transactions. The contracts
 do not depend on that website or automation. A funder or an independent executor can derive a
 wallet, start a renewal, and complete a CCTP claim directly.
 

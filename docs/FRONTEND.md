@@ -113,8 +113,10 @@ button opens the selected-name Explorer, which contains the full profile and act
 There is no wallet connection or browser database credential. Activation and public reads use the
 API. The backend still needs deployment before a hosted preview can show live records.
 
-`PassCard` shows and copies only the activated deposit address. It does not show the unresolvable
-`<label>.namepass.eth` template.
+`PassCard` shows and copies both `<label>.namepass.eth` and the full activated deposit address.
+The QR encodes the deposit address. Static QR codes use one SVG path.
+The Explorer retains its feed and page while a name is open, and pauses feed polling.
+The homepage video and CTA effect run only while visible in an active tab.
 
 Three things are real in a way the rest isn't:
 

@@ -1878,3 +1878,19 @@ the address, not the headline noun.
 > **Update 2026-07-29.** Under CREATE2-derived addresses the original wording is now accurate.
 > The framing was not retrofitted to the architecture — the architecture moved and the claim
 > became true. See the CREATE2/CCTP entry at the top.
+
+### 2026-09-23 — Explorer interaction cost and Namepass subdomains
+
+Keep the live feed mounted while a name is open so returning preserves its page and rows.
+Pause its polling until it is shown again. Cached name selections render immediately. The
+explicit ENS refresh still precedes the activity refresh. A name without cached data shows
+its heading and loading state instead of leaving the feed on screen.
+
+Render static deposit QR codes as one SVG path instead of one Motion component per module.
+Keep the animated QR option for callers that request it. Run the homepage video and CTA
+canvas only when their regions are visible in an active tab. Do not start the CTA canvas
+for reduced-motion users.
+
+The user confirmed that Namepass subdomains now resolve. Restore the normalized
+`<label>.namepass.eth` as a separate copy target in the deposit card. Keep the full deposit
+address visible and keep encoding that address in the QR for wallet compatibility.

@@ -308,7 +308,7 @@ function StatusCell({ row, reduced }: { row: FeedItem; reduced: boolean }) {
 				aria-hidden={!row.pending}
 				className="inline-flex items-center gap-1.5 whitespace-nowrap text-[rgba(28,58,41,0.55)]"
 			>
-				<Loader2 className="w-3 h-3 animate-spin shrink-0" />
+				<Loader2 className={`w-3 h-3 shrink-0 ${row.pending ? "motion-safe:animate-spin" : ""}`} />
 				{pendingLabel}
 			</motion.span>
 
@@ -376,10 +376,9 @@ type FeedItem = {
 	| { pending: false; at: number }
 );
 
-function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
+function LiveFeed({ onSelect, active }: { onSelect: (n: string) => void; active: boolean }) {
 	const [, tick] = useReducer((n: number) => n + 1, 0);
 	const reduced = useReducedMotion() ?? false;
-	const loading = useRef(false);
 	const [feed, setFeed] = useState<ActivityRead | null>(null);
 	const [loadingPage, setLoadingPage] = useState(false);
 	const [loadError, setLoadError] = useState<string | null>(null);
@@ -387,6 +386,8 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 	const tableRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
+		if (!active) return;
+		let loading = false;
 		let stopped = false;
 		let timer = 0;
 		let failures = 0;
@@ -396,8 +397,8 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 			timer = window.setTimeout(() => void load(), delay);
 		};
 		const load = async () => {
-			if (stopped || document.hidden || loading.current) return;
-			loading.current = true;
+			if (stopped || document.hidden || loading) return;
+			loading = true;
 			setLoadingPage(true);
 			try {
 				const nextFeed = await getActivity(pageIndex + 1, ACTIVITY_PAGE_SIZE);
@@ -408,10 +409,11 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 				setLoadError(null);
 				tick();
 			} catch (cause) {
+				if (stopped) return;
 				failures += 1;
 				setLoadError(cause instanceof Error ? cause.message : "Could not load activity.");
 			} finally {
-				loading.current = false;
+				loading = false;
 				if (!stopped) setLoadingPage(false);
 				if (!stopped) schedule(Math.min(12_000 * 2 ** failures, 60_000));
 			}
@@ -433,7 +435,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 			window.removeEventListener("focus", focus);
 			document.removeEventListener("visibilitychange", visibility);
 		};
-	}, [pageIndex]);
+	}, [pageIndex, active]);
 
 	const inFlight = activeFlows().slice(0, MAX_IN_FLIGHT);
 	const settled = (feed?.items ?? []).map(({ name, renewal }) => ({
@@ -797,11 +799,7 @@ function NameDetail({
 	).filter((l): l is typeof l & { value: string } => Boolean(l.value));
 
 	return (
-		<motion.div
-			initial={{ opacity: 0, y: 12 }}
-			animate={{ opacity: 1, y: 0 }}
-			transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-		>
+		<div>
 			<button
 				onClick={onBack}
 				className="flex items-center gap-2 text-[13px] text-[rgba(28,58,41,0.55)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
@@ -1208,7 +1206,7 @@ function NameDetail({
 					onPage={onActivityPage}
 				/>
 			</div>
-		</motion.div>
+		</div>
 	);
 }
 
@@ -1228,7 +1226,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 	const [notFound, setNotFound] = useState<string | null>(null);
 	const [activating, setActivating] = useState(false);
 	const [version, refresh] = useReducer((value: number) => value + 1, 0);
-	const [, reload] = useReducer((value: number) => value + 1, 0);
+	const [reloadVersion, reload] = useReducer((value: number) => value + 1, 0);
 	const [requestError, setRequestError] = useState<string | null>(null);
 	const [configVersion, refreshConfig] = useReducer((value: number) => value + 1, 0);
 	const ensFreshLabel = useRef<string | null>(null);
@@ -1326,7 +1324,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 			window.removeEventListener("focus", focus);
 			document.removeEventListener("visibilitychange", visibility);
 		};
-	}, [selected, reload, configVersion, namePageIndex]);
+	}, [selected, reloadVersion, configVersion, namePageIndex]);
 
 	const suggestions = useMemo(() => {
 		const q = query.trim().toLowerCase();
@@ -1345,6 +1343,13 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 		}
 		try {
 			const label = normalizeLabel(value);
+			if (findName(label)) {
+				onSelect(`${label}.eth`);
+				setQuery("");
+				setNotFound(null);
+				setRequestError(null);
+				return;
+			}
 			await getName(label);
 			ensFreshLabel.current = label;
 			onSelect(`${label}.eth`);
@@ -1508,6 +1513,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 				<div className="mt-8 md:mt-10 bg-white rounded-2xl border border-[rgba(28,58,41,0.1)] p-4 md:p-6">
 					{record ? (
 						<NameDetail
+							key={record.name}
 							record={record}
 							onBack={() => onSelect(null)}
 							onSupportedTokens={onSupportedTokens}
@@ -1517,9 +1523,18 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 							activityLoading={loadingNamePage}
 							onActivityPage={setNamePageIndex}
 						/>
-					) : (
-						<LiveFeed onSelect={(n) => onSelect(n)} />
-					)}
+					) : selected ? (
+						<div className="min-h-[360px]" aria-busy="true">
+							<button onClick={() => onSelect(null)} className="flex items-center gap-2 text-[13px] text-[rgba(28,58,41,0.55)]">
+								<ArrowLeft className="w-4 h-4" />All activity
+							</button>
+							<h3 className="mt-6 text-[32px] md:text-[44px] tracking-tight">{selected}</h3>
+							<p role="status" className="mt-4 text-[13px] text-[rgba(28,58,41,0.55)]">Loading name details…</p>
+						</div>
+					) : null}
+					<div hidden={selected !== null}>
+						<LiveFeed onSelect={onSelect} active={selected === null} />
+					</div>
 				</div>
 			</div>
 		</section>
