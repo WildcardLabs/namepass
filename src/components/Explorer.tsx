@@ -126,7 +126,9 @@ function DiscountTag({ off }: { off: string | null }) {
 
 const LIVE_FEED_COLUMNS = "lg:grid-cols-[minmax(9rem,1.45fr)_minmax(5.75rem,0.8fr)_minmax(6rem,0.9fr)_minmax(5.5rem,0.85fr)_minmax(5rem,0.7fr)_minmax(6.5rem,1fr)_7rem]";
 const NAME_ACTIVITY_COLUMNS = "lg:grid-cols-[minmax(5.5rem,0.8fr)_minmax(9rem,1.2fr)_minmax(5rem,0.8fr)_minmax(6rem,0.85fr)_minmax(5.5rem,0.8fr)_minmax(5rem,0.7fr)_7rem]";
-const GREEN_ICON_BUTTON_CLASS = "shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-[9px] bg-[rgba(28,58,41,0.95)] text-white transition-colors hover:bg-[rgba(28,58,41,1)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]";
+const ICON_BUTTON_BASE_CLASS = "shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-[9px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]";
+const SEARCH_ICON_BUTTON_CLASS = `${ICON_BUTTON_BASE_CLASS} bg-[rgba(28,58,41,0.95)] text-white hover:bg-[rgba(28,58,41,1)]`;
+const QUIET_ICON_BUTTON_CLASS = `${ICON_BUTTON_BASE_CLASS} border text-[rgba(28,58,41,0.82)] hover:border-[rgba(28,58,41,0.3)] hover:bg-[rgba(28,58,41,0.04)]`;
 
 /** The exact shared mobile layout for activity rows in both Explorer views. */
 function MobileFlowSummary({
@@ -165,7 +167,7 @@ function MobileFlowSummary({
 						aria-expanded={expanded}
 						aria-controls={controlsId}
 						aria-label={expanded ? "Hide flow details" : "Show flow details"}
-						className={GREEN_ICON_BUTTON_CLASS}
+						className={`${QUIET_ICON_BUTTON_CLASS} ${expanded ? "border-[rgba(28,58,41,0.28)] bg-[rgba(28,58,41,0.06)]" : "border-[rgba(28,58,41,0.16)] bg-white"}`}
 					>
 						<span className="sr-only">{expanded ? "Hide flow details" : "Show flow details"}</span>
 						<ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -930,7 +932,7 @@ function NameDetail({
 				onClick={onBack}
 				aria-label="Back to Explorer"
 				title="Back to Explorer"
-				className={GREEN_ICON_BUTTON_CLASS}
+				className={`${QUIET_ICON_BUTTON_CLASS} border-[rgba(28,58,41,0.16)] bg-white`}
 			>
 				<CornerUpLeft aria-hidden="true" className="w-4 h-4" />
 			</button>
@@ -1475,7 +1477,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								type="button"
 								onClick={() => void submit()}
 								aria-label="Search"
-								className={GREEN_ICON_BUTTON_CLASS}
+								className={SEARCH_ICON_BUTTON_CLASS}
 							>
 								<Search className="w-4 h-4" />
 							</button>
