@@ -10,7 +10,7 @@ export default function Privacy({ onBack }: { onBack: () => void }) {
 			sections={[
 				{
 					heading: "On-chain activity is public",
-					body: "ENS names, Namepass addresses, and renewal payments are recorded on public blockchains and are visible to anyone via the Explorer. This is by design, not a data collection practice.",
+					body: "ENS names, deposit addresses, and renewal payments are visible on public blockchains. The Namepass Explorer indexes transaction evidence for names monitored by the service.",
 				},
 				{
 					heading: "What we don't collect",
@@ -18,11 +18,11 @@ export default function Privacy({ onBack }: { onBack: () => void }) {
 				},
 				{
 					heading: "Third-party infrastructure",
-					body: "Namepass uses third-party services to watch for incoming payments and to move USDC to Ethereum, including Circle's Cross-Chain Transfer Protocol. Deposit addresses are derived on-chain rather than issued by a custodian, so no provider holds funds on your behalf. These services process transaction data solely to execute that automation.",
+					body: "Namepass uses third-party providers to detect deposits and move USDC to Ethereum, including Circle's Cross-Chain Transfer Protocol. Deposit addresses are derived on-chain rather than issued by a custodian, so no provider holds funds on your behalf. These providers process transaction data solely to run Namepass's service.",
 				},
 				{
 					heading: "Contact",
-					body: "Questions about this policy can be sent via X (@namepass_com).",
+					body: "Questions about this policy can be sent via X (@namepass_eth).",
 				},
 			]}
 		/>

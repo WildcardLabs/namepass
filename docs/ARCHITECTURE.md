@@ -1,8 +1,9 @@
 # Architecture
 
-Namepass combines permissionless renewal contracts with an optional indexing and execution
-service. Contract boundaries are described in [CONTRACTS_V2.md](CONTRACTS_V2.md); deployed
-addresses and verification limits are in [DEPLOYMENTS.md](DEPLOYMENTS.md).
+Namepass combines permissionless renewal contracts with hosted indexing and execution.
+Independent executors can use the contracts directly. Contract boundaries are described in
+[CONTRACTS_V2.md](CONTRACTS_V2.md); deployed addresses and verification limits are in
+[DEPLOYMENTS.md](DEPLOYMENTS.md).
 
 ## Contract route
 
@@ -75,7 +76,7 @@ evidence; authorization failures are rejected before body processing.
 
 ## Application and operations
 
-The frontend is an optional protocol client. It displays public read models, exact prices and
-transaction evidence. Monitoring requires GitHub authentication and adds no scheduled health RPC
-polling. It does not replace provider alerts. Recovery and retention jobs are documented in
+The frontend displays public read models, exact prices and transaction evidence. On-chain flows
+remain permissionless. Service health dashboards require GitHub authentication and add no scheduled
+health RPC polling. They do not replace provider alerts. Recovery and retention jobs are documented in
 [RUNBOOK.md](RUNBOOK.md); metric definitions are in [MONITORING.md](MONITORING.md).

@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { ArrowUpRight } from "lucide-react";
 
 interface Props {
-	onClaim: () => void;
+	onSearch: () => void;
 	onSimulate: () => void;
 }
 
@@ -52,7 +52,7 @@ function loadScript(src: string): Promise<void> {
  * mesh in the brand green — with the copy left and two actions right. If the CDN
  * scripts do not load, the solid dark-green panel behind them stands in.
  */
-export default function CtaBand({ onClaim, onSimulate }: Props) {
+export default function CtaBand({ onSearch, onSimulate }: Props) {
 	const bandRef = useRef<HTMLDivElement>(null);
 	const reduced = useReducedMotion();
 
@@ -126,7 +126,7 @@ export default function CtaBand({ onClaim, onSimulate }: Props) {
 							Give a name more time.
 						</h2>
 						<p className="mt-3 text-[14px] md:text-[15px] text-white/70 leading-relaxed">
-							Send USDC to a Namepass address. Namepass monitors the payment and triggers the renewal.
+							Send USDC to a Namepass address. Namepass executes the renewal using the best qualifying discount tier.
 						</p>
 					</motion.div>
 
@@ -139,10 +139,10 @@ export default function CtaBand({ onClaim, onSimulate }: Props) {
 					>
 						{/* Left: solid white */}
 						<button
-							onClick={onClaim}
+							onClick={onSearch}
 							className="inline-flex items-center gap-2 rounded-[10px] bg-white text-[rgba(28,58,41,0.95)] px-5 py-3 text-[15px] hover:bg-white/90 transition-colors"
 						>
-							Find a Namepass
+							Get Started
 							<ArrowUpRight className="w-4 h-4" />
 						</button>
 						{/* Right: liquid glass */}

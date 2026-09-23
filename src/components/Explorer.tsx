@@ -61,10 +61,10 @@ import { completedFlowTransactions } from "../lib/flowTransactions";
 import PassCard from "./PassCard";
 import PendingBalance from "./PendingBalance";
 import ChainTag from "./ChainTag";
-import { ceilToCent, costOf, rates, YEAR_SECONDS } from "../lib/pricing";
+import { ceilToCent, costOf, PricingNotLoadedError, rates, YEAR_SECONDS } from "../lib/pricing";
 import { LABEL_PROBLEM_TEXT, labelProblem, normalizeLabel } from "../lib/namepass";
 import { GAS_ALLOWANCE } from "../lib/fees";
-import { fetchProfile, type EnsProfile } from "../lib/ens";
+import { fetchProfile, profileRecordHref, profileRecordLabel, type EnsProfile } from "../lib/ens";
 import { XIcon } from "./icons";
 import { activateName, getActivity, getName, getNameActivity, getPublicConfig, safeInteger, triggerFlow, type ActivityRead, type PublicFlow } from "../lib/publicApi";
 import { chainById, HUB_CHAIN } from "../lib/chains";
@@ -200,10 +200,10 @@ function FeedRowContent({
 			<div className={`w-full px-4 md:px-5 py-4 md:py-3.5 block lg:grid ${LIVE_FEED_COLUMNS} lg:gap-4 lg:items-center hover:bg-[rgba(28,58,41,0.025)] transition-colors`}>
 				{/* Mobile: name + headline result on one line */}
 				<div className="flex items-center justify-between gap-2 lg:contents">
-					<button type="button" onClick={() => onSelect(row.name)} aria-label={`Open ${row.name}`} className="group inline-flex min-w-0 items-center gap-1.5 text-left text-[15px] lg:text-[14.5px] text-black transition-colors hover:text-[rgba(28,88,52,0.95)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]">
-						<img src={`${import.meta.env.BASE_URL}logos/ens-mark-dark-blue.svg`} alt="" aria-hidden="true" className="h-3 w-3 shrink-0 object-contain grayscale opacity-40" />
+					<button type="button" onClick={() => onSelect(row.name)} aria-label={`Open ${row.name}`} className="group inline-flex min-w-0 items-center gap-1 text-left text-[15px] lg:text-[14.5px] text-black transition-colors hover:text-[rgba(28,88,52,0.95)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]">
+						<img src={`${import.meta.env.BASE_URL}logos/ens-mark-dark-blue.svg`} alt="" aria-hidden="true" className="relative top-px h-3 w-3 shrink-0 object-contain grayscale opacity-40" />
 						<span className="truncate">{row.name}</span>
-						<ArrowUpRight className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+						<ArrowUpRight className="h-3.5 w-3.5 shrink-0 translate-y-px transition-transform group-hover:translate-x-px group-hover:translate-y-0" />
 					</button>
 					<button
 						type="button"
@@ -211,7 +211,7 @@ function FeedRowContent({
 						aria-expanded={expanded}
 						aria-controls={`flow-details-${row.key}`}
 						aria-label={expanded ? "Hide flow details" : "Show flow details"}
-						className="lg:hidden inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[rgba(28,58,41,0.14)] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+						className="lg:hidden inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[rgba(28,58,41,0.14)] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 					>
 						<span className="sr-only">{expanded ? "Hide flow details" : "Show flow details"}</span>
 						<ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -254,7 +254,7 @@ function FeedRowContent({
 						onClick={() => setExpanded((open) => !open)}
 						aria-expanded={expanded}
 						aria-controls={`flow-details-${row.key}`}
-						className="hidden lg:inline-flex min-h-10 w-full shrink-0 items-center justify-end gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11.5px] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+						className="hidden lg:inline-flex h-7 shrink-0 items-center justify-center justify-self-end gap-1 rounded-md border border-[rgba(28,58,41,0.14)] px-2 text-[11px] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 					>
 						{expanded ? "Hide details" : "Flow details"}
 						<ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -262,7 +262,7 @@ function FeedRowContent({
 				</div>
 
 				{/* Mobile: labelled detail pairs */}
-				<dl className="lg:hidden mt-2.5 grid grid-cols-[minmax(5.25rem,auto)_minmax(4rem,auto)_minmax(4.75rem,auto)_auto] justify-between gap-x-2 gap-y-1 items-baseline">
+				<dl className="lg:hidden mt-3 grid grid-cols-2 gap-x-6 gap-y-3">
 					<div>
 						<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
 							From
@@ -321,16 +321,25 @@ function FeedRowContent({
 							<div className="px-4 md:px-5 py-4 border-t border-[rgba(28,58,41,0.06)] bg-[rgba(28,58,41,0.015)]">
 								<p className="text-[13px] text-[rgba(28,58,41,0.8)]">{flowPresentation(row.status, row.originChainId).detail}</p>
 								{transactions.length > 0 && (
-									<ol className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
-										{transactions.map((transaction) => (
-											<li key={transaction.tx} className="flex items-center gap-2 text-[12px]">
-												<span className="text-[rgba(28,58,41,0.55)]">{transaction.label}</span>
-												<a href={explorerUrl(transaction.chain, transaction.tx)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-mono text-[rgba(28,58,41,0.65)] hover:text-[rgba(28,58,41,0.95)]">
-													{truncTx(transaction.tx)} <ExternalLink className="h-3 w-3" />
-												</a>
-											</li>
-										))}
-									</ol>
+									<div className="mt-4">
+										<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">Transactions</div>
+										<ol className="mt-2 grid gap-2 sm:grid-cols-2">
+											{transactions.map((transaction, index) => (
+												<li key={transaction.tx} className="flex min-w-0 items-center gap-2.5 rounded-lg border border-[rgba(28,58,41,0.09)] bg-white/80 px-3 py-2">
+													<span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[rgba(28,58,41,0.06)] text-[10px] tabular-nums text-[rgba(28,58,41,0.55)]">{index + 1}</span>
+													<div className="min-w-0 flex-1">
+														<div className="flex items-center justify-between gap-2 text-[12px]">
+															<span className="text-[rgba(28,58,41,0.8)]">{transaction.label}</span>
+															<span className="shrink-0 text-[11px] text-[rgba(28,58,41,0.45)]">{transaction.chain}</span>
+														</div>
+														<a href={explorerUrl(transaction.chain, transaction.tx)} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 font-mono text-[11.5px] text-[#1c683d] transition-colors hover:text-[#174a2c]">
+															{truncTx(transaction.tx)} <ExternalLink className="h-3 w-3" />
+														</a>
+													</div>
+												</li>
+											))}
+										</ol>
+									</div>
 								)}
 							</div>
 						) : <RenewalBreakdown event={row.event} />}
@@ -604,8 +613,8 @@ function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 		? (event.amountApplied * YEAR_SECONDS + event.seconds / 2n) / event.seconds
 		: 0n;
 	return (
-		<div className="px-4 md:px-5 py-5 bg-[rgba(28,58,41,0.015)] border-t border-[rgba(28,58,41,0.06)] grid gap-6 md:grid-cols-2">
-			<div>
+		<div className="mx-4 md:mx-5 my-3 rounded-xl border border-[rgba(28,58,41,0.1)] bg-white p-4 md:p-5 grid gap-5 md:grid-cols-2">
+			<div className="min-w-0">
 				<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
 					Amount
 				</div>
@@ -663,33 +672,31 @@ function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 				</dl>
 				</div>
 
-			<div>
+			<div className="min-w-0 md:border-l md:border-[rgba(28,58,41,0.08)] md:pl-5">
 				<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
 					Transactions
 				</div>
-				<ol className="mt-2.5 space-y-2.5">
+				<ol className="mt-3 space-y-2">
 					{event.steps.map((s, i) => (
-						<li key={s.tx} className="flex items-baseline gap-2.5">
-							<span className="shrink-0 w-3 text-[11px] text-[rgba(28,58,41,0.35)] tabular-nums">
+						<li key={s.tx} className="flex min-w-0 items-center gap-2.5 rounded-lg border border-[rgba(28,58,41,0.09)] bg-[rgba(28,58,41,0.015)] px-3 py-2.5">
+							<span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[rgba(28,58,41,0.06)] text-[10px] text-[rgba(28,58,41,0.55)] tabular-nums">
 								{i + 1}
 							</span>
 							<div className="min-w-0 flex-1">
-								<div className="text-[12.5px] text-[rgba(28,58,41,0.8)]">
-									{stepLabel(s, bridged)}
+								<div className="flex items-center justify-between gap-2 text-[12.5px]">
+									<span>{stepLabel(s, bridged)}</span>
+									<span className="shrink-0 text-[11px] text-[rgba(28,58,41,0.45)]">{s.chain}</span>
 								</div>
 								<a
 									href={explorerUrl(s.chain, s.tx)}
 									target="_blank"
 									rel="noopener noreferrer"
-									className="mt-0.5 inline-flex items-center gap-1.5 font-mono text-[12px] text-[rgba(28,58,41,0.5)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
+									className="mt-1 inline-flex items-center gap-1.5 font-mono text-[12px] text-[#1c683d] hover:text-[#174a2c] transition-colors"
 								>
 									{truncTx(s.tx)}
 									<ExternalLink className="w-2.5 h-2.5 shrink-0" />
 								</a>
 							</div>
-							<span className="shrink-0 text-[11.5px] text-[rgba(28,58,41,0.45)]">
-								{s.chain}
-							</span>
 						</li>
 					))}
 				</ol>
@@ -821,7 +828,13 @@ function NameDetail({
 	}, [record.name]);
 
 	const onchain = record.onchain;
-	const pricing = rates();
+	let pricing: ReturnType<typeof rates> | null;
+	try {
+		pricing = rates();
+	} catch (error) {
+		if (!(error instanceof PricingNotLoadedError)) throw error;
+		pricing = null;
+	}
 
 	/**
 	 * The least USDC worth sending to a name in its grace period, and which
@@ -840,7 +853,7 @@ function NameDetail({
 	 * Both carry the gas allowance, like every other amount the app quotes.
 	 */
 	const graceMinimum = useMemo(() => {
-		if (onchain?.lapsedFor == null) return null;
+		if (!pricing || onchain?.lapsedFor == null) return null;
 		/* +1s: buying back exactly what has lapsed lands on the expiry, not past it. */
 		const owed = BigInt(Math.ceil(onchain.lapsedFor / 1000)) + 1n;
 		const catchUp = ceilToCent(costOf(owed, record.labelLength) + GAS_ALLOWANCE);
@@ -855,9 +868,9 @@ function NameDetail({
 	const links = (
 		[
 			{ key: "url", value: t.url, Icon: LinkIcon },
-			{ key: "com.twitter", value: t["com.twitter"] && `@${t["com.twitter"]}`, Icon: XIcon },
+			{ key: "com.twitter", value: t["com.twitter"], Icon: XIcon },
 			{ key: "com.github", value: t["com.github"], Icon: Github },
-			{ key: "org.telegram", value: t["org.telegram"] && `@${t["org.telegram"]}`, Icon: Send },
+			{ key: "org.telegram", value: t["org.telegram"], Icon: Send },
 			{ key: "location", value: t.location, Icon: MapPin },
 			{ key: "email", value: t.email, Icon: Mail },
 		] as const
@@ -1053,15 +1066,30 @@ function NameDetail({
 						{/* Links */}
 						{links.length > 0 && (
 							<div className="mt-4 flex flex-wrap gap-x-4 gap-y-2">
-								{links.map((l) => (
-									<span
-										key={l.key}
-										className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(28,58,41,0.7)] min-w-0"
-									>
-										<l.Icon className="w-3.5 h-3.5 shrink-0 text-[rgba(28,58,41,0.45)]" />
-										<span className="truncate">{l.value}</span>
-									</span>
-								))}
+								{links.map((l) => {
+									const href = profileRecordHref(l.key, l.value);
+									const label = profileRecordLabel(l.key, l.value);
+									return (
+										<span
+											key={l.key}
+											className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(28,58,41,0.7)] min-w-0"
+										>
+											<l.Icon className="w-3.5 h-3.5 shrink-0 text-[rgba(28,58,41,0.45)]" />
+											{href ? (
+												<a
+													href={href}
+													target="_blank"
+														rel="noopener noreferrer"
+													className="truncate hover:text-[rgba(28,58,41,0.95)] hover:underline underline-offset-2 transition-colors"
+												>
+													{label}
+													</a>
+												) : (
+													<span className="truncate">{label}</span>
+												)}
+										</span>
+									);
+								})}
 							</div>
 						)}
 					</div>
@@ -1197,7 +1225,7 @@ function NameDetail({
 
 								{/* Mobile detail pairs */}
 								{e.kind !== "activated" && (
-									<dl className="lg:hidden mt-2.5 grid grid-cols-[minmax(5.25rem,auto)_minmax(4rem,auto)_minmax(4.75rem,auto)_auto] justify-between gap-x-2 gap-y-1 items-baseline">
+									<dl className="lg:hidden mt-3 grid grid-cols-2 gap-x-6 gap-y-3">
 										<div>
 											<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
 												From
@@ -1462,11 +1490,11 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 							</span>
 						</div>
 						<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
-							Follow every renewal flow.
+							ENS renewal activity.
 						</h2>
 						<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] max-w-xl leading-relaxed">
-							Inspect deposits, transfers, and completed renewals recorded by Namepass.
-							Search an ENS name to view its deposit address, flows, and renewal activity.
+							Search a name to inspect its deterministic deposit wallet, balances, and renewal history.
+							Recent public deposits and flows appear below.
 						</p>
 					</div>
 
@@ -1543,8 +1571,8 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 									Namepass yet.
 								</div>
 								<p className="mt-1 text-[12.5px] text-[rgba(28,58,41,0.55)] leading-relaxed">
-									Enable monitoring to retrieve its deposit address and let the service
-									process renewal flows. You do not have to own the name.
+									Start tracking it to see its deposit address, balances, and renewal activity.
+									You do not have to own the name.
 								</p>
 								<button
 									onClick={() => {

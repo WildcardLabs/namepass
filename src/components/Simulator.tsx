@@ -66,13 +66,13 @@ export default function Simulator({
 			<div className="max-w-[1100px] mx-auto">
 				<div className="max-w-2xl">
 					<span className="text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
-						ENS v2 pricing explorer
+						ENS v2 pricing
 					</span>
 					<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
-						See how USDC becomes renewal time.
+						Check ENS renewal prices.
 					</h2>
 					<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] leading-relaxed">
-						Explore ENS v2 pricing by name length and payment amount. Namepass uses the longest discount tier your payment qualifies for, so you do not miss an available rate.
+						Choose a name length and payment amount to see how much renewal time it can buy at current ENS prices.
 					</p>
 				</div>
 

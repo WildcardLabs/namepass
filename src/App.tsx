@@ -13,7 +13,6 @@ import Privacy from "./components/Privacy";
 import SupportedTokens from "./components/SupportedTokens";
 import TestnetBanner, { VIEWPORT_BELOW_BANNER } from "./components/TestnetBanner";
 import Footer from "./components/Footer";
-import ClaimModal from "./components/ClaimModal";
 import PricingError from "./components/PricingError";
 import { loadOracleRates } from "./lib/oracle";
 import { assertGasAllowance } from "./lib/fees";
@@ -50,7 +49,6 @@ export default function App() {
 
 function ActiveApp() {
 	const [page, setPage] = useState<Page>(() => pathToPage(window.location.pathname));
-	const [claimOpen, setClaimOpen] = useState(false);
 	const [selected, setSelected] = useState<string | null>(null);
 
 	/**
@@ -137,7 +135,7 @@ function ActiveApp() {
 	);
 
 	const goHome = useCallback(() => navigate("home"), [navigate]);
-	const goExplorer = useCallback(() => goToSection("explorer"), [goToSection]);
+	const goProtocol = useCallback(() => goToSection("protocol"), [goToSection]);
 	const goSimulate = useCallback(() => goToSection("simulator"), [goToSection]);
 	const goLeaderboard = useCallback(() => navigate("leaderboard"), [navigate]);
 	const goSupported = useCallback(() => navigate("supported"), [navigate]);
@@ -151,6 +149,7 @@ function ActiveApp() {
 			document.querySelector<HTMLInputElement>("#explorer input")?.focus();
 		}, 600);
 	}, [goToSection]);
+	const goExplorer = focusSearch;
 
 	/**
 	 * Open a name's Explorer profile from anywhere. Used after activation (no
@@ -170,7 +169,7 @@ function ActiveApp() {
 	);
 
 	const navProps = {
-		onClaim: () => setClaimOpen(true),
+		onProtocol: goProtocol,
 		onExplore: goExplorer,
 		onSimulate: goSimulate,
 		onSearch: focusSearch,
@@ -203,7 +202,7 @@ function ActiveApp() {
 						>
 							<Navbar {...navProps} />
 							<Hero
-								onExplore={() => scrollTo("explorer")}
+								onExplore={goExplorer}
 								onLeaderboard={goLeaderboard}
 								priced={boot.status === "ready"}
 							/>
@@ -211,7 +210,7 @@ function ActiveApp() {
 
 						{/* What the protocol actually is — four real properties, in the
 						    RIVR template's bento. Static copy, so it never waits on pricing. */}
-						<Protocol onClaim={() => setClaimOpen(true)} onSupportedTokens={goSupported} />
+						<Protocol onSearch={focusSearch} />
 
 						{/* Renders its own frame either way — heading, card, tabs — with
 						    skeletons standing in for the two panels that quote a price.
@@ -223,18 +222,15 @@ function ActiveApp() {
 							onRetry={loadPricing}
 						/>
 
-						{/* Explorer owns its public API loading state. */}
-						{boot.status === "ready" && (
-							<Explorer
-								selected={selected}
-								onSelect={setSelected}
-								onActivated={goToName}
-								onSupportedTokens={goSupported}
-							/>
-						)}
+						{/* Search and public activity remain available while price quotes load. */}
+						<Explorer
+							selected={selected}
+							onSelect={setSelected}
+							onActivated={goToName}
+							onSupportedTokens={goSupported}
+						/>
 
-						{/* Near-footer CTA band with an animated background. */}
-						<CtaBand onClaim={() => setClaimOpen(true)} onSimulate={goSimulate} />
+						<CtaBand onSearch={focusSearch} onSimulate={goSimulate} />
 					</>
 				)}
 
@@ -282,18 +278,12 @@ function ActiveApp() {
 			</div>
 
 			<Footer
+				onProtocol={goProtocol}
 				onExplore={goExplorer}
 				onSimulate={goSimulate}
 				onLeaderboard={goLeaderboard}
-				onSupported={goSupported}
 				onTerms={goTerms}
 				onPrivacy={goPrivacy}
-			/>
-
-			<ClaimModal
-				open={claimOpen}
-				onClose={() => setClaimOpen(false)}
-				onActivated={goToName}
 			/>
 		</main>
 	);

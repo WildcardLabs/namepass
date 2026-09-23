@@ -39,7 +39,6 @@ vi.mock("./components/Privacy", () => ({ default: () => null }));
 vi.mock("./components/SupportedTokens", () => ({ default: () => null }));
 vi.mock("./components/TestnetBanner", () => ({ default: () => null, VIEWPORT_BELOW_BANNER: "" }));
 vi.mock("./components/Footer", () => ({ default: () => null }));
-vi.mock("./components/ClaimModal", () => ({ default: () => null }));
 
 const rates: OracleRates = {
 	oracle: "0x0000000000000000000000000000000000000001",
@@ -90,14 +89,15 @@ async function click(text: string) {
 	await act(async () => button!.click());
 }
 
-test("initial pricing waits for both the oracle and the allowance validation", async () => {
+test("Explorer stays available while pricing waits for oracle and allowance validation", async () => {
 	const allowance = deferred<void>();
 	vi.mocked(assertGasAllowance).mockReturnValueOnce(allowance.promise);
 	await render();
-	expect(container.querySelector("#explorer")).toBeNull();
+	const explorer = container.querySelector("#explorer");
+	expect(explorer).not.toBeNull();
 	expect(setRates).not.toHaveBeenCalled();
 	await act(async () => allowance.resolve());
-	expect(container.querySelector("#explorer")).not.toBeNull();
+	expect(container.querySelector("#explorer")).toBe(explorer);
 	expect(setRates).toHaveBeenCalledWith(rates);
 });
 
@@ -152,10 +152,11 @@ test("a failed configuration refresh disables pricing and a retry validates it a
 	expect(setRates).toHaveBeenCalledTimes(1);
 	const retry = deferred<OracleRates>();
 	vi.mocked(loadOracleRates).mockReturnValueOnce(retry.promise);
+	const explorer = container.querySelector("#explorer");
 	await click("Retry pricing");
-	expect(container.querySelector("#explorer")).toBeNull();
+	expect(container.querySelector("#explorer")).toBe(explorer);
 	await act(async () => retry.resolve(rates));
-	expect(container.querySelector("#explorer")).not.toBeNull();
+	expect(container.querySelector("#explorer")).toBe(explorer);
 	expect(setRates).toHaveBeenCalledTimes(2);
 });
 
