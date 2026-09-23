@@ -1,27 +1,24 @@
 import { XIcon } from "./icons";
 
 interface Props {
+	onProtocol: () => void;
 	onExplore: () => void;
 	onSimulate: () => void;
-	onLeaderboard: () => void;
-	onSupported: () => void;
 	onTerms: () => void;
 	onPrivacy: () => void;
 }
 
 export default function Footer({
+	onProtocol,
 	onExplore,
 	onSimulate,
-	onLeaderboard,
-	onSupported,
 	onTerms,
 	onPrivacy,
 }: Props) {
 	const product = [
-		{ label: "Explorer", action: onExplore },
+		{ label: "Protocol", action: onProtocol },
 		{ label: "ENS v2 pricing", action: onSimulate },
-		{ label: "Leaderboard", action: onLeaderboard },
-		{ label: "Supported networks & USDC", action: onSupported },
+		{ label: "Explorer", action: onExplore },
 	];
 	const legal = [
 		{ label: "Terms of service", action: onTerms },

@@ -1,8 +1,7 @@
 import { motion } from "motion/react";
-import { ArrowUpRight } from "lucide-react";
 
 interface Props {
-	onClaim: () => void;
+	onProtocol: () => void;
 	onExplore: () => void;
 	onSimulate: () => void;
 	onSearch: () => void;
@@ -18,7 +17,7 @@ interface Props {
  * chrome.
  */
 export default function Navbar({
-	onClaim,
+	onProtocol,
 	onExplore,
 	onSimulate,
 	onSearch,
@@ -26,9 +25,9 @@ export default function Navbar({
 	showMenu = true,
 }: Props) {
 	const items = [
-		{ label: "Explorer", action: onExplore },
-		{ label: "Find a name", action: onSearch },
+		{ label: "Protocol", action: onProtocol },
 		{ label: "ENS v2 pricing", action: onSimulate },
+		{ label: "Explorer", action: onExplore },
 	];
 
 	return (
@@ -68,11 +67,10 @@ export default function Navbar({
 				<motion.button
 					whileHover={{ scale: 1.02 }}
 					whileTap={{ scale: 0.98 }}
-					onClick={onClaim}
+					onClick={onSearch}
 					className="flex items-center gap-2 bg-[#1c3a29] text-white rounded-[10px] px-4 md:px-5 py-2 md:py-2.5 hover:bg-[#16301f] transition-colors"
 				>
-					<span className="text-[14px] font-normal">Find a Namepass</span>
-					<ArrowUpRight className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+					<span className="text-[14px] font-normal">Get Started</span>
 				</motion.button>
 			</div>
 		</nav>

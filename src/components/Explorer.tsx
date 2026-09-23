@@ -61,7 +61,7 @@ import { completedFlowTransactions } from "../lib/flowTransactions";
 import PassCard from "./PassCard";
 import PendingBalance from "./PendingBalance";
 import ChainTag from "./ChainTag";
-import { ceilToCent, costOf, rates, YEAR_SECONDS } from "../lib/pricing";
+import { ceilToCent, costOf, PricingNotLoadedError, rates, YEAR_SECONDS } from "../lib/pricing";
 import { LABEL_PROBLEM_TEXT, labelProblem, normalizeLabel } from "../lib/namepass";
 import { GAS_ALLOWANCE } from "../lib/fees";
 import { fetchProfile, type EnsProfile } from "../lib/ens";
@@ -828,7 +828,13 @@ function NameDetail({
 	}, [record.name]);
 
 	const onchain = record.onchain;
-	const pricing = rates();
+	let pricing: ReturnType<typeof rates> | null;
+	try {
+		pricing = rates();
+	} catch (error) {
+		if (!(error instanceof PricingNotLoadedError)) throw error;
+		pricing = null;
+	}
 
 	/**
 	 * The least USDC worth sending to a name in its grace period, and which
@@ -847,7 +853,7 @@ function NameDetail({
 	 * Both carry the gas allowance, like every other amount the app quotes.
 	 */
 	const graceMinimum = useMemo(() => {
-		if (onchain?.lapsedFor == null) return null;
+		if (!pricing || onchain?.lapsedFor == null) return null;
 		/* +1s: buying back exactly what has lapsed lands on the expiry, not past it. */
 		const owed = BigInt(Math.ceil(onchain.lapsedFor / 1000)) + 1n;
 		const catchUp = ceilToCent(costOf(owed, record.labelLength) + GAS_ALLOWANCE);
@@ -1469,11 +1475,11 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 							</span>
 						</div>
 						<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
-							Follow every renewal flow.
+							Explore ENS names.
 						</h2>
 						<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] max-w-xl leading-relaxed">
-							Inspect public deposits, transfers, and renewals. Namepass Explorer indexes activity
-							for monitored names and links each flow to its on-chain transactions.
+							Search a name to view its Namepass, deposit address, balances, and renewal activity.
+							Browse public deposits and flows below.
 						</p>
 					</div>
 

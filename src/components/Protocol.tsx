@@ -3,8 +3,7 @@ import { ArrowUpRight } from "lucide-react";
 import { AnimatedBeamDemo } from "./AnimatedBeamDemo";
 
 interface Props {
-	onClaim: () => void;
-	onSupportedTokens: () => void;
+	onSearch: () => void;
 }
 
 /* The RIVR template's "Architected for high-performance DeFi" bento, repurposed
@@ -17,7 +16,7 @@ const TAG =
 const CARD =
 	"rounded-[1.25rem] border border-[rgba(28,58,41,0.14)] bg-white p-6 md:p-7";
 
-export default function Protocol({ onClaim }: Props) {
+export default function Protocol({ onSearch }: Props) {
 	return (
 		<section id="protocol" className="bg-[#f0f0f0] px-5 md:px-10 py-14 md:py-20">
 			<div className="max-w-[1100px] mx-auto">
@@ -36,10 +35,10 @@ export default function Protocol({ onClaim }: Props) {
 					<motion.button
 						whileHover={{ scale: 1.02 }}
 						whileTap={{ scale: 0.98 }}
-						onClick={onClaim}
+						onClick={onSearch}
 						className="shrink-0 self-start sm:self-auto inline-flex items-center gap-2 rounded-[10px] border border-[rgba(28,58,41,0.2)] bg-white px-5 py-2.5 text-[14px] text-[rgba(28,58,41,0.9)] hover:bg-[rgba(28,58,41,0.04)] transition-colors"
 					>
-						Find a Namepass
+						Get Started
 						<ArrowUpRight className="w-4 h-4" />
 					</motion.button>
 				</div>
