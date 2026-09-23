@@ -126,7 +126,8 @@ export default function CtaBand({ onClaim, onSimulate }: Props) {
 							Give a name more time.
 						</h2>
 						<p className="mt-3 text-[14px] md:text-[15px] text-white/70 leading-relaxed">
-							Send USDC to a Namepass address. Namepass monitors the payment and triggers the renewal.
+							Fund a name's deterministic address. Any executor can process
+							eligible USDC into renewal time.
 						</p>
 					</motion.div>
 

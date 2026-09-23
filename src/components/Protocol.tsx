@@ -29,8 +29,8 @@ export default function Protocol({ onClaim }: Props) {
 							The protocol behind every renewal.
 						</h2>
 						<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] leading-relaxed">
-							Immutable Namepass contracts give each ENS name a predictable USDC
-							deposit address and execute renewals at ENS's on-chain rates.
+							The contracts derive a predictable USDC address for every ENS name and settle
+							renewals at ENS's on-chain rates. Anyone can execute the flows.
 						</p>
 					</div>
 					<motion.button
@@ -88,8 +88,7 @@ export default function Protocol({ onClaim }: Props) {
 							USDC buys renewal time
 						</h3>
 						<p className="mt-2 text-[14px] text-[rgba(28,58,41,0.6)] leading-relaxed max-w-md">
-							Namepass turns USDC into renewal time at ENS rates, using the best
-							qualifying discount tier.
+							Eligible USDC buys renewal time at ENS rates, using the best qualifying discount tier.
 						</p>
 					</motion.div>
 

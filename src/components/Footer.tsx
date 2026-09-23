@@ -39,11 +39,11 @@ export default function Footer({
 							className="h-4 w-auto"
 						/>
 						<p className="mt-3 text-[13px] text-[rgba(28,58,41,0.55)] leading-relaxed">
-							Send USDC to a Namepass address. Namepass monitors the
-							payment, triggers the flow, and keeps the activity public.
+							An open protocol for ENS renewals. Namepass provides one optional
+							monitoring and execution service.
 						</p>
 						<a
-							href="https://x.com/namepass_com"
+							href="https://x.com/namepass_eth"
 							target="_blank"
 							rel="noopener noreferrer"
 							aria-label="Namepass on X"
