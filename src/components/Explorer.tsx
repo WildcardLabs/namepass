@@ -1062,11 +1062,11 @@ function NameDetail({
 									href={`https://${record.name}.limo`}
 									target="_blank"
 									rel="noopener noreferrer"
-									className="inline-flex items-center gap-1.5 text-[11px] text-[rgba(28,58,41,0.55)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
+									className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(28,58,41,0.55)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
 								>
-									<Globe className="w-3 h-3" />
+									<Globe className="w-3.5 h-3.5" />
 									Serves a site
-									<ExternalLink className="w-2.5 h-2.5" />
+									<ExternalLink className="w-3.5 h-3.5" />
 								</a>
 							)}
 						</div>
