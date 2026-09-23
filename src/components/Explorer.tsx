@@ -125,6 +125,7 @@ function DiscountTag({ off }: { off: string | null }) {
 
 const LIVE_FEED_COLUMNS = "lg:grid-cols-[minmax(9rem,1.45fr)_minmax(5.75rem,0.8fr)_minmax(6rem,0.9fr)_minmax(5.5rem,0.85fr)_minmax(5rem,0.7fr)_minmax(6.5rem,1fr)_7rem]";
 const NAME_ACTIVITY_COLUMNS = "lg:grid-cols-[minmax(5.5rem,0.8fr)_minmax(9rem,1.2fr)_minmax(5rem,0.8fr)_minmax(6rem,0.85fr)_minmax(5.5rem,0.8fr)_minmax(5rem,0.7fr)_7rem]";
+const MOBILE_DISCLOSURE_CLASS = "h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[rgba(28,58,41,0.14)] text-[rgba(28,58,41,0.72)]";
 
 /* One shared motion language for the feed.
 
@@ -216,7 +217,7 @@ function FeedRowContent({
 						aria-expanded={expanded}
 						aria-controls={`flow-details-${row.key}`}
 						aria-label={expanded ? "Hide flow details" : "Show flow details"}
-						className="lg:hidden inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[rgba(28,58,41,0.14)] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+						className={`lg:hidden inline-flex ${MOBILE_DISCLOSURE_CLASS} hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]`}
 					>
 						<span className="sr-only">{expanded ? "Hide flow details" : "Show flow details"}</span>
 						<ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -1217,9 +1218,14 @@ function NameDetail({
 										{fmtDate(e.at)}
 									</span>
 
-									<span className="min-w-0 text-[15px] md:text-[14.5px] text-[rgba(28,58,41,0.95)] truncate">
+									<span className="min-w-0 flex-1 text-[15px] md:text-[14.5px] text-[rgba(28,58,41,0.95)] truncate">
 										{e.kind === "activated" ? "Namepass activated" : e.kind === "deposit" ? "Payment received" : "Renewal"}
 									</span>
+									{expandable && (
+										<span aria-hidden="true" className={`lg:hidden inline-flex ${MOBILE_DISCLOSURE_CLASS} hover:bg-white`}>
+											<ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+										</span>
+									)}
 
 									<span className="hidden lg:block text-[13.5px]">
 										{e.kind !== "activated" ? (
@@ -1307,14 +1313,8 @@ function NameDetail({
 									</dl>
 								)}
 
-								<div className="lg:hidden mt-2 flex items-center justify-between gap-3 text-[11.5px] text-[rgba(28,58,41,0.45)]">
-									<span>{fmtDate(e.at)}</span>
-									{expandable && (
-										<span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[rgba(28,58,41,0.14)] text-[rgba(28,58,41,0.72)]">
-											<span className="sr-only">{isOpen ? "Hide flow details" : "Show flow details"}</span>
-											<ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-										</span>
-									)}
+								<div className="lg:hidden mt-2 text-[11.5px] text-[rgba(28,58,41,0.45)]">
+									{fmtDate(e.at)}
 								</div>
 							</button>
 							{e.kind === "deposit" && (
