@@ -94,8 +94,7 @@ export default function ClaimModal({ open, onClose, onActivated }: Props) {
 									Find a name's Namepass
 								</h2>
 								<p className="mt-2 text-[14px] text-[rgba(28,58,41,0.65)] leading-relaxed">
-									Retrieve its deterministic deposit address and enable Namepass's optional
-									monitoring. Any executor can process eligible deposits through the protocol.
+									Add the name to Explorer to retrieve its deterministic deposit address.
 								</p>
 
 								<div className="mt-6">

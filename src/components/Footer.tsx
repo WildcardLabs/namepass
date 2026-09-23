@@ -39,8 +39,7 @@ export default function Footer({
 							className="h-4 w-auto"
 						/>
 						<p className="mt-3 text-[13px] text-[rgba(28,58,41,0.55)] leading-relaxed">
-							An open protocol for ENS renewals. Namepass provides one optional
-							monitoring and execution service.
+							USDC-powered ENS renewals on an open protocol.
 						</p>
 						<a
 							href="https://x.com/namepass_eth"
