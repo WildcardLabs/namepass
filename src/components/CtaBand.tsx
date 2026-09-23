@@ -123,11 +123,8 @@ export default function CtaBand({ onSearch, onSimulate }: Props) {
 						className="max-w-md"
 					>
 						<h2 className="text-[30px] md:text-[42px] font-normal text-white tracking-tight leading-[1.05]">
-							A deterministic address for every ENS name.
+							Give a name more time.
 						</h2>
-						<p className="mt-3 text-[14px] md:text-[15px] text-white/70 leading-relaxed">
-							Namepass executes renewals at ENS's on-chain rates; Circle CCTP carries USDC across supported chains.
-						</p>
 					</motion.div>
 
 					<motion.div
