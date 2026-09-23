@@ -89,6 +89,12 @@ async function click(text: string) {
 	await act(async () => button!.click());
 }
 
+function nextPopState() {
+	return new Promise<PopStateEvent>((resolve) => {
+		window.addEventListener("popstate", resolve, { once: true });
+	});
+}
+
 test("Explorer stays available while pricing waits for oracle and allowance validation", async () => {
 	const allowance = deferred<void>();
 	vi.mocked(assertGasAllowance).mockReturnValueOnce(allowance.promise);
@@ -121,9 +127,26 @@ test("returning to activity keeps the Explorer mounted while pricing refreshes",
 	const explorer = container.querySelector("#explorer");
 	const refresh = deferred<OracleRates>();
 	vi.mocked(loadOracleRates).mockReturnValueOnce(refresh.promise);
+	const popstate = nextPopState();
 	await click("All activity");
+	await act(async () => { await popstate; });
 	expect(container.querySelector("#explorer")).toBe(explorer);
 	expect(explorer?.querySelector("button")?.textContent).toBe("example.eth");
+});
+
+test("browser back from a name returns to Explorer before leaving the site", async () => {
+	await render();
+	await click("example.eth");
+	expect(window.history.state).toMatchObject({ __namepassName: "example.eth" });
+	const explorer = container.querySelector("#explorer");
+	const popstate = nextPopState();
+	await act(async () => {
+		window.history.back();
+		await popstate;
+	});
+	expect(window.location.pathname).toBe("/");
+	expect(explorer?.querySelector("h2")).toBeNull();
+	expect(window.history.state).not.toHaveProperty("__namepassName");
 });
 
 test("tab focus preserves the selected name and the Explorer input", async () => {

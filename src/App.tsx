@@ -24,6 +24,13 @@ const VIDEO_URL = `${import.meta.env.BASE_URL}assets/namepass-bg.mp4`;
 type Page = "monitoring" | "home" | "leaderboard" | "supported" | "terms" | "privacy";
 
 const BASE = import.meta.env.BASE_URL;
+const NAME_HISTORY_KEY = "__namepassName";
+
+function nameFromHistoryState(state: unknown): string | null {
+	if (!state || typeof state !== "object" || Array.isArray(state)) return null;
+	const name = (state as Record<string, unknown>)[NAME_HISTORY_KEY];
+	return typeof name === "string" ? name : null;
+}
 
 function pathToPage(pathname: string): Page {
 	const rel = pathname.startsWith(BASE)
@@ -105,9 +112,30 @@ function ActiveApp() {
 		if ("scrollRestoration" in window.history) {
 			window.history.scrollRestoration = "manual";
 		}
-		const onPop = () => setPage(pathToPage(window.location.pathname));
+		const onPop = () => {
+			setPage(pathToPage(window.location.pathname));
+			setSelected(nameFromHistoryState(window.history.state));
+		};
 		window.addEventListener("popstate", onPop);
 		return () => window.removeEventListener("popstate", onPop);
+	}, []);
+
+	const selectName = useCallback((name: string | null) => {
+		const currentState = window.history.state;
+		const currentName = nameFromHistoryState(currentState);
+		if (name === null) {
+			setSelected(null);
+			if (currentName !== null) window.history.back();
+			return;
+		}
+
+		if (currentName !== name) {
+			const state = currentState && typeof currentState === "object" && !Array.isArray(currentState)
+				? currentState as Record<string, unknown>
+				: {};
+			window.history.pushState({ ...state, [NAME_HISTORY_KEY]: name }, "", window.location.href);
+		}
+		setSelected(name);
 	}, []);
 
 	const navigate = useCallback((next: Page) => {
@@ -143,12 +171,12 @@ function ActiveApp() {
 	const goPrivacy = useCallback(() => navigate("privacy"), [navigate]);
 
 	const focusSearch = useCallback(() => {
-		setSelected(null);
+		selectName(null);
 		goToSection("explorer");
 		setTimeout(() => {
 			document.querySelector<HTMLInputElement>("#explorer input")?.focus();
 		}, 600);
-	}, [goToSection]);
+	}, [goToSection, selectName]);
 	const goExplorer = focusSearch;
 
 	/**
@@ -158,14 +186,14 @@ function ActiveApp() {
 	 */
 	const goToName = useCallback(
 		(name: string) => {
-			setSelected(name);
 			if (page !== "home") {
 				setPage("home");
 				window.history.pushState({}, "", pageToPath("home"));
 			}
+			selectName(name);
 			setTimeout(() => scrollTo("explorer"), 260);
 		},
-		[page, scrollTo],
+		[page, scrollTo, selectName],
 	);
 
 	const navProps = {
@@ -225,7 +253,7 @@ function ActiveApp() {
 						{/* Search and public activity remain available while price quotes load. */}
 						<Explorer
 							selected={selected}
-							onSelect={setSelected}
+							onSelect={selectName}
 							onActivated={goToName}
 							onSupportedTokens={goSupported}
 						/>

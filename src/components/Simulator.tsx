@@ -295,7 +295,7 @@ function SimulatorBody() {
 											key={m.years}
 											onClick={() => setBudget(m.send)}
 											aria-pressed={on}
-											className={`relative rounded-2xl border px-1.5 py-4 text-center transition-colors ${
+											className={`relative rounded-[8px] border px-1.5 py-4 text-center transition-colors ${
 												on
 													? "border-[rgba(28,58,41,0.5)] bg-[rgba(28,58,41,0.06)]"
 													: "border-[rgba(28,58,41,0.12)] hover:border-[rgba(28,58,41,0.3)] hover:bg-[rgba(28,58,41,0.02)]"
@@ -319,7 +319,7 @@ function SimulatorBody() {
 													   glyphs ~0.6px low. Measured, not guessed — the
 													   first attempt at this centred the box and looked
 													   no better. */
-													className={`absolute -top-[9px] right-1 inline-flex h-[18px] items-center justify-center rounded-full border px-1.5 pb-px text-[10px] leading-none tabular-nums transition-colors ${
+													className={`absolute -top-[9px] right-1 inline-flex h-[18px] items-center justify-center rounded-[4px] border px-1.5 pb-px text-[10px] leading-none tabular-nums transition-colors ${
 														on
 															? "border-[rgba(28,58,41,0.92)] bg-[rgba(28,58,41,0.92)] text-white"
 															: "border-[rgba(28,58,41,0.12)] bg-white text-[rgba(28,58,41,0.5)]"
