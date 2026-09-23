@@ -18,6 +18,11 @@ releases use the GitHub-connected PR flow: inspect remote main, complete require
 deployment checks, merge when authorized, then verify the deployed commit. A local production
 deploy or alias promotion requires an explicit exception from the user.
 
+Before every push, fetch `origin` and inspect both the feature branch's upstream and
+`origin/main`. Integrate any remote commits that are missing locally, including commits added to
+`main` since the feature branch's base. Resolve conflicts, review the final diff, and rerun relevant
+checks before pushing. Never force-push unless the user explicitly authorizes it.
+
 Completion means the requested result is implemented, relevant checks pass, and any authorized
 publication is handled. State remaining blockers precisely. For a review, give concrete findings
 and recommendations; do not substitute a first impression for a requested full audit.
