@@ -5,8 +5,6 @@ import { leaderboardNames, renewalCount, renewalEvent, syncLeaderboard, timeDeli
 import { getLeaderboard, getNameActivity } from "../lib/publicApi";
 import { explorerUrl, fmtDate, fmtDelivered, fmtDuration, fmtUsdc, fmtYears, truncTx } from "../lib/format";
 import DotPattern from "./magicui/DotPattern";
-import ShineBorder from "./magicui/ShineBorder";
-import AnimatedShinyText from "./magicui/AnimatedShinyText";
 import NameAvatar from "./NameAvatar";
 import ChainTag from "./ChainTag";
 
@@ -21,31 +19,24 @@ const OPTIONS: Array<{ key: Mode; label: string }> = [
 
 function Toggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
 	return (
-		<div className="inline-flex items-center gap-1 rounded-[12px] bg-[rgba(28,58,41,0.05)] border border-[rgba(28,58,41,0.1)] p-1">
+		<div
+			role="group"
+			aria-label="Rank names by"
+			className="inline-flex items-center gap-1 rounded-[10px] border border-[rgba(28,58,41,0.12)] bg-[rgba(28,58,41,0.04)] p-1"
+		>
 			{OPTIONS.map((o) => (
 				<button
 					key={o.key}
+					type="button"
+					aria-pressed={mode === o.key}
 					onClick={() => onChange(o.key)}
-					className="relative px-4 py-2 rounded-[8px] text-[13.5px] transition-colors"
+					className={`rounded-[7px] px-4 py-2 text-[13px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)] ${
+						mode === o.key
+							? "bg-white text-[rgba(28,58,41,0.95)] shadow-[0_1px_3px_rgba(28,58,41,0.12)]"
+							: "text-[rgba(28,58,41,0.55)] hover:bg-white/60 hover:text-[rgba(28,58,41,0.9)]"
+					}`}
 				>
-					{mode === o.key && (
-						<motion.span
-							layoutId="leaderboard-toggle-pill"
-							className="absolute inset-0"
-							transition={{ type: "spring", stiffness: 420, damping: 32 }}
-						>
-							<ShineBorder borderRadius={999} borderWidth={2} duration={7} className="w-full h-full">
-								<div className="w-full h-full rounded-[8px] bg-white shadow-[0_2px_10px_-2px_rgba(28,58,41,0.3)]" />
-							</ShineBorder>
-						</motion.span>
-					)}
-					{mode === o.key ? (
-						<AnimatedShinyText className="relative z-10 text-[13.5px]">
-							{o.label}
-						</AnimatedShinyText>
-					) : (
-						<span className="relative z-10 text-[rgba(28,58,41,0.5)]">{o.label}</span>
-					)}
+					{o.label}
 				</button>
 			))}
 		</div>

@@ -44,6 +44,62 @@ export const DISPLAY_KEYS = [
 	"email",
 ] as const;
 
+const SOCIAL_PROFILES: Record<string, { base: string; hosts: readonly string[]; handle: RegExp }> = {
+	"com.twitter": {
+		base: "https://x.com/",
+		hosts: ["x.com", "www.x.com", "twitter.com", "www.twitter.com"],
+		handle: /^[A-Za-z0-9_]{1,15}$/,
+	},
+	"com.github": {
+		base: "https://github.com/",
+		hosts: ["github.com", "www.github.com"],
+		handle: /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/,
+	},
+	"org.telegram": {
+		base: "https://t.me/",
+		hosts: ["t.me", "www.t.me", "telegram.me", "www.telegram.me"],
+		handle: /^[A-Za-z0-9_]{5,32}$/,
+	},
+};
+
+function httpProfileUrl(value: string): string | undefined {
+	if (/^[a-z][a-z\d+.-]*:/i.test(value) && !/^https?:\/\//i.test(value)) return undefined;
+	const candidate = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+	try {
+		const url = new URL(candidate);
+		if (url.username || url.password) return undefined;
+		return url.protocol === "https:" || url.protocol === "http:" ? url.href : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/** Return a web link only for profile records whose values represent URLs or handles. */
+export function profileRecordHref(key: string, value: string): string | undefined {
+	const raw = value.trim();
+	if (!raw) return undefined;
+	if (key === "url") return httpProfileUrl(raw);
+
+	const social = SOCIAL_PROFILES[key];
+	if (!social) return undefined;
+
+	if (/^https?:\/\//i.test(raw) || /^(?:www\.)?(?:x\.com|twitter\.com|github\.com|t\.me|telegram\.me)\//i.test(raw)) {
+		const url = httpProfileUrl(raw);
+		if (!url) return undefined;
+		return social.hosts.includes(new URL(url).hostname.toLowerCase()) ? url : undefined;
+	}
+
+	const handle = raw.replace(/^@/, "");
+	return social.handle.test(handle) ? `${social.base}${encodeURIComponent(handle)}` : undefined;
+}
+
+export function profileRecordLabel(key: string, value: string): string {
+	if (key !== "com.twitter" && key !== "org.telegram") return value;
+	const raw = value.trim();
+	if (/^(?:https?:\/\/|www\.|(?:x\.com|twitter\.com|t\.me|telegram\.me)\/)/i.test(raw)) return raw;
+	return `@${raw.replace(/^@/, "")}`;
+}
+
 export interface EnsProfile {
 	name: string;
 	/** ETH address (coin 60), if set. */

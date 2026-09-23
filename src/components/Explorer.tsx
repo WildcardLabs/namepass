@@ -64,7 +64,7 @@ import ChainTag from "./ChainTag";
 import { ceilToCent, costOf, PricingNotLoadedError, rates, YEAR_SECONDS } from "../lib/pricing";
 import { LABEL_PROBLEM_TEXT, labelProblem, normalizeLabel } from "../lib/namepass";
 import { GAS_ALLOWANCE } from "../lib/fees";
-import { fetchProfile, type EnsProfile } from "../lib/ens";
+import { fetchProfile, profileRecordHref, profileRecordLabel, type EnsProfile } from "../lib/ens";
 import { XIcon } from "./icons";
 import { activateName, getActivity, getName, getNameActivity, getPublicConfig, safeInteger, triggerFlow, type ActivityRead, type PublicFlow } from "../lib/publicApi";
 import { chainById, HUB_CHAIN } from "../lib/chains";
@@ -868,9 +868,9 @@ function NameDetail({
 	const links = (
 		[
 			{ key: "url", value: t.url, Icon: LinkIcon },
-			{ key: "com.twitter", value: t["com.twitter"] && `@${t["com.twitter"]}`, Icon: XIcon },
+			{ key: "com.twitter", value: t["com.twitter"], Icon: XIcon },
 			{ key: "com.github", value: t["com.github"], Icon: Github },
-			{ key: "org.telegram", value: t["org.telegram"] && `@${t["org.telegram"]}`, Icon: Send },
+			{ key: "org.telegram", value: t["org.telegram"], Icon: Send },
 			{ key: "location", value: t.location, Icon: MapPin },
 			{ key: "email", value: t.email, Icon: Mail },
 		] as const
@@ -1066,15 +1066,30 @@ function NameDetail({
 						{/* Links */}
 						{links.length > 0 && (
 							<div className="mt-4 flex flex-wrap gap-x-4 gap-y-2">
-								{links.map((l) => (
-									<span
-										key={l.key}
-										className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(28,58,41,0.7)] min-w-0"
-									>
-										<l.Icon className="w-3.5 h-3.5 shrink-0 text-[rgba(28,58,41,0.45)]" />
-										<span className="truncate">{l.value}</span>
-									</span>
-								))}
+								{links.map((l) => {
+									const href = profileRecordHref(l.key, l.value);
+									const label = profileRecordLabel(l.key, l.value);
+									return (
+										<span
+											key={l.key}
+											className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(28,58,41,0.7)] min-w-0"
+										>
+											<l.Icon className="w-3.5 h-3.5 shrink-0 text-[rgba(28,58,41,0.45)]" />
+											{href ? (
+												<a
+													href={href}
+													target="_blank"
+														rel="noopener noreferrer"
+													className="truncate hover:text-[rgba(28,58,41,0.95)] hover:underline underline-offset-2 transition-colors"
+												>
+													{label}
+													</a>
+												) : (
+													<span className="truncate">{label}</span>
+												)}
+										</span>
+									);
+								})}
 							</div>
 						)}
 					</div>
