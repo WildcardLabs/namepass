@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { ArrowUpRight } from "lucide-react";
 
 interface Props {
@@ -54,15 +54,27 @@ function loadScript(src: string): Promise<void> {
  */
 export default function CtaBand({ onClaim, onSimulate }: Props) {
 	const bandRef = useRef<HTMLDivElement>(null);
+	const reduced = useReducedMotion();
 
 	useEffect(() => {
 		let effect: VantaEffect | undefined;
 		let cancelled = false;
-		(async () => {
+		let visible = false;
+		let loading = false;
+		const element = bandRef.current;
+		if (!element || reduced) return;
+		const update = async () => {
+			if (!visible || document.hidden) {
+				effect?.destroy();
+				effect = undefined;
+				return;
+			}
+			if (effect || loading || cancelled) return;
+			loading = true;
 			try {
 				await loadScript(P5_SRC);
 				await loadScript(VANTA_SRC);
-				if (cancelled || !bandRef.current || !window.VANTA) return;
+				if (cancelled || !visible || document.hidden || !window.VANTA) return;
 				effect = window.VANTA.TOPOLOGY({
 					el: bandRef.current,
 					mouseControls: true,
@@ -77,13 +89,23 @@ export default function CtaBand({ onClaim, onSimulate }: Props) {
 				});
 			} catch {
 				/* CDN blocked or offline — the solid dark panel remains. */
+			} finally {
+				loading = false;
 			}
-		})();
+		};
+		const observer = new IntersectionObserver(([entry]) => {
+			visible = entry.isIntersecting;
+			void update();
+		});
+		observer.observe(element);
+		document.addEventListener("visibilitychange", update);
 		return () => {
 			cancelled = true;
+			observer.disconnect();
+			document.removeEventListener("visibilitychange", update);
 			effect?.destroy();
 		};
-	}, []);
+	}, [reduced]);
 
 	return (
 		<section className="px-5 md:px-10 pb-14 md:pb-20">

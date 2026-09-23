@@ -25,6 +25,9 @@ can derive addresses, start renewals and complete Circle claims directly.
 
 <img src=".github/assets/hero.png" width="100%" alt="Namepass payment interface" />
 
+The deposit card shows a copyable `<label>.namepass.eth` subdomain, the full deposit address,
+and a QR code that encodes the address.
+
 ## How it works
 
 ```mermaid

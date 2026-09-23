@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 interface Props {
 	children: ReactNode;
@@ -16,6 +16,27 @@ interface Props {
  * background; other pages get a plain white card.
  */
 export default function PageShell({ children, video, outerClassName = "", cardClassName = "" }: Props) {
+	const videoRef = useRef<HTMLVideoElement>(null);
+	useEffect(() => {
+		const element = videoRef.current;
+		if (!element) return;
+		let visible = false;
+		const update = () => {
+			if (visible && !document.hidden) void element.play().catch(() => {});
+			else element.pause();
+		};
+		const observer = new IntersectionObserver(([entry]) => {
+			visible = entry.isIntersecting;
+			update();
+		});
+		observer.observe(element);
+		document.addEventListener("visibilitychange", update);
+		return () => {
+			observer.disconnect();
+			document.removeEventListener("visibilitychange", update);
+			element.pause();
+		};
+	}, [video]);
 	return (
 		<div className={`w-full flex items-center justify-center p-3 md:p-5 bg-[#f0f0f0] ${outerClassName}`}>
 			<section
@@ -57,7 +78,7 @@ export default function PageShell({ children, video, outerClassName = "", cardCl
 				    72px and 112px tall), so nothing changes visually. */}
 				{video && (
 					<video
-						autoPlay
+						ref={videoRef}
 						muted
 						loop
 						playsInline

@@ -43,5 +43,13 @@ Pages share `PageShell` and `Navbar`. Reuse existing visual primitives, tooltips
 Monitoring is a separately loaded, GitHub-authenticated page built with the existing shadcn
 components. Its snapshot and manual gas-read behavior are defined in [MONITORING.md](MONITORING.md).
 
+The deposit card shows separate copy targets for `<label>.namepass.eth` and the full deposit
+address. Its QR encodes the address. Static QR codes use one SVG path.
+
+The Explorer keeps its feed and page mounted while a name is open, with feed polling paused.
+Cached selections render immediately. Uncached selections show a loading state. The explicit
+ENS refresh still precedes the activity refresh. The homepage video and CTA effect run only
+while visible in an active tab. Reduced-motion users do not start the CTA effect.
+
 Build and verification commands are in [CONTRIBUTING.md](../CONTRIBUTING.md). Deployment facts
 belong in [DEPLOYMENTS.md](DEPLOYMENTS.md).

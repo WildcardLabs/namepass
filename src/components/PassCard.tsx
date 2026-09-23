@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { ArrowUpRight, Check, Copy, Infinity as InfinityIcon } from "lucide-react";
+import { normalizeLabel } from "../lib/namepass";
 import { encodeQR } from "../lib/qr";
 import { FUNDING_CHAINS } from "../lib/chains";
 
@@ -38,7 +39,8 @@ export default function PassCard({
 	surface = "solid",
 	layout = "stack",
 }: Props) {
-	const [copied, setCopied] = useState(false);
+	const [copied, setCopied] = useState<string | null>(null);
+	const subdomain = `${normalizeLabel(name)}.namepass.eth`;
 
 	const matrix = useMemo(() => {
 		try {
@@ -50,8 +52,8 @@ export default function PassCard({
 
 	function copy(text: string) {
 		const done = () => {
-			setCopied(true);
-			setTimeout(() => setCopied(false), 1600);
+			setCopied(text);
+			setTimeout(() => setCopied(null), 1600);
 		};
 		if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, done);
 		else done();
@@ -90,7 +92,11 @@ export default function PassCard({
 								role="img"
 								aria-label={`QR code for ${address}`}
 							>
-								{matrix.map((row, r) =>
+								{!animate ? (
+									<path fill="rgba(28,58,41,0.92)" d={matrix.flatMap((row, r) =>
+										row.flatMap((on, c) => on ? [`M${c} ${r}h1v1h-1z`] : []),
+									).join("")} />
+								) : matrix.map((row, r) =>
 									row.map((on, c) =>
 										on ? (
 											<motion.rect
@@ -134,10 +140,20 @@ export default function PassCard({
 			</div>
 
 			<div className={split ? "sm:flex-1 sm:min-w-0" : ""}>
-			{/* The address is the only fundable identifier. */}
+			<button
+				onClick={() => copy(subdomain)}
+				className={`${split ? "mt-5 sm:mt-0" : "mt-5"} w-full text-left rounded-[1.4rem] border px-4 py-3 group ${fieldBg}`}
+				aria-label={`Copy ${subdomain}`}
+			>
+				<span className="block text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">Namepass</span>
+				<span className="mt-1 flex items-center justify-between gap-3 text-[15px] text-[rgba(28,58,41,0.95)]">
+					<span className="min-w-0 break-all">{subdomain}</span>
+					{copied === subdomain ? <Check aria-label="Copied" className="w-4 h-4 shrink-0" /> : <Copy className="w-4 h-4 shrink-0" />}
+				</span>
+			</button>
 			<button
 				onClick={() => copy(address)}
-				className={`${split ? "mt-5 sm:mt-0" : "mt-5"} w-full text-left rounded-[1.4rem] border px-4 py-3 transition-colors group ${fieldBg}`}
+				className={`mt-3 w-full text-left rounded-[1.4rem] border px-4 py-3 transition-colors group ${fieldBg}`}
 			>
 				<div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
 					<InfinityIcon className="w-3 h-3" />
@@ -147,7 +163,7 @@ export default function PassCard({
 					<span className="min-w-0 text-[12.5px] leading-snug text-[rgba(28,58,41,0.95)] font-mono break-all">
 						{address}
 					</span>
-					{copied ? (
+					{copied === address ? (
 						<span className="flex items-center gap-1.5 shrink-0 text-[12px] text-[rgba(28,58,41,0.8)]">
 							<Check className="w-3.5 h-3.5" />
 							Copied

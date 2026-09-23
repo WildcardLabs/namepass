@@ -159,6 +159,7 @@ function setName(name: PublicName, activity?: NameActivityRead): NameRecord {
 
 export function syncFeed(feed: ActivityRead): void {
 	feedFlows = feed.flows ?? [];
+	for (const { name } of feedFlows) setName(name);
 	const received = new Set(feed.items.map((item) => item.renewal.eventId));
 	for (const item of feed.items) {
 		const record = setName(item.name);

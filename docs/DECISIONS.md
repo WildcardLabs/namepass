@@ -42,3 +42,12 @@ boundary. Recovery cadence must still be sized against database compute limits.
 Flow identity uses exact events and Circle nonces. Durable intents and one nonce queue per
 sender/chain preserve replacement history. Unknown outcomes are reconciled before another
 broadcast; an unclaimed CCTP message is retried without a second burn.
+
+## Explorer rendering and deposit identifiers
+
+Keep the feed mounted while name details are open to preserve its page and avoid rebuilding
+rows on return. Pause background polling and off-screen effects to reduce competing work.
+Static QR codes use one SVG path; callers can still request the animated QR.
+
+Show the resolving Namepass subdomain as a separate copy target. Keep the full deposit address
+visible and encode that address in the QR for wallet compatibility.

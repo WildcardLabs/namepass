@@ -143,6 +143,7 @@ test("the global feed exposes active flows without opening a name", () => {
 		renewalCount: "0",
 	};
 	syncFeed({ items: [], flows: [{ name, flow: flow({ id: "live-flow" }) }], nextCursor: null });
+	expect(findName(name.displayName)?.address).toBe(name.depositAddress);
 	expect(activeFlows().map((item) => item.id)).toContain("live-flow");
 });
 
