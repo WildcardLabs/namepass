@@ -105,7 +105,10 @@ function AmountCell({
 	);
 }
 
-function DiscountTag({ off }: { off: string }) {
+function DiscountTag({ off }: { off: string | null }) {
+	if (off === null) {
+		return <span className="text-[rgba(28,58,41,0.35)]">—</span>;
+	}
 	if (!off) {
 		return <span className="text-[rgba(28,58,41,0.35)]">-</span>;
 	}
@@ -243,9 +246,11 @@ function FeedRowContent({
 							pending ? "text-[rgba(28,58,41,0.5)]" : "text-[rgba(28,58,41,0.95)]"
 						}`}
 					>
-						{pending
-							? fmtDuration(row.seconds).replace("+", "~")
-							: fmtDuration(row.seconds)}
+						{row.seconds === null
+							? "—"
+							: pending
+								? fmtDuration(row.seconds).replace("+", "~")
+								: fmtDuration(row.seconds)}
 					</span>
 
 					<span className="hidden lg:flex min-w-0 items-center justify-end gap-1.5 text-[12px]">
@@ -291,7 +296,7 @@ function FeedRowContent({
 							Rate
 						</dt>
 						<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.75)]">
-							{row.off ? `${row.off} off` : "Standard"}
+							{row.off === null ? "—" : row.off ? `${row.off} off` : "Standard"}
 						</dd>
 					</div>
 					<div>
@@ -299,9 +304,11 @@ function FeedRowContent({
 							Time
 						</dt>
 						<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.95)] tabular-nums">
-							{pending
-								? fmtDuration(row.seconds).replace("+", "~")
-								: fmtDuration(row.seconds)}
+							{row.seconds === null
+								? "—"
+								: pending
+									? fmtDuration(row.seconds).replace("+", "~")
+									: fmtDuration(row.seconds)}
 						</dd>
 					</div>
 				</dl>
@@ -437,8 +444,8 @@ type FeedItem = {
 	amountDeposited: bigint;
 	gasAllowance: bigint;
 	amountApplied: bigint;
-	seconds: bigint;
-	off: string;
+	seconds: bigint | null;
+	off: string | null;
 } & (
 	| { pending: true; status: FlowStatus; originChainId: string; at: number; flow?: PublicFlow }
 	| { pending: false; at: number; event: ActivityEvent }
@@ -1286,7 +1293,7 @@ function NameDetail({
 												Rate
 											</dt>
 											<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.75)]">
-												{e.kind === "renewal" ? (e.off ? `${e.off} off` : "Standard") : "-"}
+												{e.kind === "renewal" ? (e.off === null ? "—" : e.off ? `${e.off} off` : "Standard") : "-"}
 											</dd>
 										</div>
 										<div>
