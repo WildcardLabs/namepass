@@ -4,7 +4,6 @@ import Navbar from "./components/Navbar";
 import PageShell from "./components/PageShell";
 import Hero from "./components/Hero";
 import Protocol from "./components/Protocol";
-import CtaBand from "./components/CtaBand";
 import Simulator from "./components/Simulator";
 import Explorer from "./components/Explorer";
 import Leaderboard from "./components/Leaderboard";
@@ -210,7 +209,7 @@ function ActiveApp() {
 
 						{/* What the protocol actually is — four real properties, in the
 						    RIVR template's bento. Static copy, so it never waits on pricing. */}
-						<Protocol onSearch={focusSearch} />
+						<Protocol />
 
 						{/* Renders its own frame either way — heading, card, tabs — with
 						    skeletons standing in for the two panels that quote a price.
@@ -229,9 +228,6 @@ function ActiveApp() {
 							onActivated={goToName}
 							onSupportedTokens={goSupported}
 						/>
-
-						{/* Near-footer CTA band with an animated background. */}
-						<CtaBand onSearch={focusSearch} onSimulate={goSimulate} />
 					</>
 				)}
 

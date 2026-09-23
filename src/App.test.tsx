@@ -15,7 +15,6 @@ vi.mock("./components/Navbar", () => ({ default: () => null }));
 vi.mock("./components/PageShell", () => ({ default: ({ children }: { children: ReactNode }) => children }));
 vi.mock("./components/Hero", () => ({ default: () => null }));
 vi.mock("./components/Protocol", () => ({ default: () => null }));
-vi.mock("./components/CtaBand", () => ({ default: () => null }));
 vi.mock("./components/Simulator", () => ({
 	default: ({ priced, problem, onRetry }: { priced: boolean; problem: string | null; onRetry: () => void }) => (
 		<section id="simulator" data-priced={priced}>

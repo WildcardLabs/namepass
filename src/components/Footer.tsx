@@ -35,15 +35,12 @@ export default function Footer({
 							alt="Namepass"
 							className="h-4 w-auto"
 						/>
-						<p className="mt-3 text-[13px] text-[rgba(28,58,41,0.55)] leading-relaxed">
-							USDC-powered ENS renewals on an open protocol.
-						</p>
 						<a
 							href="https://x.com/namepass_eth"
 							target="_blank"
 							rel="noopener noreferrer"
 							aria-label="Namepass on X"
-							className="mt-5 inline-flex items-center justify-center w-9 h-9 rounded-[10px] border border-[rgba(28,58,41,0.12)] text-[rgba(28,58,41,0.7)] hover:text-[rgba(28,58,41,0.95)] hover:border-[rgba(28,58,41,0.3)] transition-colors"
+							className="mt-3 inline-flex items-center justify-center w-9 h-9 rounded-[10px] border border-[rgba(28,58,41,0.12)] text-[rgba(28,58,41,0.7)] hover:text-[rgba(28,58,41,0.95)] hover:border-[rgba(28,58,41,0.3)] transition-colors"
 						>
 							<XIcon className="w-4 h-4" />
 						</a>

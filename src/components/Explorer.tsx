@@ -1475,11 +1475,11 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 							</span>
 						</div>
 						<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
-							Explore ENS names.
+							ENS renewal activity.
 						</h2>
 						<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] max-w-xl leading-relaxed">
-							Search a name to view its Namepass, deposit address, balances, and renewal activity.
-							Browse public deposits and flows below.
+							Search a name to inspect its deterministic deposit wallet, balances, and renewal history.
+							Recent public deposits and flows appear below.
 						</p>
 					</div>
 
