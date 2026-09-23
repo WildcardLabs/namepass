@@ -1,5 +1,10 @@
 import { motion } from "motion/react";
+import { ArrowUpRight } from "lucide-react";
 import { AnimatedBeamDemo } from "./AnimatedBeamDemo";
+
+interface Props {
+	onSearch: () => void;
+}
 
 /* The RIVR template's "Architected for high-performance DeFi" bento, repurposed
    as the four things that actually make Namepass work. Each card is one real
@@ -11,19 +16,30 @@ const TAG =
 const CARD =
 	"rounded-[1.25rem] border border-[rgba(28,58,41,0.14)] bg-white p-6 md:p-7";
 
-export default function Protocol() {
+export default function Protocol({ onSearch }: Props) {
 	return (
 		<section id="protocol" className="bg-[#f0f0f0] px-5 md:px-10 py-14 md:py-20">
 			<div className="max-w-[1100px] mx-auto">
-				<div className="max-w-2xl">
+				<div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
+					<div className="max-w-2xl">
 						<span className={TAG}>The protocol</span>
 						<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.03]">
 							The contracts behind ENS renewals.
 						</h2>
 						<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] leading-relaxed">
-							Namepass contracts derive a deterministic USDC deposit address for every ENS name.
-							Renewals settle at ENS's on-chain price.
+							Immutable Namepass contracts derive a deterministic USDC deposit address for every name and
+							execute renewals at ENS's on-chain rates.
 						</p>
+					</div>
+					<motion.button
+						whileHover={{ scale: 1.02 }}
+						whileTap={{ scale: 0.98 }}
+						onClick={onSearch}
+						className="shrink-0 self-start sm:self-auto inline-flex items-center gap-2 rounded-[10px] border border-[rgba(28,58,41,0.2)] bg-white px-5 py-2.5 text-[14px] text-[rgba(28,58,41,0.9)] hover:bg-[rgba(28,58,41,0.04)] transition-colors"
+					>
+						Get Started
+						<ArrowUpRight className="w-4 h-4" />
+					</motion.button>
 				</div>
 
 				{/* Bento: tall card left, one wide + two half cards right */}
@@ -37,7 +53,7 @@ export default function Protocol() {
 						className={`${CARD} md:row-span-2 flex flex-col`}
 					>
 						<div className="flex items-center justify-between">
-							<span className={TAG}>Deposit address</span>
+							<span className={TAG}>Deposit Address</span>
 							<span className={NUM}>01</span>
 						</div>
 
@@ -45,7 +61,7 @@ export default function Protocol() {
 
 						<div>
 							<h3 className="text-[22px] md:text-[26px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-tight">
-								One address per name
+								One address, any chain
 							</h3>
 							<p className="mt-2 text-[14px] text-[rgba(28,58,41,0.6)] leading-relaxed">
 								Each ENS name maps to the same deposit address across supported chains.
@@ -62,14 +78,14 @@ export default function Protocol() {
 						className={CARD}
 					>
 						<div className="flex items-center justify-between">
-							<span className={TAG}>Renewal</span>
+							<span className={TAG}>Renewal execution</span>
 							<span className={NUM}>02</span>
 						</div>
 						<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-tight">
 							USDC buys renewal time
 						</h3>
 						<p className="mt-2 text-[14px] text-[rgba(28,58,41,0.6)] leading-relaxed max-w-md">
-							Eligible deposits buy renewal time at ENS's on-chain price. Larger amounts may qualify for discounted rates.
+							Namepass turns USDC into renewal time at ENS rates. Larger amounts qualify for discounted rates.
 						</p>
 					</motion.div>
 
@@ -87,10 +103,10 @@ export default function Protocol() {
 								<span className={NUM}>03</span>
 							</div>
 							<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-tight">
-								Contracts remain callable
+								Anyone can trigger
 							</h3>
 							<p className="mt-2 text-[13.5px] text-[rgba(28,58,41,0.6)] leading-relaxed">
-								Namepass runs renewals today; the protocol remains callable if its service is unavailable.
+								Renewal flows remain executable even if the Namepass service goes offline.
 							</p>
 						</motion.div>
 
@@ -109,7 +125,7 @@ export default function Protocol() {
 								Circle CCTP
 							</h3>
 							<p className="mt-2 text-[13.5px] text-[rgba(28,58,41,0.6)] leading-relaxed">
-								USDC moves natively across supported chains before the renewal settles.
+								USDC moves natively across chains before the renewal settles.
 							</p>
 										</motion.div>
 					</div>

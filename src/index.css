@@ -70,6 +70,40 @@ body {
 	}
 }
 
+/* Animated background for the near-footer CTA band (see components/CtaBand.tsx).
+   A slow wash across an oversized gradient, plus two blurred blobs that drift —
+   evokes the template's shifting landscape without a video. */
+@keyframes cta-pan {
+	0% { background-position: 0% 50%; }
+	50% { background-position: 100% 50%; }
+	100% { background-position: 0% 50%; }
+}
+
+@keyframes cta-blob-a {
+	0%, 100% { transform: translate(0, 0) scale(1); }
+	50% { transform: translate(8%, -12%) scale(1.15); }
+}
+
+@keyframes cta-blob-b {
+	0%, 100% { transform: translate(0, 0) scale(1.1); }
+	50% { transform: translate(-10%, 8%) scale(0.9); }
+}
+
+.cta-pan {
+	background-size: 300% 300%;
+	animation: cta-pan 20s ease-in-out infinite;
+}
+.cta-blob-a { animation: cta-blob-a 16s ease-in-out infinite; }
+.cta-blob-b { animation: cta-blob-b 22s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+	.cta-pan,
+	.cta-blob-a,
+	.cta-blob-b {
+		animation: none;
+	}
+}
+
 /* shadcn semantic tokens, scoped to the monitoring surface and its portals. */
 @theme inline {
  --color-background: var(--background);
