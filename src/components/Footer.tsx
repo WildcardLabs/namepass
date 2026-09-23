@@ -4,6 +4,7 @@ interface Props {
 	onProtocol: () => void;
 	onExplore: () => void;
 	onSimulate: () => void;
+	onLeaderboard: () => void;
 	onTerms: () => void;
 	onPrivacy: () => void;
 }
@@ -12,6 +13,7 @@ export default function Footer({
 	onProtocol,
 	onExplore,
 	onSimulate,
+	onLeaderboard,
 	onTerms,
 	onPrivacy,
 }: Props) {
@@ -19,6 +21,7 @@ export default function Footer({
 		{ label: "Protocol", action: onProtocol },
 		{ label: "ENS v2 pricing", action: onSimulate },
 		{ label: "Explorer", action: onExplore },
+		{ label: "Leaderboard", action: onLeaderboard },
 	];
 	const legal = [
 		{ label: "Terms of service", action: onTerms },

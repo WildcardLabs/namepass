@@ -281,6 +281,7 @@ function ActiveApp() {
 				onProtocol={goProtocol}
 				onExplore={goExplorer}
 				onSimulate={goSimulate}
+				onLeaderboard={goLeaderboard}
 				onTerms={goTerms}
 				onPrivacy={goPrivacy}
 			/>

@@ -262,7 +262,7 @@ function FeedRowContent({
 				</div>
 
 				{/* Mobile: labelled detail pairs */}
-				<dl className="lg:hidden mt-2.5 grid grid-cols-[minmax(5.25rem,auto)_minmax(4rem,auto)_minmax(4.75rem,auto)_auto] justify-between gap-x-2 gap-y-1 items-baseline">
+				<dl className="lg:hidden mt-3 grid grid-cols-2 gap-x-6 gap-y-3">
 					<div>
 						<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
 							From
@@ -1225,7 +1225,7 @@ function NameDetail({
 
 								{/* Mobile detail pairs */}
 								{e.kind !== "activated" && (
-									<dl className="lg:hidden mt-2.5 grid grid-cols-[minmax(5.25rem,auto)_minmax(4rem,auto)_minmax(4.75rem,auto)_auto] justify-between gap-x-2 gap-y-1 items-baseline">
+									<dl className="lg:hidden mt-3 grid grid-cols-2 gap-x-6 gap-y-3">
 										<div>
 											<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
 												From
