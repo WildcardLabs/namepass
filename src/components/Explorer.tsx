@@ -126,6 +126,74 @@ function DiscountTag({ off }: { off: string | null }) {
 const LIVE_FEED_COLUMNS = "lg:grid-cols-[minmax(9rem,1.45fr)_minmax(5.75rem,0.8fr)_minmax(6rem,0.9fr)_minmax(5.5rem,0.85fr)_minmax(5rem,0.7fr)_minmax(6.5rem,1fr)_7rem]";
 const NAME_ACTIVITY_COLUMNS = "lg:grid-cols-[minmax(5.5rem,0.8fr)_minmax(9rem,1.2fr)_minmax(5rem,0.8fr)_minmax(6rem,0.85fr)_minmax(5.5rem,0.8fr)_minmax(5rem,0.7fr)_7rem]";
 
+/** The exact shared mobile layout for activity rows in both Explorer views. */
+function MobileFlowSummary({
+	title,
+	chain,
+	received,
+	rate,
+	time,
+	footer,
+	expandable,
+	expanded,
+	controlsId,
+	onToggle,
+	showDetails = true,
+}: {
+	title: ReactNode;
+	chain: ReactNode;
+	received: ReactNode;
+	rate: ReactNode;
+	time: ReactNode;
+	footer: ReactNode;
+	expandable: boolean;
+	expanded: boolean;
+	controlsId: string;
+	onToggle: () => void;
+	showDetails?: boolean;
+}) {
+	return (
+		<div className={`lg:hidden px-4 md:px-5 py-4 md:py-3.5 ${expandable ? "hover:bg-[rgba(28,58,41,0.025)] transition-colors" : ""}`}>
+			<div className="flex items-center justify-between gap-2">
+				{title}
+				{expandable && (
+					<button
+						type="button"
+						onClick={onToggle}
+						aria-expanded={expanded}
+						aria-controls={controlsId}
+						aria-label={expanded ? "Hide flow details" : "Show flow details"}
+						className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[rgba(28,58,41,0.14)] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+					>
+						<span className="sr-only">{expanded ? "Hide flow details" : "Show flow details"}</span>
+						<ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+					</button>
+				)}
+			</div>
+
+			{showDetails && <dl className="mt-2.5 grid grid-cols-2 gap-x-6 gap-y-2">
+				<div>
+					<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">From</dt>
+					<dd className="mt-0.5 text-[12.5px]">{chain}</dd>
+				</div>
+				<div>
+					<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">Received</dt>
+					<dd className="mt-0.5">{received}</dd>
+				</div>
+				<div>
+					<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">Rate</dt>
+					<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.75)]">{rate}</dd>
+				</div>
+				<div>
+					<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">Time</dt>
+					<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.95)] tabular-nums">{time}</dd>
+				</div>
+			</dl>}
+			<div className="mt-2 flex justify-end text-[11.5px] text-[rgba(28,58,41,0.4)]">{footer}</div>
+		</div>
+	);
+}
+
 /* One shared motion language for the feed.
 
    Entering rows grow from zero height and leaving rows collapse to it, so the
@@ -194,6 +262,19 @@ function FeedRowContent({
 	const pending = row.pending;
 	const [expanded, setExpanded] = useState(false);
 	const transactions = row.pending && row.flow ? completedFlowTransactions(row.flow) : [];
+	const toggleExpanded = () => setExpanded((open) => !open);
+	const nameTitle = (
+		<button type="button" onClick={() => onSelect(row.name)} aria-label={`Open ${row.name}`} className="group inline-flex min-w-0 flex-1 items-center gap-1 text-left text-[15px] lg:text-[14.5px] text-black transition-colors hover:text-[rgba(28,88,52,0.95)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]">
+			<img src={`${import.meta.env.BASE_URL}logos/ens-mark-dark-blue.svg`} alt="" aria-hidden="true" className="relative top-px h-3 w-3 shrink-0 object-contain grayscale opacity-40" />
+			<span className="truncate">{row.name}</span>
+			<ArrowUpRight className="-ml-1 h-3.5 w-3.5 shrink-0 translate-y-px transition-transform group-hover:translate-x-px group-hover:translate-y-0" />
+		</button>
+	);
+	const timeAdded = row.seconds === null
+		? "—"
+		: pending
+			? fmtDuration(row.seconds).replace("+", "~")
+			: fmtDuration(row.seconds);
 	return (
 		<motion.div
 			animate={{
@@ -202,119 +283,38 @@ function FeedRowContent({
 			transition={reduced ? { duration: 0 } : { duration: 0.55, ease: "easeOut" }}
 			className="border-b border-[rgba(28,58,41,0.07)]"
 		>
-			<div className={`w-full px-4 md:px-5 py-4 md:py-3.5 block lg:grid ${LIVE_FEED_COLUMNS} lg:gap-4 lg:items-center hover:bg-[rgba(28,58,41,0.025)] transition-colors`}>
-				{/* Mobile: name + headline result on one line */}
-				<div className="flex items-center justify-between gap-2 lg:contents">
-					<button type="button" onClick={() => onSelect(row.name)} aria-label={`Open ${row.name}`} className="group inline-flex min-w-0 items-center gap-1 text-left text-[15px] lg:text-[14.5px] text-black transition-colors hover:text-[rgba(28,88,52,0.95)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]">
-						<img src={`${import.meta.env.BASE_URL}logos/ens-mark-dark-blue.svg`} alt="" aria-hidden="true" className="relative top-px h-3 w-3 shrink-0 object-contain grayscale opacity-40" />
-						<span className="truncate">{row.name}</span>
-						<ArrowUpRight className="-ml-1 h-3.5 w-3.5 shrink-0 translate-y-px transition-transform group-hover:translate-x-px group-hover:translate-y-0" />
-					</button>
-					<button
-						type="button"
-						onClick={() => setExpanded((open) => !open)}
-						aria-expanded={expanded}
-						aria-controls={`flow-details-${row.key}`}
-						aria-label={expanded ? "Hide flow details" : "Show flow details"}
-						className="lg:hidden inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[rgba(28,58,41,0.14)] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
-					>
-						<span className="sr-only">{expanded ? "Hide flow details" : "Show flow details"}</span>
-						<ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
-					</button>
-
-					<span className="hidden lg:block text-[13.5px]">
-						<ChainTag chain={row.chain} />
-					</span>
-
-					<span className="hidden lg:block text-right">
-						<AmountCell
-							deposited={row.amountDeposited}
-							applied={row.amountApplied}
-							showApplied={row.gasAllowance > 0n}
-						/>
-					</span>
-
-					<span className="hidden lg:flex justify-center text-[13px]">
-						<DiscountTag off={row.off} />
-					</span>
-
-					{/* "~6.0y" while bridging, not "+6.0y": nothing has been added yet,
-					    and if the claim reverts nothing will be. Same cell, same width,
-					    so settling swaps one character. */}
-					<span
-						className={`hidden lg:block text-[13.5px] text-right tabular-nums transition-colors duration-500 ${
-							pending ? "text-[rgba(28,58,41,0.5)]" : "text-[rgba(28,58,41,0.95)]"
-						}`}
-					>
-						{row.seconds === null
-							? "—"
-							: pending
-								? fmtDuration(row.seconds).replace("+", "~")
-								: fmtDuration(row.seconds)}
-					</span>
-
-					<span className="hidden lg:flex min-w-0 items-center justify-end gap-1.5 text-[12px]">
-						<StatusCell row={row} reduced={reduced} />
-					</span>
-					<button
-						type="button"
-						onClick={() => setExpanded((open) => !open)}
-						aria-expanded={expanded}
-						aria-controls={`flow-details-${row.key}`}
-						className="hidden lg:inline-flex h-7 shrink-0 items-center justify-center justify-self-end gap-1 rounded-md border border-[rgba(28,58,41,0.14)] px-2 text-[11px] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
-					>
-						{expanded ? "Hide details" : "Flow details"}
-						<ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
-					</button>
-				</div>
-
-				{/* Mobile: labelled detail pairs */}
-				<dl className="lg:hidden mt-2.5 grid grid-cols-2 gap-x-6 gap-y-2">
-					<div>
-						<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
-							From
-						</dt>
-						<dd className="mt-0.5 text-[12.5px]">
-							<ChainTag chain={row.chain} />
-						</dd>
-					</div>
-					<div>
-						<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
-							Received
-						</dt>
-						<dd className="mt-0.5">
-							<AmountCell
-								deposited={row.amountDeposited}
-								applied={row.amountApplied}
-								showApplied={row.gasAllowance > 0n}
-								dense
-							/>
-						</dd>
-					</div>
-					<div>
-						<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
-							Rate
-						</dt>
-						<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.75)]">
-							{row.off === null ? "—" : row.off ? `${row.off} off` : "Standard"}
-						</dd>
-					</div>
-					<div>
-						<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
-							Time
-						</dt>
-						<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.95)] tabular-nums">
-							{row.seconds === null
-								? "—"
-								: pending
-									? fmtDuration(row.seconds).replace("+", "~")
-									: fmtDuration(row.seconds)}
-						</dd>
-					</div>
-				</dl>
-				<div className="lg:hidden mt-2 text-[11.5px] text-[rgba(28,58,41,0.4)]">
-					<StatusCell row={row} reduced={reduced} />
-				</div>
+			<MobileFlowSummary
+				title={nameTitle}
+				chain={<ChainTag chain={row.chain} />}
+				received={<AmountCell deposited={row.amountDeposited} applied={row.amountApplied} showApplied={row.gasAllowance > 0n} dense />}
+				rate={row.off === null ? "—" : row.off ? `${row.off} off` : "Standard"}
+				time={timeAdded}
+				footer={<StatusCell row={row} reduced={reduced} />}
+				expandable
+				expanded={expanded}
+				controlsId={`flow-details-${row.key}`}
+				onToggle={toggleExpanded}
+			/>
+			<div className={`hidden lg:grid px-4 md:px-5 py-3.5 ${LIVE_FEED_COLUMNS} gap-4 items-center hover:bg-[rgba(28,58,41,0.025)] transition-colors`}>
+				{nameTitle}
+				<span className="text-[13.5px]"><ChainTag chain={row.chain} /></span>
+				<span className="text-right"><AmountCell deposited={row.amountDeposited} applied={row.amountApplied} showApplied={row.gasAllowance > 0n} /></span>
+				<span className="flex justify-center text-[13px]"><DiscountTag off={row.off} /></span>
+				{/* Pending time uses ~ because it has not been added yet. */}
+				<span className={`text-[13.5px] text-right tabular-nums transition-colors duration-500 ${pending ? "text-[rgba(28,58,41,0.5)]" : "text-[rgba(28,58,41,0.95)]"}`}>
+					{timeAdded}
+				</span>
+				<span className="flex min-w-0 items-center justify-end gap-1.5 text-[12px]"><StatusCell row={row} reduced={reduced} /></span>
+				<button
+					type="button"
+					onClick={toggleExpanded}
+					aria-expanded={expanded}
+					aria-controls={`flow-details-${row.key}`}
+					className="inline-flex h-7 shrink-0 items-center justify-center justify-self-end gap-1 rounded-md border border-[rgba(28,58,41,0.14)] px-2 text-[11px] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+				>
+					{expanded ? "Hide details" : "Flow details"}
+					<ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+				</button>
 			</div>
 			<AnimatePresence initial={false}>
 				{expanded && (
@@ -1197,126 +1197,41 @@ function NameDetail({
 							/* Activation has no transactions behind it, so nothing to open. */
 							const expandable = e.kind === "renewal" && e.steps.length > 0;
 							const isOpen = openEvent === e.id;
+							const eventTitle = e.kind === "activated" ? "Namepass activated" : e.kind === "deposit" ? "Payment received" : "Renewal";
+							const eventRate = e.kind === "renewal" ? (e.off === null ? "—" : e.off ? `${e.off} off` : "Standard") : "-";
+							const eventTime = e.kind === "renewal" ? fmtDuration(e.seconds) : "-";
+							const toggleEvent = () => setOpenEvent(isOpen ? null : e.id);
 							return (
 							<div key={e.id}>
-							<button
-								type="button"
-								disabled={!expandable}
-								aria-expanded={expandable ? isOpen : undefined}
-								aria-controls={expandable ? `renewal-details-${e.id}` : undefined}
-								onClick={() => setOpenEvent(isOpen ? null : e.id)}
-								className={`w-full text-left px-4 md:px-5 py-4 md:py-3.5 block lg:grid ${NAME_ACTIVITY_COLUMNS} lg:gap-4 lg:items-center ${
-									expandable
-										? "hover:bg-[rgba(28,58,41,0.025)] transition-colors"
-										: "cursor-default"
-								}`}
-							>
-								{/* Headline row */}
-								<div className="flex items-center justify-between gap-2 lg:contents">
-									<span className="hidden lg:block text-[13px] text-[rgba(28,58,41,0.6)] tabular-nums">
-										{fmtDate(e.at)}
-									</span>
-
-									<span className="min-w-0 text-[15px] md:text-[14.5px] text-[rgba(28,58,41,0.95)] truncate">
-										{e.kind === "activated" ? "Namepass activated" : e.kind === "deposit" ? "Payment received" : "Renewal"}
-									</span>
-
-									<span className="hidden lg:block text-[13.5px]">
-										{e.kind !== "activated" ? (
-											<ChainTag chain={e.chain} />
-										) : (
-											<span className="text-[rgba(28,58,41,0.35)]">-</span>
-										)}
-									</span>
-
-									<span className="hidden lg:block text-[13.5px] text-[rgba(28,58,41,0.75)] text-right tabular-nums">
-										{e.kind !== "activated" ? (
-											<AmountCell
-												deposited={e.amountDeposited}
-												applied={e.amountApplied}
-												showApplied={e.kind === "renewal" && e.gasAllowance > 0n}
-											/>
-										) : (
-											"-"
-										)}
-									</span>
-
-									<span className="hidden lg:flex justify-center">
-										{e.kind === "renewal" ? (
-											<DiscountTag off={e.off} />
-										) : (
-											<span className="text-[rgba(28,58,41,0.35)]">-</span>
-										)}
-									</span>
-
-									<span className="hidden lg:block text-[13.5px] text-[rgba(28,58,41,0.95)] text-right tabular-nums">
-										{e.kind === "renewal" ? fmtDuration(e.seconds) : "-"}
-									</span>
-
-									<span className="hidden lg:flex justify-end">
-										{expandable && (
-											<span className="inline-flex min-h-9 w-full items-center justify-end gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11px] text-[rgba(28,58,41,0.72)]">
-												{isOpen ? "Hide details" : "Flow details"}
-												<ChevronDown className={`w-4 h-4 text-[rgba(28,58,41,0.45)] transition-transform ${isOpen ? "rotate-180" : ""}`} />
-											</span>
-										)}
-									</span>
-
-								</div>
-
-								{/* Mobile detail pairs */}
-								{e.kind !== "activated" && (
-									<dl className="lg:hidden mt-2.5 grid grid-cols-2 gap-x-6 gap-y-2">
-										<div>
-											<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
-												From
-											</dt>
-											<dd className="mt-0.5 text-[12.5px]">
-												<ChainTag chain={e.chain} />
-											</dd>
-										</div>
-										<div>
-											<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
-												Received
-											</dt>
-											<dd className="mt-0.5">
-												<AmountCell
-													deposited={e.amountDeposited}
-													applied={e.amountApplied}
-													showApplied={e.kind === "renewal" && e.gasAllowance > 0n}
-													dense
-												/>
-											</dd>
-										</div>
-										<div>
-											<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
-												Rate
-											</dt>
-											<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.75)]">
-												{e.kind === "renewal" ? (e.off === null ? "—" : e.off ? `${e.off} off` : "Standard") : "-"}
-											</dd>
-										</div>
-										<div>
-											<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
-												Time
-											</dt>
-											<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.95)] tabular-nums">
-												{e.kind === "renewal" ? fmtDuration(e.seconds) : "-"}
-											</dd>
-										</div>
-									</dl>
-								)}
-
-								<div className="lg:hidden mt-2 flex items-center justify-between gap-3 text-[11.5px] text-[rgba(28,58,41,0.45)]">
-									<span>{fmtDate(e.at)}</span>
-									{expandable && (
-										<span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[rgba(28,58,41,0.14)] text-[rgba(28,58,41,0.72)]">
-											<span className="sr-only">{isOpen ? "Hide flow details" : "Show flow details"}</span>
-											<ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-										</span>
-									)}
-								</div>
-							</button>
+								<MobileFlowSummary
+									title={<span className="min-w-0 flex-1 truncate text-[15px] text-[rgba(28,58,41,0.95)]">{eventTitle}</span>}
+									chain={e.kind === "activated" ? "-" : <ChainTag chain={e.chain} />}
+									received={e.kind === "activated" ? "-" : <AmountCell deposited={e.amountDeposited} applied={e.amountApplied} showApplied={e.kind === "renewal" && e.gasAllowance > 0n} dense />}
+									rate={eventRate}
+									time={eventTime}
+									footer={fmtDate(e.at)}
+									expandable={expandable}
+									expanded={isOpen}
+									controlsId={`renewal-details-${e.id}`}
+									onToggle={toggleEvent}
+									showDetails={e.kind !== "activated"}
+								/>
+								<button
+									type="button"
+									disabled={!expandable}
+									aria-expanded={expandable ? isOpen : undefined}
+									aria-controls={expandable ? `renewal-details-${e.id}` : undefined}
+									onClick={toggleEvent}
+									className={`hidden lg:grid w-full text-left px-5 py-3.5 ${NAME_ACTIVITY_COLUMNS} gap-4 items-center ${expandable ? "hover:bg-[rgba(28,58,41,0.025)] transition-colors" : "cursor-default"}`}
+								>
+									<span className="text-[13px] text-[rgba(28,58,41,0.6)] tabular-nums">{fmtDate(e.at)}</span>
+									<span className="text-[14.5px] text-[rgba(28,58,41,0.95)]">{eventTitle}</span>
+									<span className="text-[13.5px]">{e.kind !== "activated" ? <ChainTag chain={e.chain} /> : <span className="text-[rgba(28,58,41,0.35)]">-</span>}</span>
+									<span className="text-[13.5px] text-[rgba(28,58,41,0.75)] text-right tabular-nums">{e.kind !== "activated" ? <AmountCell deposited={e.amountDeposited} applied={e.amountApplied} showApplied={e.kind === "renewal" && e.gasAllowance > 0n} /> : "-"}</span>
+									<span className="flex justify-center">{e.kind === "renewal" ? <DiscountTag off={e.off} /> : <span className="text-[rgba(28,58,41,0.35)]">-</span>}</span>
+									<span className="text-[13.5px] text-[rgba(28,58,41,0.95)] text-right tabular-nums">{eventTime}</span>
+									<span className="flex justify-end">{expandable && <span className="inline-flex min-h-9 w-full items-center justify-end gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11px] text-[rgba(28,58,41,0.72)]">{isOpen ? "Hide details" : "Flow details"}<ChevronDown className={`w-4 h-4 text-[rgba(28,58,41,0.45)] transition-transform ${isOpen ? "rotate-180" : ""}`} /></span>}</span>
+								</button>
 							{e.kind === "deposit" && (
 								<p className="px-4 pb-3 text-[12px] text-[rgba(28,58,41,0.6)] md:px-5" aria-label={`Funded by ${e.funder}`}>
 									Funded by <span className="font-mono">{e.funder}</span>
