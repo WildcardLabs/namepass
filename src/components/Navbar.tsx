@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { ArrowUpRight } from "lucide-react";
 
 interface Props {
 	onProtocol: () => void;
@@ -71,6 +72,7 @@ export default function Navbar({
 					className="flex items-center gap-2 bg-[#1c3a29] text-white rounded-[10px] px-4 md:px-5 py-2 md:py-2.5 hover:bg-[#16301f] transition-colors"
 				>
 					<span className="text-[14px] font-normal">Get Started</span>
+					<ArrowUpRight className="w-4 h-4 md:w-[18px] md:h-[18px]" />
 				</motion.button>
 			</div>
 		</nav>
