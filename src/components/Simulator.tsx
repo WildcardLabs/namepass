@@ -6,6 +6,7 @@ import {
 	nextTierHint,
 	oneYearCost,
 	payableThresholds,
+	rates,
 	solve,
 	YEAR_SECONDS,
 } from "../lib/pricing";
@@ -153,6 +154,7 @@ function SimulatorSkeleton() {
 }
 
 function SimulatorBody() {
+	const pricing = rates();
 	const [len, setLen] = useState(5);
 	const [budget, setBudget] = useState<bigint>(
 		() => ceilToCent(payableThresholds(5)[2].exact + ALLOWANCE),
@@ -172,10 +174,10 @@ function SimulatorBody() {
 				...m,
 				send: ceilToCent(m.exact + ALLOWANCE),
 			})),
-		[len],
+		[len, pricing],
 	);
-	const result = useMemo(() => solve(applied, len), [applied, len]);
-	const hint = useMemo(() => nextTierHint(applied, len), [applied, len]);
+	const result = useMemo(() => solve(applied, len), [applied, len, pricing]);
+	const hint = useMemo(() => nextTierHint(applied, len), [applied, len, pricing]);
 	const years = Number(result.seconds) / Number(YEAR_SECONDS);
 
 	/* Keep the amount sensible when switching name length. */

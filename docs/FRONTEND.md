@@ -46,10 +46,13 @@ components. Its snapshot and manual gas-read behavior are defined in [MONITORING
 The deposit card shows separate copy targets for `<label>.namepass.eth` and the full deposit
 address. Its QR encodes the address. Static QR codes use one SVG path.
 
-The Explorer keeps its card in place and renders only the active view. Selecting a name shows its
-loading state inside the card while public reads finish. The detail view fades and slides in over
-400 ms; its ENS profile fields show inline loading skeletons. Returning to the feed resumes its
-polling. The explicit ENS refresh still precedes the activity refresh. The homepage video and CTA
+The Explorer keeps its card in place and renders only the active view. The detail view fades and
+slides in over 400 ms; its ENS profile fields show inline loading skeletons. The parent retains the
+last feed response and page so Back restores them immediately and resumes polling.
+Pricing refreshes keep validated views mounted. Only the initial load and a retry after failed
+validation use the loading state. A validation failure still disables pricing. Price calculations
+must update when the validated configuration changes, without resetting user input.
+The explicit ENS refresh still precedes the activity refresh. The homepage video and CTA
 effect run only while visible in an active tab. Reduced-motion users do not start the CTA effect.
 
 Build and verification commands are in [CONTRIBUTING.md](../CONTRIBUTING.md). Deployment facts
