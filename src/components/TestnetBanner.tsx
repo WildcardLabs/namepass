@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { FlaskConical } from "lucide-react";
 import { IS_TESTNET, TOKEN_CHAINS } from "../lib/chains";
 import { getActivity } from "../lib/publicApi";
-import { fmtDelivered } from "../lib/format";
+import { fmtDurationPrecise } from "../lib/format";
 
 /**
  * A slim marquee above the page card, on every route.
@@ -45,24 +45,37 @@ export default function TestnetBanner() {
 	useEffect(() => {
 		if (!IS_TESTNET) return;
 		let alive = true;
-		getActivity(1, 12)
-			.then((res) => {
+		let loading = false;
+		const load = async () => {
+			if (!alive || document.hidden || loading) return;
+			loading = true;
+			try {
+				const res = await getActivity(1, 12);
 				if (!alive) return;
 				const lines = res.items
 					.filter((it) => it.renewal?.durationSeconds)
-					.map(
-						(it) =>
-							`${it.name.displayName} extended by ${fmtDelivered(
-								BigInt(it.renewal.durationSeconds.split(".")[0] || "0"),
-							)}`,
-					);
-				if (lines.length) setRenewals(lines);
-			})
-			.catch(() => {
+					.map((it) => {
+						const seconds = BigInt(it.renewal.durationSeconds.split(".")[0] || "0");
+						return `${it.name.displayName} extended by ${fmtDurationPrecise(seconds)}`;
+					});
+				setRenewals(lines.length ? lines : null);
+			} catch {
 				/* No backend / no activity — the notices fallback stands. */
-			});
+			} finally {
+				loading = false;
+			}
+		};
+		void load();
+		const timer = window.setInterval(() => void load(), 5_000);
+		const focus = () => void load();
+		const visibility = () => { if (!document.hidden) void load(); };
+		window.addEventListener("focus", focus);
+		document.addEventListener("visibilitychange", visibility);
 		return () => {
 			alive = false;
+			window.clearInterval(timer);
+			window.removeEventListener("focus", focus);
+			document.removeEventListener("visibilitychange", visibility);
 		};
 	}, []);
 

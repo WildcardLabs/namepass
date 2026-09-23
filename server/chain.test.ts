@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { HUB_CHAIN } from "../src/lib/chains";
 import { ensNamehash, labelHash, readEnsState, readNativeUsdcBalanceSnapshots } from "./chain";
 
 test("ENS hashes match known vitalik vectors", () => {
@@ -24,32 +25,25 @@ test("ENS reads verify the chain and ABI-encode the normalized label", async () 
 	globalThis.fetch = async (_input, init) => {
 		const body = JSON.parse(String(init?.body)) as
 			| { method: string }
-			| Array<{ id: number; data?: string; params: Array<{ data: string }> }>;
+			| Array<{ id: number; data?: string; params: [{ data: string }, string] }>;
 		if (!Array.isArray(body)) {
-			assert.equal(body.method, "eth_chainId");
-			return Response.json({ jsonrpc: "2.0", id: 0, result: "0xaa36a7" });
+			return Response.json({ jsonrpc: "2.0", id: 0, result: body.method === "eth_chainId" ? "0xaa36a7" : "0x64" });
 		}
-
+		for (const request of body) assert.equal(request.params[1], "0x64");
 		batch += 1;
-		if (batch === 1) {
-			const registry = "1234567890123456789012345678901234567890";
-			const result = `0x${registry.padStart(64, "0")}`;
-			return Response.json(body.map(({ id }) => ({ jsonrpc: "2.0", id, result })));
+		const word = (value: string | bigint) => BigInt(value).toString(16).padStart(64, "0");
+		const helper = "0x1111111111111111111111111111111111111111";
+		let results: string[];
+		if (batch === 1) results = [helper, HUB_CHAIN.gatewayAddress!, HUB_CHAIN.pointerAddress!].map(word);
+		else if (batch === 2) results = [1n, HUB_CHAIN.gatewayAddress!, HUB_CHAIN.factoryAddress!, HUB_CHAIN.usdcAddress].map(word);
+		else if (batch === 3) results = [HUB_CHAIN.ensRegistrarAddress!, HUB_CHAIN.ensRenewerV1Address!, HUB_CHAIN.ensReferrer!].map(word);
+		else {
+			const encodedLabel = "20".padStart(64, "0") + "7".padStart(64, "0") + Buffer.from("vitalik").toString("hex").padEnd(64, "0");
+			assert.equal(body[0].params[0].data.slice(10), encodedLabel);
+			results = [word(1_800_000_000n) + word(HUB_CHAIN.ensRegistrarAddress!)];
 		}
+		return Response.json(body.map(({ id }) => ({ jsonrpc: "2.0", id, result: `0x${results[id]}` })));
 
-		const encodedLabel =
-			"20".padStart(64, "0") +
-			"7".padStart(64, "0") +
-			Buffer.from("vitalik").toString("hex").padEnd(64, "0");
-		for (const request of body) {
-			assert.equal(request.params[0].data.slice(10), encodedLabel);
-		}
-		const words = [1_800_000_000n, 1n, 0n].map(
-			(value) => `0x${value.toString(16).padStart(64, "0")}`,
-		);
-		return Response.json(
-			body.map(({ id }, index) => ({ jsonrpc: "2.0", id, result: words[index] })),
-		);
 	};
 
 	try {

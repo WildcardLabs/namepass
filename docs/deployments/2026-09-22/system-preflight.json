@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-09-21T23:40:10.699Z",
+  "helper": "0x7Bfee7c257ff48f8D787A61F15925e24743C8F88",
+  "states": [
+    {
+      "label": "steve",
+      "expiry": "2029-08-12T08:46:16.000Z",
+      "renewableBy": "registrar"
+    },
+    {
+      "label": "vitalik",
+      "expiry": "2068-08-18T22:45:18.000Z",
+      "renewableBy": "v1"
+    }
+  ],
+  "addressDerivation": "passed",
+  "adapterFingerprint": "passed",
+  "replacementClaim": "0x47fb93e99172e174c5b3da44cf5daf1d3f2a26a2260d15cc1be110b142ad843a",
+  "expiry": "1877670986",
+  "indexedReceipt": "passed"
+}

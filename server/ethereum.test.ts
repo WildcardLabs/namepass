@@ -47,7 +47,7 @@ const wrongEmitter = "0x3333333333333333333333333333333333333333" as Address;
 const label = "vitalik";
 const labelKey = labelHash(label) as Hex;
 
-function settlementLogs(renewalEmitter = HUB_CHAIN.helperAddress! as Address) {
+function settlementLogs(renewalEmitter = HUB_CHAIN.gatewayAddress! as Address) {
 	return [
 		{
 			address: HUB_CHAIN.factoryAddress! as Address,

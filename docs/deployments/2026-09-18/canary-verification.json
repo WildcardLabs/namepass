@@ -1,0 +1,412 @@
+{
+  "checkedAt": "2026-09-19T07:09:41.303Z",
+  "fingerprint": "0x50c483cd6ce7cb75dafa6fb23956990afb23866d7dc660a945e3253a13650708",
+  "status": "receipts_verified",
+  "errors": [],
+  "coverage": [
+    {
+      "label": "steve",
+      "chainId": 11155111,
+      "complete": true,
+      "missing": [],
+      "depositAddress": "0x5D61CeaffFba714304216bfDFb9b2d5D900d787b",
+      "depositBalance": "0"
+    },
+    {
+      "label": "steve",
+      "chainId": 84532,
+      "complete": true,
+      "missing": [],
+      "depositAddress": "0x5D61CeaffFba714304216bfDFb9b2d5D900d787b",
+      "depositBalance": "0"
+    },
+    {
+      "label": "steve",
+      "chainId": 421614,
+      "complete": true,
+      "missing": [],
+      "depositAddress": "0x5D61CeaffFba714304216bfDFb9b2d5D900d787b",
+      "depositBalance": "0"
+    },
+    {
+      "label": "steve",
+      "chainId": 5042002,
+      "complete": true,
+      "missing": [],
+      "depositAddress": "0x5D61CeaffFba714304216bfDFb9b2d5D900d787b",
+      "depositBalance": "0"
+    },
+    {
+      "label": "vitalik",
+      "chainId": 11155111,
+      "complete": true,
+      "missing": [],
+      "depositAddress": "0xe045CCEddbdB26F7D6a30DF6e5aa6642dC48Bd3B",
+      "depositBalance": "0"
+    },
+    {
+      "label": "vitalik",
+      "chainId": 84532,
+      "complete": true,
+      "missing": [],
+      "depositAddress": "0xe045CCEddbdB26F7D6a30DF6e5aa6642dC48Bd3B",
+      "depositBalance": "0"
+    },
+    {
+      "label": "vitalik",
+      "chainId": 421614,
+      "complete": true,
+      "missing": [],
+      "depositAddress": "0xe045CCEddbdB26F7D6a30DF6e5aa6642dC48Bd3B",
+      "depositBalance": "0"
+    },
+    {
+      "label": "vitalik",
+      "chainId": 5042002,
+      "complete": false,
+      "missing": [
+        "renew",
+        "claim"
+      ],
+      "depositAddress": "0xe045CCEddbdB26F7D6a30DF6e5aa6642dC48Bd3B",
+      "depositBalance": "0"
+    }
+  ],
+  "records": [
+    {
+      "label": "steve",
+      "origin": 11155111,
+      "action": "fund",
+      "hash": "0xf55dc45538f0c42b99510d1be63f560a0f7ac20db403f45b49dc9076ab79b63d",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "11734059",
+        "blockHash": "0x10d06a32405e42cf33d84d04f71379e5e82b6b1344f91cd1527180c150c0080f"
+      }
+    },
+    {
+      "label": "steve",
+      "origin": 11155111,
+      "action": "renew",
+      "hash": "0xd0bb5fd57b460ddd31255c6991ea7981201a60baa311e31f033825475dccd9c9",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "11734060",
+        "blockHash": "0x84e72af5a7862a2b5710d54efa2ea45f57ac022215c2ac457b5631a7ea577d9d",
+        "renewal": {
+          "labelHash": "0x05611ac011f4c8af2adf5f5b850fe4359224029d343b8627d112910fc1943e18",
+          "wallet": "0x5D61CeaffFba714304216bfDFb9b2d5D900d787b",
+          "executor": "0x1208a26FAa0F4AC65B42098419EB4dAA5e580AC6",
+          "label": "steve",
+          "duration": "3547790",
+          "amountReceived": "1000000",
+          "gasAllowance": "100000",
+          "amountApplied": "900000",
+          "remainder": "0",
+          "fromCCTP": false
+        },
+        "expiryBefore": "1852836456",
+        "expiryAfter": "1856384246",
+        "allowancesZero": true
+      }
+    },
+    {
+      "label": "steve",
+      "origin": 5042002,
+      "action": "claim",
+      "hash": "0x3b43a00b4cc7e441a71afc75ae4bdfff413940f478f4e53fb9656341c1269e70",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "11734092",
+        "blockHash": "0x2548ae0b9b279109eb82494d65ade48dcad83afcb67de920e8556496f434eaa5",
+        "renewal": {
+          "labelHash": "0x05611ac011f4c8af2adf5f5b850fe4359224029d343b8627d112910fc1943e18",
+          "wallet": "0x5D61CeaffFba714304216bfDFb9b2d5D900d787b",
+          "executor": "0x1208a26FAa0F4AC65B42098419EB4dAA5e580AC6",
+          "label": "steve",
+          "duration": "3547790",
+          "amountReceived": "1000000",
+          "gasAllowance": "100000",
+          "amountApplied": "900000",
+          "remainder": "0",
+          "fromCCTP": true
+        },
+        "expiryBefore": "1856384246",
+        "expiryAfter": "1859932036",
+        "allowancesZero": true
+      }
+    },
+    {
+      "label": "vitalik",
+      "origin": 11155111,
+      "action": "fund",
+      "hash": "0x698ad8dd3e416d6faac6ce175df203b14ede4b189b0d8c1dcc0554c85a91da0b",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "11734103",
+        "blockHash": "0x75cabf2fe672542fe4ca7bf72910f3f3a36c063f238c2880be4b5ade3d428cf1"
+      }
+    },
+    {
+      "label": "vitalik",
+      "origin": 11155111,
+      "action": "renew",
+      "hash": "0x508d38cf8a6d169762d40c04f41b76c6fbd671c35d9bb3fe7689bc0940d40886",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "11734106",
+        "blockHash": "0x3741c606e7ab49956fd851efce07ab945b1647b3b34f04107b7142be8691eeff",
+        "renewal": {
+          "labelHash": "0xaf2caa1c2ca1d027f1ac823b529d0a67cd144264b2789fa2ea4d63a67c7103cc",
+          "wallet": "0xe045CCEddbdB26F7D6a30DF6e5aa6642dC48Bd3B",
+          "executor": "0x1208a26FAa0F4AC65B42098419EB4dAA5e580AC6",
+          "label": "vitalik",
+          "duration": "3547790",
+          "amountReceived": "1000000",
+          "gasAllowance": "100000",
+          "amountApplied": "900000",
+          "remainder": "0",
+          "fromCCTP": false
+        },
+        "expiryBefore": "3098364358",
+        "expiryAfter": "3101912148",
+        "allowancesZero": true
+      }
+    },
+    {
+      "label": "vitalik",
+      "origin": 84532,
+      "action": "claim",
+      "hash": "0xf76c291359df45f7b43ad89d9c4fa7fa32ecebd04f036ff8b609979bc63f4345",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "11736098",
+        "blockHash": "0x473ed9e5d84ac0ad20e0dfa7e420508c0b48092f18ea8c22c192ab956b169f1d",
+        "renewal": {
+          "labelHash": "0xaf2caa1c2ca1d027f1ac823b529d0a67cd144264b2789fa2ea4d63a67c7103cc",
+          "wallet": "0xe045CCEddbdB26F7D6a30DF6e5aa6642dC48Bd3B",
+          "executor": "0x1208a26FAa0F4AC65B42098419EB4dAA5e580AC6",
+          "label": "vitalik",
+          "duration": "3547790",
+          "amountReceived": "1000000",
+          "gasAllowance": "100000",
+          "amountApplied": "900000",
+          "remainder": "0",
+          "fromCCTP": true
+        },
+        "expiryBefore": "3101912148",
+        "expiryAfter": "3105459938",
+        "allowancesZero": true
+      }
+    },
+    {
+      "label": "vitalik",
+      "origin": 421614,
+      "action": "claim",
+      "hash": "0x58791663ea354e667cf4af5ce8f8bd7bb2ab1acb8a24f6a4a1fe5411416faa20",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "11736102",
+        "blockHash": "0xfddd6a1962a0c83f061ead7308ca8ee04a02319296f24ea455d57f8513ad4c24",
+        "renewal": {
+          "labelHash": "0xaf2caa1c2ca1d027f1ac823b529d0a67cd144264b2789fa2ea4d63a67c7103cc",
+          "wallet": "0xe045CCEddbdB26F7D6a30DF6e5aa6642dC48Bd3B",
+          "executor": "0x1208a26FAa0F4AC65B42098419EB4dAA5e580AC6",
+          "label": "vitalik",
+          "duration": "3547790",
+          "amountReceived": "1000000",
+          "gasAllowance": "100000",
+          "amountApplied": "900000",
+          "remainder": "0",
+          "fromCCTP": true
+        },
+        "expiryBefore": "3105459938",
+        "expiryAfter": "3109007728",
+        "allowancesZero": true
+      }
+    },
+    {
+      "label": "steve",
+      "origin": 84532,
+      "action": "claim",
+      "hash": "0x6d411f9e1361c27d557420686b63a958b68a7789215158f248301301cf41064c",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "11736110",
+        "blockHash": "0x742d2bfc79f04655890e32cb4226b234487c016dd50f1c418d53fc9fe455d0cb",
+        "renewal": {
+          "labelHash": "0x05611ac011f4c8af2adf5f5b850fe4359224029d343b8627d112910fc1943e18",
+          "wallet": "0x5D61CeaffFba714304216bfDFb9b2d5D900d787b",
+          "executor": "0x1208a26FAa0F4AC65B42098419EB4dAA5e580AC6",
+          "label": "steve",
+          "duration": "3547790",
+          "amountReceived": "1000000",
+          "gasAllowance": "100000",
+          "amountApplied": "900000",
+          "remainder": "0",
+          "fromCCTP": true
+        },
+        "expiryBefore": "1859932036",
+        "expiryAfter": "1863479826",
+        "allowancesZero": true
+      }
+    },
+    {
+      "label": "steve",
+      "origin": 421614,
+      "action": "claim",
+      "hash": "0x39630239b7ec55cf69065f4f055069fba5a81a1a6849ca326fadad7f02b60013",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "11736113",
+        "blockHash": "0xecbdb94948b446575c36f797e87c28711c6b4266962f4b02cf592cff0581bc92",
+        "renewal": {
+          "labelHash": "0x05611ac011f4c8af2adf5f5b850fe4359224029d343b8627d112910fc1943e18",
+          "wallet": "0x5D61CeaffFba714304216bfDFb9b2d5D900d787b",
+          "executor": "0x1208a26FAa0F4AC65B42098419EB4dAA5e580AC6",
+          "label": "steve",
+          "duration": "3547790",
+          "amountReceived": "1000000",
+          "gasAllowance": "100000",
+          "amountApplied": "900000",
+          "remainder": "0",
+          "fromCCTP": true
+        },
+        "expiryBefore": "1863479826",
+        "expiryAfter": "1867027616",
+        "allowancesZero": true
+      }
+    },
+    {
+      "label": "steve",
+      "origin": 84532,
+      "action": "fund",
+      "hash": "0x12d5a866d27bb8491d4851d75008e2ebbb0151c28f5eb897a1d38f407cd683fc",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "47003968",
+        "blockHash": "0x16085129db77a249196fafa29af83cedc39d60277db3bac99c7515e32c46625a"
+      }
+    },
+    {
+      "label": "steve",
+      "origin": 84532,
+      "action": "renew",
+      "hash": "0xafe65e8e7140c2305644b3a445f6f78a501fce3655e93b20481abe7d54c1a7a3",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "47004002",
+        "blockHash": "0x7f0d693aa9424cdddc5c40af5816ec92c8197afc88bc7a8b78cef6e5017b6b52",
+        "message": "0x00000001000000060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008fe6b999dc680ccfdd5bf7eb0974218be2542daa0000000000000000000000008fe6b999dc680ccfdd5bf7eb0974218be2542daa0000000000000000000000003ef9c6b1b8023acbe13173a187f78eaa14c2b0f6000007d00000000000000001000000000000000000000000036cbd53842c5426634e7929541ec2318f3dcf7e0000000000000000000000003ef9c6b1b8023acbe13173a187f78eaa14c2b0f600000000000000000000000000000000000000000000000000000000000f42400000000000000000000000005d61ceafffba714304216bfdfb9b2d5d900d787b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007374657665",
+        "depositLogIndex": 118
+      }
+    },
+    {
+      "label": "vitalik",
+      "origin": 84532,
+      "action": "fund",
+      "hash": "0x9d6436f94beeca9ca9ad4477f14115793dc174a4bfc2a838132f4acf115e8278",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "47004540",
+        "blockHash": "0x3cef293e97a0eacc7e1716e84e69578ccc3197ec47f38662aec9d5ebeb15e9f3"
+      }
+    },
+    {
+      "label": "vitalik",
+      "origin": 84532,
+      "action": "renew",
+      "hash": "0xfbd3a85a0b2e4b6c2527663b55f59d170e06f77e976aa4fede15713607668d56",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "47004561",
+        "blockHash": "0xe11c232d2f1d31eba9608875afb03cb1769e3622a779585806af2e0d7235d685",
+        "message": "0x00000001000000060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008fe6b999dc680ccfdd5bf7eb0974218be2542daa0000000000000000000000008fe6b999dc680ccfdd5bf7eb0974218be2542daa0000000000000000000000003ef9c6b1b8023acbe13173a187f78eaa14c2b0f6000007d00000000000000001000000000000000000000000036cbd53842c5426634e7929541ec2318f3dcf7e0000000000000000000000003ef9c6b1b8023acbe13173a187f78eaa14c2b0f600000000000000000000000000000000000000000000000000000000000f4240000000000000000000000000e045cceddbdb26f7d6a30df6e5aa6642dc48bd3b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000766974616c696b",
+        "depositLogIndex": 175
+      }
+    },
+    {
+      "label": "steve",
+      "origin": 421614,
+      "action": "fund",
+      "hash": "0x890beaa6ff644f97b1f5ef0777c8efb6d33aca8f9c94a692fb788096df768b77",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "310352017",
+        "blockHash": "0xafcaa7ee900291678271148fdc89172615914e98cd84ed9cab624a3d99002bfb"
+      }
+    },
+    {
+      "label": "steve",
+      "origin": 421614,
+      "action": "renew",
+      "hash": "0xfb2ee47f932442349dd1c0a7980de0233d7d939754d35702c2b1a7bfef325aca",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "310352116",
+        "blockHash": "0x968c721b79ef3d312028c831255bc713495fdf088ddebfe68027b2b55c5c4775",
+        "message": "0x00000001000000030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008fe6b999dc680ccfdd5bf7eb0974218be2542daa0000000000000000000000008fe6b999dc680ccfdd5bf7eb0974218be2542daa0000000000000000000000003ef9c6b1b8023acbe13173a187f78eaa14c2b0f6000007d0000000000000000100000000000000000000000075faf114eafb1bdbe2f0316df893fd58ce46aa4d0000000000000000000000003ef9c6b1b8023acbe13173a187f78eaa14c2b0f600000000000000000000000000000000000000000000000000000000000f42400000000000000000000000005d61ceafffba714304216bfdfb9b2d5d900d787b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007374657665",
+        "depositLogIndex": 21
+      }
+    },
+    {
+      "label": "vitalik",
+      "origin": 421614,
+      "action": "fund",
+      "hash": "0xa3aea88966400bd8f3a85e6c3ebc514bdaa0425609aa74f8f7d53d7d939dd908",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "310356405",
+        "blockHash": "0xe3a54f885ad2c5a5f318b60756bc2c8c7769716dd4cc51f8e6e429355b2be4d4"
+      }
+    },
+    {
+      "label": "vitalik",
+      "origin": 421614,
+      "action": "renew",
+      "hash": "0x20fa0eff794cd7f0ab63e3ba6d6c975a24927f0c3f3b7b937819937f14007877",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "310356577",
+        "blockHash": "0x93a5c50ae32fa8b7c35aad9986208c6066f6a5bff65511a5ce2001e1734f2a09",
+        "message": "0x00000001000000030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008fe6b999dc680ccfdd5bf7eb0974218be2542daa0000000000000000000000008fe6b999dc680ccfdd5bf7eb0974218be2542daa0000000000000000000000003ef9c6b1b8023acbe13173a187f78eaa14c2b0f6000007d0000000000000000100000000000000000000000075faf114eafb1bdbe2f0316df893fd58ce46aa4d0000000000000000000000003ef9c6b1b8023acbe13173a187f78eaa14c2b0f600000000000000000000000000000000000000000000000000000000000f4240000000000000000000000000e045cceddbdb26f7d6a30df6e5aa6642dc48bd3b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000766974616c696b",
+        "depositLogIndex": 21
+      }
+    },
+    {
+      "label": "steve",
+      "origin": 5042002,
+      "action": "fund",
+      "hash": "0xb7f3334de7ce9db2811085c0898ece8d5b886c1e8c3bfad44e9bc60a913790b5",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "62825466",
+        "blockHash": "0xa9e23b82569d2452eca4ea94d3312a75df76705f82b9a193e6079dea2252d1dc"
+      }
+    },
+    {
+      "label": "steve",
+      "origin": 5042002,
+      "action": "renew",
+      "hash": "0xae1875dca4e5b8dae8f869609b3eb831a1b57b300ac0291ed70609c63a546e84",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "62825542",
+        "blockHash": "0xf0a0cdffc3aa8d33b4b5e12b0d7e167f3e8b129c52e964a6edd24d5fbf35b818",
+        "message": "0x000000010000001a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008fe6b999dc680ccfdd5bf7eb0974218be2542daa0000000000000000000000008fe6b999dc680ccfdd5bf7eb0974218be2542daa0000000000000000000000003ef9c6b1b8023acbe13173a187f78eaa14c2b0f6000007d0000000000000000100000000000000000000000036000000000000000000000000000000000000000000000000000000000000003ef9c6b1b8023acbe13173a187f78eaa14c2b0f600000000000000000000000000000000000000000000000000000000000f42400000000000000000000000005d61ceafffba714304216bfdfb9b2d5d900d787b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007374657665",
+        "depositLogIndex": 17
+      }
+    },
+    {
+      "label": "vitalik",
+      "origin": 5042002,
+      "action": "fund",
+      "hash": "0xb05b87b9fb05ab01312141f62a268bef7b873afb0c160e6309b85640aa55dc43",
+      "status": "verified",
+      "evidence": {
+        "blockNumber": "62827758",
+        "blockHash": "0x0f4775b2d7e208529f0d4ee7cfb48bb58aef09914ff3bcf4ba9dfeb93af10c10"
+      }
+    }
+  ]
+}

@@ -36,3 +36,7 @@ broadcast/
 .workflow-data/
 .workflow-vitest/
 .vercel
+
+# Generated artifacts for the temporary wallet deployment console.
+/tools/deployment-console/generated/
+/tools/deployment-console/dist/

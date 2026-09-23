@@ -4,13 +4,12 @@ pragma solidity 0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+import {NamepassL1Gateway} from "../contracts/NamepassL1Gateway.sol";
+import {RenewalHelperPointer} from "../contracts/RenewalHelperPointer.sol";
+import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {ENSV2RenewalHelper} from "../contracts/ENSV2RenewalHelper.sol";
 
-import {
-    StandardRentPriceOracle,
-    DiscountPoint,
-    PaymentRatio
-} from "./ens/registrar/StandardRentPriceOracle.sol";
+import {StandardRentPriceOracle, DiscountPoint, PaymentRatio} from "./ens/registrar/StandardRentPriceOracle.sol";
 import {IRentPriceOracle} from "./ens/registrar/interfaces/IRentPriceOracle.sol";
 
 import {MockUSDC, MockRenewer, MockFactory, MockMessageTransmitter, Dummy} from "./mocks/Mocks.sol";
@@ -25,7 +24,9 @@ import {MockUSDC, MockRenewer, MockFactory, MockMessageTransmitter, Dummy} from 
  * against a real encoding rather than against themselves.
  */
 contract CCTPTest is Test {
-    ENSV2RenewalHelper internal helper;
+    NamepassL1Gateway internal helper;
+    ENSV2RenewalHelper internal adapter;
+    RenewalHelperPointer internal pointer;
     MockRenewer internal renewer;
     MockUSDC internal usdc;
     MockFactory internal factory;
@@ -40,6 +41,8 @@ contract CCTPTest is Test {
     string constant LABEL = "vitalik";
 
     function setUp() public {
+        vm.chainId(11155111);
+        vm.etch(GOVERNANCE, hex"00");
         usdc = new MockUSDC();
 
         uint256[] memory rates = new uint256[](5);
@@ -55,9 +58,8 @@ contract CCTPTest is Test {
         PaymentRatio[] memory ratios = new PaymentRatio[](1);
         ratios[0] = PaymentRatio({paymentToken: IERC20(address(usdc)), numer: 1, denom: 1e6});
 
-        StandardRentPriceOracle oracle = new StandardRentPriceOracle(
-            address(this), rates, points, 1e38, 0, 1, 1, ratios
-        );
+        StandardRentPriceOracle oracle =
+            new StandardRentPriceOracle(address(this), rates, points, 1e38, 0, 1, 1, ratios);
 
         renewer = new MockRenewer(IRentPriceOracle(address(oracle)), address(0xB1));
         factory = new MockFactory();
@@ -68,16 +70,15 @@ contract CCTPTest is Test {
         /* TOKEN_MESSENGER only needs code for the constructor's check. */
         vm.etch(TOKEN_MESSENGER, hex"00");
 
-        helper = new ENSV2RenewalHelper(
-            address(factory),
-            address(usdc),
-            address(transmitter),
-            TOKEN_MESSENGER,
-            address(renewer),
-            address(0),
-            GOVERNANCE,
-            REFERRER
+        pointer = new RenewalHelperPointer(address(factory), address(usdc), GOVERNANCE);
+        helper = new NamepassL1Gateway(
+            address(factory), address(usdc), address(transmitter), TOKEN_MESSENGER, address(pointer), address(0xD57)
         );
+        adapter = new ENSV2RenewalHelper(
+            address(helper), address(factory), address(usdc), address(renewer), address(0), REFERRER
+        );
+        vm.prank(GOVERNANCE);
+        pointer.setHelper(address(adapter));
 
         /*
          * No `setMint` here on purpose: the transmitter's default
@@ -205,43 +206,40 @@ contract CCTPTest is Test {
 
     function test_rejectsMessageNotAddressedToTokenMessenger() public {
         bytes memory m = _encode(
-            6, bytes32(0), address(0xBAD), address(helper), address(helper),
-            27_110_000, WALLET, 0, bytes(LABEL)
+            6, bytes32(0), address(0xBAD), address(helper), address(helper), 27_110_000, WALLET, 0, bytes(LABEL)
         );
 
-        vm.expectRevert(ENSV2RenewalHelper.InvalidCCTPMessage.selector);
+        vm.expectRevert(NamepassL1Gateway.InvalidCCTPMessage.selector);
         helper.completeCCTP(m, hex"1234");
     }
 
     function test_rejectsForeignDestinationCaller() public {
         bytes memory m = _encode(
-            6, bytes32(0), TOKEN_MESSENGER, address(0xBAD), address(helper),
-            27_110_000, WALLET, 0, bytes(LABEL)
+            6, bytes32(0), TOKEN_MESSENGER, address(0xBAD), address(helper), 27_110_000, WALLET, 0, bytes(LABEL)
         );
 
-        vm.expectRevert(ENSV2RenewalHelper.InvalidCCTPMessage.selector);
+        vm.expectRevert(NamepassL1Gateway.InvalidCCTPMessage.selector);
         helper.completeCCTP(m, hex"1234");
     }
 
     function test_rejectsForeignMintRecipient() public {
         bytes memory m = _encode(
-            6, bytes32(0), TOKEN_MESSENGER, address(helper), address(0xBAD),
-            27_110_000, WALLET, 0, bytes(LABEL)
+            6, bytes32(0), TOKEN_MESSENGER, address(helper), address(0xBAD), 27_110_000, WALLET, 0, bytes(LABEL)
         );
 
-        vm.expectRevert(ENSV2RenewalHelper.InvalidCCTPMessage.selector);
+        vm.expectRevert(NamepassL1Gateway.InvalidCCTPMessage.selector);
         helper.completeCCTP(m, hex"1234");
     }
 
     function test_rejectsTruncatedMessage() public {
-        vm.expectRevert(ENSV2RenewalHelper.InvalidCCTPMessage.selector);
+        vm.expectRevert(NamepassL1Gateway.InvalidCCTPMessage.selector);
         helper.completeCCTP(new bytes(375), hex"1234");
     }
 
     function test_rejectsFeeExceedingBurnAmount() public {
         bytes memory m = _validMessage(1_000_000, 2_000_000);
 
-        vm.expectRevert(ENSV2RenewalHelper.InvalidCCTPMessage.selector);
+        vm.expectRevert(NamepassL1Gateway.InvalidCCTPMessage.selector);
         helper.completeCCTP(m, hex"1234");
     }
 
@@ -258,21 +256,35 @@ contract CCTPTest is Test {
      */
     function test_rejectsHookLabelThatDoesNotMatchTheBurner() public {
         bytes memory m = _encode(
-            6, bytes32(0), TOKEN_MESSENGER, address(helper), address(helper),
-            27_110_000, address(0xBAD), 0, bytes(LABEL)
+            6,
+            bytes32(0),
+            TOKEN_MESSENGER,
+            address(helper),
+            address(helper),
+            27_110_000,
+            address(0xBAD),
+            0,
+            bytes(LABEL)
         );
 
-        vm.expectRevert(ENSV2RenewalHelper.InvalidWallet.selector);
+        vm.expectRevert(NamepassL1Gateway.InvalidWallet.selector);
         helper.completeCCTP(m, hex"1234");
     }
 
     function test_rejectsSubstitutedLabel() public {
         bytes memory m = _encode(
-            6, bytes32(0), TOKEN_MESSENGER, address(helper), address(helper),
-            27_110_000, WALLET, 0, bytes("someoneelse")
+            6,
+            bytes32(0),
+            TOKEN_MESSENGER,
+            address(helper),
+            address(helper),
+            27_110_000,
+            WALLET,
+            0,
+            bytes("someoneelse")
         );
 
-        vm.expectRevert(ENSV2RenewalHelper.InvalidWallet.selector);
+        vm.expectRevert(NamepassL1Gateway.InvalidWallet.selector);
         helper.completeCCTP(m, hex"1234");
     }
 
@@ -289,7 +301,7 @@ contract CCTPTest is Test {
 
         bytes memory m = _validMessage(27_110_000, 0);
 
-        vm.expectRevert(ENSV2RenewalHelper.UnexpectedMintAmount.selector);
+        vm.expectRevert(NamepassL1Gateway.UnexpectedMintAmount.selector);
         helper.completeCCTP(m, hex"1234");
     }
 
@@ -311,7 +323,77 @@ contract CCTPTest is Test {
 
         bytes memory m = _validMessage(27_110_000, 0);
 
-        vm.expectRevert(ENSV2RenewalHelper.CCTPReceiveFailed.selector);
+        vm.expectRevert(NamepassL1Gateway.CCTPReceiveFailed.selector);
         helper.completeCCTP(m, hex"1234");
+    }
+
+    function test_messageUsesReplacementHelperAndCannotReplay() public {
+        address[] memory actors = new address[](1);
+        actors[0] = address(this);
+        TimelockController timelock = new TimelockController(1 days, actors, actors, address(0));
+        vm.prank(GOVERNANCE);
+        pointer.transferGovernance(address(timelock));
+        bytes memory accept = abi.encodeCall(pointer.acceptGovernance, ());
+        timelock.schedule(address(pointer), 0, accept, bytes32(0), bytes32(0), 1 days);
+        vm.warp(block.timestamp + 1 days);
+        timelock.execute(address(pointer), 0, accept, bytes32(0), bytes32(0));
+        // The message records the permanent gateway while adapter A is active.
+        bytes memory message = _validMessage(27_110_000, 0);
+        MockRenewer nextRenewer = new MockRenewer(renewer.rentPriceOracle(), address(0xB2));
+        ENSV2RenewalHelper next = new ENSV2RenewalHelper(
+            address(helper), address(factory), address(usdc), address(nextRenewer), address(0), REFERRER
+        );
+        bytes memory update = abi.encodeCall(pointer.setHelper, (address(next)));
+        timelock.schedule(address(pointer), 0, update, bytes32(0), bytes32(0), 1 days);
+        vm.warp(block.timestamp + 1 days);
+        timelock.execute(address(pointer), 0, update, bytes32(0), bytes32(0));
+        vm.prank(EXECUTOR);
+        helper.completeCCTP(message, hex"1234");
+        assertEq(renewer.lastDuration(), 0);
+        assertGt(nextRenewer.lastDuration(), 0);
+        assertEq(usdc.allowance(address(helper), address(adapter)), 0);
+        assertEq(usdc.allowance(address(helper), address(next)), 0);
+        vm.expectRevert(bytes("nonce used"));
+        helper.completeCCTP(message, hex"1234");
+    }
+
+    function test_failedClaimRollsBackMintAndNonceThenRetriesSameMessage() public {
+        bytes memory message = _validMessage(27_110_000, 0);
+        renewer.setRenewable(false);
+        vm.expectRevert(ENSV2RenewalHelper.NameNotRenewable.selector);
+        helper.completeCCTP(message, hex"1234");
+        assertFalse(transmitter.usedNonces(bytes32(uint256(0xC0FFEE))));
+        assertEq(usdc.balanceOf(address(helper)), 0);
+        assertEq(usdc.balanceOf(address(adapter)), 0);
+        assertEq(usdc.allowance(address(helper), address(adapter)), 0);
+        renewer.setRenewable(true);
+        helper.completeCCTP(message, hex"1234");
+        assertTrue(transmitter.usedNonces(bytes32(uint256(0xC0FFEE))));
+    }
+
+    function test_rejectsWrongVersionsAndDomain() public {
+        bytes memory message = _validMessage(27_110_000, 0);
+        message[3] = 0x02;
+        vm.expectRevert(NamepassL1Gateway.InvalidCCTPMessage.selector);
+        helper.completeCCTP(message, hex"1234");
+        message[3] = 0x01;
+        message[151] = 0x02;
+        vm.expectRevert(NamepassL1Gateway.InvalidCCTPMessage.selector);
+        helper.completeCCTP(message, hex"1234");
+        message[151] = 0x01;
+        message[11] = 0x06;
+        vm.expectRevert(NamepassL1Gateway.InvalidCCTPMessage.selector);
+        helper.completeCCTP(message, hex"1234");
+    }
+
+    function test_rejectsNonCanonicalSenderAndEmptyLabel() public {
+        bytes memory message = _validMessage(27_110_000, 0);
+        message[248] = 0x01;
+        vm.expectRevert(NamepassL1Gateway.InvalidCCTPMessage.selector);
+        helper.completeCCTP(message, hex"1234");
+        message =
+            _encode(6, bytes32(0), TOKEN_MESSENGER, address(helper), address(helper), 27_110_000, WALLET, 0, bytes(""));
+        vm.expectRevert(NamepassL1Gateway.InvalidLabel.selector);
+        helper.completeCCTP(message, hex"1234");
     }
 }

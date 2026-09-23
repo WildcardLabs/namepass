@@ -1,0 +1,43 @@
+{
+  "resetAt": "2026-09-22T08:11:53.541Z",
+  "project": "nameless-paper-91018372",
+  "branch": "br-noisy-bird-avey45an",
+  "before": {
+    "public.transaction_intents": 222,
+    "public.flow_transitions": 926,
+    "public.flows": 159,
+    "public.deposits": 270,
+    "public.chain_events": 893,
+    "public.balance_scan_requests": 1,
+    "public.balance_snapshots": 260,
+    "public.relayer_nonces": 4,
+    "goldsky.watched_addresses": 65,
+    "public.names": 65
+  },
+  "intents": [
+    {
+      "status": "confirmed",
+      "count": "221"
+    },
+    {
+      "status": "reverted",
+      "count": "1"
+    }
+  ],
+  "flows": [
+    {
+      "status": "held",
+      "count": "1"
+    },
+    {
+      "status": "settled",
+      "count": "149"
+    },
+    {
+      "status": "cancelled",
+      "count": "9"
+    }
+  ],
+  "allTablesEmpty": true,
+  "preserved": "schema, migrations, roles"
+}

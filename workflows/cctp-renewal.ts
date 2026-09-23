@@ -85,6 +85,11 @@ export async function cctpRenewal(
 			if (originIntentId) await broadcastCctpTransactionStep(originIntentId);
 			for (let attempt = 0; ; attempt += 1) {
 				const result = await confirmCctpOriginStep(flowId, originIntentId);
+				if (result === "queued") {
+					attempt = -1;
+					await sleep("5s");
+					continue;
+				}
 				if (["held", "cancelled", "settled", "failed"].includes(result)) {
 					return result as "held" | "cancelled" | "settled" | "failed";
 				}
@@ -125,6 +130,11 @@ export async function cctpRenewal(
 		await broadcastCctpTransactionStep(claimIntentId);
 		for (let attempt = 0; ; attempt += 1) {
 			const result = await confirmCctpClaimStep(flowId, claimIntentId);
+			if (result === "queued") {
+				attempt = -1;
+				await sleep("5s");
+				continue;
+			}
 			if (result !== "waiting") return result;
 			await sleep(receiptPollDelay(attempt));
 		}

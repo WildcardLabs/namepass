@@ -26,7 +26,7 @@ import type { OracleRates } from "./oracle";
  * the oracle's tier durations are exact multiples of it: 63072000, 94608000
  * and 189216000 are 2, 3 and 6 of these. Deriving it from a Julian year
  * (365.25 days) understated every rate by ~0.07% once — see
- * `docs/DECISIONS.md`, 2026-08-06.
+ * `docs/DECISIONS.md`, Exact oracle arithmetic.
  *
  * If ENS ever sets a tier that isn't a whole multiple of this, `tiers()` says
  * so rather than rounding — see `yearsOf`.
@@ -225,7 +225,7 @@ export function ceilToCent(micro: bigint): bigint {
  * Payable button amounts for each threshold: exact cost rounded up to a cent.
  *
  * **No one-year entry**, and that's a positioning decision rather than an
- * oversight — see `docs/DECISIONS.md` (2026-08-06) before adding one. What
+ * oversight — see `docs/DECISIONS.md`, Exact oracle arithmetic before adding one. What
  * comes back is whatever discount tiers ENS currently publishes, so if
  * governance adds or drops one, the quick-selects follow.
  */

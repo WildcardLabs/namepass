@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { Skeleton } from "./components/ui/skeleton";
+import { lazy, Suspense, useCallback, useRef, useEffect, useState } from "react";
 import Navbar from "./components/Navbar";
 import PageShell from "./components/PageShell";
 import Hero from "./components/Hero";
@@ -18,9 +19,10 @@ import { loadOracleRates } from "./lib/oracle";
 import { assertGasAllowance } from "./lib/fees";
 import { setRates } from "./lib/pricing";
 
+const Monitoring = lazy(() => import("./components/Monitoring"));
 const VIDEO_URL = `${import.meta.env.BASE_URL}assets/namepass-bg.mp4`;
 
-type Page = "home" | "leaderboard" | "supported" | "terms" | "privacy";
+type Page = "monitoring" | "home" | "leaderboard" | "supported" | "terms" | "privacy";
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -28,6 +30,7 @@ function pathToPage(pathname: string): Page {
 	const rel = pathname.startsWith(BASE)
 		? pathname.slice(BASE.length)
 		: pathname.replace(/^\//, "");
+	if (rel.startsWith("monitoring")) return "monitoring";
 	if (rel.startsWith("leaderboard")) return "leaderboard";
 	if (rel.startsWith("supported")) return "supported";
 	if (rel.startsWith("terms")) return "terms";
@@ -41,12 +44,17 @@ function pageToPath(page: Page): string {
 }
 
 export default function App() {
+	if (import.meta.env.VITE_NAMEPASS_MAINTENANCE === "1") return <main style={{ padding: "4rem", fontFamily: "sans-serif" }}><h1>Namepass is being upgraded</h1><p>Deposits and renewals are temporarily paused. Please return shortly.</p></main>;
+	return <ActiveApp/>;
+}
+
+function ActiveApp() {
 	const [page, setPage] = useState<Page>(() => pathToPage(window.location.pathname));
 	const [claimOpen, setClaimOpen] = useState(false);
 	const [selected, setSelected] = useState<string | null>(null);
 
 	/**
-	 * ENS's live pricing, read once at boot.
+	 * ENS's live pricing, read at boot, on name selection, and on window focus.
 	 *
 	 * Everything that quotes a price is downstream of this. `pricing.ts`
 	 * throws until the live values arrive.
@@ -64,17 +72,21 @@ export default function App() {
 
 	const [boot, setBoot] = useState<Boot>({ status: "loading" });
 
+	const pricingRequest = useRef(0);
 	const loadPricing = useCallback(() => {
+		const request = ++pricingRequest.current;
 		setBoot({ status: "loading" });
 		/* In parallel: ENS's rates, which the app can't price without, and a
-		   check that the helper's gas allowance is still the dime every quoted
+		   check that the gateway's gas allowance is still the dime every quoted
 		   send amount is built around. */
 		Promise.all([loadOracleRates(), assertGasAllowance()])
 			.then(([live]) => {
+				if (request !== pricingRequest.current) return;
 				setRates(live);
 				setBoot({ status: "ready" });
 			})
 			.catch((err: unknown) => {
+				if (request !== pricingRequest.current) return;
 				setBoot({
 					status: "error",
 					message: err instanceof Error ? err.message : String(err),
@@ -82,7 +94,12 @@ export default function App() {
 			});
 	}, []);
 
-	useEffect(loadPricing, [loadPricing]);
+	useEffect(() => { if (page !== "monitoring") loadPricing(); }, [loadPricing, selected, page]);
+	useEffect(() => {
+		const refresh = () => { if (document.visibilityState === "visible" && page !== "monitoring") loadPricing(); };
+		window.addEventListener("focus", refresh);
+		return () => { window.removeEventListener("focus", refresh); pricingRequest.current++; };
+	}, [loadPricing, page]);
 
 	useEffect(() => {
 		if ("scrollRestoration" in window.history) {
@@ -157,6 +174,14 @@ export default function App() {
 		onSearch: focusSearch,
 		onHome: goHome,
 	};
+
+	if (page === "monitoring") {
+		return (
+			<Suspense fallback={<Skeleton role="status" aria-label="Loading dashboard" className="min-h-[100dvh] w-full animate-none rounded-none bg-[#f7f8fb]" />}>
+				<Monitoring onBack={goHome} />
+			</Suspense>
+		);
+	}
 
 	return (
 		<main className="min-h-screen bg-[#f0f0f0] flex flex-col">

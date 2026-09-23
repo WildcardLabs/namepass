@@ -1,0 +1,225 @@
+{
+  "schema": 1,
+  "artifactFingerprint": "0x113aae348c136035167a4622a5633ba4c64b3576b294f5f8546082bf8458c093",
+  "fingerprint": "0x6a959d3d294507d2770614a56dea1de292e3dfac40697c5afa6e831ec08f7008",
+  "config": {
+    "owner": "0x1208a26FAa0F4AC65B42098419EB4dAA5e580AC6",
+    "residueRecipient": "0x1208a26FAa0F4AC65B42098419EB4dAA5e580AC6",
+    "referrer": "0x0000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac6",
+    "saltLabel": "namepass-testnet-overhaul-2026-09-18",
+    "delay": 60
+  },
+  "journal": {
+    "deploy-NamepassFactory-11155111": {
+      "hash": "0x957ec51f87de53252492428aa902cd9bf4e62ca74f60ff5dcd0212b8d15b2da7",
+      "chainId": 11155111,
+      "dataHash": "0x825df06ac73d45cd82c3e123e5823cabea3eece5138c9b116fabbe9c3b2341dc",
+      "submittedAt": "2026-09-21T23:16:32.827Z",
+      "status": "confirmed",
+      "blockNumber": "11754050"
+    },
+    "deploy-RenewalHelperPointer-11155111": {
+      "hash": "0x3322b554f7825449a13444a8c6a9ea4065f21c43fc853a1d1b6e2756d6e70f9e",
+      "chainId": 11155111,
+      "dataHash": "0x03f5d3e3a1249a02c6e4e50f239525ba7a3403f50476e07b77d65aa6490cd4a6",
+      "submittedAt": "2026-09-21T23:16:48.625Z",
+      "status": "confirmed",
+      "blockNumber": "11754052"
+    },
+    "deploy-NamepassL1Gateway-11155111": {
+      "hash": "0x9f6546478d003c8e55818a9242b973bfdd3358abc09b3a63888153f683316b99",
+      "chainId": 11155111,
+      "dataHash": "0xb0bcc7a2a6e148a95a4f6ae3277befcfab1b2fa36d86aea48ec50b42d3075622",
+      "submittedAt": "2026-09-21T23:17:11.713Z",
+      "status": "confirmed",
+      "blockNumber": "11754054"
+    },
+    "deploy-ENSV2RenewalHelper-11155111": {
+      "hash": "0x66bda61396f35e723c1384b2e1cb69ae0008008d48462abbb7a00ff736a84e24",
+      "chainId": 11155111,
+      "dataHash": "0xfe1a57113e085cecb6ab397a460b5bbbe58e54bfa8ba200c399682ce785b7521",
+      "submittedAt": "2026-09-21T23:17:32.936Z",
+      "status": "confirmed",
+      "blockNumber": "11754055"
+    },
+    "schedule": {
+      "hash": "0x614611cb33d28eb7ed18fb45064f83233cd99c6a8b8718266089143b81688803",
+      "chainId": 11155111,
+      "dataHash": "0x0849f62e1d3969024eeda727d2c262ad1cafc4aaf1d2cc261a8d25bb527d066b",
+      "submittedAt": "2026-09-21T23:18:03.066Z",
+      "status": "confirmed",
+      "blockNumber": "11754057"
+    },
+    "deploy-NamepassFactory-84532": {
+      "hash": "0x36446612238181be119d79aff8f5c2e203cf57dcc974a0b6fc02ff1ec84bd32c",
+      "chainId": 84532,
+      "dataHash": "0x825df06ac73d45cd82c3e123e5823cabea3eece5138c9b116fabbe9c3b2341dc",
+      "submittedAt": "2026-09-21T23:18:30.769Z",
+      "status": "confirmed",
+      "blockNumber": "47132212"
+    },
+    "deploy-NamepassFactory-421614": {
+      "hash": "0x1161b40f990bd9da080385a0b9c53c98a318e7798f845abea201358933753e79",
+      "chainId": 421614,
+      "dataHash": "0x825df06ac73d45cd82c3e123e5823cabea3eece5138c9b116fabbe9c3b2341dc",
+      "submittedAt": "2026-09-21T23:18:54.598Z",
+      "status": "confirmed",
+      "blockNumber": "311365500"
+    },
+    "deploy-NamepassFactory-5042002": {
+      "hash": "0xd044596e312bc4fd9e8d56f198bee5d0bd60d316a95cf6a5f4123062f2383f8a",
+      "chainId": 5042002,
+      "dataHash": "0x825df06ac73d45cd82c3e123e5823cabea3eece5138c9b116fabbe9c3b2341dc",
+      "submittedAt": "2026-09-21T23:19:15.419Z",
+      "status": "confirmed",
+      "blockNumber": "63326249"
+    },
+    "activate": {
+      "hash": "0x748c57289621e2b96bb41f3eb7b774f8fa4bf8c636719a878486ac3ae663cfe7",
+      "chainId": 11155111,
+      "dataHash": "0xd07abf4d3c7650ac1a8c503b0d9f2c26f09b9e0afc0f1a9009432de793b4825a",
+      "submittedAt": "2026-09-21T23:19:36.077Z",
+      "status": "confirmed",
+      "blockNumber": "11754065"
+    },
+    "initialize-11155111": {
+      "hash": "0xeb47d421067ae0bdfbe7d5aec2244f4c9aa348fb1969f98cef445ee52880de09",
+      "chainId": 11155111,
+      "dataHash": "0xad4fee9ef55e0aaa6414fadbade628dd1a25e12ee96b62a1544053a844d683ae",
+      "submittedAt": "2026-09-21T23:20:10.540Z",
+      "status": "confirmed",
+      "blockNumber": "11754068"
+    },
+    "initialize-84532": {
+      "hash": "0x67fdf696f53970ef2fb29ce9be8667db1672582c6be3b0030264f045391ca2e4",
+      "chainId": 84532,
+      "dataHash": "0x39829df1298961d2bd98f065b03a8b3ae8dceda3ae886e6f9e7a1e6b709475e8",
+      "submittedAt": "2026-09-21T23:21:00.902Z",
+      "status": "confirmed",
+      "blockNumber": "47132287"
+    },
+    "initialize-421614": {
+      "hash": "0xb89ce6581d026a5c69c256d7e18660e72410a3feab437fc9af0aef002ef6e7c3",
+      "chainId": 421614,
+      "dataHash": "0xa25f0801eff6fe5d812f5ae8165264251825c09db497d6e932e9b7e1163cf98d",
+      "submittedAt": "2026-09-21T23:21:19.318Z",
+      "status": "confirmed",
+      "blockNumber": "311366061"
+    },
+    "initialize-5042002": {
+      "hash": "0x27f519a12b7e3d5bf731808e762a7a60eddacf9f2383eb417c70a9b288b711a4",
+      "chainId": 5042002,
+      "dataHash": "0x22331c59bdfec54aa45ecbb61ac1f3e48fea9098942bd7bece7c6fdfcd24bb0f",
+      "submittedAt": "2026-09-21T23:21:47.456Z",
+      "status": "confirmed",
+      "blockNumber": "63326553"
+    }
+  },
+  "exportedAt": "2026-09-21T23:22:01.291Z",
+  "verification": {
+    "deploy-NamepassFactory-11155111": {
+      "state": "complete",
+      "detail": "Bytecode and configuration verified"
+    },
+    "deploy-TimelockController-11155111": {
+      "state": "complete",
+      "detail": "Bytecode and configuration verified"
+    },
+    "deploy-RenewalHelperPointer-11155111": {
+      "state": "complete",
+      "detail": "Bytecode and configuration verified"
+    },
+    "deploy-NamepassL1Gateway-11155111": {
+      "state": "complete",
+      "detail": "Bytecode and configuration verified"
+    },
+    "deploy-ENSV2RenewalHelper-11155111": {
+      "state": "complete",
+      "detail": "Bytecode and configuration verified"
+    },
+    "schedule": {
+      "state": "complete",
+      "detail": "Operation executed"
+    },
+    "deploy-NamepassFactory-84532": {
+      "state": "complete",
+      "detail": "Bytecode and configuration verified"
+    },
+    "deploy-NamepassFactory-421614": {
+      "state": "complete",
+      "detail": "Bytecode and configuration verified"
+    },
+    "deploy-NamepassFactory-5042002": {
+      "state": "complete",
+      "detail": "Bytecode and configuration verified"
+    },
+    "activate": {
+      "state": "complete",
+      "detail": "Helper active; gateway permanently bound"
+    },
+    "initialize-11155111": {
+      "state": "complete",
+      "detail": "USDC, Circle route, finality, and deposit derivation verified"
+    },
+    "initialize-84532": {
+      "state": "complete",
+      "detail": "USDC, Circle route, finality, and deposit derivation verified"
+    },
+    "initialize-421614": {
+      "state": "complete",
+      "detail": "USDC, Circle route, finality, and deposit derivation verified"
+    },
+    "initialize-5042002": {
+      "state": "complete",
+      "detail": "USDC, Circle route, finality, and deposit derivation verified"
+    }
+  },
+  "contracts": {
+    "NamepassFactory": {
+      "address": "0x2dCB5CA6b21372b43e37C35Da8D5D15160423150",
+      "salt": "0x453a6bffd52fbb33b268963f288a34376b08b022fe2228f8a9310ecc9633bd05",
+      "creationCodeHash": "0x509d97d625a589c0a74a60771fa8af81fc8361b94690073301c70094cc606c06",
+      "runtimeCodeHash": "0x3822dfc2cbf9fe25fbe5258eb13cf8be999c1b776c361fbd220f9412b96659e1",
+      "constructorArgs": "0x0000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac60000000000000000000000000000000000000000000000000000000000aa36a7",
+      "compiler": "0.8.24+commit.e11b9ed9"
+    },
+    "TimelockController": {
+      "address": "0x996cbd179f361B1043Ad1999864eD41496C633c8",
+      "salt": "0x13bd9fa12142e5c18454f34181122bd8085c5c55a6afd616ec7305ba91f94521",
+      "creationCodeHash": "0x9afe54e9671ffeaed5988e9c14039b6f38e4826080e8c17870a1bd3d30f82792",
+      "runtimeCodeHash": "0x261ddecb54142b356d031db23b3e2eaff3feebe4c9d22711aea9bc7f66099af6",
+      "constructorArgs": "0x000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac600000000000000000000000000000000000000000000000000000000000000010000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac6",
+      "compiler": "0.8.24+commit.e11b9ed9"
+    },
+    "RenewalHelperPointer": {
+      "address": "0x774f942194d612e126A05Ce40a3A4D88AfBB6ae6",
+      "salt": "0x2a600380c65c7a0182e481801ed27f30c61c0447f91a31d7aa4b27ddd00cf648",
+      "creationCodeHash": "0x5126457868734c719040a2db6f975ab9ebfbe88edb59c65a52d3b839ff34844f",
+      "runtimeCodeHash": "0x8ac79c33a4156fd20c80d7c82bdf05873ca4d18386ba18d5f34088d45f4bed93",
+      "constructorArgs": "0x0000000000000000000000002dcb5ca6b21372b43e37c35da8d5d151604231500000000000000000000000001c7d4b196cb0c7b01d743fbc6116a902379c7238000000000000000000000000996cbd179f361b1043ad1999864ed41496c633c8",
+      "compiler": "0.8.24+commit.e11b9ed9"
+    },
+    "NamepassL1Gateway": {
+      "address": "0x39351C9f9eAb6093eFB4e865a6330ECd2a756F0f",
+      "salt": "0x792ec72dd221730cafe31e6c25e65be7bf56f2af88baa4828e26f1c77807d122",
+      "creationCodeHash": "0xe5395b83a1ebec526e9feeeac4da441f2729b87b3b6e943dfaf5856e7d8f905a",
+      "runtimeCodeHash": "0x71d0809dabeb74cd5002beb8a6e8fc9357b1e5a84eb90347863b3d8536fcc26e",
+      "constructorArgs": "0x0000000000000000000000002dcb5ca6b21372b43e37c35da8d5d151604231500000000000000000000000001c7d4b196cb0c7b01d743fbc6116a902379c7238000000000000000000000000e737e5cebeeba77efe34d4aa090756590b1ce2750000000000000000000000008fe6b999dc680ccfdd5bf7eb0974218be2542daa000000000000000000000000774f942194d612e126a05ce40a3a4d88afbb6ae60000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac6",
+      "compiler": "0.8.24+commit.e11b9ed9"
+    },
+    "ENSV2RenewalHelper": {
+      "address": "0x7Bfee7c257ff48f8D787A61F15925e24743C8F88",
+      "salt": "0xe9aba627fccdd176c5d2fdb2bc76f8d1ec8ebb72a97d5995bd69db492d2cddda",
+      "creationCodeHash": "0x70456c6b7636ab50ecf04405caf84860eb2dc050048858380a9613a8543fcc0f",
+      "runtimeCodeHash": "0x6753f11e11832c314a8bcdfe8406ceb866599592e11f485aeefc84226fa05aa9",
+      "constructorArgs": "0x00000000000000000000000039351c9f9eab6093efb4e865a6330ecd2a756f0f0000000000000000000000002dcb5ca6b21372b43e37c35da8d5d151604231500000000000000000000000001c7d4b196cb0c7b01d743fbc6116a902379c7238000000000000000000000000abe76f6c8dfced81aa5a2bb8034202a7136b94ca000000000000000000000000d06e726e9bd8ac0f33a2a45f4cc28fe10d656a360000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac6",
+      "compiler": "0.8.24+commit.e11b9ed9"
+    }
+  },
+  "activation": {
+    "operationId": "0xc81fab17cab93665337de0798c15f20c9a1e0a66514ca8a514f08f91c4d35538",
+    "salt": "0x92c351c4c172a5bd1b185830739a04f068d1be47909f4de3c5885af7291eda4e",
+    "calldata": "0x986ccc7f0000000000000000000000007bfee7c257ff48f8d787a61f15925e24743c8f88"
+  },
+  "note": "Transaction records are not proof of completion. Recheck all on-chain state before cutover."
+}

@@ -130,7 +130,6 @@ export async function renewalActivity(
 	nameId?: string,
 	page = 1,
 ) {
-	const ensRenewal = alias(chainEvents, "ens_renewal");
 	const originIntent = alias(transactionIntents, "activity_origin_intent");
 	const claimIntent = alias(transactionIntents, "activity_claim_intent");
 	const filter = and(
@@ -156,7 +155,7 @@ export async function renewalActivity(
 			name: names,
 			flow: flows,
 			deposit: deposits,
-			ensFacts: ensRenewal.facts,
+			ensFacts: chainEvents.facts,
 			originTxHash: sql<string | null>`coalesce(${flows.originEvidenceTxHash}, ${originIntent.currentTxHash})`,
 			claimTxHash: claimIntent.currentTxHash,
 		})
@@ -169,15 +168,6 @@ export async function renewalActivity(
 		.leftJoin(deposits, eq(deposits.eventId, flows.depositEventId))
 		.leftJoin(originIntent, eq(originIntent.id, flows.originTxIntentId))
 		.leftJoin(claimIntent, eq(claimIntent.id, flows.claimTxIntentId))
-		.leftJoin(
-			ensRenewal,
-			and(
-				eq(ensRenewal.txHash, chainEvents.txHash),
-				eq(ensRenewal.eventFamily, "ens"),
-				eq(ensRenewal.eventType, "NameRenewed"),
-				eq(ensRenewal.canonical, true),
-			),
-		)
 		.where(filter)
 		.orderBy(desc(chainEvents.blockTime), desc(chainEvents.eventId))
 		.limit(limit + 1)
@@ -407,7 +397,7 @@ export function publicRenewalView(
 	const facts = event.facts as Record<string, unknown>;
 	const executorAddress = checksumAddress(String(facts.executor_address));
 	const relayer = configuredRelayerAddress();
-	const expiry = ensFacts && typeof ensFacts === "object"
+	const expiry = facts.new_expiry !== undefined ? String(facts.new_expiry) : ensFacts && typeof ensFacts === "object"
 		? String((ensFacts as Record<string, unknown>).new_expiry ?? "")
 		: "";
 	const expiryMilliseconds = /^\d+$/.test(expiry) ? BigInt(expiry) * 1_000n : null;
