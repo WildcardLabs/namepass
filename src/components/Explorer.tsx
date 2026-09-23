@@ -56,6 +56,7 @@ import {
 	truncAddress,
 	truncTx,
 } from "../lib/format";
+import { completedFlowTransactions } from "../lib/flowTransactions";
 import PassCard from "./PassCard";
 import PendingBalance from "./PendingBalance";
 import ChainTag from "./ChainTag";
@@ -182,6 +183,8 @@ function FeedRowContent({
 	onSelect: (n: string) => void;
 }) {
 	const pending = row.pending;
+	const [expanded, setExpanded] = useState(false);
+	const transactions = row.pending && row.flow ? completedFlowTransactions(row.flow) : [];
 	return (
 		<motion.div
 			animate={{
@@ -190,15 +193,24 @@ function FeedRowContent({
 			transition={reduced ? { duration: 0 } : { duration: 0.55, ease: "easeOut" }}
 			className="border-b border-[rgba(28,58,41,0.07)]"
 		>
-			<button
-				onClick={() => onSelect(row.name)}
-				className="w-full text-left px-4 md:px-5 py-4 md:py-3.5 hover:bg-[rgba(28,58,41,0.025)] transition-colors block md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)] md:gap-4 md:items-center"
-			>
+			<div className="w-full px-4 md:px-5 py-4 md:py-3.5 block md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_auto] md:gap-4 md:items-center hover:bg-[rgba(28,58,41,0.025)] transition-colors">
 				{/* Mobile: name + headline result on one line */}
 				<div className="flex items-baseline justify-between gap-3 md:contents">
-					<span className="min-w-0 text-[15px] md:text-[14.5px] text-[rgba(28,58,41,0.95)] truncate">
-						{row.name}
-					</span>
+					<button type="button" onClick={() => onSelect(row.name)} aria-label={`Open ${row.name}`} className="group inline-flex min-w-0 items-center gap-1.5 text-left text-[15px] md:text-[14.5px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]">
+						<img src={`${import.meta.env.BASE_URL}logos/ens-mark-dark-blue.svg`} alt="" aria-hidden="true" className="h-4 w-4 shrink-0 object-contain" />
+						<span className="truncate text-[rgba(28,88,52,0.95)] underline decoration-[rgba(28,58,41,0.3)] underline-offset-4 group-hover:decoration-[rgba(28,58,41,0.95)]">{row.name}</span>
+						<ArrowRight className="h-3.5 w-3.5 shrink-0 text-[rgba(28,58,41,0.55)] transition-transform group-hover:translate-x-0.5" />
+					</button>
+					<button
+						type="button"
+						onClick={() => setExpanded((open) => !open)}
+						aria-expanded={expanded}
+						aria-controls={`flow-details-${row.key}`}
+						className="md:hidden inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11.5px] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+					>
+						{expanded ? "Hide details" : "Flow details"}
+						<ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+					</button>
 
 					<span className="hidden md:block text-[13.5px]">
 						<ChainTag chain={row.chain} />
@@ -232,6 +244,16 @@ function FeedRowContent({
 					<span className="hidden md:flex min-w-0 items-center justify-end gap-1.5 text-[12px]">
 						<StatusCell row={row} reduced={reduced} />
 					</span>
+					<button
+						type="button"
+						onClick={() => setExpanded((open) => !open)}
+						aria-expanded={expanded}
+						aria-controls={`flow-details-${row.key}`}
+						className="hidden md:inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11.5px] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+					>
+						{expanded ? "Hide details" : "Flow details"}
+						<ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+					</button>
 				</div>
 
 				{/* Mobile: labelled detail pairs */}
@@ -279,7 +301,37 @@ function FeedRowContent({
 				<div className="md:hidden mt-2 text-[11.5px] text-[rgba(28,58,41,0.4)]">
 					<StatusCell row={row} reduced={reduced} />
 				</div>
-			</button>
+			</div>
+			<AnimatePresence initial={false}>
+				{expanded && (
+					<motion.div
+						id={`flow-details-${row.key}`}
+						initial={{ height: 0, opacity: 0 }}
+						animate={{ height: "auto", opacity: 1 }}
+						exit={{ height: 0, opacity: 0 }}
+						transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+						className="overflow-hidden"
+					>
+						{row.pending ? (
+							<div className="px-4 md:px-5 py-4 border-t border-[rgba(28,58,41,0.06)] bg-[rgba(28,58,41,0.015)]">
+								<p className="text-[13px] text-[rgba(28,58,41,0.8)]">{flowPresentation(row.status, row.originChainId).detail}</p>
+								{transactions.length > 0 && (
+									<ol className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+										{transactions.map((transaction) => (
+											<li key={transaction.tx} className="flex items-center gap-2 text-[12px]">
+												<span className="text-[rgba(28,58,41,0.55)]">{transaction.label}</span>
+												<a href={explorerUrl(transaction.chain, transaction.tx)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-mono text-[rgba(28,58,41,0.65)] hover:text-[rgba(28,58,41,0.95)]">
+													{truncTx(transaction.tx)} <ExternalLink className="h-3 w-3" />
+												</a>
+											</li>
+										))}
+									</ol>
+								)}
+							</div>
+						) : <RenewalBreakdown event={row.event} />}
+					</motion.div>
+				)}
+			</AnimatePresence>
 		</motion.div>
 	);
 }
@@ -372,8 +424,8 @@ type FeedItem = {
 	seconds: bigint;
 	off: string;
 } & (
-	| { pending: true; status: FlowStatus; originChainId: string; at: number }
-	| { pending: false; at: number }
+	| { pending: true; status: FlowStatus; originChainId: string; at: number; flow?: PublicFlow }
+	| { pending: false; at: number; event: ActivityEvent }
 );
 
 function LiveFeed({ onSelect, feed, setFeed, pageIndex, setPageIndex }: {
@@ -467,6 +519,7 @@ function LiveFeed({ onSelect, feed, setFeed, pageIndex, setPageIndex }: {
 			pending: true as const,
 			status: f.status,
 			originChainId: f.originChainId,
+			flow: feed?.flows.find(({ flow }) => flow.id === f.id)?.flow,
 			at: f.startedAt,
 		})),
 		...settled.map((e) => ({
@@ -480,6 +533,7 @@ function LiveFeed({ onSelect, feed, setFeed, pageIndex, setPageIndex }: {
 			off: e.off,
 			pending: false as const,
 			at: e.at,
+			event: e,
 		})),
 	];
 
@@ -488,13 +542,14 @@ function LiveFeed({ onSelect, feed, setFeed, pageIndex, setPageIndex }: {
 			{loadError && <p role="alert" className="mb-3 text-[12.5px] text-red-700">{loadError}</p>}
 			<div ref={tableRef} className="scroll-mt-6 border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
 			{/* Desktop column headers, hidden on mobile where rows become cards */}
-			<div className="hidden md:grid grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)] gap-4 px-5 py-3 bg-[rgba(28,58,41,0.03)] border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
+			<div className="hidden md:grid grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_auto] gap-4 px-5 py-3 bg-[rgba(28,58,41,0.03)] border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
 				<span>ENS name</span>
 				<span>Chain</span>
 				<span className="text-right">Received</span>
 				<span className="text-center">Discount</span>
 				<span className="text-right">Time added</span>
 				<span className="text-right">Status</span>
+				<span className="text-right">Details</span>
 			</div>
 
 			<div>
@@ -1060,7 +1115,7 @@ function NameDetail({
 						<span className="text-right">Received</span>
 						<span className="text-center">Discount</span>
 						<span className="text-right">Time added</span>
-						<span className="w-4" />
+						<span className="text-right">Details</span>
 					</div>
 
 					<div className="divide-y divide-[rgba(28,58,41,0.07)]">
@@ -1073,6 +1128,8 @@ function NameDetail({
 							<button
 								type="button"
 								disabled={!expandable}
+								aria-expanded={expandable ? isOpen : undefined}
+								aria-controls={expandable ? `renewal-details-${e.id}` : undefined}
 								onClick={() => setOpenEvent(isOpen ? null : e.id)}
 								className={`w-full text-left px-4 md:px-5 py-4 md:py-3.5 block md:grid md:grid-cols-[0.8fr_1.2fr_0.8fr_0.8fr_0.9fr_0.8fr_auto] md:gap-4 md:items-center ${
 									expandable
@@ -1124,9 +1181,10 @@ function NameDetail({
 
 									<span className="hidden md:flex justify-end">
 										{expandable && (
-											<ChevronDown
-												className={`w-4 h-4 text-[rgba(28,58,41,0.35)] transition-transform ${isOpen ? "rotate-180" : ""}`}
-											/>
+												<span className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11px] text-[rgba(28,58,41,0.72)]">
+												{isOpen ? "Hide details" : "Flow details"}
+												<ChevronDown className={`w-4 h-4 text-[rgba(28,58,41,0.45)] transition-transform ${isOpen ? "rotate-180" : ""}`} />
+											</span>
 										)}
 									</span>
 
@@ -1151,7 +1209,7 @@ function NameDetail({
 												<AmountCell
 													deposited={e.amountDeposited}
 													applied={e.amountApplied}
-												showApplied={e.kind === "renewal" && e.gasAllowance > 0n}
+													showApplied={e.kind === "renewal" && e.gasAllowance > 0n}
 													dense
 												/>
 											</dd>
@@ -1161,7 +1219,7 @@ function NameDetail({
 												Rate
 											</dt>
 											<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.75)]">
-											{e.kind === "renewal" ? (e.off ? `${e.off} off` : "Standard") : "-"}
+												{e.kind === "renewal" ? (e.off ? `${e.off} off` : "Standard") : "-"}
 											</dd>
 										</div>
 										<div className="text-right">
@@ -1169,7 +1227,7 @@ function NameDetail({
 												Time
 											</dt>
 											<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.95)] tabular-nums">
-											{e.kind === "renewal" ? fmtDuration(e.seconds) : "-"}
+												{e.kind === "renewal" ? fmtDuration(e.seconds) : "-"}
 											</dd>
 										</div>
 									</dl>
@@ -1178,9 +1236,10 @@ function NameDetail({
 								<div className="md:hidden mt-2 flex items-center justify-between gap-3 text-[11.5px] text-[rgba(28,58,41,0.45)]">
 									<span>{fmtDate(e.at)}</span>
 									{expandable && (
-										<ChevronDown
-											className={`w-4 h-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
-										/>
+										<span className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11px] text-[rgba(28,58,41,0.72)]">
+											{isOpen ? "Hide details" : "Flow details"}
+											<ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+										</span>
 									)}
 								</div>
 							</button>
@@ -1193,6 +1252,7 @@ function NameDetail({
 							<AnimatePresence initial={false}>
 								{isOpen && (
 									<motion.div
+										id={`renewal-details-${e.id}`}
 										initial={{ height: 0, opacity: 0 }}
 										animate={{ height: "auto", opacity: 1 }}
 										exit={{ height: 0, opacity: 0 }}
