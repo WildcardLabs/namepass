@@ -142,7 +142,7 @@ export default function PassCard({
 			<div className={split ? "sm:flex-1 sm:min-w-0" : ""}>
 			<button
 				onClick={() => copy(subdomain)}
-				className={`${split ? "mt-5 sm:mt-0" : "mt-5"} w-full text-left rounded-[1.4rem] border px-4 py-3 group ${fieldBg}`}
+				className={`${split ? "mt-5 sm:mt-0" : "mt-5"} w-full text-left rounded-[8px] border px-4 py-3 group ${fieldBg}`}
 				aria-label={`Copy ${subdomain}`}
 			>
 				<span className="block text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">Namepass</span>
@@ -153,7 +153,7 @@ export default function PassCard({
 			</button>
 			<button
 				onClick={() => copy(address)}
-				className={`mt-3 w-full text-left rounded-[1.4rem] border px-4 py-3 transition-colors group ${fieldBg}`}
+				className={`mt-3 w-full text-left rounded-[8px] border px-4 py-3 transition-colors group ${fieldBg}`}
 			>
 				<div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
 					<InfinityIcon className="w-3 h-3" />
@@ -183,7 +183,7 @@ export default function PassCard({
 
 			{/* What this address accepts — the question every sender has. */}
 			<div
-				className={`mt-5 rounded-[1.4rem] border px-4 py-3.5 ${
+				className={`mt-5 rounded-[8px] border px-4 py-3.5 ${
 					glass ? "bg-white/35 border-white/50" : "bg-[rgba(28,58,41,0.025)] border-[rgba(28,58,41,0.08)]"
 				}`}
 			>

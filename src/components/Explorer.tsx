@@ -927,13 +927,13 @@ function NameDetail({
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: reducedMotion ? 0 : 0.4, ease: [0.16, 1, 0.3, 1] }}
 		>
-			<div className="flex min-w-0 items-center gap-2.5">
+			<div className="flex min-w-0 items-start gap-2.5">
 				<button
 					type="button"
 					onClick={onBack}
 					aria-label="Back to Explorer"
 					title="Back to Explorer"
-					className={`${QUIET_ICON_BUTTON_CLASS} border-[rgba(28,58,41,0.16)] bg-white`}
+					className={`${QUIET_ICON_BUTTON_CLASS} relative -top-0.5 border-[rgba(28,58,41,0.16)] bg-white md:top-1`}
 				>
 					<ChevronLeft aria-hidden="true" className="h-[18px] w-[18px]" />
 				</button>
@@ -1062,11 +1062,11 @@ function NameDetail({
 									href={`https://${record.name}.limo`}
 									target="_blank"
 									rel="noopener noreferrer"
-									className="inline-flex items-center gap-1.5 text-[11px] text-[rgba(28,58,41,0.55)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
+									className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(28,58,41,0.55)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
 								>
-									<Globe className="w-3 h-3" />
+									<Globe className="w-3.5 h-3.5" />
 									Serves a site
-									<ExternalLink className="w-2.5 h-2.5" />
+									<ExternalLink className="w-3.5 h-3.5" />
 								</a>
 							)}
 						</div>
