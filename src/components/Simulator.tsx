@@ -369,7 +369,7 @@ function SimulatorBody() {
 									>
 										<button
 											onClick={() => setBudget(ceilToCent(hint.payable + ALLOWANCE))}
-											className="mt-4 w-full text-left rounded-2xl border border-[rgba(28,58,41,0.2)] bg-[rgba(28,58,41,0.04)] px-4 py-3 hover:bg-[rgba(28,58,41,0.07)] transition-colors group"
+											className="mt-4 w-full text-left rounded-[8px] border border-[rgba(28,58,41,0.2)] bg-[rgba(28,58,41,0.04)] px-4 py-3 hover:bg-[rgba(28,58,41,0.07)] transition-colors group"
 										>
 											<div className="flex items-start gap-2.5">
 												<TrendingUp className="w-4 h-4 mt-0.5 shrink-0 text-[rgba(28,58,41,0.7)]" />
