@@ -10,7 +10,6 @@ import {
 import {
 	Search,
 	ArrowLeft,
-	CornerUpLeft,
 	ArrowRight,
 	ArrowUpRight,
 	Clock,
@@ -23,6 +22,7 @@ import {
 	Zap,
 	Loader2,
 	ExternalLink,
+	ChevronLeft,
 	ChevronDown,
 	Copy,
 	Check,
@@ -126,7 +126,9 @@ function DiscountTag({ off }: { off: string | null }) {
 
 const LIVE_FEED_COLUMNS = "lg:grid-cols-[minmax(9rem,1.45fr)_minmax(5.75rem,0.8fr)_minmax(6rem,0.9fr)_minmax(5.5rem,0.85fr)_minmax(5rem,0.7fr)_minmax(6.5rem,1fr)_7rem]";
 const NAME_ACTIVITY_COLUMNS = "lg:grid-cols-[minmax(5.5rem,0.8fr)_minmax(9rem,1.2fr)_minmax(5rem,0.8fr)_minmax(6rem,0.85fr)_minmax(5.5rem,0.8fr)_minmax(5rem,0.7fr)_7rem]";
-const GREEN_ICON_BUTTON_CLASS = "shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-[9px] bg-[rgba(28,58,41,0.95)] text-white transition-colors hover:bg-[rgba(28,58,41,1)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]";
+const ICON_BUTTON_BASE_CLASS = "shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-[9px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]";
+const SEARCH_ICON_BUTTON_CLASS = `${ICON_BUTTON_BASE_CLASS} bg-[rgba(28,58,41,0.95)] text-white hover:bg-[rgba(28,58,41,1)]`;
+const QUIET_ICON_BUTTON_CLASS = `${ICON_BUTTON_BASE_CLASS} border text-[rgba(28,58,41,0.82)] hover:border-[rgba(28,58,41,0.3)] hover:bg-[rgba(28,58,41,0.04)]`;
 
 /** The exact shared mobile layout for activity rows in both Explorer views. */
 function MobileFlowSummary({
@@ -165,7 +167,7 @@ function MobileFlowSummary({
 						aria-expanded={expanded}
 						aria-controls={controlsId}
 						aria-label={expanded ? "Hide flow details" : "Show flow details"}
-						className={GREEN_ICON_BUTTON_CLASS}
+						className={`${QUIET_ICON_BUTTON_CLASS} ${expanded ? "border-[rgba(28,58,41,0.28)] bg-[rgba(28,58,41,0.06)]" : "border-[rgba(28,58,41,0.16)] bg-white"}`}
 					>
 						<span className="sr-only">{expanded ? "Hide flow details" : "Show flow details"}</span>
 						<ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -925,19 +927,21 @@ function NameDetail({
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: reducedMotion ? 0 : 0.4, ease: [0.16, 1, 0.3, 1] }}
 		>
-			<button
-				type="button"
-				onClick={onBack}
-				aria-label="Back to Explorer"
-				title="Back to Explorer"
-				className={GREEN_ICON_BUTTON_CLASS}
-			>
-				<CornerUpLeft aria-hidden="true" className="w-4 h-4" />
-			</button>
+			<div className="flex min-w-0 items-center gap-2.5">
+				<button
+					type="button"
+					onClick={onBack}
+					aria-label="Back to Explorer"
+					title="Back to Explorer"
+					className={`${QUIET_ICON_BUTTON_CLASS} border-[rgba(28,58,41,0.16)] bg-white`}
+				>
+					<ChevronLeft aria-hidden="true" className="h-[18px] w-[18px]" />
+				</button>
 
-			<h3 className="mt-6 text-[32px] md:text-[44px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-none">
-				{record.name}
-			</h3>
+				<h3 className="min-w-0 break-words text-[32px] md:text-[44px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-none">
+					{record.name}
+				</h3>
+			</div>
 
 			{/* The two-panel model: what expires vs. what is permanent */}
 			<div className="mt-8 grid md:grid-cols-2 gap-4">
@@ -1475,7 +1479,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								type="button"
 								onClick={() => void submit()}
 								aria-label="Search"
-								className={GREEN_ICON_BUTTON_CLASS}
+								className={SEARCH_ICON_BUTTON_CLASS}
 							>
 								<Search className="w-4 h-4" />
 							</button>
