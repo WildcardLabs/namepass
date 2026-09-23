@@ -23,6 +23,8 @@ import {
 	Loader2,
 	ExternalLink,
 	ChevronDown,
+	Copy,
+	Check,
 } from "lucide-react";
 import {
 	activeFlows,
@@ -203,7 +205,7 @@ function FeedRowContent({
 					<button type="button" onClick={() => onSelect(row.name)} aria-label={`Open ${row.name}`} className="group inline-flex min-w-0 items-center gap-1 text-left text-[15px] lg:text-[14.5px] text-black transition-colors hover:text-[rgba(28,88,52,0.95)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]">
 						<img src={`${import.meta.env.BASE_URL}logos/ens-mark-dark-blue.svg`} alt="" aria-hidden="true" className="relative top-px h-3 w-3 shrink-0 object-contain grayscale opacity-40" />
 						<span className="truncate">{row.name}</span>
-						<ArrowUpRight className="h-3.5 w-3.5 shrink-0 translate-y-px transition-transform group-hover:translate-x-px group-hover:translate-y-0" />
+						<ArrowUpRight className="-ml-1 h-3.5 w-3.5 shrink-0 translate-y-px transition-transform group-hover:translate-x-px group-hover:translate-y-0" />
 					</button>
 					<button
 						type="button"
@@ -262,7 +264,7 @@ function FeedRowContent({
 				</div>
 
 				{/* Mobile: labelled detail pairs */}
-				<dl className="lg:hidden mt-3 grid grid-cols-2 gap-x-6 gap-y-3">
+				<dl className="lg:hidden mt-2.5 grid grid-cols-2 gap-x-6 gap-y-2">
 					<div>
 						<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
 							From
@@ -292,7 +294,7 @@ function FeedRowContent({
 							{row.off ? `${row.off} off` : "Standard"}
 						</dd>
 					</div>
-					<div className="text-right">
+					<div>
 						<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
 							Time
 						</dt>
@@ -600,6 +602,38 @@ function stepLabel(step: FlowStep, bridged: boolean): string {
 	return bridged ? "Minted and renewed" : "Renewed";
 }
 
+function CopyableAddress({ address, label }: { address: string; label: string }) {
+	const [copied, setCopied] = useState(false);
+	const copyable = /^0x[a-f\d]{40}$/i.test(address);
+
+	const copyAddress = async () => {
+		try {
+			await navigator.clipboard.writeText(address);
+			setCopied(true);
+			window.setTimeout(() => setCopied(false), 1200);
+		} catch {
+			setCopied(false);
+		}
+	};
+
+	return (
+		<>
+			<span className="min-w-0 flex-1 break-all font-mono">{address}</span>
+			{copyable && (
+				<button
+					type="button"
+					onClick={() => void copyAddress()}
+					aria-label={copied ? `${label} address copied` : `Copy ${label} address`}
+					title={copied ? "Copied" : `Copy ${label} address`}
+					className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[rgba(28,58,41,0.5)] transition-colors hover:bg-[rgba(28,58,41,0.06)] hover:text-[rgba(28,58,41,0.9)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+				>
+					{copied ? <Check aria-hidden="true" className="h-3.5 w-3.5" /> : <Copy aria-hidden="true" className="h-3.5 w-3.5" />}
+				</button>
+			)}
+		</>
+	);
+}
+
 /**
  * What one renewal actually cost and which transactions carried it. The three
  * amounts are separate because the gas allowance comes off on mainnet, so what
@@ -658,15 +692,15 @@ function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 				<dl className="mt-4 space-y-1.5 border-t border-[rgba(28,58,41,0.08)] pt-3 text-[12px]">
 					<div>
 						<dt className="text-[rgba(28,58,41,0.5)]">Funded by</dt>
-						<dd className="mt-0.5 break-all font-mono text-[rgba(28,58,41,0.8)]">
-							{event.funder}
+						<dd className="mt-0.5 flex min-w-0 items-start gap-1.5 text-[rgba(28,58,41,0.8)]">
+							<CopyableAddress address={event.funder} label="funded by" />
 						</dd>
 					</div>
 					<div>
 						<dt className="text-[rgba(28,58,41,0.5)]">Processed by</dt>
-						<dd className="mt-0.5 break-all text-[rgba(28,58,41,0.8)]">
-							{event.executorIsRelayer ? "Namepass · " : ""}
-							<span className="font-mono">{event.executor}</span>
+						<dd className="mt-0.5 flex min-w-0 items-start gap-1.5 text-[rgba(28,58,41,0.8)]">
+							{event.executorIsRelayer && <span className="shrink-0">Namepass ·</span>}
+							<CopyableAddress address={event.executor} label="processed by" />
 						</dd>
 					</div>
 				</dl>
@@ -1225,7 +1259,7 @@ function NameDetail({
 
 								{/* Mobile detail pairs */}
 								{e.kind !== "activated" && (
-									<dl className="lg:hidden mt-3 grid grid-cols-2 gap-x-6 gap-y-3">
+									<dl className="lg:hidden mt-2.5 grid grid-cols-2 gap-x-6 gap-y-2">
 										<div>
 											<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
 												From
@@ -1255,7 +1289,7 @@ function NameDetail({
 												{e.kind === "renewal" ? (e.off ? `${e.off} off` : "Standard") : "-"}
 											</dd>
 										</div>
-										<div className="text-right">
+										<div>
 											<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
 												Time
 											</dt>

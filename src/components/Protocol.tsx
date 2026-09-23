@@ -24,7 +24,7 @@ export default function Protocol({ onSearch }: Props) {
 					<div className="max-w-2xl">
 						<span className={TAG}>The protocol</span>
 						<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.03]">
-							The contracts behind ENS renewals.
+							The protocol behind ENS renewals.
 						</h2>
 						<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] leading-relaxed">
 							Immutable Namepass contracts derive a deterministic USDC deposit address for every name and
