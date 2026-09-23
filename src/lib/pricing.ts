@@ -12,7 +12,7 @@
  * `Math.Rounding.Ceil` in `_toAmount`, so results match on chain to the
  * micro-unit.
  *
- * Every function below throws until `setRates()` has run. That is deliberate
+ * Pricing functions throw until `setRates()` has run. That is deliberate
  * and it is why there is no default: a fallback price is a made-up price, and
  * the failure mode of showing one is a funder sending an amount that buys less
  * than the screen promised. `App.tsx` gates the UI on the load instead.
@@ -45,6 +45,11 @@ let loaded: OracleRates | null = null;
 /** Install the configuration read from the chain. Called once, at boot. */
 export function setRates(next: OracleRates): void {
 	loaded = next;
+}
+
+/** Whether chain pricing is available for views that can render without quotes. */
+export function hasRates(): boolean {
+	return loaded !== null;
 }
 
 /** The live configuration. Throws rather than guess. */

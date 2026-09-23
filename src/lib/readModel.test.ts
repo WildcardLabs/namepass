@@ -41,6 +41,54 @@ function flow(overrides: Partial<PublicFlow>): PublicFlow {
 	};
 }
 
+test("public activity renders while ENS pricing is still loading", () => {
+	const name = {
+		label: "early-feed-test",
+		displayName: "early-feed-test.eth",
+		depositAddress: "0x0000000000000000000000000000000000000020",
+		activatedAt: "2026-08-10T00:00:00.000Z",
+		currentExpiry: null,
+		renewableBy: "registrar" as const,
+		ensSyncedAt: "2026-08-10T00:00:00.000Z",
+		unscannedChainIds: [],
+		lifetimeReceived: "1000000",
+		lifetimeApplied: "900000",
+		timeDeliveredSeconds: "180",
+		renewalCount: "1",
+	};
+	const renewal = {
+		eventId: "early-renewal",
+		flowId: "early-flow",
+		originChainId: "84532",
+		funderAddress: null,
+		executorAddress: "0x0000000000000000000000000000000000000021",
+		executorIsRelayer: false,
+		amountReceived: "1000000",
+		gasAllowance: "100000",
+		amountApplied: "900000",
+		durationSeconds: "180",
+		expiryAfter: null,
+		fromCctp: false,
+		depositTxHash: null,
+		originTxHash: null,
+		claimTxHash: null,
+		renewalTxHash: `0x${"4".repeat(64)}`,
+		blockTime: "2026-08-11T00:00:00.000Z",
+	};
+
+	syncFeed({
+		items: [{ name, renewal }],
+		flows: [{ name, flow: flow({ id: "early-flow" }) }],
+		nextCursor: null,
+	});
+
+	expect(recentActivity().find((event) => event.id === "early-renewal")?.off).toBeNull();
+	expect(activeFlows().find((item) => item.id === "early-flow")).toMatchObject({
+		seconds: null,
+		off: null,
+	});
+});
+
 test("the browser maps canonical renewal facts without inventing a sender", () => {
 	setRates({
 		oracle: "0x0000000000000000000000000000000000000001",
