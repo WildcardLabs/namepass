@@ -11,6 +11,7 @@ import {
 	Search,
 	ArrowLeft,
 	ArrowRight,
+	ArrowUpRight,
 	Clock,
 	Globe,
 	Link as LinkIcon,
@@ -117,6 +118,9 @@ function DiscountTag({ off }: { off: string }) {
 /* Live feed — Etherscan-style table                                   */
 /* ------------------------------------------------------------------ */
 
+const LIVE_FEED_COLUMNS = "lg:grid-cols-[minmax(9rem,1.45fr)_minmax(5.75rem,0.8fr)_minmax(6rem,0.9fr)_minmax(5.5rem,0.85fr)_minmax(5rem,0.7fr)_minmax(6.5rem,1fr)_7rem]";
+const NAME_ACTIVITY_COLUMNS = "lg:grid-cols-[minmax(5.5rem,0.8fr)_minmax(9rem,1.2fr)_minmax(5rem,0.8fr)_minmax(6rem,0.85fr)_minmax(5.5rem,0.8fr)_minmax(5rem,0.7fr)_7rem]";
+
 /* One shared motion language for the feed.
 
    Entering rows grow from zero height and leaving rows collapse to it, so the
@@ -193,30 +197,31 @@ function FeedRowContent({
 			transition={reduced ? { duration: 0 } : { duration: 0.55, ease: "easeOut" }}
 			className="border-b border-[rgba(28,58,41,0.07)]"
 		>
-			<div className="w-full px-4 md:px-5 py-4 md:py-3.5 block md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_auto] md:gap-4 md:items-center hover:bg-[rgba(28,58,41,0.025)] transition-colors">
+			<div className={`w-full px-4 md:px-5 py-4 md:py-3.5 block lg:grid ${LIVE_FEED_COLUMNS} lg:gap-4 lg:items-center hover:bg-[rgba(28,58,41,0.025)] transition-colors`}>
 				{/* Mobile: name + headline result on one line */}
-				<div className="flex items-baseline justify-between gap-3 md:contents">
-					<button type="button" onClick={() => onSelect(row.name)} aria-label={`Open ${row.name}`} className="group inline-flex min-w-0 items-center gap-1.5 text-left text-[15px] md:text-[14.5px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]">
-						<img src={`${import.meta.env.BASE_URL}logos/ens-mark-dark-blue.svg`} alt="" aria-hidden="true" className="h-4 w-4 shrink-0 object-contain" />
-						<span className="truncate text-[rgba(28,88,52,0.95)] underline decoration-[rgba(28,58,41,0.3)] underline-offset-4 group-hover:decoration-[rgba(28,58,41,0.95)]">{row.name}</span>
-						<ArrowRight className="h-3.5 w-3.5 shrink-0 text-[rgba(28,58,41,0.55)] transition-transform group-hover:translate-x-0.5" />
+				<div className="flex items-center justify-between gap-2 lg:contents">
+					<button type="button" onClick={() => onSelect(row.name)} aria-label={`Open ${row.name}`} className="group inline-flex min-w-0 items-center gap-1.5 text-left text-[15px] lg:text-[14.5px] text-black transition-colors hover:text-[rgba(28,88,52,0.95)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]">
+						<img src={`${import.meta.env.BASE_URL}logos/ens-mark-dark-blue.svg`} alt="" aria-hidden="true" className="h-3 w-3 shrink-0 object-contain grayscale opacity-40" />
+						<span className="truncate">{row.name}</span>
+						<ArrowUpRight className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
 					</button>
 					<button
 						type="button"
 						onClick={() => setExpanded((open) => !open)}
 						aria-expanded={expanded}
 						aria-controls={`flow-details-${row.key}`}
-						className="md:hidden inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11.5px] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+						aria-label={expanded ? "Hide flow details" : "Show flow details"}
+						className="lg:hidden inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[rgba(28,58,41,0.14)] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 					>
-						{expanded ? "Hide details" : "Flow details"}
-						<ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+						<span className="sr-only">{expanded ? "Hide flow details" : "Show flow details"}</span>
+						<ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
 					</button>
 
-					<span className="hidden md:block text-[13.5px]">
+					<span className="hidden lg:block text-[13.5px]">
 						<ChainTag chain={row.chain} />
 					</span>
 
-					<span className="hidden md:block text-right">
+					<span className="hidden lg:block text-right">
 						<AmountCell
 							deposited={row.amountDeposited}
 							applied={row.amountApplied}
@@ -224,7 +229,7 @@ function FeedRowContent({
 						/>
 					</span>
 
-					<span className="hidden md:flex justify-center text-[13px]">
+					<span className="hidden lg:flex justify-center text-[13px]">
 						<DiscountTag off={row.off} />
 					</span>
 
@@ -232,7 +237,7 @@ function FeedRowContent({
 					    and if the claim reverts nothing will be. Same cell, same width,
 					    so settling swaps one character. */}
 					<span
-						className={`hidden md:block text-[13.5px] text-right tabular-nums transition-colors duration-500 ${
+						className={`hidden lg:block text-[13.5px] text-right tabular-nums transition-colors duration-500 ${
 							pending ? "text-[rgba(28,58,41,0.5)]" : "text-[rgba(28,58,41,0.95)]"
 						}`}
 					>
@@ -241,7 +246,7 @@ function FeedRowContent({
 							: fmtDuration(row.seconds)}
 					</span>
 
-					<span className="hidden md:flex min-w-0 items-center justify-end gap-1.5 text-[12px]">
+					<span className="hidden lg:flex min-w-0 items-center justify-end gap-1.5 text-[12px]">
 						<StatusCell row={row} reduced={reduced} />
 					</span>
 					<button
@@ -249,7 +254,7 @@ function FeedRowContent({
 						onClick={() => setExpanded((open) => !open)}
 						aria-expanded={expanded}
 						aria-controls={`flow-details-${row.key}`}
-						className="hidden md:inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11.5px] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+						className="hidden lg:inline-flex min-h-10 w-full shrink-0 items-center justify-end gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11.5px] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 					>
 						{expanded ? "Hide details" : "Flow details"}
 						<ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -257,7 +262,7 @@ function FeedRowContent({
 				</div>
 
 				{/* Mobile: labelled detail pairs */}
-				<dl className="md:hidden mt-2.5 grid grid-cols-[minmax(5.25rem,auto)_minmax(4rem,auto)_minmax(4.75rem,auto)_auto] justify-between gap-x-2 gap-y-1 items-baseline">
+				<dl className="lg:hidden mt-2.5 grid grid-cols-[minmax(5.25rem,auto)_minmax(4rem,auto)_minmax(4.75rem,auto)_auto] justify-between gap-x-2 gap-y-1 items-baseline">
 					<div>
 						<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
 							From
@@ -298,7 +303,7 @@ function FeedRowContent({
 						</dd>
 					</div>
 				</dl>
-				<div className="md:hidden mt-2 text-[11.5px] text-[rgba(28,58,41,0.4)]">
+				<div className="lg:hidden mt-2 text-[11.5px] text-[rgba(28,58,41,0.4)]">
 					<StatusCell row={row} reduced={reduced} />
 				</div>
 			</div>
@@ -542,7 +547,7 @@ function LiveFeed({ onSelect, feed, setFeed, pageIndex, setPageIndex }: {
 			{loadError && <p role="alert" className="mb-3 text-[12.5px] text-red-700">{loadError}</p>}
 			<div ref={tableRef} className="scroll-mt-6 border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
 			{/* Desktop column headers, hidden on mobile where rows become cards */}
-			<div className="hidden md:grid grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_auto] gap-4 px-5 py-3 bg-[rgba(28,58,41,0.03)] border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
+			<div className={`hidden lg:grid ${LIVE_FEED_COLUMNS} gap-4 px-5 py-3 bg-[rgba(28,58,41,0.03)] border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]`}>
 				<span>ENS name</span>
 				<span>Chain</span>
 				<span className="text-right">Received</span>
@@ -1108,7 +1113,7 @@ function NameDetail({
 				</div>
 
 				<div className="border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
-					<div className="hidden md:grid grid-cols-[0.8fr_1.2fr_0.8fr_0.8fr_0.9fr_0.8fr_auto] gap-4 px-5 py-3 bg-[rgba(28,58,41,0.03)] border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
+					<div className={`hidden lg:grid ${NAME_ACTIVITY_COLUMNS} gap-4 px-5 py-3 bg-[rgba(28,58,41,0.03)] border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]`}>
 						<span>Date</span>
 						<span>Event</span>
 						<span>Chain</span>
@@ -1131,15 +1136,15 @@ function NameDetail({
 								aria-expanded={expandable ? isOpen : undefined}
 								aria-controls={expandable ? `renewal-details-${e.id}` : undefined}
 								onClick={() => setOpenEvent(isOpen ? null : e.id)}
-								className={`w-full text-left px-4 md:px-5 py-4 md:py-3.5 block md:grid md:grid-cols-[0.8fr_1.2fr_0.8fr_0.8fr_0.9fr_0.8fr_auto] md:gap-4 md:items-center ${
+								className={`w-full text-left px-4 md:px-5 py-4 md:py-3.5 block lg:grid ${NAME_ACTIVITY_COLUMNS} lg:gap-4 lg:items-center ${
 									expandable
 										? "hover:bg-[rgba(28,58,41,0.025)] transition-colors"
 										: "cursor-default"
 								}`}
 							>
 								{/* Headline row */}
-								<div className="flex items-baseline justify-between gap-3 md:contents">
-									<span className="hidden md:block text-[13px] text-[rgba(28,58,41,0.6)] tabular-nums">
+								<div className="flex items-center justify-between gap-2 lg:contents">
+									<span className="hidden lg:block text-[13px] text-[rgba(28,58,41,0.6)] tabular-nums">
 										{fmtDate(e.at)}
 									</span>
 
@@ -1147,7 +1152,7 @@ function NameDetail({
 										{e.kind === "activated" ? "Namepass activated" : e.kind === "deposit" ? "Payment received" : "Renewal"}
 									</span>
 
-									<span className="hidden md:block text-[13.5px]">
+									<span className="hidden lg:block text-[13.5px]">
 										{e.kind !== "activated" ? (
 											<ChainTag chain={e.chain} />
 										) : (
@@ -1155,7 +1160,7 @@ function NameDetail({
 										)}
 									</span>
 
-									<span className="hidden md:block text-[13.5px] text-[rgba(28,58,41,0.75)] text-right tabular-nums">
+									<span className="hidden lg:block text-[13.5px] text-[rgba(28,58,41,0.75)] text-right tabular-nums">
 										{e.kind !== "activated" ? (
 											<AmountCell
 												deposited={e.amountDeposited}
@@ -1167,7 +1172,7 @@ function NameDetail({
 										)}
 									</span>
 
-									<span className="hidden md:flex justify-center">
+									<span className="hidden lg:flex justify-center">
 										{e.kind === "renewal" ? (
 											<DiscountTag off={e.off} />
 										) : (
@@ -1175,13 +1180,13 @@ function NameDetail({
 										)}
 									</span>
 
-									<span className="hidden md:block text-[13.5px] text-[rgba(28,58,41,0.95)] text-right tabular-nums">
+									<span className="hidden lg:block text-[13.5px] text-[rgba(28,58,41,0.95)] text-right tabular-nums">
 										{e.kind === "renewal" ? fmtDuration(e.seconds) : "-"}
 									</span>
 
-									<span className="hidden md:flex justify-end">
+									<span className="hidden lg:flex justify-end">
 										{expandable && (
-												<span className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11px] text-[rgba(28,58,41,0.72)]">
+											<span className="inline-flex min-h-9 w-full items-center justify-end gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11px] text-[rgba(28,58,41,0.72)]">
 												{isOpen ? "Hide details" : "Flow details"}
 												<ChevronDown className={`w-4 h-4 text-[rgba(28,58,41,0.45)] transition-transform ${isOpen ? "rotate-180" : ""}`} />
 											</span>
@@ -1192,7 +1197,7 @@ function NameDetail({
 
 								{/* Mobile detail pairs */}
 								{e.kind !== "activated" && (
-									<dl className="md:hidden mt-2.5 grid grid-cols-[minmax(5.25rem,auto)_minmax(4rem,auto)_minmax(4.75rem,auto)_auto] justify-between gap-x-2 gap-y-1 items-baseline">
+									<dl className="lg:hidden mt-2.5 grid grid-cols-[minmax(5.25rem,auto)_minmax(4rem,auto)_minmax(4.75rem,auto)_auto] justify-between gap-x-2 gap-y-1 items-baseline">
 										<div>
 											<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
 												From
@@ -1233,11 +1238,11 @@ function NameDetail({
 									</dl>
 								)}
 
-								<div className="md:hidden mt-2 flex items-center justify-between gap-3 text-[11.5px] text-[rgba(28,58,41,0.45)]">
+								<div className="lg:hidden mt-2 flex items-center justify-between gap-3 text-[11.5px] text-[rgba(28,58,41,0.45)]">
 									<span>{fmtDate(e.at)}</span>
 									{expandable && (
-										<span className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11px] text-[rgba(28,58,41,0.72)]">
-											{isOpen ? "Hide details" : "Flow details"}
+										<span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[rgba(28,58,41,0.14)] text-[rgba(28,58,41,0.72)]">
+											<span className="sr-only">{isOpen ? "Hide flow details" : "Show flow details"}</span>
 											<ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
 										</span>
 									)}
