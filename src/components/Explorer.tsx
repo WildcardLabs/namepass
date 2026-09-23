@@ -59,7 +59,7 @@ import {
 import PassCard from "./PassCard";
 import PendingBalance from "./PendingBalance";
 import ChainTag from "./ChainTag";
-import { ceilToCent, costOf, YEAR_SECONDS } from "../lib/pricing";
+import { ceilToCent, costOf, rates, YEAR_SECONDS } from "../lib/pricing";
 import { LABEL_PROBLEM_TEXT, labelProblem, normalizeLabel } from "../lib/namepass";
 import { GAS_ALLOWANCE } from "../lib/fees";
 import { fetchProfile, type EnsProfile } from "../lib/ens";
@@ -328,12 +328,6 @@ function StatusCell({ row, reduced }: { row: FeedItem; reduced: boolean }) {
 const MAX_IN_FLIGHT = 6;
 const ACTIVITY_PAGE_SIZE = 10;
 
-function publicApiStatus(cause: unknown): number | undefined {
-	return cause && typeof cause === "object" && "status" in cause
-		? (cause as { status?: number }).status
-		: undefined;
-}
-
 function ActivityPagination({
 	page,
 	totalPages,
@@ -382,13 +376,17 @@ type FeedItem = {
 	| { pending: false; at: number }
 );
 
-function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
+function LiveFeed({ onSelect, feed, setFeed, pageIndex, setPageIndex }: {
+	onSelect: (n: string) => void;
+	feed: ActivityRead | null;
+	setFeed: (feed: ActivityRead) => void;
+	pageIndex: number;
+	setPageIndex: (page: number) => void;
+}) {
 	const [, tick] = useReducer((n: number) => n + 1, 0);
 	const reduced = useReducedMotion() ?? false;
-	const [feed, setFeed] = useState<ActivityRead | null>(null);
 	const [loadingPage, setLoadingPage] = useState(false);
 	const [loadError, setLoadError] = useState<string | null>(null);
-	const [pageIndex, setPageIndex] = useState(0);
 	const tableRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
@@ -440,7 +438,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 			window.removeEventListener("focus", focus);
 			document.removeEventListener("visibilitychange", visibility);
 		};
-	}, [pageIndex]);
+	}, [pageIndex, setFeed]);
 
 	const inFlight = activeFlows().slice(0, MAX_IN_FLIGHT);
 	const settled = (feed?.items ?? []).map(({ name, renewal }) => ({
@@ -763,6 +761,7 @@ function NameDetail({
 	}, [record.name]);
 
 	const onchain = record.onchain;
+	const pricing = rates();
 
 	/**
 	 * The least USDC worth sending to a name in its grace period, and which
@@ -790,7 +789,7 @@ function NameDetail({
 		return catchUp >= floor
 			? { amount: catchUp, bound: "catch-up" as const }
 			: { amount: floor, bound: "trigger" as const };
-	}, [onchain?.lapsedFor, record.labelLength]);
+	}, [onchain?.lapsedFor, record.labelLength, pricing]);
 
 	const t = profile?.text ?? {};
 	const links = (
@@ -1232,6 +1231,9 @@ interface Props {
 }
 
 export default function Explorer({ selected, onSelect, onActivated, onSupportedTokens }: Props) {
+	/* Keep the last feed page when its view unmounts for a name detail. */
+	const [feed, setFeed] = useState<ActivityRead | null>(null);
+	const [feedPageIndex, setFeedPageIndex] = useState(0);
 	const [query, setQuery] = useState("");
 	const [notFound, setNotFound] = useState<string | null>(null);
 	const [activating, setActivating] = useState(false);
@@ -1307,13 +1309,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 					refresh();
 				}
 			} catch (cause) {
-				if (!stopped && publicApiStatus(cause) === 404) {
-					setNotFound(`${normalizeLabel(selected)}.eth`);
-					setRequestError(null);
-					onSelect(null);
-				} else if (!stopped) {
-					setRequestError(cause instanceof Error ? cause.message : "Could not load this name.");
-				}
+				if (!stopped) setRequestError(cause instanceof Error ? cause.message : "Could not load this name.");
 				failures += 1;
 			}
 			finally {
@@ -1341,7 +1337,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 			window.removeEventListener("focus", focus);
 			document.removeEventListener("visibilitychange", visibility);
 		};
-	}, [selected, reloadVersion, configVersion, namePageIndex, onSelect]);
+	}, [selected, reloadVersion, configVersion, namePageIndex]);
 
 	const suggestions = useMemo(() => {
 		const q = query.trim().toLowerCase();
@@ -1351,7 +1347,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 			.slice(0, 6);
 	}, [query]);
 
-	function submit(raw = query) {
+	async function submit(raw = query) {
 		const value = raw.trim();
 		if (!value) return;
 		if (labelProblem(value)) {
@@ -1360,15 +1356,18 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 		}
 		try {
 			const label = normalizeLabel(value);
-			/* Switch to the selected-name loading state before any request. The detail
-			   effect checks whether Namepass monitors this label and then loads its
-			   activity. */
+			await getName(label);
+			ensFreshLabel.current = label;
 			onSelect(`${label}.eth`);
 			setQuery("");
 			setNotFound(null);
 			setRequestError(null);
 		} catch (cause) {
-			setRequestError(cause instanceof Error ? cause.message : "Search failed.");
+			const status = cause && typeof cause === "object" && "status" in cause
+				? (cause as { status?: number }).status
+				: undefined;
+			if (status === 404) setNotFound(`${normalizeLabel(value)}.eth`);
+			else setRequestError(cause instanceof Error ? cause.message : "Search failed.");
 		}
 	}
 
@@ -1520,7 +1519,6 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 				<div className="mt-8 md:mt-10 bg-white rounded-2xl border border-[rgba(28,58,41,0.1)] p-4 md:p-6">
 					{record ? (
 						<NameDetail
-							key={record.name}
 							record={record}
 							onBack={() => onSelect(null)}
 							onSupportedTokens={onSupportedTokens}
@@ -1530,16 +1528,8 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 							activityLoading={loadingNamePage}
 							onActivityPage={setNamePageIndex}
 						/>
-					) : selected ? (
-						<div className="min-h-[360px]" aria-busy="true">
-							<button onClick={() => onSelect(null)} className="flex items-center gap-2 text-[13px] text-[rgba(28,58,41,0.55)]">
-								<ArrowLeft className="w-4 h-4" />All activity
-							</button>
-							<h3 className="mt-6 text-[32px] md:text-[44px] tracking-tight">{selected}</h3>
-							<p role="status" className="mt-4 text-[13px] text-[rgba(28,58,41,0.55)]">Loading name details…</p>
-						</div>
 					) : (
-						<LiveFeed onSelect={onSelect} />
+						<LiveFeed onSelect={onSelect} feed={feed} setFeed={setFeed} pageIndex={feedPageIndex} setPageIndex={setFeedPageIndex} />
 					)}
 				</div>
 			</div>

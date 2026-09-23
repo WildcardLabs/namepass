@@ -75,7 +75,9 @@ function ActiveApp() {
 	const pricingRequest = useRef(0);
 	const loadPricing = useCallback(() => {
 		const request = ++pricingRequest.current;
-		setBoot({ status: "loading" });
+		/* Keep mounted views during a refresh. Only the initial read and a
+		   retry after a failed validation need the loading state. */
+		setBoot((current) => current.status === "ready" ? current : { status: "loading" });
 		/* In parallel: ENS's rates, which the app can't price without, and a
 		   check that the gateway's gas allowance is still the dime every quoted
 		   send amount is built around. */

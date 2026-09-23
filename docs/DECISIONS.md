@@ -45,11 +45,12 @@ broadcast; an unclaimed CCTP message is retried without a second burn.
 
 ## Explorer rendering and deposit identifiers
 
-Keep the Explorer card in place while swapping between the feed, a selected name, and its
-loading state. Mount only the active view so the hidden animated feed does not keep rendering.
-Start the selected-name view immediately; its loading state stays inside the card until public
-reads finish. The name detail fades and slides in over 400 ms, and its ENS profile fields keep
-their inline loading skeletons. Keep the explicit ENS refresh before the activity refresh.
+Keep the Explorer card mounted during pricing refreshes. The 22 September change in `080cd1a`
+reused the initial loading state on selection and window focus. This removed the whole Explorer
+and moved the page. View animations could not fix that parent-state defect.
+Mount only the active view. Keep the last feed response and page in the parent so Back does not
+empty the feed before a fresh read. Use the existing detail entrance animation and inline profile
+skeletons. Keep the explicit ENS refresh before the activity refresh.
 Static QR codes use one SVG path; callers can still request the animated QR.
 
 Show the resolving Namepass subdomain as a separate copy target. Keep the full deposit address
