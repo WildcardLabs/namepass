@@ -149,7 +149,9 @@ export default function PendingBalance({ record, onSettled }: Props) {
 			<button
 				type="button"
 				onClick={() => setOpen(!open)}
-				className="w-full text-left group"
+				aria-expanded={open}
+				aria-controls="pending-renewal-details"
+				className="w-full text-left group focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 			>
 				<span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
 					<Wallet className="w-3 h-3" />
@@ -162,15 +164,19 @@ export default function PendingBalance({ record, onSettled }: Props) {
 						)}
 						{summary}
 					</span>
-					<ChevronDown
-						className={`w-4 h-4 shrink-0 text-[rgba(28,58,41,0.35)] group-hover:text-[rgba(28,58,41,0.7)] transition-all ${open ? "rotate-180" : ""}`}
-					/>
+					<span className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11.5px] text-[rgba(28,58,41,0.72)] group-hover:bg-white">
+						{open ? "Hide details" : p.flows.length > 0 ? "Flow details" : "Balance details"}
+						<ChevronDown
+							className={`w-3.5 h-3.5 text-[rgba(28,58,41,0.55)] transition-all ${open ? "rotate-180" : ""}`}
+						/>
+					</span>
 				</span>
 			</button>
 
 			<AnimatePresence initial={false}>
 				{open && (
 					<motion.div
+						id="pending-renewal-details"
 						initial={{ height: 0, opacity: 0 }}
 						animate={{ height: "auto", opacity: 1 }}
 						exit={{ height: 0, opacity: 0 }}
