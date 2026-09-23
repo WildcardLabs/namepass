@@ -10,7 +10,6 @@ import {
 import {
 	Search,
 	ArrowLeft,
-	CornerUpLeft,
 	ArrowRight,
 	ArrowUpRight,
 	Clock,
@@ -23,6 +22,7 @@ import {
 	Zap,
 	Loader2,
 	ExternalLink,
+	ChevronLeft,
 	ChevronDown,
 	Copy,
 	Check,
@@ -927,19 +927,21 @@ function NameDetail({
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: reducedMotion ? 0 : 0.4, ease: [0.16, 1, 0.3, 1] }}
 		>
-			<button
-				type="button"
-				onClick={onBack}
-				aria-label="Back to Explorer"
-				title="Back to Explorer"
-				className={`${QUIET_ICON_BUTTON_CLASS} border-[rgba(28,58,41,0.16)] bg-white`}
-			>
-				<CornerUpLeft aria-hidden="true" className="w-4 h-4" />
-			</button>
+			<div className="flex min-w-0 items-center gap-2.5">
+				<button
+					type="button"
+					onClick={onBack}
+					aria-label="Back to Explorer"
+					title="Back to Explorer"
+					className={`${QUIET_ICON_BUTTON_CLASS} border-[rgba(28,58,41,0.16)] bg-white`}
+				>
+					<ChevronLeft aria-hidden="true" className="h-[18px] w-[18px]" />
+				</button>
 
-			<h3 className="mt-6 text-[32px] md:text-[44px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-none">
-				{record.name}
-			</h3>
+				<h3 className="min-w-0 break-words text-[32px] md:text-[44px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-none">
+					{record.name}
+				</h3>
+			</div>
 
 			{/* The two-panel model: what expires vs. what is permanent */}
 			<div className="mt-8 grid md:grid-cols-2 gap-4">
