@@ -1550,8 +1550,8 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 									Namepass yet.
 								</div>
 								<p className="mt-1 text-[12.5px] text-[rgba(28,58,41,0.55)] leading-relaxed">
-									Add its deterministic address to Namepass Explorer to follow deposits and
-									renewal flows. You do not have to own the name.
+									Start tracking it to see its deposit address, balances, and renewal activity.
+									You do not have to own the name.
 								</p>
 								<button
 									onClick={() => {

@@ -20,8 +20,8 @@ Permissionless ENS renewals from deterministic USDC deposit wallets.
 
 Namepass gives each normalized `.eth` name one deterministic deposit wallet across a supported
 deployment set. Anyone can fund that wallet with the configured USDC. The funds buy renewal time
-through ENS's price oracle. The website and hosted automation are optional: independent executors
-can derive addresses, start renewals and complete Circle claims directly.
+through ENS's price oracle. The protocol contracts can be used without the Namepass website or
+hosted automation; any executor can derive addresses, start renewals and complete Circle claims.
 
 <img src=".github/assets/hero.png" width="100%" alt="Namepass payment interface" />
 

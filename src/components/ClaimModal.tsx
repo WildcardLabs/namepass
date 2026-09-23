@@ -94,7 +94,8 @@ export default function ClaimModal({ open, onClose, onActivated }: Props) {
 									Find a name's Namepass
 								</h2>
 								<p className="mt-2 text-[14px] text-[rgba(28,58,41,0.65)] leading-relaxed">
-									Add the name to Explorer to retrieve its deterministic deposit address.
+									Start tracking deposits sent to this name's deterministic address. The Explorer
+									will show its balances and renewal activity.
 								</p>
 
 								<div className="mt-6">

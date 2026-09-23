@@ -18,7 +18,7 @@ export default function Privacy({ onBack }: { onBack: () => void }) {
 				},
 				{
 					heading: "Third-party infrastructure",
-					body: "Namepass's optional monitoring and execution service uses third-party providers to detect deposits and move USDC to Ethereum, including Circle's Cross-Chain Transfer Protocol. Deposit addresses are derived on-chain rather than issued by a custodian, so no provider holds funds on your behalf. These providers process transaction data solely to run this service.",
+					body: "Namepass uses third-party providers to detect deposits and move USDC to Ethereum, including Circle's Cross-Chain Transfer Protocol. Deposit addresses are derived on-chain rather than issued by a custodian, so no provider holds funds on your behalf. These providers process transaction data solely to run Namepass's service.",
 				},
 				{
 					heading: "Contact",

@@ -1,7 +1,7 @@
 # Web client
 
 The React application derives deposit addresses, displays ENS pricing, and reads activity and
-flow state through the public API. It is an optional client of the renewal contracts.
+flow state through the public API. Executors can use the renewal contracts without this client.
 
 ## Module boundaries
 
