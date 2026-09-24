@@ -16,9 +16,9 @@ OpenZeppelin is installed through npm. Vendored ENS test-source provenance is re
 
 ## Local application
 
-Copy `.env.example` into an ignored local environment file and configure only the services needed
-for your work. Never commit credentials. Browser-exposed `VITE_` variables must not contain secrets.
-A local or disposable database is appropriate for development; do not use production credentials.
+Use an ignored local environment file for the services needed for your work. Never commit
+credentials. Browser-exposed `VITE_` variables must not contain secrets. A local or disposable
+database is appropriate for development; do not use production credentials.
 
 ```sh
 npm run dev

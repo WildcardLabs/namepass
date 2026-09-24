@@ -9,8 +9,8 @@ evidence are in [DEPLOYMENTS.md](DEPLOYMENTS.md).
 1. Configure a separate database and credentials for each environment. Apply the committed
    Drizzle migrations with the migration role. Give the app its application role and Goldsky
    read-only access to `goldsky.watched_addresses`.
-2. Configure the server variables in `.env.example` through the hosting provider. Keep relayer,
-   database, webhook, cron and OAuth secrets server-side. Never put them in `VITE_` variables.
+2. Configure server credentials through the hosting provider. Keep relayer, database, webhook,
+   cron and OAuth secrets server-side. Never put them in `VITE_` variables.
 3. Deploy the application through the repository's GitHub-connected deployment process.
    Preview deployments must not have production credentials.
 4. Generate and validate the Goldsky Turbo pipeline using [its README](../goldsky/README.md).
