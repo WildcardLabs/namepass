@@ -182,16 +182,34 @@ on chain. This evidence is not an audit.
 See [docs/DEPLOYMENTS.md](docs/DEPLOYMENTS.md) for USDC addresses, Circle domains, ENS contracts,
 read-back values, and transaction evidence.
 
-## Build and verify
+## Develop and verify
+
+Use Node.js 22 and Foundry. Install dependencies and start the local app:
 
 ```bash
-npm install
-npm run build
-forge test
+npm ci
+npm run dev
 ```
 
-The full frontend, server, workflow, chain-registry, and contract verification commands are in
-[CLAUDE.md](CLAUDE.md#commands).
+Copy `.env.example` to `.env.local` and set the required values when you need local API access.
+The contract tests also need `forge-std`:
+
+```bash
+forge install foundry-rs/forge-std@bf647bd6046f2f7da30d0c2bf435e5c76a780c1b --no-git
+```
+
+Run the same checks as CI:
+
+```bash
+npm run build
+npm run check:server
+npm run test:frontend
+npm run test:server
+npm run test:workflow
+node scripts/check-chains.mjs
+node goldsky/generate-testnet.mjs --check
+forge test
+```
 
 ## Documentation
 

@@ -264,8 +264,7 @@ on non-Home pages (only Home shows the Explorer/Search/Cost simulator menu).
   evidence, not a unique identity, because one transaction can contain several calls. Never match
   flows by name, chain, or amount. A transaction intent includes every same-nonce replacement
   attempt. Any current-nonce attempt can be mined, and the receipt hash is canonical evidence.
-- `registry.ts` — seeded local demonstration data only. Do not import it from a production screen.
-  The frontend uses the public API for activated names, public activity, flows, and leaderboard
+- The frontend uses the public API for activated names, public activity, flows, and leaderboard
   data. Balances remain separate by chain. An `unclaimed` CCTP flow is not a balance at its origin
   address. See `docs/ARCHITECTURE.md` for the public read-model rules.
 - `fees.ts` — the flat `GAS_ALLOWANCE` ($0.10) taken from every flow. **Still a local constant,

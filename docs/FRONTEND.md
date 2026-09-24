@@ -111,7 +111,8 @@ button opens the selected-name Explorer, which contains the full profile and act
 | QR encoding (`lib/qr.ts`) | None on production screens |
 
 There is no wallet connection or browser database credential. Activation and public reads use the
-API. The backend still needs deployment before a hosted preview can show live records.
+API. The stable-testnet backend is deployed. A separate preview needs its own service configuration
+before it can show live records.
 
 `PassCard` shows and copies only the activated deposit address. It does not show the unresolvable
 `<label>.namepass.eth` template.
@@ -146,8 +147,8 @@ Hand-rolled, no router dependency. `App.tsx` holds `page: "home" | "leaderboard"
 
 Every route renders inside `PageShell` with `Navbar` as its first child. This makes five pages feel
 like one app. `Navbar` takes `showMenu={false}` off Home. Vite's dev server falls back to
-`index.html` for unknown paths; production needs `vercel.json`'s catch-all rewrite or a direct load
-of `/leaderboard` 404s.
+`index.html` for unknown paths. The production Nitro renderer supplies the same fallback. Do not
+add a catch-all rewrite to `vercel.json`; it would intercept `/api/*` routes.
 
 `App.tsx` also owns `selected: string | null` — the ENS name whose profile the Explorer is showing.
 `goToName(name)` sets it, navigates Home if needed, and scrolls to the Explorer; it backs both
