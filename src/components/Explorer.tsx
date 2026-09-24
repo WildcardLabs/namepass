@@ -843,6 +843,7 @@ function NameDetail({
 	const daysLeft = Math.round((expiry - Date.now()) / 86_400_000);
 	const [profile, setProfile] = useState<EnsProfile | null>(null);
 	const [profileLoading, setProfileLoading] = useState(true);
+	const fallbackAvatar = `https://api.dicebear.com/10.x/waves/svg?tags=animation&seed=${encodeURIComponent(record.name)}`;
 
 	useEffect(() => {
 		if (previousActivityPage.current === activityPage) return;
@@ -1067,21 +1068,21 @@ function NameDetail({
 
 						{/* Avatar + description */}
 						<div className="mt-3 flex items-start gap-3">
-							<div className="w-11 h-11 shrink-0 rounded-xl bg-[rgba(28,58,41,0.07)] border border-[rgba(28,58,41,0.1)] overflow-hidden flex items-center justify-center">
-								{profile?.avatar ? (
-									<img
-										src={profile.avatar}
-										alt=""
-										className="w-full h-full object-cover"
-										onError={(e) => {
-											(e.currentTarget as HTMLImageElement).style.display = "none";
-										}}
-									/>
-								) : (
-									<span className="text-[13px] text-[rgba(28,58,41,0.45)]">
-										{record.name.slice(0, 2)}
-									</span>
-								)}
+							<div className="relative w-11 h-11 shrink-0 rounded-xl bg-[rgba(28,58,41,0.07)] border border-[rgba(28,58,41,0.1)] overflow-hidden flex items-center justify-center">
+								<span aria-hidden="true" className="text-[13px] text-[rgba(28,58,41,0.45)]">
+									{record.name.slice(0, 2)}
+								</span>
+								<img
+									src={profile?.avatar || fallbackAvatar}
+									alt=""
+									className="absolute inset-0 w-full h-full object-cover"
+									onLoad={(e) => { e.currentTarget.style.display = "block"; }}
+									onError={(e) => {
+										const image = e.currentTarget;
+										if (image.getAttribute("src") !== fallbackAvatar) image.src = fallbackAvatar;
+										else image.style.display = "none";
+									}}
+								/>
 							</div>
 							<div className="min-w-0 flex-1">
 								{profileLoading ? (
