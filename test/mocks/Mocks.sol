@@ -57,6 +57,11 @@ contract MockUSDC {
  * balance-delta assertion depends on that shape.
  */
 contract MockRenewer {
+    struct RenewData {
+        string label;
+        uint64 duration;
+        bytes32 referrer;
+    }
     IRentPriceOracle public rentPriceOracle;
 
     address public immutable beneficiary;
@@ -100,11 +105,7 @@ contract MockRenewer {
      * `_requireRenewable` does, because the helper leans on that:
      * calling this is also its renewability check.
      */
-    function getRenewPrice(string calldata label, uint64 duration, IERC20 paymentToken)
-        public
-        view
-        returns (uint256)
-    {
+    function getRenewPrice(string calldata label, uint64 duration, IERC20 paymentToken) public view returns (uint256) {
         if (!renewable) {
             revert NameNotRenewable(label);
         }
@@ -116,18 +117,12 @@ contract MockRenewer {
         return rentPriceOracle.getRenewPrice(label, expiry, duration, paymentToken);
     }
 
-    function renew(string calldata label, uint64 duration, IERC20 paymentToken, bytes32 referrer)
-        external
-    {
-        uint256 amount = getRenewPrice(label, duration, paymentToken);
+    function renew(RenewData calldata rd, IERC20 paymentToken) external {
+        uint256 amount = getRenewPrice(rd.label, rd.duration, paymentToken);
+        lastDuration = rd.duration;
+        lastReferrer = rd.referrer;
 
-        lastDuration = duration;
-        lastReferrer = referrer;
-
-        require(
-            paymentToken.transferFrom(msg.sender, beneficiary, amount),
-            "payment failed"
-        );
+        require(paymentToken.transferFrom(msg.sender, beneficiary, amount), "payment failed");
     }
 }
 
@@ -163,6 +158,7 @@ contract MockMessageTransmitter {
     bool public succeed = true;
 
     bool public overrideAmount;
+    mapping(bytes32 => bool) public usedNonces;
 
     constructor(MockUSDC usdc_) {
         usdc = usdc_;
@@ -178,14 +174,15 @@ contract MockMessageTransmitter {
         succeed = value;
     }
 
-    function receiveMessage(bytes calldata message, bytes calldata)
-        external
-        returns (bool)
-    {
+    function receiveMessage(bytes calldata message, bytes calldata) external returns (bool) {
         if (!succeed) {
             return false;
         }
 
+        bytes32 nonce;
+        assembly { nonce := calldataload(add(message.offset, 12)) }
+        require(!usedNonces[nonce], "nonce used");
+        usedNonces[nonce] = true;
         uint256 amount;
 
         if (overrideAmount) {

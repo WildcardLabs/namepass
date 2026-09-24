@@ -66,7 +66,9 @@ for (const chain of INITIAL_MAINNET_CHAINS) {
 		chain.tokenMessengerAddress !== expected.tokenMessengerAddress ||
 		chain.messageTransmitterAddress !== expected.messageTransmitterAddress ||
 		chain.factoryAddress ||
-		chain.helperAddress ||
+		chain.gatewayAddress ||
+		chain.pointerAddress ||
+		chain.deploymentBlock ||
 		chain.ensRegistrarAddress ||
 		chain.ensRenewerV1Address
 	) {

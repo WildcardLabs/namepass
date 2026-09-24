@@ -27,7 +27,11 @@ export interface ChainDefinition {
 	tokenNote?: string;
 	/* Planned chains have Circle deployments but no Namepass deployment yet. */
 	factoryAddress?: string;
-	helperAddress?: string;
+	/** Permanent recipient for wallet renewals and CCTP claims. */
+	gatewayAddress?: string;
+	pointerAddress?: string;
+	deploymentBlock?: number;
+	/** Initial adapter metadata, for deployment records. Runtime reads use the pointer. */
 	ensRegistrarAddress?: string;
 	ensRenewerV1Address?: string;
 	ensReferrer?: string;
@@ -44,8 +48,8 @@ export interface ChainDefinition {
 	};
 }
 
-const FACTORY = "0xe0b155Fdb1104824d7E0568aeAFCC52823EDD00F";
-const HELPER = "0xf1b51552098ffa7dc2cd83d0fb6508e57db8acc1";
+const FACTORY = "0x2dCB5CA6b21372b43e37C35Da8D5D15160423150";
+const GATEWAY = "0x39351C9f9eAb6093eFB4e865a6330ECd2a756F0f";
 const TOKEN_MESSENGER = "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA";
 const MESSAGE_TRANSMITTER = "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275";
 const MAINNET_TOKEN_MESSENGER = "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d";
@@ -77,6 +81,7 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		goldskyPrefix: "base_sepolia",
 		usdcAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
 		factoryAddress: FACTORY,
+		deploymentBlock: 47132212,
 		tokenMessengerAddress: TOKEN_MESSENGER,
 		messageTransmitterAddress: MESSAGE_TRANSMITTER,
 		circleDomain: 6,
@@ -104,6 +109,7 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		goldskyPrefix: "arbitrum_sepolia",
 		usdcAddress: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
 		factoryAddress: FACTORY,
+		deploymentBlock: 311365500,
 		tokenMessengerAddress: TOKEN_MESSENGER,
 		messageTransmitterAddress: MESSAGE_TRANSMITTER,
 		circleDomain: 3,
@@ -131,9 +137,11 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		goldskyPrefix: "ethereum_sepolia",
 		usdcAddress: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
 		factoryAddress: FACTORY,
-		helperAddress: HELPER,
-		ensRegistrarAddress: "0xa88553F454b77203B0D036A05c894d555EAAa2Cc",
-		ensRenewerV1Address: "0x4ad56feb5Fc7B8298db06E88fd5CBc41D64602Fa",
+		deploymentBlock: 11754050,
+		gatewayAddress: GATEWAY,
+		pointerAddress: "0x774f942194d612e126A05Ce40a3A4D88AfBB6ae6",
+		ensRegistrarAddress: "0xAbe76F6C8DFcEd81AA5A2bB8034202A7136b94ca",
+		ensRenewerV1Address: "0xd06e726e9bD8ac0f33A2a45F4Cc28fe10d656a36",
 		ensReferrer: "0x0000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac6",
 		tokenMessengerAddress: TOKEN_MESSENGER,
 		messageTransmitterAddress: MESSAGE_TRANSMITTER,
@@ -160,6 +168,7 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 		tokenNote:
 			"USDC is Arc's gas token, so it lives at a system address rather than a deployed contract.",
 		factoryAddress: FACTORY,
+		deploymentBlock: 63326249,
 		tokenMessengerAddress: TOKEN_MESSENGER,
 		messageTransmitterAddress: MESSAGE_TRANSMITTER,
 		circleDomain: 26,
@@ -290,7 +299,9 @@ export const SERVER_CHAINS = ACTIVE_CHAINS.map((chain) => ({
 	goldskyPrefix: chain.goldskyPrefix,
 	usdcAddress: chain.usdcAddress,
 	factoryAddress: chain.factoryAddress,
-	helperAddress: chain.helperAddress,
+	gatewayAddress: chain.gatewayAddress,
+	pointerAddress: chain.pointerAddress,
+	deploymentBlock: chain.deploymentBlock,
 	ensRegistrarAddress: chain.ensRegistrarAddress,
 	ensRenewerV1Address: chain.ensRenewerV1Address,
 	tokenMessengerAddress: chain.tokenMessengerAddress,
@@ -363,6 +374,9 @@ export function assertChainRegistry(): void {
 		if (!chain.tokenMessengerAddress) {
 			throw new Error(`${chain.key} is missing tokenMessengerAddress.`);
 		}
+		if (chain.status === "active" && (!Number.isSafeInteger(chain.deploymentBlock) || chain.deploymentBlock! <= 0)) {
+			throw new Error(`${chain.key} is missing its deployment block.`);
+		}
 		if (chain.status === "active" && !chain.factoryAddress) {
 			throw new Error(`${chain.key} is missing factoryAddress.`);
 		}
@@ -381,7 +395,7 @@ export function assertChainRegistry(): void {
 		}
 	}
 
-	if (!HUB_CHAIN.factoryAddress || !HUB_CHAIN.helperAddress || !HUB_CHAIN.ensRegistrarAddress || !HUB_CHAIN.ensRenewerV1Address || !HUB_CHAIN.ensReferrer) {
+	if (!HUB_CHAIN.factoryAddress || !HUB_CHAIN.gatewayAddress || !HUB_CHAIN.pointerAddress || !HUB_CHAIN.ensRegistrarAddress || !HUB_CHAIN.ensRenewerV1Address || !HUB_CHAIN.ensReferrer) {
 		throw new Error("The hub chain is missing its helper or ENS deployment.");
 	}
 }

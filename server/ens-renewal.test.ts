@@ -35,7 +35,23 @@ test("the receipt expiry comes from the matching ENS renewal event", () => {
 		address: HUB_CHAIN.ensRegistrarAddress as Address,
 		data,
 		topics: topics as readonly Hex[],
-	}], { label: "receipt-test" });
+	}], { label: "receipt-test", registrar: HUB_CHAIN.ensRegistrarAddress!, renewerV1: HUB_CHAIN.ensRenewerV1Address!, referrer });
 
 	assert.equal(expiry.toISOString(), "2033-05-18T03:33:20.000Z");
+});
+
+test("helper selection accepts only the fixed gateway and requested label", async () => {
+	const { receiptHelper } = await import("./ens-renewal");
+	const { keccak256, stringToHex } = await import("viem");
+	const abi = parseAbi(["event HelperUsed(address indexed helper, bytes32 indexed labelHash, address indexed wallet)"]);
+	const helper = "0x1111111111111111111111111111111111111111";
+	const log = {
+		address: HUB_CHAIN.gatewayAddress as Address,
+		data: "0x" as Hex,
+		topics: encodeEventTopics({ abi, eventName: "HelperUsed", args: { helper, labelHash: keccak256(stringToHex("steve")), wallet: helper } }) as Hex[],
+	};
+	assert.equal(receiptHelper([log], "steve"), helper);
+	assert.throws(() => receiptHelper([{ ...log, address: helper }], "steve"), /no unique/);
+	assert.throws(() => receiptHelper([log], "vitalik"), /no unique/);
+	assert.throws(() => receiptHelper([log, log], "steve"), /no unique/);
 });

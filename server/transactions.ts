@@ -415,7 +415,10 @@ export async function broadcastTransaction(intentId: string): Promise<string> {
 		throw new Error("The transaction intent has no signed transaction.");
 	}
 	if (intent.status !== "prepared") return intent.currentTxHash;
-	if (!(await isNonceHead(intent))) return intent.currentTxHash;
+	if (!(await isNonceHead(intent))) {
+		logOperation("transaction.queued", { flowId: intent.flowId, chainId: intent.chainId, step: intent.kind });
+		return intent.currentTxHash;
+	}
 	const chain = chainById(Number(intent.chainId));
 	if (!chain) throw new Error(`Chain ${intent.chainId} is not active.`);
 	const attemptedAt = new Date();
@@ -647,6 +650,33 @@ export async function replaceStaleTransaction(intentId: string, now = new Date()
 }
 
 export type TransactionMonitorResult = "broadcast" | "receipt_found" | "replaced" | "waiting" | "deferred";
+
+/** A replacement can be prepared while an older attempt is already on chain. */
+export function requiresReceiptLookup(intent: Pick<
+	typeof transactionIntents.$inferSelect,
+	"nonce" | "broadcastAt" | "lastBroadcastAttemptAt" | "attempts"
+>): boolean {
+	const attempts = Array.isArray(intent.attempts) ? intent.attempts.filter((attempt) =>
+		attempt && typeof attempt === "object" && String(attempt.nonce) === String(intent.nonce)) : [];
+	// Missing history is uncertain. An older replacement may have been sent before a crash.
+	return intent.broadcastAt !== null || intent.lastBroadcastAttemptAt !== null
+		|| attempts.length !== 1 || attempts.some((attempt) => attempt.broadcastAt != null);
+}
+
+/** Queue waits use Postgres only. Receipt waits retain all current-nonce attempts. */
+export async function pollTransactionReceipt(intentId: string): Promise<TransactionReceipt | "queued" | undefined> {
+	const [intent] = await database().select().from(transactionIntents).where(eq(transactionIntents.id, intentId));
+	if (!intent?.currentTxHash) throw new Error("The transaction intent has no transaction hash.");
+	if (intent.status === "prepared" && !requiresReceiptLookup(intent)) {
+		if (!(await isNonceHead(intent))) return "queued";
+		// Avoid a missing-receipt RPC before the first broadcast of the stored bytes.
+		// The broadcaster repeats the nonce guard and handles a previous unrecorded send.
+		await broadcastTransaction(intentId);
+	}
+	const receipt = await readTransactionReceipt(intentId);
+	if (!receipt) await replaceStaleTransaction(intentId);
+	return receipt;
+}
 
 /** Monitor one logical transaction. Only the lowest unresolved nonce can act. */
 export async function monitorTransactionIntent(

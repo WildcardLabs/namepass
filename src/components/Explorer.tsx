@@ -11,6 +11,7 @@ import {
 	Search,
 	ArrowLeft,
 	ArrowRight,
+	ArrowUpRight,
 	Clock,
 	Globe,
 	Link as LinkIcon,
@@ -22,7 +23,10 @@ import {
 	Loader2,
 	ExternalLink,
 	ChevronDown,
+	Copy,
+	Check,
 } from "lucide-react";
+import { BackButton, ICON_BUTTON_BASE_CLASS, QUIET_ICON_BUTTON_CLASS } from "./BackButton";
 import {
 	activeFlows,
 	activityEmptyState,
@@ -56,13 +60,14 @@ import {
 	truncAddress,
 	truncTx,
 } from "../lib/format";
+import { completedFlowTransactions } from "../lib/flowTransactions";
 import PassCard from "./PassCard";
 import PendingBalance from "./PendingBalance";
 import ChainTag from "./ChainTag";
-import { ceilToCent, costOf, YEAR_SECONDS } from "../lib/pricing";
+import { ceilToCent, costOf, PricingNotLoadedError, rates, YEAR_SECONDS } from "../lib/pricing";
 import { LABEL_PROBLEM_TEXT, labelProblem, normalizeLabel } from "../lib/namepass";
 import { GAS_ALLOWANCE } from "../lib/fees";
-import { fetchProfile, type EnsProfile } from "../lib/ens";
+import { fetchProfile, profileRecordHref, profileRecordLabel, type EnsProfile } from "../lib/ens";
 import { XIcon } from "./icons";
 import { activateName, getActivity, getName, getNameActivity, getPublicConfig, safeInteger, triggerFlow, type ActivityRead, type PublicFlow } from "../lib/publicApi";
 import { chainById, HUB_CHAIN } from "../lib/chains";
@@ -101,7 +106,10 @@ function AmountCell({
 	);
 }
 
-function DiscountTag({ off }: { off: string }) {
+function DiscountTag({ off }: { off: string | null }) {
+	if (off === null) {
+		return <span className="text-[rgba(28,58,41,0.35)]">—</span>;
+	}
 	if (!off) {
 		return <span className="text-[rgba(28,58,41,0.35)]">-</span>;
 	}
@@ -115,6 +123,78 @@ function DiscountTag({ off }: { off: string }) {
 /* ------------------------------------------------------------------ */
 /* Live feed — Etherscan-style table                                   */
 /* ------------------------------------------------------------------ */
+
+const LIVE_FEED_COLUMNS = "lg:grid-cols-[minmax(9rem,1.45fr)_minmax(5.75rem,0.8fr)_minmax(6rem,0.9fr)_minmax(5.5rem,0.85fr)_minmax(5rem,0.7fr)_minmax(6.5rem,1fr)_7rem]";
+const NAME_ACTIVITY_COLUMNS = "lg:grid-cols-[minmax(5.5rem,0.8fr)_minmax(9rem,1.2fr)_minmax(5rem,0.8fr)_minmax(6rem,0.85fr)_minmax(5.5rem,0.8fr)_minmax(5rem,0.7fr)_7rem]";
+const SEARCH_ICON_BUTTON_CLASS = `${ICON_BUTTON_BASE_CLASS} bg-[rgba(28,58,41,0.95)] text-white hover:bg-[rgba(28,58,41,1)]`;
+
+/** The exact shared mobile layout for activity rows in both Explorer views. */
+function MobileFlowSummary({
+	title,
+	chain,
+	received,
+	rate,
+	time,
+	footer,
+	expandable,
+	expanded,
+	controlsId,
+	onToggle,
+	showDetails = true,
+}: {
+	title: ReactNode;
+	chain: ReactNode;
+	received: ReactNode;
+	rate: ReactNode;
+	time: ReactNode;
+	footer: ReactNode;
+	expandable: boolean;
+	expanded: boolean;
+	controlsId: string;
+	onToggle: () => void;
+	showDetails?: boolean;
+}) {
+	return (
+		<div className={`lg:hidden px-4 md:px-5 py-4 md:py-3.5 ${expandable ? "hover:bg-[rgba(28,58,41,0.025)] transition-colors" : ""}`}>
+			<div className="flex items-center justify-between gap-2">
+				{title}
+				{expandable && (
+					<button
+						type="button"
+						onClick={onToggle}
+						aria-expanded={expanded}
+						aria-controls={controlsId}
+						aria-label={expanded ? "Hide flow details" : "Show flow details"}
+						className={`${QUIET_ICON_BUTTON_CLASS} ${expanded ? "border-[rgba(28,58,41,0.28)] bg-[rgba(28,58,41,0.06)]" : "border-[rgba(28,58,41,0.16)] bg-white"}`}
+					>
+						<span className="sr-only">{expanded ? "Hide flow details" : "Show flow details"}</span>
+						<ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
+					</button>
+				)}
+			</div>
+
+			{showDetails && <dl className="mt-2.5 grid grid-cols-2 gap-x-6 gap-y-2">
+				<div>
+					<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">From</dt>
+					<dd className="mt-0.5 text-[12.5px]">{chain}</dd>
+				</div>
+				<div>
+					<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">Received</dt>
+					<dd className="mt-0.5">{received}</dd>
+				</div>
+				<div>
+					<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">Rate</dt>
+					<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.75)]">{rate}</dd>
+				</div>
+				<div>
+					<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">Time</dt>
+					<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.95)] tabular-nums">{time}</dd>
+				</div>
+			</dl>}
+			<div className="mt-2 flex justify-end text-[11.5px] text-[rgba(28,58,41,0.4)]">{footer}</div>
+		</div>
+	);
+}
 
 /* One shared motion language for the feed.
 
@@ -182,6 +262,21 @@ function FeedRowContent({
 	onSelect: (n: string) => void;
 }) {
 	const pending = row.pending;
+	const [expanded, setExpanded] = useState(false);
+	const transactions = row.pending && row.flow ? completedFlowTransactions(row.flow) : [];
+	const toggleExpanded = () => setExpanded((open) => !open);
+	const nameTitle = (
+		<button type="button" onClick={() => onSelect(row.name)} aria-label={`Open ${row.name}`} className="group inline-flex min-w-0 flex-1 items-center gap-1 text-left text-[15px] lg:text-[14.5px] text-black transition-colors hover:text-[rgba(28,88,52,0.95)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]">
+			<img src={`${import.meta.env.BASE_URL}logos/ens-mark-dark-blue.svg`} alt="" aria-hidden="true" className="relative top-px h-3 w-3 shrink-0 object-contain grayscale opacity-40" />
+			<span className="truncate">{row.name}</span>
+			<ArrowUpRight className="-ml-1 h-3.5 w-3.5 shrink-0 translate-y-px transition-transform group-hover:translate-x-px group-hover:translate-y-0" />
+		</button>
+	);
+	const timeAdded = row.seconds === null
+		? "—"
+		: pending
+			? fmtDuration(row.seconds).replace("+", "~")
+			: fmtDuration(row.seconds);
 	return (
 		<motion.div
 			animate={{
@@ -190,96 +285,78 @@ function FeedRowContent({
 			transition={reduced ? { duration: 0 } : { duration: 0.55, ease: "easeOut" }}
 			className="border-b border-[rgba(28,58,41,0.07)]"
 		>
-			<button
-				onClick={() => onSelect(row.name)}
-				className="w-full text-left px-4 md:px-5 py-4 md:py-3.5 hover:bg-[rgba(28,58,41,0.025)] transition-colors block md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)] md:gap-4 md:items-center"
-			>
-				{/* Mobile: name + headline result on one line */}
-				<div className="flex items-baseline justify-between gap-3 md:contents">
-					<span className="min-w-0 text-[15px] md:text-[14.5px] text-[rgba(28,58,41,0.95)] truncate">
-						{row.name}
-					</span>
-
-					<span className="hidden md:block text-[13.5px]">
-						<ChainTag chain={row.chain} />
-					</span>
-
-					<span className="hidden md:block text-right">
-						<AmountCell
-							deposited={row.amountDeposited}
-							applied={row.amountApplied}
-							showApplied={row.gasAllowance > 0n}
-						/>
-					</span>
-
-					<span className="hidden md:flex justify-center text-[13px]">
-						<DiscountTag off={row.off} />
-					</span>
-
-					{/* "~6.0y" while bridging, not "+6.0y": nothing has been added yet,
-					    and if the claim reverts nothing will be. Same cell, same width,
-					    so settling swaps one character. */}
-					<span
-						className={`hidden md:block text-[13.5px] text-right tabular-nums transition-colors duration-500 ${
-							pending ? "text-[rgba(28,58,41,0.5)]" : "text-[rgba(28,58,41,0.95)]"
-						}`}
+			<MobileFlowSummary
+				title={nameTitle}
+				chain={<ChainTag chain={row.chain} />}
+				received={<AmountCell deposited={row.amountDeposited} applied={row.amountApplied} showApplied={row.gasAllowance > 0n} dense />}
+				rate={row.off === null ? "—" : row.off ? `${row.off} off` : "Standard"}
+				time={timeAdded}
+				footer={<StatusCell row={row} reduced={reduced} />}
+				expandable
+				expanded={expanded}
+				controlsId={`flow-details-${row.key}`}
+				onToggle={toggleExpanded}
+			/>
+			<div className={`hidden lg:grid px-4 md:px-5 py-3.5 ${LIVE_FEED_COLUMNS} gap-4 items-center hover:bg-[rgba(28,58,41,0.025)] transition-colors`}>
+				{nameTitle}
+				<span className="text-[13.5px]"><ChainTag chain={row.chain} /></span>
+				<span className="text-right"><AmountCell deposited={row.amountDeposited} applied={row.amountApplied} showApplied={row.gasAllowance > 0n} /></span>
+				<span className="flex justify-center text-[13px]"><DiscountTag off={row.off} /></span>
+				{/* Pending time uses ~ because it has not been added yet. */}
+				<span className={`text-[13.5px] text-right tabular-nums transition-colors duration-500 ${pending ? "text-[rgba(28,58,41,0.5)]" : "text-[rgba(28,58,41,0.95)]"}`}>
+					{timeAdded}
+				</span>
+				<span className="flex min-w-0 items-center justify-end gap-1.5 text-[12px]"><StatusCell row={row} reduced={reduced} /></span>
+				<button
+					type="button"
+					onClick={toggleExpanded}
+					aria-expanded={expanded}
+					aria-controls={`flow-details-${row.key}`}
+					className="inline-flex h-7 shrink-0 items-center justify-center justify-self-end gap-1 rounded-md border border-[rgba(28,58,41,0.14)] px-2 text-[11px] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+				>
+					{expanded ? "Hide details" : "Flow details"}
+					<ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+				</button>
+			</div>
+			<AnimatePresence initial={false}>
+				{expanded && (
+					<motion.div
+						id={`flow-details-${row.key}`}
+						initial={{ height: 0, opacity: 0 }}
+						animate={{ height: "auto", opacity: 1 }}
+						exit={{ height: 0, opacity: 0 }}
+						transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+						className="overflow-hidden"
 					>
-						{pending
-							? fmtDuration(row.seconds).replace("+", "~")
-							: fmtDuration(row.seconds)}
-					</span>
-
-					<span className="hidden md:flex min-w-0 items-center justify-end gap-1.5 text-[12px]">
-						<StatusCell row={row} reduced={reduced} />
-					</span>
-				</div>
-
-				{/* Mobile: labelled detail pairs */}
-				<dl className="md:hidden mt-2.5 grid grid-cols-[minmax(5.25rem,auto)_minmax(4rem,auto)_minmax(4.75rem,auto)_auto] justify-between gap-x-2 gap-y-1 items-baseline">
-					<div>
-						<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
-							From
-						</dt>
-						<dd className="mt-0.5 text-[12.5px]">
-							<ChainTag chain={row.chain} />
-						</dd>
-					</div>
-					<div>
-						<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
-							Received
-						</dt>
-						<dd className="mt-0.5">
-							<AmountCell
-								deposited={row.amountDeposited}
-								applied={row.amountApplied}
-								showApplied={row.gasAllowance > 0n}
-								dense
-							/>
-						</dd>
-					</div>
-					<div>
-						<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
-							Rate
-						</dt>
-						<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.75)]">
-							{row.off ? `${row.off} off` : "Standard"}
-						</dd>
-					</div>
-					<div className="text-right">
-						<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
-							Time
-						</dt>
-						<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.95)] tabular-nums">
-							{pending
-								? fmtDuration(row.seconds).replace("+", "~")
-								: fmtDuration(row.seconds)}
-						</dd>
-					</div>
-				</dl>
-				<div className="md:hidden mt-2 text-[11.5px] text-[rgba(28,58,41,0.4)]">
-					<StatusCell row={row} reduced={reduced} />
-				</div>
-			</button>
+						{row.pending ? (
+							<div className="px-4 md:px-5 py-4 border-t border-[rgba(28,58,41,0.06)] bg-[rgba(28,58,41,0.015)]">
+								<p className="text-[13px] text-[rgba(28,58,41,0.8)]">{flowPresentation(row.status, row.originChainId).detail}</p>
+								{transactions.length > 0 && (
+									<div className="mt-4">
+										<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">Transactions</div>
+										<ol className="mt-2 grid gap-2 sm:grid-cols-2">
+											{transactions.map((transaction, index) => (
+												<li key={transaction.tx} className="flex min-w-0 items-center gap-2.5 rounded-lg border border-[rgba(28,58,41,0.09)] bg-white/80 px-3 py-2">
+													<span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[rgba(28,58,41,0.06)] text-[10px] tabular-nums text-[rgba(28,58,41,0.55)]">{index + 1}</span>
+													<div className="min-w-0 flex-1">
+														<div className="flex items-center justify-between gap-2 text-[12px]">
+															<span className="text-[rgba(28,58,41,0.8)]">{transaction.label}</span>
+															<span className="shrink-0 text-[11px] text-[rgba(28,58,41,0.45)]">{transaction.chain}</span>
+														</div>
+														<a href={explorerUrl(transaction.chain, transaction.tx)} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 font-mono text-[11.5px] text-[#1c683d] transition-colors hover:text-[#174a2c]">
+															{truncTx(transaction.tx)} <ExternalLink className="h-3 w-3" />
+														</a>
+													</div>
+												</li>
+											))}
+										</ol>
+									</div>
+								)}
+							</div>
+						) : <RenewalBreakdown event={row.event} />}
+					</motion.div>
+				)}
+			</AnimatePresence>
 		</motion.div>
 	);
 }
@@ -308,7 +385,7 @@ function StatusCell({ row, reduced }: { row: FeedItem; reduced: boolean }) {
 				aria-hidden={!row.pending}
 				className="inline-flex items-center gap-1.5 whitespace-nowrap text-[rgba(28,58,41,0.55)]"
 			>
-				<Loader2 className="w-3 h-3 animate-spin shrink-0" />
+				<Loader2 className={`w-3 h-3 shrink-0 ${row.pending ? "motion-safe:animate-spin" : ""}`} />
 				{pendingLabel}
 			</motion.span>
 
@@ -369,24 +446,28 @@ type FeedItem = {
 	amountDeposited: bigint;
 	gasAllowance: bigint;
 	amountApplied: bigint;
-	seconds: bigint;
-	off: string;
+	seconds: bigint | null;
+	off: string | null;
 } & (
-	| { pending: true; status: FlowStatus; originChainId: string; at: number }
-	| { pending: false; at: number }
+	| { pending: true; status: FlowStatus; originChainId: string; at: number; flow?: PublicFlow }
+	| { pending: false; at: number; event: ActivityEvent }
 );
 
-function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
+function LiveFeed({ onSelect, feed, setFeed, pageIndex, setPageIndex }: {
+	onSelect: (n: string) => void;
+	feed: ActivityRead | null;
+	setFeed: (feed: ActivityRead) => void;
+	pageIndex: number;
+	setPageIndex: (page: number) => void;
+}) {
 	const [, tick] = useReducer((n: number) => n + 1, 0);
 	const reduced = useReducedMotion() ?? false;
-	const loading = useRef(false);
-	const [feed, setFeed] = useState<ActivityRead | null>(null);
 	const [loadingPage, setLoadingPage] = useState(false);
 	const [loadError, setLoadError] = useState<string | null>(null);
-	const [pageIndex, setPageIndex] = useState(0);
 	const tableRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
+		let loading = false;
 		let stopped = false;
 		let timer = 0;
 		let failures = 0;
@@ -396,8 +477,8 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 			timer = window.setTimeout(() => void load(), delay);
 		};
 		const load = async () => {
-			if (stopped || document.hidden || loading.current) return;
-			loading.current = true;
+			if (stopped || document.hidden || loading) return;
+			loading = true;
 			setLoadingPage(true);
 			try {
 				const nextFeed = await getActivity(pageIndex + 1, ACTIVITY_PAGE_SIZE);
@@ -408,10 +489,11 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 				setLoadError(null);
 				tick();
 			} catch (cause) {
+				if (stopped) return;
 				failures += 1;
 				setLoadError(cause instanceof Error ? cause.message : "Could not load activity.");
 			} finally {
-				loading.current = false;
+				loading = false;
 				if (!stopped) setLoadingPage(false);
 				if (!stopped) schedule(Math.min(12_000 * 2 ** failures, 60_000));
 			}
@@ -433,7 +515,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 			window.removeEventListener("focus", focus);
 			document.removeEventListener("visibilitychange", visibility);
 		};
-	}, [pageIndex]);
+	}, [pageIndex, setFeed]);
 
 	const inFlight = activeFlows().slice(0, MAX_IN_FLIGHT);
 	const settled = (feed?.items ?? []).map(({ name, renewal }) => ({
@@ -462,6 +544,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 			pending: true as const,
 			status: f.status,
 			originChainId: f.originChainId,
+			flow: feed?.flows.find(({ flow }) => flow.id === f.id)?.flow,
 			at: f.startedAt,
 		})),
 		...settled.map((e) => ({
@@ -475,6 +558,7 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 			off: e.off,
 			pending: false as const,
 			at: e.at,
+			event: e,
 		})),
 	];
 
@@ -483,13 +567,14 @@ function LiveFeed({ onSelect }: { onSelect: (n: string) => void }) {
 			{loadError && <p role="alert" className="mb-3 text-[12.5px] text-red-700">{loadError}</p>}
 			<div ref={tableRef} className="scroll-mt-6 border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
 			{/* Desktop column headers, hidden on mobile where rows become cards */}
-			<div className="hidden md:grid grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)] gap-4 px-5 py-3 bg-[rgba(28,58,41,0.03)] border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
+			<div className={`hidden lg:grid ${LIVE_FEED_COLUMNS} gap-4 px-5 py-3 bg-[rgba(28,58,41,0.03)] border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]`}>
 				<span>ENS name</span>
 				<span>Chain</span>
 				<span className="text-right">Received</span>
 				<span className="text-center">Discount</span>
 				<span className="text-right">Time added</span>
 				<span className="text-right">Status</span>
+				<span className="text-right">Details</span>
 			</div>
 
 			<div>
@@ -526,6 +611,38 @@ function stepLabel(step: FlowStep, bridged: boolean): string {
 	return bridged ? "Minted and renewed" : "Renewed";
 }
 
+function CopyableAddress({ address, label }: { address: string; label: string }) {
+	const [copied, setCopied] = useState(false);
+	const copyable = /^0x[a-f\d]{40}$/i.test(address);
+
+	const copyAddress = async () => {
+		try {
+			await navigator.clipboard.writeText(address);
+			setCopied(true);
+			window.setTimeout(() => setCopied(false), 1200);
+		} catch {
+			setCopied(false);
+		}
+	};
+
+	return (
+		<>
+			<span className="min-w-0 flex-1 break-all font-mono">{address}</span>
+			{copyable && (
+				<button
+					type="button"
+					onClick={() => void copyAddress()}
+					aria-label={copied ? `${label} address copied` : `Copy ${label} address`}
+					title={copied ? "Copied" : `Copy ${label} address`}
+					className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[rgba(28,58,41,0.5)] transition-colors hover:bg-[rgba(28,58,41,0.06)] hover:text-[rgba(28,58,41,0.9)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+				>
+					{copied ? <Check aria-hidden="true" className="h-3.5 w-3.5" /> : <Copy aria-hidden="true" className="h-3.5 w-3.5" />}
+				</button>
+			)}
+		</>
+	);
+}
+
 /**
  * What one renewal actually cost and which transactions carried it. The three
  * amounts are separate because the gas allowance comes off on mainnet, so what
@@ -539,8 +656,8 @@ function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 		? (event.amountApplied * YEAR_SECONDS + event.seconds / 2n) / event.seconds
 		: 0n;
 	return (
-		<div className="px-4 md:px-5 py-5 bg-[rgba(28,58,41,0.015)] border-t border-[rgba(28,58,41,0.06)] grid gap-6 md:grid-cols-2">
-			<div>
+		<div className="mx-4 md:mx-5 my-3 rounded-xl border border-[rgba(28,58,41,0.1)] bg-white p-4 md:p-5 grid gap-5 md:grid-cols-2">
+			<div className="min-w-0">
 				<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
 					Amount
 				</div>
@@ -584,47 +701,45 @@ function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 				<dl className="mt-4 space-y-1.5 border-t border-[rgba(28,58,41,0.08)] pt-3 text-[12px]">
 					<div>
 						<dt className="text-[rgba(28,58,41,0.5)]">Funded by</dt>
-						<dd className="mt-0.5 break-all font-mono text-[rgba(28,58,41,0.8)]">
-							{event.funder}
+						<dd className="mt-0.5 flex min-w-0 items-start gap-1.5 text-[rgba(28,58,41,0.8)]">
+							<CopyableAddress address={event.funder} label="funded by" />
 						</dd>
 					</div>
 					<div>
 						<dt className="text-[rgba(28,58,41,0.5)]">Processed by</dt>
-						<dd className="mt-0.5 break-all text-[rgba(28,58,41,0.8)]">
-							{event.executorIsRelayer ? "Namepass · " : ""}
-							<span className="font-mono">{event.executor}</span>
+						<dd className="mt-0.5 flex min-w-0 items-start gap-1.5 text-[rgba(28,58,41,0.8)]">
+							{event.executorIsRelayer && <span className="shrink-0">Namepass ·</span>}
+							<CopyableAddress address={event.executor} label="processed by" />
 						</dd>
 					</div>
 				</dl>
 				</div>
 
-			<div>
+			<div className="min-w-0 md:border-l md:border-[rgba(28,58,41,0.08)] md:pl-5">
 				<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
 					Transactions
 				</div>
-				<ol className="mt-2.5 space-y-2.5">
+				<ol className="mt-3 space-y-2">
 					{event.steps.map((s, i) => (
-						<li key={s.tx} className="flex items-baseline gap-2.5">
-							<span className="shrink-0 w-3 text-[11px] text-[rgba(28,58,41,0.35)] tabular-nums">
+						<li key={s.tx} className="flex min-w-0 items-center gap-2.5 rounded-lg border border-[rgba(28,58,41,0.09)] bg-[rgba(28,58,41,0.015)] px-3 py-2.5">
+							<span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[rgba(28,58,41,0.06)] text-[10px] text-[rgba(28,58,41,0.55)] tabular-nums">
 								{i + 1}
 							</span>
 							<div className="min-w-0 flex-1">
-								<div className="text-[12.5px] text-[rgba(28,58,41,0.8)]">
-									{stepLabel(s, bridged)}
+								<div className="flex items-center justify-between gap-2 text-[12.5px]">
+									<span>{stepLabel(s, bridged)}</span>
+									<span className="shrink-0 text-[11px] text-[rgba(28,58,41,0.45)]">{s.chain}</span>
 								</div>
 								<a
 									href={explorerUrl(s.chain, s.tx)}
 									target="_blank"
 									rel="noopener noreferrer"
-									className="mt-0.5 inline-flex items-center gap-1.5 font-mono text-[12px] text-[rgba(28,58,41,0.5)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
+									className="mt-1 inline-flex items-center gap-1.5 font-mono text-[12px] text-[#1c683d] hover:text-[#174a2c] transition-colors"
 								>
 									{truncTx(s.tx)}
 									<ExternalLink className="w-2.5 h-2.5 shrink-0" />
 								</a>
 							</div>
-							<span className="shrink-0 text-[11.5px] text-[rgba(28,58,41,0.45)]">
-								{s.chain}
-							</span>
 						</li>
 					))}
 				</ol>
@@ -715,6 +830,7 @@ function NameDetail({
 }) {
 	/* Which renewal has its transaction breakdown open. One at a time. */
 	const [openEvent, setOpenEvent] = useState<string | null>(null);
+	const reducedMotion = useReducedMotion() ?? false;
 	const allEvents = [...record.events].reverse();
 	const renewalEvents = allEvents.filter((event) => event.kind === "renewal");
 	const activationEvent = allEvents.find((event) => event.kind === "activated");
@@ -755,6 +871,13 @@ function NameDetail({
 	}, [record.name]);
 
 	const onchain = record.onchain;
+	let pricing: ReturnType<typeof rates> | null;
+	try {
+		pricing = rates();
+	} catch (error) {
+		if (!(error instanceof PricingNotLoadedError)) throw error;
+		pricing = null;
+	}
 
 	/**
 	 * The least USDC worth sending to a name in its grace period, and which
@@ -773,7 +896,7 @@ function NameDetail({
 	 * Both carry the gas allowance, like every other amount the app quotes.
 	 */
 	const graceMinimum = useMemo(() => {
-		if (onchain?.lapsedFor == null) return null;
+		if (!pricing || onchain?.lapsedFor == null) return null;
 		/* +1s: buying back exactly what has lapsed lands on the expiry, not past it. */
 		const owed = BigInt(Math.ceil(onchain.lapsedFor / 1000)) + 1n;
 		const catchUp = ceilToCent(costOf(owed, record.labelLength) + GAS_ALLOWANCE);
@@ -782,15 +905,15 @@ function NameDetail({
 		return catchUp >= floor
 			? { amount: catchUp, bound: "catch-up" as const }
 			: { amount: floor, bound: "trigger" as const };
-	}, [onchain?.lapsedFor, record.labelLength]);
+	}, [onchain?.lapsedFor, record.labelLength, pricing]);
 
 	const t = profile?.text ?? {};
 	const links = (
 		[
 			{ key: "url", value: t.url, Icon: LinkIcon },
-			{ key: "com.twitter", value: t["com.twitter"] && `@${t["com.twitter"]}`, Icon: XIcon },
+			{ key: "com.twitter", value: t["com.twitter"], Icon: XIcon },
 			{ key: "com.github", value: t["com.github"], Icon: Github },
-			{ key: "org.telegram", value: t["org.telegram"] && `@${t["org.telegram"]}`, Icon: Send },
+			{ key: "org.telegram", value: t["org.telegram"], Icon: Send },
 			{ key: "location", value: t.location, Icon: MapPin },
 			{ key: "email", value: t.email, Icon: Mail },
 		] as const
@@ -798,21 +921,21 @@ function NameDetail({
 
 	return (
 		<motion.div
-			initial={{ opacity: 0, y: 12 }}
+			initial={reducedMotion ? false : { opacity: 0, y: 12 }}
 			animate={{ opacity: 1, y: 0 }}
-			transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+			transition={{ duration: reducedMotion ? 0 : 0.4, ease: [0.16, 1, 0.3, 1] }}
 		>
-			<button
-				onClick={onBack}
-				className="flex items-center gap-2 text-[13px] text-[rgba(28,58,41,0.55)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
-			>
-				<ArrowLeft className="w-4 h-4" />
-				All activity
-			</button>
+			<div className="flex min-w-0 items-start gap-2.5">
+				<BackButton
+					onClick={onBack}
+					label="Back to Explorer"
+					className="relative -top-0.5 md:top-1"
+				/>
 
-			<h3 className="mt-6 text-[32px] md:text-[44px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-none">
-				{record.name}
-			</h3>
+				<h3 className="min-w-0 break-words text-[32px] md:text-[44px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-none">
+					{record.name}
+				</h3>
+			</div>
 
 			{/* The two-panel model: what expires vs. what is permanent */}
 			<div className="mt-8 grid md:grid-cols-2 gap-4">
@@ -933,11 +1056,11 @@ function NameDetail({
 									href={`https://${record.name}.limo`}
 									target="_blank"
 									rel="noopener noreferrer"
-									className="inline-flex items-center gap-1.5 text-[11px] text-[rgba(28,58,41,0.55)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
+									className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(28,58,41,0.55)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
 								>
-									<Globe className="w-3 h-3" />
+									<Globe className="w-3.5 h-3.5" />
 									Serves a site
-									<ExternalLink className="w-2.5 h-2.5" />
+									<ExternalLink className="w-3.5 h-3.5" />
 								</a>
 							)}
 						</div>
@@ -986,15 +1109,30 @@ function NameDetail({
 						{/* Links */}
 						{links.length > 0 && (
 							<div className="mt-4 flex flex-wrap gap-x-4 gap-y-2">
-								{links.map((l) => (
-									<span
-										key={l.key}
-										className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(28,58,41,0.7)] min-w-0"
-									>
-										<l.Icon className="w-3.5 h-3.5 shrink-0 text-[rgba(28,58,41,0.45)]" />
-										<span className="truncate">{l.value}</span>
-									</span>
-								))}
+								{links.map((l) => {
+									const href = profileRecordHref(l.key, l.value);
+									const label = profileRecordLabel(l.key, l.value);
+									return (
+										<span
+											key={l.key}
+											className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(28,58,41,0.7)] min-w-0"
+										>
+											<l.Icon className="w-3.5 h-3.5 shrink-0 text-[rgba(28,58,41,0.45)]" />
+											{href ? (
+												<a
+													href={href}
+													target="_blank"
+														rel="noopener noreferrer"
+													className="truncate hover:text-[rgba(28,58,41,0.95)] hover:underline underline-offset-2 transition-colors"
+												>
+													{label}
+													</a>
+												) : (
+													<span className="truncate">{label}</span>
+												)}
+										</span>
+									);
+								})}
 							</div>
 						)}
 					</div>
@@ -1046,14 +1184,14 @@ function NameDetail({
 				</div>
 
 				<div className="border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
-					<div className="hidden md:grid grid-cols-[0.8fr_1.2fr_0.8fr_0.8fr_0.9fr_0.8fr_auto] gap-4 px-5 py-3 bg-[rgba(28,58,41,0.03)] border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
+					<div className={`hidden lg:grid ${NAME_ACTIVITY_COLUMNS} gap-4 px-5 py-3 bg-[rgba(28,58,41,0.03)] border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]`}>
 						<span>Date</span>
 						<span>Event</span>
 						<span>Chain</span>
 						<span className="text-right">Received</span>
 						<span className="text-center">Discount</span>
 						<span className="text-right">Time added</span>
-						<span className="w-4" />
+						<span className="text-right">Details</span>
 					</div>
 
 					<div className="divide-y divide-[rgba(28,58,41,0.07)]">
@@ -1061,122 +1199,41 @@ function NameDetail({
 							/* Activation has no transactions behind it, so nothing to open. */
 							const expandable = e.kind === "renewal" && e.steps.length > 0;
 							const isOpen = openEvent === e.id;
+							const eventTitle = e.kind === "activated" ? "Namepass activated" : e.kind === "deposit" ? "Payment received" : "Renewal";
+							const eventRate = e.kind === "renewal" ? (e.off === null ? "—" : e.off ? `${e.off} off` : "Standard") : "-";
+							const eventTime = e.kind === "renewal" ? fmtDuration(e.seconds) : "-";
+							const toggleEvent = () => setOpenEvent(isOpen ? null : e.id);
 							return (
 							<div key={e.id}>
-							<button
-								type="button"
-								disabled={!expandable}
-								onClick={() => setOpenEvent(isOpen ? null : e.id)}
-								className={`w-full text-left px-4 md:px-5 py-4 md:py-3.5 block md:grid md:grid-cols-[0.8fr_1.2fr_0.8fr_0.8fr_0.9fr_0.8fr_auto] md:gap-4 md:items-center ${
-									expandable
-										? "hover:bg-[rgba(28,58,41,0.025)] transition-colors"
-										: "cursor-default"
-								}`}
-							>
-								{/* Headline row */}
-								<div className="flex items-baseline justify-between gap-3 md:contents">
-									<span className="hidden md:block text-[13px] text-[rgba(28,58,41,0.6)] tabular-nums">
-										{fmtDate(e.at)}
-									</span>
-
-									<span className="min-w-0 text-[15px] md:text-[14.5px] text-[rgba(28,58,41,0.95)] truncate">
-										{e.kind === "activated" ? "Namepass activated" : e.kind === "deposit" ? "Payment received" : "Renewal"}
-									</span>
-
-									<span className="hidden md:block text-[13.5px]">
-										{e.kind !== "activated" ? (
-											<ChainTag chain={e.chain} />
-										) : (
-											<span className="text-[rgba(28,58,41,0.35)]">-</span>
-										)}
-									</span>
-
-									<span className="hidden md:block text-[13.5px] text-[rgba(28,58,41,0.75)] text-right tabular-nums">
-										{e.kind !== "activated" ? (
-											<AmountCell
-												deposited={e.amountDeposited}
-												applied={e.amountApplied}
-												showApplied={e.kind === "renewal" && e.gasAllowance > 0n}
-											/>
-										) : (
-											"-"
-										)}
-									</span>
-
-									<span className="hidden md:flex justify-center">
-										{e.kind === "renewal" ? (
-											<DiscountTag off={e.off} />
-										) : (
-											<span className="text-[rgba(28,58,41,0.35)]">-</span>
-										)}
-									</span>
-
-									<span className="hidden md:block text-[13.5px] text-[rgba(28,58,41,0.95)] text-right tabular-nums">
-										{e.kind === "renewal" ? fmtDuration(e.seconds) : "-"}
-									</span>
-
-									<span className="hidden md:flex justify-end">
-										{expandable && (
-											<ChevronDown
-												className={`w-4 h-4 text-[rgba(28,58,41,0.35)] transition-transform ${isOpen ? "rotate-180" : ""}`}
-											/>
-										)}
-									</span>
-
-								</div>
-
-								{/* Mobile detail pairs */}
-								{e.kind !== "activated" && (
-									<dl className="md:hidden mt-2.5 grid grid-cols-[minmax(5.25rem,auto)_minmax(4rem,auto)_minmax(4.75rem,auto)_auto] justify-between gap-x-2 gap-y-1 items-baseline">
-										<div>
-											<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
-												From
-											</dt>
-											<dd className="mt-0.5 text-[12.5px]">
-												<ChainTag chain={e.chain} />
-											</dd>
-										</div>
-										<div>
-											<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
-												Received
-											</dt>
-											<dd className="mt-0.5">
-												<AmountCell
-													deposited={e.amountDeposited}
-													applied={e.amountApplied}
-												showApplied={e.kind === "renewal" && e.gasAllowance > 0n}
-													dense
-												/>
-											</dd>
-										</div>
-										<div>
-											<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
-												Rate
-											</dt>
-											<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.75)]">
-											{e.kind === "renewal" ? (e.off ? `${e.off} off` : "Standard") : "-"}
-											</dd>
-										</div>
-										<div className="text-right">
-											<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
-												Time
-											</dt>
-											<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.95)] tabular-nums">
-											{e.kind === "renewal" ? fmtDuration(e.seconds) : "-"}
-											</dd>
-										</div>
-									</dl>
-								)}
-
-								<div className="md:hidden mt-2 flex items-center justify-between gap-3 text-[11.5px] text-[rgba(28,58,41,0.45)]">
-									<span>{fmtDate(e.at)}</span>
-									{expandable && (
-										<ChevronDown
-											className={`w-4 h-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
-										/>
-									)}
-								</div>
-							</button>
+								<MobileFlowSummary
+									title={<span className="min-w-0 flex-1 truncate text-[15px] text-[rgba(28,58,41,0.95)]">{eventTitle}</span>}
+									chain={e.kind === "activated" ? "-" : <ChainTag chain={e.chain} />}
+									received={e.kind === "activated" ? "-" : <AmountCell deposited={e.amountDeposited} applied={e.amountApplied} showApplied={e.kind === "renewal" && e.gasAllowance > 0n} dense />}
+									rate={eventRate}
+									time={eventTime}
+									footer={fmtDate(e.at)}
+									expandable={expandable}
+									expanded={isOpen}
+									controlsId={`renewal-details-${e.id}`}
+									onToggle={toggleEvent}
+									showDetails={e.kind !== "activated"}
+								/>
+								<button
+									type="button"
+									disabled={!expandable}
+									aria-expanded={expandable ? isOpen : undefined}
+									aria-controls={expandable ? `renewal-details-${e.id}` : undefined}
+									onClick={toggleEvent}
+									className={`hidden lg:grid w-full text-left px-5 py-3.5 ${NAME_ACTIVITY_COLUMNS} gap-4 items-center ${expandable ? "hover:bg-[rgba(28,58,41,0.025)] transition-colors" : "cursor-default"}`}
+								>
+									<span className="text-[13px] text-[rgba(28,58,41,0.6)] tabular-nums">{fmtDate(e.at)}</span>
+									<span className="text-[14.5px] text-[rgba(28,58,41,0.95)]">{eventTitle}</span>
+									<span className="text-[13.5px]">{e.kind !== "activated" ? <ChainTag chain={e.chain} /> : <span className="text-[rgba(28,58,41,0.35)]">-</span>}</span>
+									<span className="text-[13.5px] text-[rgba(28,58,41,0.75)] text-right tabular-nums">{e.kind !== "activated" ? <AmountCell deposited={e.amountDeposited} applied={e.amountApplied} showApplied={e.kind === "renewal" && e.gasAllowance > 0n} /> : "-"}</span>
+									<span className="flex justify-center">{e.kind === "renewal" ? <DiscountTag off={e.off} /> : <span className="text-[rgba(28,58,41,0.35)]">-</span>}</span>
+									<span className="text-[13.5px] text-[rgba(28,58,41,0.95)] text-right tabular-nums">{eventTime}</span>
+									<span className="flex justify-end">{expandable && <span className="inline-flex min-h-9 w-full items-center justify-end gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11px] text-[rgba(28,58,41,0.72)]">{isOpen ? "Hide details" : "Flow details"}<ChevronDown className={`w-4 h-4 text-[rgba(28,58,41,0.45)] transition-transform ${isOpen ? "rotate-180" : ""}`} /></span>}</span>
+								</button>
 							{e.kind === "deposit" && (
 								<p className="px-4 pb-3 text-[12px] text-[rgba(28,58,41,0.6)] md:px-5" aria-label={`Funded by ${e.funder}`}>
 									Funded by <span className="font-mono">{e.funder}</span>
@@ -1186,6 +1243,7 @@ function NameDetail({
 							<AnimatePresence initial={false}>
 								{isOpen && (
 									<motion.div
+										id={`renewal-details-${e.id}`}
 										initial={{ height: 0, opacity: 0 }}
 										animate={{ height: "auto", opacity: 1 }}
 										exit={{ height: 0, opacity: 0 }}
@@ -1224,11 +1282,14 @@ interface Props {
 }
 
 export default function Explorer({ selected, onSelect, onActivated, onSupportedTokens }: Props) {
+	/* Keep the last feed page when its view unmounts for a name detail. */
+	const [feed, setFeed] = useState<ActivityRead | null>(null);
+	const [feedPageIndex, setFeedPageIndex] = useState(0);
 	const [query, setQuery] = useState("");
 	const [notFound, setNotFound] = useState<string | null>(null);
 	const [activating, setActivating] = useState(false);
 	const [version, refresh] = useReducer((value: number) => value + 1, 0);
-	const [, reload] = useReducer((value: number) => value + 1, 0);
+	const [reloadVersion, reload] = useReducer((value: number) => value + 1, 0);
 	const [requestError, setRequestError] = useState<string | null>(null);
 	const [configVersion, refreshConfig] = useReducer((value: number) => value + 1, 0);
 	const ensFreshLabel = useRef<string | null>(null);
@@ -1289,6 +1350,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 					await getName(label);
 					ensFreshLabel.current = label;
 				}
+				if (stopped) return;
 				const activity = await getNameActivity(selected, namePageIndex + 1, ACTIVITY_PAGE_SIZE);
 				if (!stopped) {
 					syncName(activity);
@@ -1326,7 +1388,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 			window.removeEventListener("focus", focus);
 			document.removeEventListener("visibilitychange", visibility);
 		};
-	}, [selected, reload, configVersion, namePageIndex]);
+	}, [selected, reloadVersion, configVersion, namePageIndex]);
 
 	const suggestions = useMemo(() => {
 		const q = query.trim().toLowerCase();
@@ -1386,11 +1448,11 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 							</span>
 						</div>
 						<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
-							Follow every renewal flow.
+							ENS renewal activity.
 						</h2>
 						<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] max-w-xl leading-relaxed">
-							Inspect deposits, transfers, and completed renewals recorded by Namepass.
-							Search an ENS name to view its deposit address, flows, and renewal activity.
+							Search a name to inspect its deterministic deposit wallet, balances, and renewal history.
+							Recent public deposits and flows appear below.
 						</p>
 					</div>
 
@@ -1411,7 +1473,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								type="button"
 								onClick={() => void submit()}
 								aria-label="Search"
-								className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-[9px] bg-[rgba(28,58,41,0.95)] text-white hover:bg-[rgba(28,58,41,1)] transition-colors"
+								className={SEARCH_ICON_BUTTON_CLASS}
 							>
 								<Search className="w-4 h-4" />
 							</button>
@@ -1467,8 +1529,8 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 									Namepass yet.
 								</div>
 								<p className="mt-1 text-[12.5px] text-[rgba(28,58,41,0.55)] leading-relaxed">
-									Enable monitoring to retrieve its deposit address and let the service
-									process renewal flows. You do not have to own the name.
+									Start tracking it to see its deposit address, balances, and renewal activity.
+									You do not have to own the name.
 								</p>
 								<button
 									onClick={() => {
@@ -1518,7 +1580,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 							onActivityPage={setNamePageIndex}
 						/>
 					) : (
-						<LiveFeed onSelect={(n) => onSelect(n)} />
+						<LiveFeed onSelect={onSelect} feed={feed} setFeed={setFeed} pageIndex={feedPageIndex} setPageIndex={setFeedPageIndex} />
 					)}
 				</div>
 			</div>

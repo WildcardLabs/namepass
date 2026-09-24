@@ -1,12 +1,11 @@
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { ArrowLeft, ArrowRight, ChevronDown, ExternalLink, Loader2 } from "lucide-react";
+import { BackButton } from "./BackButton";
 import { leaderboardNames, renewalCount, renewalEvent, syncLeaderboard, timeDelivered, type ActivityEvent, type NameRecord } from "../lib/readModel";
 import { getLeaderboard, getNameActivity } from "../lib/publicApi";
 import { explorerUrl, fmtDate, fmtDelivered, fmtDuration, fmtUsdc, fmtYears, truncTx } from "../lib/format";
 import DotPattern from "./magicui/DotPattern";
-import ShineBorder from "./magicui/ShineBorder";
-import AnimatedShinyText from "./magicui/AnimatedShinyText";
 import NameAvatar from "./NameAvatar";
 import ChainTag from "./ChainTag";
 
@@ -21,31 +20,24 @@ const OPTIONS: Array<{ key: Mode; label: string }> = [
 
 function Toggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
 	return (
-		<div className="inline-flex items-center gap-1 rounded-[12px] bg-[rgba(28,58,41,0.05)] border border-[rgba(28,58,41,0.1)] p-1">
+		<div
+			role="group"
+			aria-label="Rank names by"
+			className="inline-flex items-center gap-1 rounded-[10px] border border-[rgba(28,58,41,0.12)] bg-[rgba(28,58,41,0.04)] p-1"
+		>
 			{OPTIONS.map((o) => (
 				<button
 					key={o.key}
+					type="button"
+					aria-pressed={mode === o.key}
 					onClick={() => onChange(o.key)}
-					className="relative px-4 py-2 rounded-[8px] text-[13.5px] transition-colors"
+					className={`rounded-[7px] px-4 py-2 text-[13px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)] ${
+						mode === o.key
+							? "bg-white text-[rgba(28,58,41,0.95)] shadow-[0_1px_3px_rgba(28,58,41,0.12)]"
+							: "text-[rgba(28,58,41,0.55)] hover:bg-white/60 hover:text-[rgba(28,58,41,0.9)]"
+					}`}
 				>
-					{mode === o.key && (
-						<motion.span
-							layoutId="leaderboard-toggle-pill"
-							className="absolute inset-0"
-							transition={{ type: "spring", stiffness: 420, damping: 32 }}
-						>
-							<ShineBorder borderRadius={999} borderWidth={2} duration={7} className="w-full h-full">
-								<div className="w-full h-full rounded-[8px] bg-white shadow-[0_2px_10px_-2px_rgba(28,58,41,0.3)]" />
-							</ShineBorder>
-						</motion.span>
-					)}
-					{mode === o.key ? (
-						<AnimatedShinyText className="relative z-10 text-[13.5px]">
-							{o.label}
-						</AnimatedShinyText>
-					) : (
-						<span className="relative z-10 text-[rgba(28,58,41,0.5)]">{o.label}</span>
-					)}
+					{o.label}
 				</button>
 			))}
 		</div>
@@ -237,16 +229,9 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 			/>
 
 			<div className="relative max-w-[900px] mx-auto">
-				<button
-					onClick={onBack}
-					className="flex items-center gap-2 text-[13px] text-[rgba(28,58,41,0.55)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
-				>
-					<ArrowLeft className="w-4 h-4" />
-					Back to Namepass
-				</button>
-
-				<div className="mt-8 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
-					<div>
+				<div>
+					<BackButton onClick={onBack} label="Back to Namepass" className="-translate-x-0.5" />
+					<div className="mt-4">
 						<div className="flex items-center gap-2.5">
 							<span className="relative flex w-2 h-2">
 								<span className="absolute inline-flex w-full h-full rounded-full bg-[rgba(28,58,41,0.35)] animate-ping" />
@@ -256,14 +241,14 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 								Leaderboard · Live
 							</span>
 						</div>
-						<h1 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
+						<h1 className="relative -left-0.5 mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
 							Ranked by impact.
 						</h1>
-						<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] max-w-xl leading-relaxed">
-							Names with completed renewals, ranked by how much runway they earned.
-							Sort by total renewals or by years of registration delivered.
-						</p>
 					</div>
+					<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] max-w-xl leading-relaxed">
+						Names with completed renewals, ranked by how much runway they earned.
+						Sort by total renewals or by years of registration delivered.
+					</p>
 				</div>
 
 				<div className="mt-8">

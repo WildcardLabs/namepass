@@ -1,4 +1,4 @@
-import { labelLength, solve } from "./pricing";
+import { hasRates, labelLength, solve } from "./pricing";
 import { chainById, HUB_CHAIN } from "./chains";
 import { GAS_ALLOWANCE } from "./fees";
 import { isActiveFlowStatus, type ActiveFlowStatus } from "./flowPresentation";
@@ -16,7 +16,7 @@ export type ActivityEmptyState = "no_completed_renewals" | "waiting_first_paymen
 export interface FlowStep { kind: "deposit" | "burn" | "renewal"; chain: string; tx: string; }
 export interface ActivityEvent {
 	id: string; kind: EventKind; at: number; chain: string; amountDeposited: bigint;
-	gasAllowance: bigint; amountApplied: bigint; seconds: bigint; off: string;
+	gasAllowance: bigint; amountApplied: bigint; seconds: bigint; off: string | null;
 	nameExpiryAfter: number | null; funder: string; executor: string; executorIsRelayer: boolean; steps: FlowStep[];
 }
 export interface ChainBalance { chainId: string; chain: string; amount: bigint | null; holdReason: HoldReason; flowErrorCode?: string | null; }
@@ -34,6 +34,7 @@ function chainName(chainId: string): string {
 export function renewalEvent(renewal: PublicRenewal, label: string): ActivityEvent {
 	const chain = chainName(renewal.originChainId);
 	const amountApplied = micro(renewal.amountApplied);
+	const off = hasRates() ? solve(amountApplied, labelLength(label)).off : null;
 	const steps: FlowStep[] = [];
 	if (renewal.depositTxHash) steps.push({ kind: "deposit", chain, tx: renewal.depositTxHash });
 	if (renewal.fromCctp && renewal.originTxHash) {
@@ -49,7 +50,7 @@ export function renewalEvent(renewal: PublicRenewal, label: string): ActivityEve
 		gasAllowance: micro(renewal.gasAllowance),
 		amountApplied,
 		seconds: micro(renewal.durationSeconds),
-		off: solve(amountApplied, labelLength(label)).off,
+		off,
 		nameExpiryAfter: renewal.expiryAfter ? milliseconds(renewal.expiryAfter) : null,
 		funder: renewal.funderAddress ?? (renewal.funderUnavailableReason === "multiple_deposits"
 			? "Sender unavailable — multiple deposits"
@@ -159,6 +160,7 @@ function setName(name: PublicName, activity?: NameActivityRead): NameRecord {
 
 export function syncFeed(feed: ActivityRead): void {
 	feedFlows = feed.flows ?? [];
+	for (const { name } of feedFlows) setName(name);
 	const received = new Set(feed.items.map((item) => item.renewal.eventId));
 	for (const item of feed.items) {
 		const record = setName(item.name);
@@ -210,14 +212,14 @@ export function timeDelivered(record: NameRecord): bigint { return record.timeDe
 export function totalReceived(record: NameRecord): bigint { return record.lifetimeReceived; }
 export function renewalCount(record: NameRecord): bigint { return record.renewalCount; }
 export function recentActivity(limit = 40): Array<ActivityEvent & { name: string }> { return allNames().flatMap((record) => record.events.filter((event) => event.kind === "renewal").map((event) => ({ ...event, name: record.name }))).sort((a, b) => b.at - a.at).slice(0, limit); }
-export function activeFlows(): Array<{ id: string; name: string; chain: string; originChainId: string; amount: bigint; status: FlowStatus; seconds: bigint; off: string; startedAt: number }> {
+export function activeFlows(): Array<{ id: string; name: string; chain: string; originChainId: string; amount: bigint; status: FlowStatus; seconds: bigint | null; off: string | null; startedAt: number }> {
 	return feedFlows.filter(({ flow }) => isActiveFlowStatus(flow.status)).map(({ name, flow }) => {
 		const amount = flowAmount(flow);
 		const allowance = flow.gasAllowance === null ? GAS_ALLOWANCE : micro(flow.gasAllowance);
 		const applied = flow.amountApplied === null
 			? amount > allowance ? amount - allowance : 0n
 			: micro(flow.amountApplied);
-		const quote = solve(applied, labelLength(name.label));
+		const quote = hasRates() ? solve(applied, labelLength(name.label)) : null;
 		return {
 			id: flow.id,
 			name: name.displayName,
@@ -225,8 +227,8 @@ export function activeFlows(): Array<{ id: string; name: string; chain: string; 
 			originChainId: flow.originChainId,
 			amount,
 			status: flow.status as ActiveFlowStatus,
-			seconds: flow.durationSeconds === null ? quote.seconds : micro(flow.durationSeconds),
-			off: quote.off,
+			seconds: flow.durationSeconds === null ? quote?.seconds ?? null : micro(flow.durationSeconds),
+			off: quote?.off ?? null,
 			startedAt: milliseconds(flow.createdAt),
 		};
 	}).sort((a, b) => b.startedAt - a.startedAt);

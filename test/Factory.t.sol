@@ -4,7 +4,8 @@ pragma solidity 0.8.24;
 import {Test} from "forge-std/Test.sol";
 
 import {NamepassFactory} from "../contracts/NamepassFactory.sol";
-import {ENSV2RenewalHelper} from "../contracts/ENSV2RenewalHelper.sol";
+import {NamepassL1Gateway} from "../contracts/NamepassL1Gateway.sol";
+import {RenewalHelperPointer} from "../contracts/RenewalHelperPointer.sol";
 import {Dummy} from "./mocks/Mocks.sol";
 
 /**
@@ -99,10 +100,7 @@ contract FactoryTest is Test {
         NamepassFactory f = _deploy(MAINNET);
 
         assertEq(f.predictWallet("vitalik"), f.predictWallet("vitalik"), "prediction moved");
-        assertTrue(
-            f.predictWallet("vitalik") != f.predictWallet("nick"),
-            "different labels collided"
-        );
+        assertTrue(f.predictWallet("vitalik") != f.predictWallet("nick"), "different labels collided");
     }
 
     /**
@@ -116,13 +114,9 @@ contract FactoryTest is Test {
      * address.
      */
     function test_hubChainIdSeparatesDeployments() public pure {
-        bytes32 mainnet = keccak256(
-            abi.encodePacked(type(NamepassFactory).creationCode, abi.encode(OWNER, MAINNET))
-        );
+        bytes32 mainnet = keccak256(abi.encodePacked(type(NamepassFactory).creationCode, abi.encode(OWNER, MAINNET)));
 
-        bytes32 sepolia = keccak256(
-            abi.encodePacked(type(NamepassFactory).creationCode, abi.encode(OWNER, SEPOLIA))
-        );
+        bytes32 sepolia = keccak256(abi.encodePacked(type(NamepassFactory).creationCode, abi.encode(OWNER, SEPOLIA)));
 
         assertTrue(mainnet != sepolia, "both hubs produce the same factory address");
     }
@@ -132,7 +126,7 @@ contract FactoryTest is Test {
  * @notice The one number that lives in three places with nothing
  * linking them.
  *
- * `ENSV2RenewalHelper.GAS_ALLOWANCE` is on Ethereum,
+ * `NamepassL1Gateway.GAS_ALLOWANCE` is on Ethereum,
  * `NamepassFactory.MIN_BURN_AMOUNT` is on every L2 and cannot read it
  * cross-chain, and `src/lib/fees.ts` is in the browser. Only a test can
  * notice them drifting apart.
@@ -151,11 +145,7 @@ contract ConstantAgreementTest is Test {
     uint256 constant DEAREST_SECOND = 21;
 
     function test_helperAllowanceMatchesTheFrontend() public {
-        assertEq(
-            _helperAllowance(),
-            FEES_TS_GAS_ALLOWANCE,
-            "GAS_ALLOWANCE drifted from src/lib/fees.ts"
-        );
+        assertEq(_helperAllowance(), FEES_TS_GAS_ALLOWANCE, "GAS_ALLOWANCE drifted from src/lib/fees.ts");
     }
 
     /**
@@ -178,9 +168,9 @@ contract ConstantAgreementTest is Test {
     function _helperAllowance() internal returns (uint256) {
         address d = address(new Dummy());
 
-        return new ENSV2RenewalHelper(
-            d, d, d, d, d, address(0), address(0xE45), bytes32(uint256(0x1208))
-        ).GAS_ALLOWANCE();
+        vm.chainId(11155111);
+        RenewalHelperPointer pointer = new RenewalHelperPointer(d, d, d);
+        return new NamepassL1Gateway(d, d, d, d, address(pointer), d).GAS_ALLOWANCE();
     }
 
     /// @dev `MIN_BURN_AMOUNT` is private, so this mirrors it deliberately.

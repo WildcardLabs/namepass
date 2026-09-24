@@ -89,6 +89,7 @@ export function encodeString(value: string): string {
 export async function ethCallBatch(
 	calls: Call[],
 	rpcUrl = SEPOLIA_RPC,
+	blockTag = "latest",
 ): Promise<string[]> {
 	const body = calls.map((call, id) => ({
 		jsonrpc: "2.0",
@@ -99,7 +100,7 @@ export async function ethCallBatch(
 				to: call.to,
 				data: `0x${selector(call.signature)}${(call.args ?? []).join("")}`,
 			},
-			"latest",
+			blockTag,
 		],
 	}));
 
@@ -128,7 +129,12 @@ export async function ethCallBatch(
 	}
 
 	const out = new Array<string>(calls.length);
+	const seen = new Set<number>();
 	for (const row of payload) {
+		if (!Number.isInteger(row.id) || row.id < 0 || row.id >= calls.length || seen.has(row.id)) {
+			throw new RpcError("JSON-RPC batch has an invalid ID.");
+		}
+		seen.add(row.id);
 		if (row.error) {
 			throw new RpcError(`${calls[row.id]?.signature} reverted: ${row.error.message}`);
 		}
@@ -138,7 +144,7 @@ export async function ethCallBatch(
 		out[row.id] = row.result.replace(/^0x/, "");
 	}
 
-	if (out.some((r) => r === undefined)) {
+	if (seen.size !== calls.length) {
 		throw new RpcError("JSON-RPC batch came back short.");
 	}
 	return out;
@@ -174,7 +180,8 @@ export function decodeUint(data: string): bigint {
 export function decodeAddress(data: string): string {
 	const w = words(data);
 	if (w.length !== 1) throw new RpcError(`Expected one word, got ${w.length}.`);
-	return `0x${w[0].toString(16).padStart(40, "0").slice(-40)}`;
+	if (w[0] >= 1n << 160n) throw new RpcError("Address has non-zero padding.");
+	return `0x${w[0].toString(16).padStart(40, "0")}`;
 }
 
 /**
@@ -199,4 +206,14 @@ export function decodeArray(data: string, fields = 1): bigint[][] {
 		rows.push(w.slice(start, start + fields));
 	}
 	return rows;
+}
+
+/** Anchor a configuration read and verify that the endpoint serves the hub chain. */
+export async function configurationBlock(rpcUrl = SEPOLIA_RPC): Promise<string> {
+	const { createPublicClient, http } = await import("viem");
+	const { HUB_CHAIN } = await import("./chains");
+	const client = createPublicClient({ transport: http(rpcUrl) });
+	const [chainId, block] = await Promise.all([client.getChainId(), client.getBlockNumber()]);
+	if (chainId !== HUB_CHAIN.chainId) throw new RpcError("The pricing RPC serves the wrong chain.");
+	return `0x${block.toString(16)}`;
 }

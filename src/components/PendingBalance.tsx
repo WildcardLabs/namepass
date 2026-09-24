@@ -149,28 +149,35 @@ export default function PendingBalance({ record, onSettled }: Props) {
 			<button
 				type="button"
 				onClick={() => setOpen(!open)}
-				className="w-full text-left group"
+				aria-expanded={open}
+				aria-controls="pending-renewal-details"
+				className="w-full text-left group focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 			>
 				<span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
 					<Wallet className="w-3 h-3" />
 					Pending renewal
 				</span>
-				<span className="mt-2 flex items-center justify-between gap-3">
-					<span className="flex items-center gap-2 text-[15px] text-[rgba(28,58,41,0.95)]">
+				<span className="mt-2 flex min-w-0 items-center justify-between gap-2">
+					<span className="flex min-w-0 flex-1 items-center gap-2 text-[15px] text-[rgba(28,58,41,0.95)]">
 						{(p.flows.length > 0 || detecting.length > 0) && stuck.length === 0 && (
 							<Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-[rgba(28,58,41,0.5)]" />
 						)}
 						{summary}
 					</span>
-					<ChevronDown
-						className={`w-4 h-4 shrink-0 text-[rgba(28,58,41,0.35)] group-hover:text-[rgba(28,58,41,0.7)] transition-all ${open ? "rotate-180" : ""}`}
-					/>
+					<span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[rgba(28,58,41,0.14)] text-[rgba(28,58,41,0.72)] group-hover:bg-white lg:h-10 lg:w-auto lg:gap-1.5 lg:px-2.5 lg:text-[11.5px]">
+						<span className="sr-only lg:not-sr-only">{open ? "Hide details" : p.flows.length > 0 ? "Flow details" : "Balance details"}</span>
+						<ChevronDown
+							aria-hidden="true"
+							className={`w-3.5 h-3.5 text-[rgba(28,58,41,0.55)] transition-all ${open ? "rotate-180" : ""}`}
+						/>
+					</span>
 				</span>
 			</button>
 
 			<AnimatePresence initial={false}>
 				{open && (
 					<motion.div
+						id="pending-renewal-details"
 						initial={{ height: 0, opacity: 0 }}
 						animate={{ height: "auto", opacity: 1 }}
 						exit={{ height: 0, opacity: 0 }}

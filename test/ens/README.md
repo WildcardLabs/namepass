@@ -8,8 +8,7 @@ They are here so the pricing tests run against **ENS's own arithmetic** rather t
 reimplementation of it. `StandardRentPriceOracle` is the contract the helper inverts, and two real
 bugs have already come from guessing at its behaviour instead of reading it:
 
-- rates derived from a Julian year rather than the oracle's 365-day one (`docs/DECISIONS.md`,
-  2026-08-06);
+- rates derived from a Julian year rather than the oracle's 365-day one (`docs/DECISIONS.md`, Exact oracle arithmetic);
 - `getPaymentTokenRatio` treated as a single divisor when it returns `(numer, denom)`, which agreed
   with the live configuration only because `numer` happens to be 1.
 
@@ -27,3 +26,16 @@ unrelated contracts and dependencies to the test environment.
 
 **This is still not a substitute for a fork test** against deployed Sepolia contracts, which is the
 only thing that confirms the addresses and the ABI as actually deployed.
+
+## 2026-09-18 compatibility check
+
+The replacement helper uses `contracts/interfaces/IENSRenewal.sol`, including the new
+`RenewData` tuple. The old `IETHRenewer.sol` here is a transitive oracle fixture, not the adapter ABI.
+The current deployment's `StandardRentPriceOracle` source uses Solidity 0.8.25. Its pricing bodies
+match this fixture; its pragma, StringUtils import path, and interface documentation differ.
+Keep the factory's pinned compiler unchanged. `test/SepoliaFork.t.sol` tests the actual deployed
+oracle and both new renewers at block 11730389. Enable it with `NAMEPASS_FORK_RPC`.
+
+The current `test/mocks/Mocks.sol` uses a configurable boolean for eligibility. It does not
+reproduce the ENS registry predicates. Only the fork tests exercise the real renewal predicates
+and the V1 wrapper synchronization. The older fixture description above is historical.

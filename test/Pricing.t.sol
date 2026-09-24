@@ -6,11 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {ENSV2RenewalHelper} from "../contracts/ENSV2RenewalHelper.sol";
 
-import {
-    StandardRentPriceOracle,
-    DiscountPoint,
-    PaymentRatio
-} from "./ens/registrar/StandardRentPriceOracle.sol";
+import {StandardRentPriceOracle, DiscountPoint, PaymentRatio} from "./ens/registrar/StandardRentPriceOracle.sol";
 import {IRentPriceOracle} from "./ens/registrar/interfaces/IRentPriceOracle.sol";
 
 import {MockUSDC, MockRenewer, MockFactory, MockMessageTransmitter, Dummy} from "./mocks/Mocks.sol";
@@ -52,21 +48,11 @@ contract PricingTest is Test {
         factory = new MockFactory();
 
         helper = new ENSV2RenewalHelper(
-            address(factory),
-            address(usdc),
-            address(new MockMessageTransmitter(usdc)),
-            address(new Dummy()), /* TokenMessenger, unused here */
-            address(renewer),
-            address(0),
-            GOVERNANCE,
-            REFERRER
+            address(new Dummy()), address(factory), address(usdc), address(renewer), address(0), REFERRER
         );
     }
 
-    function _deployOracle(uint128 numer, uint128 denom)
-        internal
-        returns (StandardRentPriceOracle)
-    {
+    function _deployOracle(uint128 numer, uint128 denom) internal returns (StandardRentPriceOracle) {
         uint256[] memory rates = new uint256[](5);
         rates[0] = 0;
         rates[1] = 0;
@@ -80,11 +66,7 @@ contract PricingTest is Test {
         points[2] = DiscountPoint({duration: 189_216_000, numer: 5625e34});
 
         PaymentRatio[] memory ratios = new PaymentRatio[](1);
-        ratios[0] = PaymentRatio({
-            paymentToken: IERC20(address(usdc)),
-            numer: numer,
-            denom: denom
-        });
+        ratios[0] = PaymentRatio({paymentToken: IERC20(address(usdc)), numer: numer, denom: denom});
 
         return new StandardRentPriceOracle(
             address(this),
@@ -117,11 +99,10 @@ contract PricingTest is Test {
      * says it will charge, and the duration must be the longest the
      * budget actually affords.
      */
-    function _assertQuoteAgreesWithENS(
-        StandardRentPriceOracle oracle_,
-        string memory label,
-        uint256 budget
-    ) internal view {
+    function _assertQuoteAgreesWithENS(StandardRentPriceOracle oracle_, string memory label, uint256 budget)
+        internal
+        view
+    {
         uint64 duration;
         uint256 amountNeeded;
 
@@ -192,11 +173,7 @@ contract PricingTest is Test {
         _assertQuoteAgreesWithENS(skewed, _label(5), budget);
     }
 
-    function testFuzz_agreesWithENS_acrossRatios(
-        uint256 rawBudget,
-        uint64 rawNumer,
-        uint64 rawDenom
-    ) public {
+    function testFuzz_agreesWithENS_acrossRatios(uint256 rawBudget, uint64 rawNumer, uint64 rawDenom) public {
         uint256 budget = bound(rawBudget, 1, MAX_REALISTIC_BUDGET);
         uint128 numer = uint128(bound(rawNumer, 1, 1e12));
         uint128 denom = uint128(bound(rawDenom, 1, 1e12));
@@ -243,7 +220,7 @@ contract PricingTest is Test {
      *
      * The figure the UI shows as "11 months, 30 days" and the reason
      * there is no one-year quick-select. If this changes, the copy in
-     * `CLAUDE.md` and `docs/DECISIONS.md` is wrong.
+     * `docs/DECISIONS.md` is wrong.
      */
     function test_eightDollarsIsShortOfAYear() public view {
         (uint64 duration,) = helper.quote(_label(5), 8_000_000);
@@ -322,15 +299,10 @@ contract PricingTest is Test {
         points[2] = DiscountPoint({duration: 315_360_000, numer: 4e37});
 
         PaymentRatio[] memory ratios = new PaymentRatio[](1);
-        ratios[0] = PaymentRatio({
-            paymentToken: IERC20(address(usdc)),
-            numer: 1,
-            denom: 1e6
-        });
+        ratios[0] = PaymentRatio({paymentToken: IERC20(address(usdc)), numer: 1, denom: 1e6});
 
-        StandardRentPriceOracle reshaped = new StandardRentPriceOracle(
-            address(this), rates, points, DISCOUNT_DENOMINATOR, 0, 1, 1, ratios
-        );
+        StandardRentPriceOracle reshaped =
+            new StandardRentPriceOracle(address(this), rates, points, DISCOUNT_DENOMINATOR, 0, 1, 1, ratios);
 
         renewer.setOracle(IRentPriceOracle(address(reshaped)));
 
@@ -360,15 +332,10 @@ contract PricingTest is Test {
         points[4] = DiscountPoint({duration: 315_360_000, numer: 4e37});
 
         PaymentRatio[] memory ratios = new PaymentRatio[](1);
-        ratios[0] = PaymentRatio({
-            paymentToken: IERC20(address(usdc)),
-            numer: 1,
-            denom: 1e6
-        });
+        ratios[0] = PaymentRatio({paymentToken: IERC20(address(usdc)), numer: 1, denom: 1e6});
 
-        StandardRentPriceOracle deeper = new StandardRentPriceOracle(
-            address(this), rates, points, DISCOUNT_DENOMINATOR, 0, 1, 1, ratios
-        );
+        StandardRentPriceOracle deeper =
+            new StandardRentPriceOracle(address(this), rates, points, DISCOUNT_DENOMINATOR, 0, 1, 1, ratios);
 
         renewer.setOracle(IRentPriceOracle(address(deeper)));
 
@@ -389,11 +356,7 @@ contract PricingTest is Test {
         rates[4] = RATE_5;
 
         PaymentRatio[] memory ratios = new PaymentRatio[](1);
-        ratios[0] = PaymentRatio({
-            paymentToken: IERC20(address(usdc)),
-            numer: 1,
-            denom: 1e6
-        });
+        ratios[0] = PaymentRatio({paymentToken: IERC20(address(usdc)), numer: 1, denom: 1e6});
 
         StandardRentPriceOracle flat = new StandardRentPriceOracle(
             address(this),

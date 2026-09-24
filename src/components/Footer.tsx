@@ -1,27 +1,27 @@
 import { XIcon } from "./icons";
 
 interface Props {
+	onProtocol: () => void;
 	onExplore: () => void;
 	onSimulate: () => void;
 	onLeaderboard: () => void;
-	onSupported: () => void;
 	onTerms: () => void;
 	onPrivacy: () => void;
 }
 
 export default function Footer({
+	onProtocol,
 	onExplore,
 	onSimulate,
 	onLeaderboard,
-	onSupported,
 	onTerms,
 	onPrivacy,
 }: Props) {
 	const product = [
-		{ label: "Explorer", action: onExplore },
+		{ label: "Protocol", action: onProtocol },
 		{ label: "ENS v2 pricing", action: onSimulate },
+		{ label: "Explorer", action: onExplore },
 		{ label: "Leaderboard", action: onLeaderboard },
-		{ label: "Supported networks & USDC", action: onSupported },
 	];
 	const legal = [
 		{ label: "Terms of service", action: onTerms },
@@ -39,11 +39,10 @@ export default function Footer({
 							className="h-4 w-auto"
 						/>
 						<p className="mt-3 text-[13px] text-[rgba(28,58,41,0.55)] leading-relaxed">
-							Send USDC to a Namepass address. Namepass monitors the
-							payment, triggers the flow, and keeps the activity public.
+							Immutable Namepass contracts derive a deterministic USDC deposit address for every name and execute renewals at ENS's on-chain rates.
 						</p>
 						<a
-							href="https://x.com/namepass_com"
+							href="https://x.com/namepass_eth"
 							target="_blank"
 							rel="noopener noreferrer"
 							aria-label="Namepass on X"

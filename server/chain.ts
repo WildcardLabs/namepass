@@ -1,5 +1,6 @@
 import { keccak_256 } from "@noble/hashes/sha3";
 
+import { discoverHelper, readEnsV2Metadata } from "../src/lib/helperDiscovery";
 import { HUB_CHAIN, SERVER_CHAINS } from "../src/lib/chains";
 
 const text = new TextEncoder();
@@ -32,14 +33,6 @@ function addressWord(value: string): string {
 	const valueAsNumber = word(value);
 	if (valueAsNumber >= 1n << 160n) throw new Error("The RPC address word has non-zero padding.");
 	return `0x${valueAsNumber.toString(16).padStart(40, "0")}`;
-}
-
-function booleanWord(value: string): boolean {
-	const valueAsNumber = word(value);
-	if (valueAsNumber !== 0n && valueAsNumber !== 1n) {
-		throw new Error("The RPC boolean word is invalid.");
-	}
-	return valueAsNumber === 1n;
 }
 
 async function calls(
@@ -145,20 +138,19 @@ export interface EnsState {
 export async function readEnsState(label: string): Promise<EnsState> {
 	const rpcUrl = hubRpcUrl();
 	await assertRpcChainId(rpcUrl, HUB_CHAIN.chainId);
-	const [registrarRegistry, v1Registry] = await calls(rpcUrl, [
-		{ to: HUB_CHAIN.ensRegistrarAddress!, signature: "ETH_REGISTRY()" },
-		{ to: HUB_CHAIN.ensRenewerV1Address!, signature: "ETH_REGISTRY()" },
-	]);
-	const registry = addressWord(registrarRegistry);
-	if (registry !== addressWord(v1Registry)) {
-		throw new Error("The ENS renewers report different registries.");
+	const blockTag = `0x${BigInt(await readBlockNumber(rpcUrl)).toString(16)}`;
+	const read = (requests: import("../src/lib/helperDiscovery").HelperCall[]) => calls(
+		rpcUrl, requests.map((request) => ({ ...request, args: request.args?.join("") })), blockTag,
+	);
+	const helper = await discoverHelper(read);
+	const metadata = await readEnsV2Metadata(read, helper);
+	const [state] = await read([{ to: helper, signature: "nameState(string)", args: [encodeString(label)] }]);
+	if (!/^[0-9a-f]{128}$/i.test(state)) throw new Error("Invalid helper name state.");
+	const rawExpiry = state.slice(0, 64);
+	const renewer = addressWord(state.slice(64));
+	if (!/^0x0+$/.test(renewer) && renewer !== metadata.registrar && renewer !== metadata.renewerV1) {
+		throw new Error("The helper returned an unknown ENS renewer.");
 	}
-
-	const [rawExpiry, rawRegistrar, rawV1] = await calls(rpcUrl, [
-		{ to: registry, signature: "findExpiry(string)", args: encodeString(label) },
-		{ to: HUB_CHAIN.ensRegistrarAddress!, signature: "isRenewable(string)", args: encodeString(label) },
-		{ to: HUB_CHAIN.ensRenewerV1Address!, signature: "isRenewable(string)", args: encodeString(label) },
-	]);
 	const seconds = word(rawExpiry);
 	if (seconds > BigInt(Math.floor(Number.MAX_SAFE_INTEGER / 1000))) {
 		throw new Error("The ENS expiry is outside the supported date range.");
@@ -167,11 +159,10 @@ export async function readEnsState(label: string): Promise<EnsState> {
 	if (expiry && !Number.isFinite(expiry.getTime())) {
 		throw new Error("The ENS expiry is outside the supported date range.");
 	}
-	const registrar = booleanWord(rawRegistrar);
-	const v1 = booleanWord(rawV1);
+
 	return {
 		expiry,
-		renewableBy: registrar ? "registrar" : v1 ? "v1" : null,
+		renewableBy: renewer === metadata.registrar ? "registrar" : renewer === metadata.renewerV1 ? "v1" : null,
 	};
 }
 

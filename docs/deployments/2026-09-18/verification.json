@@ -1,0 +1,201 @@
+{
+  "checkedAt": "2026-09-18T19:21:56.931Z",
+  "fingerprint": "0x50c483cd6ce7cb75dafa6fb23956990afb23866d7dc660a945e3253a13650708",
+  "status": "passed",
+  "contracts": {
+    "NamepassFactory": {
+      "address": "0xfe41CCe685c6F2317B387FBFbe2132073181626d",
+      "salt": "0x453a6bffd52fbb33b268963f288a34376b08b022fe2228f8a9310ecc9633bd05",
+      "creationCodeHash": "0xeb03f46c9aded62ee093bdb5ceab440cb78f75c54a8afe3f06452304f61a0e8c",
+      "runtimeCodeHash": "0x2b087bba3492f0be77cab4dabf9a2bfb9b37bb0eac41f892ebf5ede344d925c0",
+      "constructorArgs": "0x0000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac60000000000000000000000000000000000000000000000000000000000aa36a7",
+      "compiler": "0.8.24+commit.e11b9ed9"
+    },
+    "TimelockController": {
+      "address": "0x996cbd179f361B1043Ad1999864eD41496C633c8",
+      "salt": "0x13bd9fa12142e5c18454f34181122bd8085c5c55a6afd616ec7305ba91f94521",
+      "creationCodeHash": "0x9afe54e9671ffeaed5988e9c14039b6f38e4826080e8c17870a1bd3d30f82792",
+      "runtimeCodeHash": "0x261ddecb54142b356d031db23b3e2eaff3feebe4c9d22711aea9bc7f66099af6",
+      "constructorArgs": "0x000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac600000000000000000000000000000000000000000000000000000000000000010000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac6",
+      "compiler": "0.8.24+commit.e11b9ed9"
+    },
+    "RenewalHelperPointer": {
+      "address": "0x59200a0f65D11A25A9CC2322CB63F3bBCd27156A",
+      "salt": "0x2a600380c65c7a0182e481801ed27f30c61c0447f91a31d7aa4b27ddd00cf648",
+      "creationCodeHash": "0xdce1cd234affc1e1f1678727de60707e55402a47bb85b9caf4ed9e9a89d0d221",
+      "runtimeCodeHash": "0x3a8d6032bfbe46984141a07a0b969770d1df9ec6f7a1b23aca841166c8c939c2",
+      "constructorArgs": "0x000000000000000000000000fe41cce685c6f2317b387fbfbe2132073181626d0000000000000000000000001c7d4b196cb0c7b01d743fbc6116a902379c7238000000000000000000000000996cbd179f361b1043ad1999864ed41496c633c8",
+      "compiler": "0.8.24+commit.e11b9ed9"
+    },
+    "NamepassL1Gateway": {
+      "address": "0x3ef9C6B1b8023AcBe13173A187F78eaA14C2b0f6",
+      "salt": "0x792ec72dd221730cafe31e6c25e65be7bf56f2af88baa4828e26f1c77807d122",
+      "creationCodeHash": "0x64fd48cb45e834acc719d945e59d06a3bd5658b62fd5463f394911269a1d0a72",
+      "runtimeCodeHash": "0x51bce03531d90793ea196593efea7eda9170b7a927469b5cfe647c3b1099fe44",
+      "constructorArgs": "0x000000000000000000000000fe41cce685c6f2317b387fbfbe2132073181626d0000000000000000000000001c7d4b196cb0c7b01d743fbc6116a902379c7238000000000000000000000000e737e5cebeeba77efe34d4aa090756590b1ce2750000000000000000000000008fe6b999dc680ccfdd5bf7eb0974218be2542daa00000000000000000000000059200a0f65d11a25a9cc2322cb63f3bbcd27156a0000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac6",
+      "compiler": "0.8.24+commit.e11b9ed9"
+    },
+    "ENSV2RenewalHelper": {
+      "address": "0x24A88f2Cb4B1dd833e0745C1A71209B6b077bc40",
+      "salt": "0xe9aba627fccdd176c5d2fdb2bc76f8d1ec8ebb72a97d5995bd69db492d2cddda",
+      "creationCodeHash": "0x46208d5030f10fa71934c290092d3a2fad58dfce1783fff5d149fa2bc9a491fb",
+      "runtimeCodeHash": "0x32d3d9e665f077d69f0242962c0f8fef95dd07e964b3481fd7b85015eeafce3e",
+      "constructorArgs": "0x0000000000000000000000003ef9c6b1b8023acbe13173a187f78eaa14c2b0f6000000000000000000000000fe41cce685c6f2317b387fbfbe2132073181626d0000000000000000000000001c7d4b196cb0c7b01d743fbc6116a902379c7238000000000000000000000000abe76f6c8dfced81aa5a2bb8034202a7136b94ca000000000000000000000000d06e726e9bd8ac0f33a2a45f4cc28fe10d656a360000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac6",
+      "compiler": "0.8.24+commit.e11b9ed9"
+    }
+  },
+  "config": {
+    "owner": "0x1208a26FAa0F4AC65B42098419EB4dAA5e580AC6",
+    "residueRecipient": "0x1208a26FAa0F4AC65B42098419EB4dAA5e580AC6",
+    "referrer": "0x0000000000000000000000001208a26faa0f4ac65b42098419eb4daa5e580ac6",
+    "saltLabel": "namepass-testnet-overhaul-2026-09-18",
+    "delay": 60
+  },
+  "sampleWallet": {
+    "label": "vitalik",
+    "address": "0xe045CCEddbdB26F7D6a30DF6e5aa6642dC48Bd3B"
+  },
+  "chains": [
+    {
+      "chainId": 11155111,
+      "observationStartBlock": "11732697",
+      "observationEndBlock": "11732697",
+      "steps": [
+        {
+          "id": "deploy-NamepassFactory-11155111",
+          "hash": "0x074ea3094ef76af5a5b62c48dfcc142b03f80882537b3d08c5df0ce40c0756cb",
+          "blockNumber": "11732565",
+          "blockHash": "0xe61667781e11696784832798f0e90a464113c19cc773189e0c6cda9ed938d5c2",
+          "state": "complete",
+          "detail": "Bytecode and configuration verified"
+        },
+        {
+          "id": "deploy-TimelockController-11155111",
+          "hash": "0x162e7ef4c96ac379759e6671c27b0518cf15c025e0548b50f74ba3633ef2bc27",
+          "blockNumber": "11732567",
+          "blockHash": "0x00c8ce7d285f149c0e8dbe39e8319ea2a79933acc75624596b4e6c61db4cfe81",
+          "state": "complete",
+          "detail": "Bytecode and configuration verified"
+        },
+        {
+          "id": "deploy-RenewalHelperPointer-11155111",
+          "hash": "0x887747211bfcb676dd2d3b6ebd89cd083165e8067b561f858cd9486ba33e6edf",
+          "blockNumber": "11732570",
+          "blockHash": "0xa58a95fe57988e7f9b13d2c6fe14eb232c8c09eb8e19b9759cc02e69364234ab",
+          "state": "complete",
+          "detail": "Bytecode and configuration verified"
+        },
+        {
+          "id": "deploy-NamepassL1Gateway-11155111",
+          "hash": "0x1b1c4449b60b24f705417e211de58800c192ea353f345f4c01313bce9f053033",
+          "blockNumber": "11732572",
+          "blockHash": "0xd1b99a58afb84ba4f29b91f5846ff39d94a93987e514803372d527b3ef45472d",
+          "state": "complete",
+          "detail": "Bytecode and configuration verified"
+        },
+        {
+          "id": "deploy-ENSV2RenewalHelper-11155111",
+          "hash": "0x62e67ea66994475dfd3e6c6ae656d7ee4d50c8330dd7d79b3fac8611641aea56",
+          "blockNumber": "11732574",
+          "blockHash": "0x6603258ff7ea0b24be23e8c579cfe71df29c0a2b0bddaa606155202f2c073b0e",
+          "state": "complete",
+          "detail": "Bytecode and configuration verified"
+        },
+        {
+          "id": "schedule",
+          "hash": "0xd1e6b625ae0c61a73ebe4c22b0b067f63d787c5e111d10437688b69f032b51d1",
+          "blockNumber": "11732576",
+          "blockHash": "0x4ee0f1db35393f48a249c77d8e975141a4fa44729a76ce2053b8fe709e67d64b",
+          "state": "complete",
+          "detail": "Operation executed"
+        },
+        {
+          "id": "activate",
+          "hash": "0xd28ab082dc9ea0c7301605331a511bde6a6c0e1d468032c7af3aff5272148819",
+          "blockNumber": "11732623",
+          "blockHash": "0x3f405a65a9587942815fac4ca3b4c987dcd9fe1c40f710c8d341dde5182dd9fb",
+          "state": "complete",
+          "detail": "Helper active; gateway permanently bound"
+        },
+        {
+          "id": "initialize-11155111",
+          "hash": "0x0919507108b62da02e3c73fd35346758ca470895ae568a06d260d7ba5bf0b575",
+          "blockNumber": "11732628",
+          "blockHash": "0xc6cab62ba45cd60bf7883d8dce22e64e0b1765e20583426a495e6a75fd2508d5",
+          "state": "complete",
+          "detail": "USDC, Circle route, finality, and deposit derivation verified"
+        }
+      ]
+    },
+    {
+      "chainId": 84532,
+      "observationStartBlock": "46995513",
+      "observationEndBlock": "46995513",
+      "steps": [
+        {
+          "id": "deploy-NamepassFactory-84532",
+          "hash": "0xb03900805c13edcca00b1ffc0ab51f1cc3df268c8d940b48461cd6b9c706873b",
+          "blockNumber": "46994775",
+          "blockHash": "0x336a745ea0b72ddc97181c70ff60374c5c40ec064523bceee08bb2b8644aefbd",
+          "state": "complete",
+          "detail": "Bytecode and configuration verified"
+        },
+        {
+          "id": "initialize-84532",
+          "hash": "0x3aadd2c452adad9b1f7c6573758bed16de92736eb5241d711bf5c814c446be61",
+          "blockNumber": "46995127",
+          "blockHash": "0x72fbfadd8f2f56bb8a556c20917f53014364d86129552d9d2d6e26fe0203e032",
+          "state": "complete",
+          "detail": "USDC, Circle route, finality, and deposit derivation verified"
+        }
+      ]
+    },
+    {
+      "chainId": 421614,
+      "observationStartBlock": "310284111",
+      "observationEndBlock": "310284116",
+      "steps": [
+        {
+          "id": "deploy-NamepassFactory-421614",
+          "hash": "0x32d8c28938b5f05017165fdd569a02f954321779d54597a9050e82e660bd67f0",
+          "blockNumber": "310278371",
+          "blockHash": "0x197d8e3ee574a51c438f654007d20e9512bc31aa5ea5ec3ff6a9042a9f267f02",
+          "state": "complete",
+          "detail": "Bytecode and configuration verified"
+        },
+        {
+          "id": "initialize-421614",
+          "hash": "0x52b12ee9497bc499d51bc8c7ca77a944d2c521e37244aa05f79108b43fee4178",
+          "blockNumber": "310281137",
+          "blockHash": "0x8fe2df7805f91331e3c0a39e68a06a23b932a160f87f833b69a103fa6809c94f",
+          "state": "complete",
+          "detail": "USDC, Circle route, finality, and deposit derivation verified"
+        }
+      ]
+    },
+    {
+      "chainId": 5042002,
+      "observationStartBlock": "62791310",
+      "observationEndBlock": "62791311",
+      "steps": [
+        {
+          "id": "deploy-NamepassFactory-5042002",
+          "hash": "0xb84b3e02e1ca5b40be17c36b7f58451773da7e3e4fd8c45b4f7fff4f10d2b4e9",
+          "blockNumber": "62789380",
+          "blockHash": "0x6390d4a18673c01995f898b2cb17991520d3fc8bbdfd74641edc9e2bd5a7c318",
+          "state": "complete",
+          "detail": "Bytecode and configuration verified"
+        },
+        {
+          "id": "initialize-5042002",
+          "hash": "0xef6a841f5c8e30b10bc6ffb078022916fd88dee38e5c8cb2c7da3e63bc12cba1",
+          "blockNumber": "62789899",
+          "blockHash": "0x97cb09c52a18e0e119d5873fdf866047ab287b3c93599f8ccd9aec57cdf572c1",
+          "state": "complete",
+          "detail": "USDC, Circle route, finality, and deposit derivation verified"
+        }
+      ]
+    }
+  ],
+  "scope": "Read-only runtime, configuration, canonical receipts, transaction inputs, activation, and wallet derivation. Does not prove explorer source verification or live renewal/CCTP canaries."
+}

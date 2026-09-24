@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { Skeleton } from "./components/ui/skeleton";
+import { lazy, Suspense, useCallback, useRef, useEffect, useState } from "react";
 import Navbar from "./components/Navbar";
 import PageShell from "./components/PageShell";
 import Hero from "./components/Hero";
@@ -12,22 +13,30 @@ import Privacy from "./components/Privacy";
 import SupportedTokens from "./components/SupportedTokens";
 import TestnetBanner, { VIEWPORT_BELOW_BANNER } from "./components/TestnetBanner";
 import Footer from "./components/Footer";
-import ClaimModal from "./components/ClaimModal";
 import PricingError from "./components/PricingError";
 import { loadOracleRates } from "./lib/oracle";
 import { assertGasAllowance } from "./lib/fees";
 import { setRates } from "./lib/pricing";
 
+const Monitoring = lazy(() => import("./components/Monitoring"));
 const VIDEO_URL = `${import.meta.env.BASE_URL}assets/namepass-bg.mp4`;
 
-type Page = "home" | "leaderboard" | "supported" | "terms" | "privacy";
+type Page = "monitoring" | "home" | "leaderboard" | "supported" | "terms" | "privacy";
 
 const BASE = import.meta.env.BASE_URL;
+const NAME_HISTORY_KEY = "__namepassName";
+
+function nameFromHistoryState(state: unknown): string | null {
+	if (!state || typeof state !== "object" || Array.isArray(state)) return null;
+	const name = (state as Record<string, unknown>)[NAME_HISTORY_KEY];
+	return typeof name === "string" ? name : null;
+}
 
 function pathToPage(pathname: string): Page {
 	const rel = pathname.startsWith(BASE)
 		? pathname.slice(BASE.length)
 		: pathname.replace(/^\//, "");
+	if (rel.startsWith("monitoring")) return "monitoring";
 	if (rel.startsWith("leaderboard")) return "leaderboard";
 	if (rel.startsWith("supported")) return "supported";
 	if (rel.startsWith("terms")) return "terms";
@@ -41,12 +50,16 @@ function pageToPath(page: Page): string {
 }
 
 export default function App() {
+	if (import.meta.env.VITE_NAMEPASS_MAINTENANCE === "1") return <main style={{ padding: "4rem", fontFamily: "sans-serif" }}><h1>Namepass is being upgraded</h1><p>Deposits and renewals are temporarily paused. Please return shortly.</p></main>;
+	return <ActiveApp/>;
+}
+
+function ActiveApp() {
 	const [page, setPage] = useState<Page>(() => pathToPage(window.location.pathname));
-	const [claimOpen, setClaimOpen] = useState(false);
 	const [selected, setSelected] = useState<string | null>(null);
 
 	/**
-	 * ENS's live pricing, read once at boot.
+	 * ENS's live pricing, read at boot, on name selection, and on window focus.
 	 *
 	 * Everything that quotes a price is downstream of this. `pricing.ts`
 	 * throws until the live values arrive.
@@ -64,17 +77,23 @@ export default function App() {
 
 	const [boot, setBoot] = useState<Boot>({ status: "loading" });
 
+	const pricingRequest = useRef(0);
 	const loadPricing = useCallback(() => {
-		setBoot({ status: "loading" });
+		const request = ++pricingRequest.current;
+		/* Keep mounted views during a refresh. Only the initial read and a
+		   retry after a failed validation need the loading state. */
+		setBoot((current) => current.status === "ready" ? current : { status: "loading" });
 		/* In parallel: ENS's rates, which the app can't price without, and a
-		   check that the helper's gas allowance is still the dime every quoted
+		   check that the gateway's gas allowance is still the dime every quoted
 		   send amount is built around. */
 		Promise.all([loadOracleRates(), assertGasAllowance()])
 			.then(([live]) => {
+				if (request !== pricingRequest.current) return;
 				setRates(live);
 				setBoot({ status: "ready" });
 			})
 			.catch((err: unknown) => {
+				if (request !== pricingRequest.current) return;
 				setBoot({
 					status: "error",
 					message: err instanceof Error ? err.message : String(err),
@@ -82,15 +101,41 @@ export default function App() {
 			});
 	}, []);
 
-	useEffect(loadPricing, [loadPricing]);
+	useEffect(() => { if (page !== "monitoring") loadPricing(); }, [loadPricing, selected, page]);
+	useEffect(() => {
+		const refresh = () => { if (document.visibilityState === "visible" && page !== "monitoring") loadPricing(); };
+		window.addEventListener("focus", refresh);
+		return () => { window.removeEventListener("focus", refresh); pricingRequest.current++; };
+	}, [loadPricing, page]);
 
 	useEffect(() => {
 		if ("scrollRestoration" in window.history) {
 			window.history.scrollRestoration = "manual";
 		}
-		const onPop = () => setPage(pathToPage(window.location.pathname));
+		const onPop = () => {
+			setPage(pathToPage(window.location.pathname));
+			setSelected(nameFromHistoryState(window.history.state));
+		};
 		window.addEventListener("popstate", onPop);
 		return () => window.removeEventListener("popstate", onPop);
+	}, []);
+
+	const selectName = useCallback((name: string | null) => {
+		const currentState = window.history.state;
+		const currentName = nameFromHistoryState(currentState);
+		if (name === null) {
+			setSelected(null);
+			if (currentName !== null) window.history.back();
+			return;
+		}
+
+		if (currentName !== name) {
+			const state = currentState && typeof currentState === "object" && !Array.isArray(currentState)
+				? currentState as Record<string, unknown>
+				: {};
+			window.history.pushState({ ...state, [NAME_HISTORY_KEY]: name }, "", window.location.href);
+		}
+		setSelected(name);
 	}, []);
 
 	const navigate = useCallback((next: Page) => {
@@ -118,7 +163,7 @@ export default function App() {
 	);
 
 	const goHome = useCallback(() => navigate("home"), [navigate]);
-	const goExplorer = useCallback(() => goToSection("explorer"), [goToSection]);
+	const goProtocol = useCallback(() => goToSection("protocol"), [goToSection]);
 	const goSimulate = useCallback(() => goToSection("simulator"), [goToSection]);
 	const goLeaderboard = useCallback(() => navigate("leaderboard"), [navigate]);
 	const goSupported = useCallback(() => navigate("supported"), [navigate]);
@@ -126,12 +171,13 @@ export default function App() {
 	const goPrivacy = useCallback(() => navigate("privacy"), [navigate]);
 
 	const focusSearch = useCallback(() => {
-		setSelected(null);
+		selectName(null);
 		goToSection("explorer");
 		setTimeout(() => {
 			document.querySelector<HTMLInputElement>("#explorer input")?.focus();
 		}, 600);
-	}, [goToSection]);
+	}, [goToSection, selectName]);
+	const goExplorer = focusSearch;
 
 	/**
 	 * Open a name's Explorer profile from anywhere. Used after activation (no
@@ -140,23 +186,31 @@ export default function App() {
 	 */
 	const goToName = useCallback(
 		(name: string) => {
-			setSelected(name);
 			if (page !== "home") {
 				setPage("home");
 				window.history.pushState({}, "", pageToPath("home"));
 			}
+			selectName(name);
 			setTimeout(() => scrollTo("explorer"), 260);
 		},
-		[page, scrollTo],
+		[page, scrollTo, selectName],
 	);
 
 	const navProps = {
-		onClaim: () => setClaimOpen(true),
+		onProtocol: goProtocol,
 		onExplore: goExplorer,
 		onSimulate: goSimulate,
 		onSearch: focusSearch,
 		onHome: goHome,
 	};
+
+	if (page === "monitoring") {
+		return (
+			<Suspense fallback={<Skeleton role="status" aria-label="Loading dashboard" className="min-h-[100dvh] w-full animate-none rounded-none bg-[#f7f8fb]" />}>
+				<Monitoring onBack={goHome} />
+			</Suspense>
+		);
+	}
 
 	return (
 		<main className="min-h-screen bg-[#f0f0f0] flex flex-col">
@@ -176,7 +230,7 @@ export default function App() {
 						>
 							<Navbar {...navProps} />
 							<Hero
-								onExplore={() => scrollTo("explorer")}
+								onExplore={goExplorer}
 								onLeaderboard={goLeaderboard}
 								priced={boot.status === "ready"}
 							/>
@@ -184,7 +238,7 @@ export default function App() {
 
 						{/* What the protocol actually is — four real properties, in the
 						    RIVR template's bento. Static copy, so it never waits on pricing. */}
-						<Protocol onClaim={() => setClaimOpen(true)} onSupportedTokens={goSupported} />
+						<Protocol onSearch={focusSearch} />
 
 						{/* Renders its own frame either way — heading, card, tabs — with
 						    skeletons standing in for the two panels that quote a price.
@@ -196,18 +250,15 @@ export default function App() {
 							onRetry={loadPricing}
 						/>
 
-						{/* Explorer owns its public API loading state. */}
-						{boot.status === "ready" && (
-							<Explorer
-								selected={selected}
-								onSelect={setSelected}
-								onActivated={goToName}
-								onSupportedTokens={goSupported}
-							/>
-						)}
+						{/* Search and public activity remain available while price quotes load. */}
+						<Explorer
+							selected={selected}
+							onSelect={selectName}
+							onActivated={goToName}
+							onSupportedTokens={goSupported}
+						/>
 
-						{/* Near-footer CTA band with an animated background. */}
-						<CtaBand onClaim={() => setClaimOpen(true)} onSimulate={goSimulate} />
+						<CtaBand onSearch={focusSearch} onSimulate={goSimulate} />
 					</>
 				)}
 
@@ -255,18 +306,12 @@ export default function App() {
 			</div>
 
 			<Footer
+				onProtocol={goProtocol}
 				onExplore={goExplorer}
 				onSimulate={goSimulate}
 				onLeaderboard={goLeaderboard}
-				onSupported={goSupported}
 				onTerms={goTerms}
 				onPrivacy={goPrivacy}
-			/>
-
-			<ClaimModal
-				open={claimOpen}
-				onClose={() => setClaimOpen(false)}
-				onActivated={goToName}
 			/>
 		</main>
 	);

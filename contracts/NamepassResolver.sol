@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 contract NamepassResolver {
-    address constant FACTORY = 0xe0b155Fdb1104824d7E0568aeAFCC52823EDD00F;
+    address constant FACTORY = 0x2dCB5CA6b21372b43e37C35Da8D5D15160423150;
     bytes4 constant ADDR = 0x3b3b57de; // addr(bytes32)
     bytes4 constant ADDR_MULTICOIN = 0xf1cb7e06; // addr(bytes32,uint256)
 

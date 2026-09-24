@@ -1,0 +1,42 @@
+{
+  "checkedAt": "2026-09-22T08:16:27.840Z",
+  "events": [
+    {
+      "event_family": "namepass",
+      "event_type": "Renewed",
+      "count": "3"
+    },
+    {
+      "event_family": "namepass",
+      "event_type": "DepositProcessed",
+      "count": "3"
+    },
+    {
+      "event_family": "namepass",
+      "event_type": "WalletDeployed",
+      "count": "2"
+    },
+    {
+      "event_family": "namepass",
+      "event_type": "CCTPClaimed",
+      "count": "2"
+    }
+  ],
+  "flows": [
+    {
+      "status": "cancelled",
+      "count": "2"
+    },
+    {
+      "status": "settled",
+      "count": "3"
+    }
+  ],
+  "names": [
+    {
+      "normalized_label": "steve",
+      "deposit_address": "0x5b7516768ed0b04e212041265bb1f11af71841d7",
+      "renewal_count": "3"
+    }
+  ]
+}
