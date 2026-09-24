@@ -215,6 +215,7 @@ forge test
 
 | Document | Scope |
 |---|---|
+| [docs/PRODUCT.md](docs/PRODUCT.md) | Product scope, status, and positioning |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Contract invariants, automation, data model, and launch plan |
 | [docs/DEPLOYMENTS.md](docs/DEPLOYMENTS.md) | Testnet addresses and on-chain evidence |
 | [docs/FRONTEND.md](docs/FRONTEND.md) | Optional web client, read model, and interface invariants |

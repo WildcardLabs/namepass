@@ -142,17 +142,7 @@ The workflow recovery repairs flow state. The Goldsky replay repairs canonical h
 aggregates. Both steps are required for renewals that settled before the pipeline started at
 `latest`.
 
-For an isolated local or preview branch, load the deterministic preview records after the
-migration:
-
-```bash
-VERCEL_ENV=preview npx tsx server/db/preview-fixtures.ts
-```
-
-The fixture command rejects `VERCEL_ENV=production`. Do not run it against the production branch
-or the shared stable testnet branch.
-
-Set `DATABASE_URL_UNPOOLED` in the private terminal before either command. Do not put that
+Set `DATABASE_URL_UNPOOLED` in the private terminal before the migration command. Do not put that
 administrator connection string in a preview deployment environment or in a repository file.
 
 Create the migration role first. It owns schema changes. After the migration succeeds, create the

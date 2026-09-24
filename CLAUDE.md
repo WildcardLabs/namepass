@@ -27,7 +27,7 @@ limit analysis, technical accuracy, or the ability to explain a complex subject.
 
 - **`README.md`** — the protocol entry point: contracts, trust boundaries, permissionless use,
   ENS v2 pricing and migration support, and testnet evidence.
-- **`PRODUCT.md`** — the detailed "what and why": the problem being solved, the core mechanic,
+- **`docs/PRODUCT.md`** — the detailed "what and why": the problem being solved, the core mechanic,
   positioning/tone decisions made through design iteration, and what's explicitly *not* decided
   yet. Read this before making product-facing decisions (copy, new features, framing) that aren't
   already covered below.
@@ -54,17 +54,17 @@ limit analysis, technical accuracy, or the ability to explain a complex subject.
 
 ## Keeping these docs current
 
-`README.md`, `PRODUCT.md`, this file, and `docs/DECISIONS.md` drift out of date unless updated
+`README.md`, `docs/PRODUCT.md`, this file, and `docs/DECISIONS.md` drift out of date unless updated
 deliberately. **After any substantial change** — a new feature or page, a meaningful architecture
 change, a new dependency/service integration, or a shift in product goals/positioning discussed
 with the user — update whichever doc actually covers that change:
 
 - New feature/page/user-facing behavior → `README.md` (feature tour) and, if it changes the
-  product's scope or story, `PRODUCT.md`.
+  product's scope or story, `docs/PRODUCT.md`.
 - New architectural pattern, convention, or constraint another session would need to know →
   this file, under Architecture.
 - New product decision (positioning, tone, business/goal clarification, something moved from
-  "not yet defined" to defined) → `PRODUCT.md`'s current-state summary.
+  "not yet defined" to defined) → `docs/PRODUCT.md`'s current-state summary.
 - **Any non-obvious call that could reasonably have gone differently** — a rejected alternative,
   a tradeoff knowingly accepted, a "we tried X, it looked wrong, went with Y instead" — append a
   dated entry to `docs/DECISIONS.md`. This is the one most likely to be forgotten because it's

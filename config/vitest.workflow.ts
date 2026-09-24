@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
 	plugins: [workflow()],
 	test: {
-		include: ["workflow-tests/*.integration.test.ts"],
+		include: ["test/workflow/*.integration.test.ts"],
 		testTimeout: 60_000,
 	},
 });

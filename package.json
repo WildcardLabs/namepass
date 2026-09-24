@@ -8,9 +8,9 @@
 		"build": "tsc --noEmit && vite build",
 		"preview": "vite preview",
 		"check:server": "tsc --noEmit -p tsconfig.server.json",
-		"test:frontend": "vitest run --config vitest.frontend.config.ts",
-		"test:server": "tsx --test server/**/*.test.ts",
-		"test:workflow": "vitest run --config vitest.workflow.config.ts"
+		"test:frontend": "vitest run --config config/vitest.frontend.ts",
+		"test:server": "node --import tsx --test server/**/*.test.ts",
+		"test:workflow": "vitest run --config config/vitest.workflow.ts"
 	},
 	"dependencies": {
 		"@adraffy/ens-normalize": "^1.11.1",

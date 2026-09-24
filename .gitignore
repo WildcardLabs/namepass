@@ -20,19 +20,12 @@ broadcast/
 
 # forge-std is a git checkout, not an npm package — the only Solidity
 # dependency that isn't in package.json. Reinstall with:
-#   forge install foundry-rs/forge-std --no-git
+#   forge install foundry-rs/forge-std@bf647bd6046f2f7da30d0c2bf435e5c76a780c1b --no-git
 #
 # Leading slash matters: a bare `lib/` also matches `src/lib/`, which is
 # most of the frontend.
 /lib/
 
-# Throwaway browser tooling for the testnet rollout — deploy pages, the
-# label test harness, and the bytecode they embed. Hardcodes one specific
-# deployment's addresses, so it is stale the moment anything is redeployed.
-#
-# Anchored with a leading slash, same reason as /lib/ above.
-/deploy-ui/
 .swc/
 .workflow-data/
 .workflow-vitest/
-.vercel
