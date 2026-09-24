@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import triggerHandler from "../routes/api/flows/trigger";
-import { manualTriggerAction, unclaimedTriggerStatus } from "./trigger";
+import { manualTriggerAction } from "./trigger";
 
 test("manual trigger policy resumes every active workflow stage", () => {
 	assert.equal(manualTriggerAction(undefined, true, true), "create");
@@ -13,8 +13,6 @@ test("manual trigger policy resumes every active workflow stage", () => {
 	assert.equal(manualTriggerAction(undefined, true, false), "balance_ineligible");
 	assert.equal(manualTriggerAction(undefined, false, undefined), "name_ineligible");
 	assert.equal(manualTriggerAction("unclaimed", true, undefined), "resume_unclaimed");
-	assert.equal(unclaimedTriggerStatus("active-run"), 200);
-	assert.equal(unclaimedTriggerStatus(null), 202);
 });
 
 test("the trigger endpoint requires the documented name and chain ID", async () => {

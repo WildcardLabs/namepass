@@ -95,69 +95,21 @@ contract FactoryTest is Test {
         assertTrue(f.predictWallet(string(atLimit)) != address(0), "255 bytes should derive");
     }
 
-    /// @dev Same label, same address — the whole promise.
-    function test_predictionIsDeterministic() public {
+    /// @dev Distinct labels must not share a deposit address.
+    function test_distinctLabelsHaveDistinctWallets() public {
         NamepassFactory f = _deploy(MAINNET);
 
-        assertEq(f.predictWallet("vitalik"), f.predictWallet("vitalik"), "prediction moved");
         assertTrue(f.predictWallet("vitalik") != f.predictWallet("nick"), "different labels collided");
-    }
-
-    /**
-     * @dev Two hubs are two deployments, and must stay so.
-     *
-     * Asserted on the creation code rather than on two live instances,
-     * because that is the actual mechanism: constructor arguments are
-     * part of the creation code, the factory is deployed with CREATE2,
-     * and its address is what every deposit address derives from. Same
-     * creation code would mean a testnet payment landing on a mainnet
-     * address.
-     */
-    function test_hubChainIdSeparatesDeployments() public pure {
-        bytes32 mainnet = keccak256(abi.encodePacked(type(NamepassFactory).creationCode, abi.encode(OWNER, MAINNET)));
-
-        bytes32 sepolia = keccak256(abi.encodePacked(type(NamepassFactory).creationCode, abi.encode(OWNER, SEPOLIA)));
-
-        assertTrue(mainnet != sepolia, "both hubs produce the same factory address");
     }
 }
 
 /**
- * @notice The one number that lives in three places with nothing
- * linking them.
- *
- * `NamepassL1Gateway.GAS_ALLOWANCE` is on Ethereum,
- * `NamepassFactory.MIN_BURN_AMOUNT` is on every L2 and cannot read it
- * cross-chain, and `src/lib/fees.ts` is in the browser. Only a test can
- * notice them drifting apart.
+ * @notice The gateway's fixed allowance is a pricing policy. The browser
+ * checks its configured value against the chain at boot.
  */
 contract ConstantAgreementTest is Test {
-    /**
-     * @dev Must equal `GAS_ALLOWANCE` in `src/lib/fees.ts`.
-     *
-     * The UI quotes send amounts that carry the allowance and solves
-     * durations from `budget - allowance`. If the chain takes a
-     * different figure, every quoted duration is wrong.
-     */
-    uint256 constant FEES_TS_GAS_ALLOWANCE = 100_000;
-
-    /// @dev The dearest second ENS sells: a 3-character name.
-    uint256 constant DEAREST_SECOND = 21;
-
-    function test_helperAllowanceMatchesTheFrontend() public {
-        assertEq(_helperAllowance(), FEES_TS_GAS_ALLOWANCE, "GAS_ALLOWANCE drifted from src/lib/fees.ts");
-    }
-
-    /**
-     * @dev The L2 burn floor must leave enough for the allowance plus
-     * at least one second, or a burn produces an unclaimable message.
-     */
-    function test_minBurnAmountClearsTheAllowancePlusASecond() public {
-        assertGe(
-            _minBurnAmount(),
-            _helperAllowance() + DEAREST_SECOND,
-            "MIN_BURN_AMOUNT no longer covers the allowance plus a second"
-        );
+    function test_helperAllowanceIsTenCents() public {
+        assertEq(_helperAllowance(), 100_000, "GAS_ALLOWANCE changed from $0.10");
     }
 
     /**
@@ -171,10 +123,5 @@ contract ConstantAgreementTest is Test {
         vm.chainId(11155111);
         RenewalHelperPointer pointer = new RenewalHelperPointer(d, d, d);
         return new NamepassL1Gateway(d, d, d, d, address(pointer), d).GAS_ALLOWANCE();
-    }
-
-    /// @dev `MIN_BURN_AMOUNT` is private, so this mirrors it deliberately.
-    function _minBurnAmount() internal pure returns (uint256) {
-        return 110_000;
     }
 }

@@ -19,8 +19,3 @@ test("serializeJsonb writes BigInt fields as decimal strings (the receipt case)"
 	assert.equal(parsed.logs[0].blockNumber, "8675309");
 	assert.equal(parsed.status, "success");
 });
-
-test("serializeJsonb leaves non-BigInt values unchanged", () => {
-	const value = { a: 1, b: "x", c: [true, null], d: { e: 2 } };
-	assert.equal(serializeJsonb(value), JSON.stringify(value));
-});

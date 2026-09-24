@@ -44,11 +44,11 @@ new-generation live test.
 
 ## Resolver and mainnet limits
 
-The replacement `namepass.eth` wildcard resolver's deployment and parent-record update remain
-unverified in this release record. The [deployment console](../tools/deployment-console/README.md)
-prepares both wallet transactions. The configured testing use case resolves to testnet deposit
-addresses even if the parent ENS record is on Ethereum mainnet. That does not enable mainnet USDC
-funding or mainnet renewal contracts.
+The replacement `namepass.eth` wildcard resolver is live, and its subnames appear in Name View.
+This September 22 release record does not contain its mainnet deployment and parent-record
+transaction receipts. The configured testing use case resolves to testnet deposit addresses even
+though the parent ENS record is on Ethereum mainnet. That does not enable mainnet USDC funding or
+mainnet renewal contracts.
 
 No audited mainnet protocol release is recorded. Mainnet requirements are in
 [RUNBOOK.md](RUNBOOK.md#mainnet-release-requirements).

@@ -4,7 +4,6 @@ dist/
 .DS_Store
 *.local
 .env*
-!.env.example
 /.vercel/
 
 # Local agent tooling
@@ -29,7 +28,3 @@ broadcast/
 .swc/
 .workflow-data/
 .workflow-vitest/
-
-# Generated artifacts for the temporary wallet deployment console.
-/tools/deployment-console/generated/
-/tools/deployment-console/dist/

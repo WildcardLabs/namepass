@@ -7,7 +7,6 @@ import {
 	matchesRecordedArcNativeDeposit,
 	matchesRecordedCctpDepositTransfer,
 } from "./cctp-renewal";
-import { transactionIntentAction } from "./transactions";
 import { cctpClaimAction, cctpDepositAction, cctpResumeStage } from "../workflows/cctp-renewal";
 import type { Address } from "viem";
 
@@ -62,9 +61,14 @@ test("Arc native deposits convert 18-decimal transaction value to 6-decimal USDC
 	), false);
 });
 
-test("a reverted CCTP origin retries its logical intent without returning to a burn", () => {
-	assert.equal(transactionIntentAction("reverted"), "retry");
-	assert.equal(cctpResumeStage({ status: "held", cctpMessage: null, cctpAttestation: null }), "done");
+test("a reverted CCTP origin retries its stored intent", () => {
+	assert.equal(cctpResumeStage({
+		status: "waiting_origin",
+		cctpMessage: null,
+		cctpAttestation: null,
+		originIntentId: "origin",
+		originIntentStatus: "reverted",
+	}), "origin_retry");
 });
 
 test("a cancelled CCTP flow never resumes a stored transaction", () => {

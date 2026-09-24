@@ -11,11 +11,7 @@
     "test:frontend": "vitest run --config config/vitest.frontend.ts",
     "test:server": "node --import tsx --test server/**/*.test.ts",
     "test:transactions": "vitest run --config config/vitest.transactions.ts",
-    "test:workflow": "vitest run --config config/vitest.workflow.ts",
-    "deploy:ui": "node tools/deployment-console/generate.mjs && vite --config tools/deployment-console/vite.config.ts",
-    "deploy:ui:check": "tsc --noEmit -p tools/deployment-console/tsconfig.json",
-    "deploy:ui:build": "node tools/deployment-console/generate.mjs && tsc --noEmit -p tools/deployment-console/tsconfig.json && vite build --config tools/deployment-console/vite.config.ts",
-    "test:deploy-ui": "tsx --test tools/deployment-console/*.test.ts"
+    "test:workflow": "vitest run --config config/vitest.workflow.ts"
   },
   "dependencies": {
     "@adraffy/ens-normalize": "^1.11.1",

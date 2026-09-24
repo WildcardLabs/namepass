@@ -50,10 +50,6 @@ export function manualTriggerAction(
 	return "conflict";
 }
 
-export function unclaimedTriggerStatus(workflowRunId: string | null): 200 | 202 {
-	return workflowRunId ? 200 : 202;
-}
-
 async function start(flowId: string): Promise<void> {
 	try {
 		await startRenewalWorkflow(flowId);
@@ -67,7 +63,7 @@ async function queueExisting(flow: typeof flows.$inferSelect): Promise<TriggerRe
 		if (!flow.cctpMessage || !flow.cctpAttestation) {
 			throw new ApiError(409, "invalid_unclaimed_flow", "The unclaimed Circle evidence is incomplete.");
 		}
-		const httpStatus = unclaimedTriggerStatus(flow.workflowRunId);
+		const httpStatus = flow.workflowRunId ? 200 : 202;
 		if (httpStatus === 200) {
 			return { flowId: flow.id, status: "unclaimed", httpStatus };
 		}

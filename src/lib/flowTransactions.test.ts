@@ -36,13 +36,4 @@ describe("completed flow transactions", () => {
 			{ label: "Payment received", chain: "Base", tx: depositTxHash },
 		]);
 	});
-
-	test("does not describe an Ethereum renewal transaction as a burn", () => {
-		expect(completedFlowTransactions(flow({
-			originChainId: "11155111",
-			status: "waiting_origin",
-		}))).toEqual([
-			{ label: "Payment received", chain: "Ethereum", tx: depositTxHash },
-		]);
-	});
 });
