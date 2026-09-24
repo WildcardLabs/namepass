@@ -231,7 +231,7 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 			<div className="relative max-w-[900px] mx-auto">
 				<div className="mt-8">
 					<BackButton onClick={onBack} label="Back to Namepass" className="-translate-x-0.5" />
-					<div className="mt-2">
+					<div className="mt-4">
 						<div className="flex items-center gap-2.5">
 							<span className="relative flex w-2 h-2">
 								<span className="absolute inline-flex w-full h-full rounded-full bg-[rgba(28,58,41,0.35)] animate-ping" />
