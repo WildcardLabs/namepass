@@ -16,8 +16,7 @@ flow state through the public API. Executors can use the renewal contracts witho
 | `src/lib/oracle.ts`, `pricing.ts`, `fees.ts` | Validated chain configuration and exact pricing |
 | `src/lib/ens.ts` | Shared, cached ENS profile requests |
 
-`registry.ts` contains legacy fixtures and is not a production data source. Components do not
-query Neon or perform public balance polling through RPC.
+Components do not query Neon or perform public balance polling through RPC.
 
 ## Pricing and addresses
 

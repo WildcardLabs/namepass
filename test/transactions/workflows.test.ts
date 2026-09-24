@@ -1,25 +1,25 @@
 import { beforeEach, expect, test, vi } from "vitest";
 
 vi.mock("workflow", () => ({ sleep: vi.fn().mockResolvedValue(undefined) }));
-vi.mock("../workflows/ethereum-steps", () => ({
+vi.mock("../../workflows/ethereum-steps", () => ({
 	loadEthereumFlowStep: vi.fn(), confirmEthereumDepositStep: vi.fn(),
 	checkEthereumEligibilityStep: vi.fn(), prepareEthereumRenewalStep: vi.fn(),
 	broadcastEthereumRenewalStep: vi.fn(), confirmEthereumRenewalStep: vi.fn(),
 }));
-vi.mock("../workflows/cctp-steps", () => ({
+vi.mock("../../workflows/cctp-steps", () => ({
 	loadCctpFlowStep: vi.fn(), confirmCctpDepositStep: vi.fn(), checkCctpEligibilityStep: vi.fn(),
 	prepareCctpOriginStep: vi.fn(), broadcastCctpTransactionStep: vi.fn(),
 	confirmCctpOriginStep: vi.fn(), pollCctpAttestationStep: vi.fn(), simulateCctpClaimStep: vi.fn(),
 	prepareCctpClaimStep: vi.fn(), confirmCctpClaimStep: vi.fn(),
 }));
-vi.mock("../workflows/common-steps", () => ({ recordWorkflowFailureStep: vi.fn() }));
+vi.mock("../../workflows/common-steps", () => ({ recordWorkflowFailureStep: vi.fn() }));
 
 import { sleep } from "workflow";
-import * as ethereum from "../workflows/ethereum-steps";
-import * as cctp from "../workflows/cctp-steps";
-import { recordWorkflowFailureStep } from "../workflows/common-steps";
-import { ethereumRenewal } from "../workflows/ethereum";
-import { cctpRenewal } from "../workflows/cctp-renewal";
+import * as ethereum from "../../workflows/ethereum-steps";
+import * as cctp from "../../workflows/cctp-steps";
+import { recordWorkflowFailureStep } from "../../workflows/common-steps";
+import { ethereumRenewal } from "../../workflows/ethereum";
+import { cctpRenewal } from "../../workflows/cctp-renewal";
 
 const eth = vi.mocked(ethereum);
 const circle = vi.mocked(cctp);

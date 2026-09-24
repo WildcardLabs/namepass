@@ -3,14 +3,14 @@ import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { expect, test, vi } from "vitest";
 const state = vi.hoisted(() => ({ database: vi.fn() }));
-vi.mock("../server/db/client", () => ({ database: state.database }));
-import { ingestGoldskyEvent, postgresGoldskyStore, type GoldskyEvent } from "../server/goldsky";
+vi.mock("../../server/db/client", () => ({ database: state.database }));
+import { ingestGoldskyEvent, postgresGoldskyStore, type GoldskyEvent } from "../../server/goldsky";
 
 test("database expiry projection handles last deletion, same-block order, older deletion, and replay", async () => {
  const pg = new PGlite();
  try {
-  for (const file of readdirSync(new URL("../drizzle/", import.meta.url)).filter(f => f.endsWith(".sql")).sort()) {
-   await pg.exec(readFileSync(new URL(`../drizzle/${file}`, import.meta.url), "utf8"));
+  for (const file of readdirSync(new URL("../../drizzle/", import.meta.url)).filter(f => f.endsWith(".sql")).sort()) {
+   await pg.exec(readFileSync(new URL(`../../drizzle/${file}`, import.meta.url), "utf8"));
   }
   state.database.mockReturnValue(drizzle(pg));
   await pg.exec(`insert into names (id,normalized_label,display_name,label_hash,namehash,deposit_address,ens_synced_at)
@@ -50,8 +50,8 @@ test("database expiry projection handles last deletion, same-block order, older 
 test("gateway expiry facts clear on deletion, preserve newer renewals, and recover on replay", async () => {
  const pg = new PGlite();
  try {
-  for (const file of readdirSync(new URL("../drizzle/", import.meta.url)).filter(f => f.endsWith(".sql")).sort())
-   await pg.exec(readFileSync(new URL(`../drizzle/${file}`, import.meta.url), "utf8"));
+  for (const file of readdirSync(new URL("../../drizzle/", import.meta.url)).filter(f => f.endsWith(".sql")).sort())
+   await pg.exec(readFileSync(new URL(`../../drizzle/${file}`, import.meta.url), "utf8"));
   state.database.mockReturnValue(drizzle(pg));
   await pg.exec(`insert into names (id,normalized_label,display_name,label_hash,namehash,deposit_address,ens_synced_at)
    values ('00000000-0000-0000-0000-000000000001','alice','alice.eth','hash','node','wallet',now());`);

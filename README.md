@@ -4,120 +4,115 @@
 
 # Namepass
 
-Permissionless ENS renewals from deterministic USDC deposit wallets.
+USDC-funded ENS renewals from deterministic deposit wallets.
 
 ![Testnet](https://img.shields.io/badge/environment-testnet-2E466F)
 ![Mainnet disabled](https://img.shields.io/badge/mainnet-disabled-A23B3B)
 ![Not audited](https://img.shields.io/badge/audit-not_audited-E67E22)
 
-[Contracts](#contracts) · [Deployments](docs/DEPLOYMENTS.md) ·
-[Development](CONTRIBUTING.md) · [Architecture](docs/ARCHITECTURE.md)
+[How it works](#how-it-works) · [Contracts and trust](#contracts-and-trust) ·
+[Pricing](#exact-ens-pricing) · [Deployment evidence](docs/DEPLOYMENTS.md)
 
 </div>
 
-> Namepass is testnet-only and has not had an external contract audit. Do not send mainnet
-> funds to the testnet deposit addresses.
+> [!WARNING]
+> Namepass is deployed on testnets only. Its contracts have not had an external audit.
+> Do not send mainnet funds to a testnet deposit address.
 
-Namepass gives each normalized `.eth` name one deterministic deposit wallet across a supported
-deployment set. Anyone can fund that wallet with the configured USDC. The funds buy renewal time
-through ENS's price oracle. The protocol contracts can be used without the Namepass website or
-hosted automation; any executor can derive addresses, start renewals and complete Circle claims.
+Namepass lets anyone fund an ENS name without owning it. Each normalized `.eth` label maps to a
+deterministic deposit wallet within one deployment set. A funder sends the configured USDC to that
+wallet. Any executor can then convert its balance into renewal time at ENS's on-chain price.
+The payment route is permissionless: it does not depend on the Namepass website or its automation.
 
-<img src=".github/assets/hero.png" width="100%" alt="Namepass payment interface" />
-
-The deposit card shows a copyable `<label>.namepass.eth` subdomain, the full deposit address,
-and a QR code that encodes the address.
+The **September 22, 2026 testnet deployment** replaced an earlier factory. Its deposit addresses
+differ from the previous deployment. Derive addresses from the
+[current factory](docs/DEPLOYMENTS.md) before funding them.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-    U[Funder] -->|USDC| W[Deterministic wallet]
+    U[Funder] -->|USDC| W[Name's deposit wallet]
     W --> F[NamepassFactory]
-    F -->|Hub-chain payment| G[Fixed L1 gateway]
+    F -->|Sepolia payment| G[Fixed L1 gateway]
     F -->|Source-chain burn| C[Circle CCTP V2]
     C -->|Attested claim| G
-    P[Timelock-governed pointer] -.->|Selects| H[Immutable ENS helper]
+    P[Governed helper pointer] -.-> H[Immutable ENS helper]
     G --> H
     H --> E[ENS renewal contract]
 ```
 
-1. Normalize the ENS name and derive its wallet. Contract calls use the label, such as `vitalik`,
-   without the `.eth` suffix.
-2. Send the configured USDC to that address on a supported testnet. Arc also accepts native USDC.
-3. Anyone can call the factory to process the wallet balance. Hub-chain payments renew directly.
-   Source-chain payments burn through Circle CCTP V2.
-4. After Circle attests a burn, anyone can submit the message and attestation to
-   `NamepassL1Gateway.completeCCTP` on the hub.
+1. Normalize the ENS name. Call `NamepassFactory.predictWallet(label)` with the label, such as
+   `vitalik`, without `.eth`. CREATE2 derives the same wallet address on each chain in the current
+   deployment set.
+2. Send the configured USDC to that wallet on a supported testnet. Arc Testnet also accepts its
+   native USDC through the wallet.
+3. Anyone can call `NamepassFactory.renew` to process the wallet balance. Ethereum Sepolia payments
+   go directly to the gateway. Payments on the other supported chains burn through Circle CCTP V2.
+4. After Circle attests a burn, anyone can submit its message and attestation to
+   `NamepassL1Gateway.completeCCTP` on Sepolia. The gateway selects the active ENS helper and
+   settles the renewal.
 
-Successful settlement pays the executor a fixed 0.10 USDC allowance. A transfer larger than
-Circle's per-message limit is processed in slices. Balances remain separate on each chain.
+The executor receives a fixed **0.10 USDC allowance** on successful settlement. Circle's actual
+fee, when applicable, also comes from the processed amount. Balances remain separate by chain.
+A payment above Circle's per-message burn limit is processed in slices.
 
-## Contracts
+The deposit wallet is an ERC-1167 proxy derived from the factory. It has no private key to hold or
+recover. The full wallet address is the funding target. Optional `<label>.namepass.eth` resolution
+is separate from payment execution.
 
-| Contract | Responsibility |
+## Contracts and trust
+
+| Contract | Role |
 | --- | --- |
-| [NamepassFactory](contracts/NamepassFactory.sol) | Derive wallets and start direct or cross-chain renewals |
-| [NamepassL1Gateway](contracts/NamepassL1Gateway.sol) | Authenticate funding, complete CCTP claims and settle payments |
-| [RenewalHelperPointer](contracts/RenewalHelperPointer.sol) | Select the active helper through the configured timelock |
-| [ENSV2RenewalHelper](contracts/ENSV2RenewalHelper.sol) | Select the ENS renewal path and calculate exact duration |
-| [NamepassResolver](contracts/NamepassResolver.sol) | Optional ENSIP-10 and CCIP-Read resolution |
-
-The current release supports Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia and Arc Testnet.
-[Deployment records](docs/DEPLOYMENTS.md) contain current addresses, receipts and verification limits.
-
-## Trust model
+| [NamepassFactory](contracts/NamepassFactory.sol) | Derives wallets and starts direct or cross-chain payments |
+| [NamepassL1Gateway](contracts/NamepassL1Gateway.sol) | Authenticates funding, completes CCTP claims, and settles payments |
+| [RenewalHelperPointer](contracts/RenewalHelperPointer.sol) | Selects the active helper through its governance executor |
+| [ENSV2RenewalHelper](contracts/ENSV2RenewalHelper.sol) | Selects the ENS renewal path and calculates exact duration |
+| [NamepassResolver](contracts/NamepassResolver.sol) | Provides optional ENSIP-10 and CCIP-Read resolution |
 
 The factory is not an upgradeable proxy. Its initialized payment route is fixed. The gateway has
-no owner, and each helper has immutable ENS addresses. The pointer's governance executor can
-replace the helper after its timelock requirements are met. That replacement authority is a
-trust assumption; interface validation alone cannot prove the behavior of replacement code.
-The testnet timelock is wallet-controlled, not controlled by the ENS DAO.
+no owner and fixes its payment token, Circle contracts, factory, pointer, and residue recipient at
+construction. Each ENS helper has immutable ENS contract addresses. There is no owner sweep from
+deposit wallets.
 
-The factory owner can change CCTP finality settings. A caller can supply a per-call CCTP fee
-ceiling. Neither control provides an arbitrary payment destination. There is no owner sweep from
-deposit wallets. The gateway can distribute only recorded earned residue to its fixed recipient.
+The pointer's governance executor can activate a new helper after its timelock requirements are
+met. Interface checks cannot prove what future helper code will do. The **testnet timelock is
+wallet-controlled**. Mainnet is designed to use an ENS governance executor, but no mainnet
+deployment has occurred. The factory owner can change CCTP finality settings. A caller supplies a
+fee ceiling for one CCTP call. Neither setting changes the fixed factory payment route.
+Unsupported tokens sent to a wallet can be permanently lost.
 
-Direct renewal is atomic. CCTP mint and renewal are also atomic: a failed renewal reverts the
-claim, leaving the message available for retry. The protocol depends on ENS, USDC, Circle and the
-configured contracts. Unsupported tokens sent to a wallet can be permanently unrecoverable.
+Direct renewal is atomic. A CCTP claim mints and renews in one transaction. If settlement fails,
+the claim reverts and the attested message can be submitted again. The route depends on ENS,
+Circle, USDC, and the configured contracts. See [contract boundaries](docs/CONTRACTS_V2.md) and
+[engineering constraints](docs/ENGINEERING_CONSTRAINTS.md) for the exact rules.
 
-## Pricing
+## Exact ENS pricing
 
-The helper calculates the longest whole-second duration affordable after fees. It reads ENS's
-current oracle, accounts for discount tiers and integer rounding, and checks its inverse quote
-against ENS's forward price before renewal. It then checks the actual USDC charge. A mismatch
-reverts settlement. Both migrated ENS V2 names and premigrated V1 reservations are supported.
+The helper reads the selected ENS renewer's current oracle. It calculates the longest whole-second
+duration that the available USDC can buy after fees. It handles ENS discount tiers and integer
+rounding, checks its inverse quote against ENS's forward quote, and checks the actual token charge.
+A mismatch reverts settlement. The helper supports both migrated ENS V2 names and premigrated V1
+reservations.
 
-The browser mirrors the arithmetic for display, but on-chain checks are authoritative. It does
-not substitute default prices when oracle configuration is unavailable.
+The helper performs these checks on-chain. A displayed estimate does not replace the selected
+ENS contract's price at execution.
 
-<img src=".github/assets/simulator.png" width="100%" alt="Namepass pricing interface" />
+## Current testnet status
 
-## Development
+The September 22 release uses one factory address on Ethereum Sepolia, Base Sepolia, Arbitrum
+Sepolia, and Arc Testnet. The [deployment record](docs/DEPLOYMENTS.md) contains the addresses,
+receipts, source verification, and limits of the available evidence. It records a direct Sepolia
+renewal and native Arc deposit and claim canaries. It does not claim a fresh automated canary on
+every source chain after the reset. The wildcard resolver deployment and parent-record update are
+also unverified in that record. None of this evidence is a security audit.
 
-```sh
-npm ci
-npm run dev
-```
-
-Full-stack configuration, contract dependencies and relevant test commands are in
-[CONTRIBUTING.md](CONTRIBUTING.md). The browser needs a configured API for live application data;
-starting Vite alone does not provision the backend.
-
-## Documentation
-
-| Reference | Scope |
-| --- | --- |
-| [Architecture](docs/ARCHITECTURE.md) | Service boundaries, accounting and execution |
-| [Contracts](docs/CONTRACTS_V2.md) | Contract interfaces, governance and ENS compatibility |
-| [Deployments](docs/DEPLOYMENTS.md) | Current testnet addresses and verification evidence |
-| [Web client](docs/FRONTEND.md) | Browser modules and data presentation |
-| [Operations](docs/RUNBOOK.md) | Service configuration and incident recovery |
-| [Monitoring](docs/MONITORING.md) | Metric definitions and authenticated dashboard |
-| [Design rationale](docs/DECISIONS.md) | Key technical tradeoffs |
-| [Engineering constraints](docs/ENGINEERING_CONSTRAINTS.md) | Payment, pricing and concurrency invariants |
+For the protocol's full contract rules, see [contract design](docs/CONTRACTS_V2.md) and
+[engineering constraints](docs/ENGINEERING_CONSTRAINTS.md). For local setup and tests, see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-A project license has not yet been selected. Third-party notices remain with their respective files.
+A project license has not yet been selected. Third-party notices remain with their respective
+files.

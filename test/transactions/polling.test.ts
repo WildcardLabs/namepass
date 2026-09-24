@@ -12,15 +12,15 @@ const mocks = vi.hoisted(() => ({
 		getTransactionCount: vi.fn(), estimateFeesPerGas: vi.fn(),
 	},
 }));
-vi.mock("../server/db/client", () => ({ database: mocks.database }));
-vi.mock("../server/flow-state", () => ({ setFlowStatus: mocks.setFlowStatus }));
-vi.mock("../server/log", () => ({ logOperation: mocks.logOperation, logWarning: mocks.logWarning }));
+vi.mock("../../server/db/client", () => ({ database: mocks.database }));
+vi.mock("../../server/flow-state", () => ({ setFlowStatus: mocks.setFlowStatus }));
+vi.mock("../../server/log", () => ({ logOperation: mocks.logOperation, logWarning: mocks.logWarning }));
 vi.mock("viem", async (original) => ({
 	...await original<typeof import("viem")>(), createPublicClient: () => mocks.rpc,
 }));
 
-import { HUB_CHAIN } from "../src/lib/chains";
-import { pollTransactionReceipt, requiresReceiptLookup } from "../server/transactions";
+import { HUB_CHAIN } from "../../src/lib/chains";
+import { pollTransactionReceipt, requiresReceiptLookup } from "../../server/transactions";
 
 const hash = `0x${"1".repeat(64)}`;
 const olderHash = `0x${"2".repeat(64)}`;

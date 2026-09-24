@@ -26,7 +26,7 @@ Implementation detail remains in source; this document records constraints that 
 ## Pricing and browser data
 
 - `chains.ts` is the shared registry. `publicApi.ts` is the browser HTTP boundary; `readModel.ts`
-  adapts facts for views. `registry.ts` is legacy demonstration data, not a production source.
+  adapts facts for views.
 - Helper discovery and configuration reads are block-pinned. Unknown helper runtime stops
   pricing. Regenerate its reviewed algorithm fingerprint only for a reviewed contract change.
 - The two ENS renewers must agree on the oracle used by the UI. Validate oracle points. Keep
