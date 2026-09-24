@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ArrowLeft, Check, Copy, ExternalLink, FlaskConical, ShieldAlert } from "lucide-react";
+import { Check, Copy, ExternalLink, FlaskConical, ShieldAlert } from "lucide-react";
+import { BackButton } from "./BackButton";
 import { SUPPORTED_TOKENS, IS_TESTNET } from "../lib/tokens";
 
 /**
@@ -34,13 +35,7 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 	return (
 		<div className="w-full px-5 md:px-10 pt-4 pb-20 md:pb-28">
 			<div className="max-w-[720px] mx-auto">
-				<button
-					onClick={onBack}
-					className="flex items-center gap-2 text-[13px] text-[rgba(28,58,41,0.55)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
-				>
-					<ArrowLeft className="w-4 h-4" />
-					Back to Namepass
-				</button>
+				<BackButton onClick={onBack} label="Back to Namepass" />
 
 				<h1 className="mt-8 text-[32px] md:text-[44px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-tight">
 					Supported networks & USDC

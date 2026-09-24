@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { fetchProfile } from "../lib/ens";
 
 function dicebearUrl(name: string) {
-	return `https://api.dicebear.com/9.x/dylan/svg?seed=${encodeURIComponent(name)}`;
+	return `https://api.dicebear.com/10.x/voxel-bot/svg?tags=animation&seed=${encodeURIComponent(name)}`;
 }
 
 interface Props {
@@ -10,7 +10,7 @@ interface Props {
 	className?: string;
 }
 
-/** ENS avatar via the resolvio profile API, falling back to a deterministic Dicebear avatar. */
+/** ENS avatar via the resolvio profile API, falling back to a deterministic DiceBear voxel-bot avatar. */
 export default function NameAvatar({ name, className = "" }: Props) {
 	const [src, setSrc] = useState(() => dicebearUrl(name));
 

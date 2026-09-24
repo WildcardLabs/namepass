@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { ArrowLeft, ArrowRight, ChevronDown, ExternalLink, Loader2 } from "lucide-react";
+import { BackButton } from "./BackButton";
 import { leaderboardNames, renewalCount, renewalEvent, syncLeaderboard, timeDelivered, type ActivityEvent, type NameRecord } from "../lib/readModel";
 import { getLeaderboard, getNameActivity } from "../lib/publicApi";
 import { explorerUrl, fmtDate, fmtDelivered, fmtDuration, fmtUsdc, fmtYears, truncTx } from "../lib/format";
@@ -228,16 +229,9 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 			/>
 
 			<div className="relative max-w-[900px] mx-auto">
-				<button
-					onClick={onBack}
-					className="flex items-center gap-2 text-[13px] text-[rgba(28,58,41,0.55)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
-				>
-					<ArrowLeft className="w-4 h-4" />
-					Back to Namepass
-				</button>
-
-				<div className="mt-8 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
-					<div>
+				<div>
+					<BackButton onClick={onBack} label="Back to Namepass" className="-translate-x-0.5" />
+					<div className="mt-4">
 						<div className="flex items-center gap-2.5">
 							<span className="relative flex w-2 h-2">
 								<span className="absolute inline-flex w-full h-full rounded-full bg-[rgba(28,58,41,0.35)] animate-ping" />
@@ -247,14 +241,14 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 								Leaderboard · Live
 							</span>
 						</div>
-						<h1 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
+						<h1 className="relative -left-0.5 mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
 							Ranked by impact.
 						</h1>
-						<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] max-w-xl leading-relaxed">
-							Names with completed renewals, ranked by how much runway they earned.
-							Sort by total renewals or by years of registration delivered.
-						</p>
 					</div>
+					<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] max-w-xl leading-relaxed">
+						Names with completed renewals, ranked by how much runway they earned.
+						Sort by total renewals or by years of registration delivered.
+					</p>
 				</div>
 
 				<div className="mt-8">
