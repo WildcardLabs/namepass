@@ -230,8 +230,8 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 
 			<div className="relative max-w-[900px] mx-auto">
 				<div className="mt-8">
-					<BackButton onClick={onBack} label="Back to Namepass" />
-					<div className="mt-4">
+					<BackButton onClick={onBack} label="Back to Namepass" className="-translate-x-0.5" />
+					<div className="mt-2">
 						<div className="flex items-center gap-2.5">
 							<span className="relative flex w-2 h-2">
 								<span className="absolute inline-flex w-full h-full rounded-full bg-[rgba(28,58,41,0.35)] animate-ping" />
@@ -241,7 +241,7 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 								Leaderboard · Live
 							</span>
 						</div>
-						<h1 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
+						<h1 className="relative -left-0.5 mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
 							Ranked by impact.
 						</h1>
 					</div>
