@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { ArrowLeft, ArrowRight, ChevronDown, ExternalLink, Loader2 } from "lucide-react";
+import { BackButton } from "./BackButton";
 import { leaderboardNames, renewalCount, renewalEvent, syncLeaderboard, timeDelivered, type ActivityEvent, type NameRecord } from "../lib/readModel";
 import { getLeaderboard, getNameActivity } from "../lib/publicApi";
 import { explorerUrl, fmtDate, fmtDelivered, fmtDuration, fmtUsdc, fmtYears, truncTx } from "../lib/format";
@@ -228,13 +229,7 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 			/>
 
 			<div className="relative max-w-[900px] mx-auto">
-				<button
-					onClick={onBack}
-					className="flex items-center gap-2 text-[13px] text-[rgba(28,58,41,0.55)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
-				>
-					<ArrowLeft className="w-4 h-4" />
-					Back to Namepass
-				</button>
+				<BackButton onClick={onBack} label="Back to Namepass" />
 
 				<div className="mt-8 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
 					<div>

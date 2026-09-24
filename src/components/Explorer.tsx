@@ -22,11 +22,11 @@ import {
 	Zap,
 	Loader2,
 	ExternalLink,
-	ChevronLeft,
 	ChevronDown,
 	Copy,
 	Check,
 } from "lucide-react";
+import { BackButton, ICON_BUTTON_BASE_CLASS, QUIET_ICON_BUTTON_CLASS } from "./BackButton";
 import {
 	activeFlows,
 	activityEmptyState,
@@ -126,9 +126,7 @@ function DiscountTag({ off }: { off: string | null }) {
 
 const LIVE_FEED_COLUMNS = "lg:grid-cols-[minmax(9rem,1.45fr)_minmax(5.75rem,0.8fr)_minmax(6rem,0.9fr)_minmax(5.5rem,0.85fr)_minmax(5rem,0.7fr)_minmax(6.5rem,1fr)_7rem]";
 const NAME_ACTIVITY_COLUMNS = "lg:grid-cols-[minmax(5.5rem,0.8fr)_minmax(9rem,1.2fr)_minmax(5rem,0.8fr)_minmax(6rem,0.85fr)_minmax(5.5rem,0.8fr)_minmax(5rem,0.7fr)_7rem]";
-const ICON_BUTTON_BASE_CLASS = "shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-[9px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]";
 const SEARCH_ICON_BUTTON_CLASS = `${ICON_BUTTON_BASE_CLASS} bg-[rgba(28,58,41,0.95)] text-white hover:bg-[rgba(28,58,41,1)]`;
-const QUIET_ICON_BUTTON_CLASS = `${ICON_BUTTON_BASE_CLASS} border text-[rgba(28,58,41,0.82)] hover:border-[rgba(28,58,41,0.3)] hover:bg-[rgba(28,58,41,0.04)]`;
 
 /** The exact shared mobile layout for activity rows in both Explorer views. */
 function MobileFlowSummary({
@@ -928,15 +926,11 @@ function NameDetail({
 			transition={{ duration: reducedMotion ? 0 : 0.4, ease: [0.16, 1, 0.3, 1] }}
 		>
 			<div className="flex min-w-0 items-start gap-2.5">
-				<button
-					type="button"
+				<BackButton
 					onClick={onBack}
-					aria-label="Back to Explorer"
-					title="Back to Explorer"
-					className={`${QUIET_ICON_BUTTON_CLASS} relative -top-0.5 border-[rgba(28,58,41,0.16)] bg-white md:top-1`}
-				>
-					<ChevronLeft aria-hidden="true" className="h-[18px] w-[18px]" />
-				</button>
+					label="Back to Explorer"
+					className="relative -top-0.5 md:top-1"
+				/>
 
 				<h3 className="min-w-0 break-words text-[32px] md:text-[44px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-none">
 					{record.name}
