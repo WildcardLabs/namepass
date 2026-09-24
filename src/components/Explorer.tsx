@@ -1124,7 +1124,7 @@ function NameDetail({
 													href={href}
 													target="_blank"
 														rel="noopener noreferrer"
-													className="truncate hover:text-[rgba(28,58,41,0.95)] hover:underline underline-offset-2 transition-colors"
+													className="truncate hover:text-[rgba(28,58,41,0.95)] hover:font-semibold transition-colors"
 												>
 													{label}
 													</a>
