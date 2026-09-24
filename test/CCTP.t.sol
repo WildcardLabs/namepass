@@ -155,13 +155,6 @@ contract CCTPTest is Test {
         );
     }
 
-    /// @dev The layout constants must land on the fields they name.
-    function test_headerAndBodyOffsetsAreCorrect() public view {
-        bytes memory m = _validMessage(27_110_000, 0);
-
-        assertEq(m.length, 148 + 228 + bytes(LABEL).length, "message length is not the layout");
-    }
-
     /*//////////////////////////////////////////////////////////////
                             HAPPY PATH
     //////////////////////////////////////////////////////////////*/

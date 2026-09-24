@@ -13,16 +13,4 @@ describe("RPC budget invariants", () => {
 		]);
 		expect(existsSync(new URL("routes/api/cron/health.ts", root))).toBe(false);
 	});
-
-	test("the inactive-name action does not repeat activation scans", () => {
-		const source = readFileSync(new URL("../components/PendingBalance.tsx", import.meta.url), "utf8");
-		expect(source).not.toMatch(/activateName/);
-		expect(source).toMatch(/triggerFlow/);
-	});
-
-	test("the Ethereum workflow does not run a duplicate renewal simulation step", () => {
-		const source = readFileSync(new URL("../../workflows/ethereum.ts", import.meta.url), "utf8");
-		expect(source).not.toMatch(/simulateEthereumRenewalStep/);
-		expect(source).toMatch(/prepareEthereumRenewalStep/);
-	});
 });

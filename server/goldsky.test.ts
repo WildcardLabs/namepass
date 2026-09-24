@@ -46,30 +46,23 @@ function request(body: string, authorization = secret) {
 }
 
 class MemoryStore implements GoldskyStore, GoldskyTransaction {
-	readonly events = new Map<string, GoldskyEvent>();
-	readonly deposits = new Map<string, { status: "detected" | "orphaned" }>();
-	readonly flows: Array<{
-		id: string;
-		nameId: string;
-		chainId: number;
-		amount: string;
-		depositEventId: string | null;
-		status: "queued" | "cancelled";
-	}> = [];
+	readonly events: GoldskyEvent[] = [];
+	readonly deposits: GoldskyEvent[] = [];
+	readonly flowRequests: Array<{ nameId: string; chainId: number; amount: string; depositEventId: string | null }> = [];
+	readonly cancellations: Array<{ nameId: string; chainId: number; depositEventId: string }> = [];
 	renewalReconciliations = 0;
 	renewalAggregateRefreshes = 0;
 	expiryRefreshes = 0;
 	settlementLocks = 0;
 	lastOperation: "upsert" | "lock" | "reconcile" | undefined;
 	readonly scanMarkers = new Set<string>();
-	readonly absorbedDeposits = new Set<string>();
 
 	async transaction<T>(work: (tx: GoldskyTransaction) => Promise<T>): Promise<T> {
 		return work(this);
 	}
 
 	async upsertEvent(event: GoldskyEvent): Promise<void> {
-		this.events.set(event.eventId, event);
+		this.events.push(event);
 		this.lastOperation = "upsert";
 	}
 
@@ -84,7 +77,7 @@ class MemoryStore implements GoldskyStore, GoldskyTransaction {
 	}
 
 	async upsertDeposit(event: GoldskyEvent): Promise<void> {
-		this.deposits.set(event.eventId, { status: event.gsOp === "c" ? "detected" : "orphaned" });
+		this.deposits.push(event);
 	}
 
 	async reconcileOriginBurn(): Promise<string | undefined> { return "flow-origin"; }
@@ -114,38 +107,12 @@ class MemoryStore implements GoldskyStore, GoldskyTransaction {
 		amount: string,
 		depositEventId: string | null,
 	): Promise<string | undefined> {
-		if (depositEventId && this.absorbedDeposits.has(depositEventId)) return undefined;
-		const linked = depositEventId
-			? this.flows.find((flow) => flow.depositEventId === depositEventId)
-			: undefined;
-		if (linked) {
-			linked.status = "queued";
-			return linked.id;
-		}
-		const existing = this.flows.find(
-			(flow) => flow.nameId === nameId && flow.chainId === chainId && flow.status === "queued",
-		);
-		if (existing) {
-			existing.depositEventId = null;
-			await this.markChainForScan(nameId, chainId);
-			return existing.id;
-		}
-		const id = `flow-${this.flows.length + 1}`;
-		this.flows.push({ id, nameId, chainId, amount, depositEventId, status: "queued" });
-		return id;
+		this.flowRequests.push({ nameId, chainId, amount, depositEventId });
+		return "flow-1";
 	}
 
 	async cancelUnbroadcastFlow(nameId: string, chainId: number, depositEventId: string): Promise<void> {
-		for (const flow of this.flows) {
-			if (
-				flow.nameId === nameId
-				&& flow.chainId === chainId
-				&& flow.depositEventId === depositEventId
-				&& flow.status === "queued"
-			) {
-				flow.status = "cancelled";
-			}
-		}
+		this.cancellations.push({ nameId, chainId, depositEventId });
 	}
 }
 
@@ -156,14 +123,14 @@ test("authentication runs before JSON parsing and body limits", async () => {
 	const unauthorized = await route.fetch(request("not json", "wrong"));
 	assert.equal(unauthorized.status, 401);
 	assert.equal((await unauthorized.json()).error.code, "invalid_webhook_auth");
-	assert.equal(store.events.size, 0);
+	assert.equal(store.events.length, 0);
 
 	const tooLarge = await route.fetch(request(`{"padding":"${"x".repeat(8_192)}"}`));
 	assert.equal(tooLarge.status, 200);
 	assert.equal((await tooLarge.json()).skipped, true);
 });
 
-test("a duplicate create upserts one deposit and one active flow", async () => {
+test("create and insert webhooks reach the same deposit and flow path", async () => {
 	const store = new MemoryStore();
 	const started: string[] = [];
 	const route = goldskyHandler(store, async (flowId) => void started.push(flowId), () => secret);
@@ -173,12 +140,10 @@ test("a duplicate create upserts one deposit and one active flow", async () => {
 		assert.equal(response.status, 200);
 	}
 
-	assert.equal(store.events.size, 1);
-	assert.equal(store.deposits.size, 1);
-	assert.equal(store.flows.length, 1);
-	assert.equal(store.flows[0]?.depositEventId, transfer().event_id);
+	assert.deepEqual(store.events.map((event) => event.gsOp), ["c", "c"]);
+	assert.equal(store.deposits.length, 2);
+	assert.deepEqual(store.flowRequests.map((request) => request.depositEventId), [transfer().event_id, transfer().event_id]);
 	assert.deepEqual(started, ["flow-1", "flow-1"]);
-	assert.equal(store.events.get(transfer().event_id)?.gsOp, "c");
 	assert.throws(
 		() => parseGoldskyEvent({ ...transfer(), _gs_op: "u" }),
 		(error: unknown) => error instanceof ApiError && error.code === "invalid_goldsky_event",
@@ -212,13 +177,13 @@ test("automatic flow creation starts at the configured minimum", async () => {
 	};
 
 	assert.equal((await route.fetch(request(JSON.stringify(below)))).status, 200);
-	assert.equal(store.flows.length, 0);
+	assert.equal(store.flowRequests.length, 0);
 	assert.equal((await route.fetch(request(JSON.stringify(threshold)))).status, 200);
-	assert.equal(store.flows.length, 1);
+	assert.equal(store.flowRequests.length, 1);
 	assert.deepEqual(started, ["flow-1"]);
 });
 
-test("two small deposits start one flow when their wallet balance reaches the minimum", async () => {
+test("two small deposits request a flow when the observed balance reaches the minimum", async () => {
 	const store = new MemoryStore();
 	const started: string[] = [];
 	const balances = ["250000", "500000"];
@@ -242,41 +207,10 @@ test("two small deposits start one flow when their wallet balance reaches the mi
 	};
 
 	assert.equal((await route.fetch(request(JSON.stringify(first)))).status, 200);
-	assert.equal(store.flows.length, 0);
+	assert.equal(store.flowRequests.length, 0);
 	assert.equal((await route.fetch(request(JSON.stringify(second)))).status, 200);
-	assert.equal(store.flows.length, 1);
-	assert.equal(store.flows[0]?.amount, "500000");
-	assert.equal(store.flows[0]?.depositEventId, null);
+	assert.deepEqual(store.flowRequests, [{ nameId: "name-1", chainId: 84532, amount: "500000", depositEventId: null }]);
 	assert.deepEqual(started, ["flow-1"]);
-});
-
-test("a deposit during an active flow leaves a bounded balance-scan marker", async () => {
-	const store = new MemoryStore();
-	const route = goldskyHandler(store, async () => {}, () => secret);
-	const later = {
-		...transfer(),
-		event_id: "84532:later",
-		tx_hash: `0x${"9".repeat(64)}`,
-		log_index: 9,
-	};
-
-	assert.equal((await route.fetch(request(JSON.stringify(transfer())))).status, 200);
-	assert.equal((await route.fetch(request(JSON.stringify(later)))).status, 200);
-	assert.equal(store.flows.length, 1);
-	assert.equal(store.flows[0]?.depositEventId, null);
-	assert.deepEqual([...store.scanMarkers], ["name-1:84532"]);
-});
-
-test("a late deposit that an earlier burn absorbed does not start a ghost flow", async () => {
-	const store = new MemoryStore();
-	store.absorbedDeposits.add(transfer().event_id);
-	const started: string[] = [];
-	const route = goldskyHandler(store, async (flowId) => void started.push(flowId), () => secret);
-
-	assert.equal((await route.fetch(request(JSON.stringify(transfer())))).status, 200);
-	assert.equal(store.deposits.size, 1);
-	assert.equal(store.flows.length, 0);
-	assert.deepEqual(started, []);
 });
 
 test("a failed small-deposit balance read leaves a recovery marker", async () => {
@@ -290,26 +224,25 @@ test("a failed small-deposit balance read leaves a recovery marker", async () =>
 	const small = { ...transfer(), event_id: "84532:small-rpc-failure", amount: "250000" };
 
 	assert.equal((await route.fetch(request(JSON.stringify(small)))).status, 200);
-	assert.equal(store.flows.length, 0);
+	assert.equal(store.flowRequests.length, 0);
 	assert.deepEqual([...store.scanMarkers], ["name-1:84532"]);
 });
 
-test("delete is idempotent and replay resumes the same deposit flow", async () => {
+test("delete webhooks request cancellation and a later create requests a flow", async () => {
 	const store = new MemoryStore();
 	const route = goldskyHandler(store, async () => {}, () => secret);
 
 	assert.equal((await route.fetch(request(JSON.stringify(transfer("c"))))).status, 200);
 	assert.equal((await route.fetch(request(JSON.stringify(transfer("d"))))).status, 200);
 	assert.equal((await route.fetch(request(JSON.stringify(transfer("d"))))).status, 200);
-	assert.equal(store.flows.length, 1);
-	assert.equal(store.flows[0]?.status, "cancelled");
-	assert.equal(store.deposits.get(transfer().event_id)?.status, "orphaned");
+	assert.deepEqual(store.cancellations, [
+		{ nameId: "name-1", chainId: 84532, depositEventId: transfer().event_id },
+		{ nameId: "name-1", chainId: 84532, depositEventId: transfer().event_id },
+	]);
 
 	assert.equal((await route.fetch(request(JSON.stringify(transfer("c"))))).status, 200);
-	assert.equal(store.flows.length, 1);
-	assert.deepEqual(store.flows.map((flow) => flow.status), ["queued"]);
-	assert.equal(store.deposits.get(transfer().event_id)?.status, "detected");
-	assert.equal(store.events.get(transfer().event_id)?.gsOp, "c");
+	assert.deepEqual(store.flowRequests.map((request) => request.depositEventId), [transfer().event_id, transfer().event_id]);
+	assert.deepEqual(store.deposits.map((event) => event.gsOp), ["c", "d", "d", "c"]);
 });
 
 test("a queued flow is not acknowledged when Workflow cannot start", async () => {
@@ -324,7 +257,7 @@ test("a queued flow is not acknowledged when Workflow cannot start", async () =>
 	const response = await route.fetch(request(JSON.stringify(transfer())));
 	assert.equal(response.status, 503);
 	assert.equal((await response.json()).error.code, "workflow_unavailable");
-	assert.equal(store.flows.length, 1);
+	assert.equal(store.flowRequests.length, 1);
 });
 
 test("the receiver skips an invalid event with 200 so it cannot crash the pipeline", async () => {
@@ -340,7 +273,7 @@ test("the receiver skips an invalid event with 200 so it cannot crash the pipeli
 		// whole pipeline. An invalid event is acknowledged (200) and skipped, not ingested.
 		assert.equal(response.status, 200);
 		assert.equal((await response.json()).skipped, true);
-		assert.equal(store.events.size, 0);
+		assert.equal(store.events.length, 0);
 		const warning = JSON.parse(warnings[0] ?? "{}") as Record<string, unknown>;
 		assert.equal(warning.event, "goldsky.rejected_payload");
 		assert.equal(warning.errorCode, "invalid_goldsky_event");
@@ -351,7 +284,7 @@ test("the receiver skips an invalid event with 200 so it cannot crash the pipeli
 		assert.ok(!Number.isNaN(Date.parse(String(warning.receivedAt))));
 
 		assert.equal((await route.fetch(request(JSON.stringify(transfer())))).status, 200);
-		assert.equal(store.events.size, 1);
+		assert.equal(store.events.length, 1);
 	} finally {
 		console.warn = warn;
 	}
@@ -641,9 +574,9 @@ for (const [label, body, code] of [
    assert.equal(evidence.payloadHash, createHash("sha256").update(body.slice(0, 8192)).digest("hex"));
    assert.ok(!warnings[0]!.includes("private payload text"));
    assert.ok(!warnings[0]!.includes(secret));
-   assert.equal(store.events.size, 0);
+   assert.equal(store.events.length, 0);
    assert.equal((await route.fetch(request(JSON.stringify(transfer())))).status, 200);
-   assert.equal(store.events.size, 1);
+   assert.equal(store.events.length, 1);
   } finally { console.warn = previous; }
  });
 }

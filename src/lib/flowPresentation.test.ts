@@ -1,17 +1,9 @@
 import { describe, expect, test } from "vitest";
 
 import { HUB_CHAIN } from "./chains";
-import { ACTIVE_FLOW_STATUSES, flowFailurePresentation, flowPresentation } from "./flowPresentation";
+import { flowFailurePresentation, flowPresentation } from "./flowPresentation";
 
 describe("flow presentation", () => {
-	test("every active backend state has complete feed and detail copy", () => {
-		for (const status of ACTIVE_FLOW_STATUSES) {
-			const presentation = flowPresentation(status, "84532");
-			expect(presentation.feed.length).toBeGreaterThan(0);
-			expect(presentation.detail.length).toBeGreaterThan(0);
-		}
-	});
-
 	test("an Ethereum origin is a renewal and never a burn or transfer", () => {
 		for (const status of ["submitting_origin", "waiting_origin"] as const) {
 			const presentation = flowPresentation(status, String(HUB_CHAIN.chainId));

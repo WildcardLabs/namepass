@@ -18,6 +18,9 @@ releases use the GitHub-connected PR flow: inspect remote main, complete require
 deployment checks, merge when authorized, then verify the deployed commit. A local production
 deploy or alias promotion requires an explicit exception from the user.
 
+Before code work, fetch `origin` and inspect `origin/main`. Bring the feature branch up to date
+with main before editing. Preserve any existing local changes before updating the branch.
+
 Before every push, fetch `origin` and inspect both the feature branch's upstream and
 `origin/main`. Integrate any remote commits that are missing locally, including commits added to
 `main` since the feature branch's base. Resolve conflicts, review the final diff, and rerun relevant
@@ -41,7 +44,6 @@ reading list. Search headings or symbols before opening a large file.
 | Contract design | `docs/CONTRACTS_V2.md` |
 | Deployment or migration | `docs/DEPLOYMENTS.md` and `docs/RUNBOOK.md` |
 | Address history | `docs/DEPLOYMENTS.md` |
-| Rainbow deployment console | `tools/deployment-console/README.md` |
 | Monitoring metrics | `docs/MONITORING.md` |
 | Rationale for a specific past choice | Relevant rationale in `docs/DECISIONS.md` |
 
@@ -72,6 +74,22 @@ These are options by scope, not a checklist for every task. There is no lint scr
 alias. `npm run build` does not compile Solidity. Read-only fork tests require explicit RPC
 configuration. Live canaries are separate from local tests: reuse completed evidence unless a
 changed contract, route or unresolved failure makes it insufficient.
+
+## Test authoring and cleanup
+
+Before adding a test, identify the observable contract, the regression it can catch, and why an
+existing test does not catch it. Use one primary test at the strongest practical boundary. Expected
+results must come from an independent requirement or example, not from the function under test or
+from a mock that implements the asserted behavior. A test must fail for the intended reason when
+that behavior breaks. Do not add a production export or wrapper solely to make a test easy to write.
+
+During cleanup, inspect the full test, production caller, related tests, and change history before
+removing it. Source-text checks, self-comparisons, copied inventories, and tests of stub behavior
+need special review. Keep a source-text check only when the text is the contract and there is no
+practical stronger test. Migration SQL, public configuration, security boundaries, deployed
+contract behavior, and documented regression cases may need such guards. A test mock can verify
+that code calls an interface. It cannot prove the database implementation behind that interface.
+Prefer a smaller suite that protects distinct behavior over a larger count of tests.
 
 ## Essential boundaries
 
