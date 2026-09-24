@@ -230,24 +230,22 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 
 			<div className="relative max-w-[900px] mx-auto">
 				<div className="mt-8">
-					<div className="grid grid-cols-[36px_minmax(0,1fr)] items-center gap-x-3 md:gap-x-4">
-						<BackButton onClick={onBack} label="Back to Namepass" />
-						<div>
-							<div className="flex items-center gap-2.5">
-								<span className="relative flex w-2 h-2">
-									<span className="absolute inline-flex w-full h-full rounded-full bg-[rgba(28,58,41,0.35)] animate-ping" />
-									<span className="relative inline-flex w-2 h-2 rounded-full bg-[rgba(28,58,41,0.8)]" />
-								</span>
-								<span className="text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
-									Leaderboard · Live
-								</span>
-							</div>
-							<h1 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
-								Ranked by impact.
-							</h1>
+					<BackButton onClick={onBack} label="Back to Namepass" />
+					<div className="mt-4">
+						<div className="flex items-center gap-2.5">
+							<span className="relative flex w-2 h-2">
+								<span className="absolute inline-flex w-full h-full rounded-full bg-[rgba(28,58,41,0.35)] animate-ping" />
+								<span className="relative inline-flex w-2 h-2 rounded-full bg-[rgba(28,58,41,0.8)]" />
+							</span>
+							<span className="text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
+								Leaderboard · Live
+							</span>
 						</div>
+						<h1 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
+							Ranked by impact.
+						</h1>
 					</div>
-					<p className="mt-3 ml-[48px] md:ml-[52px] text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] max-w-xl leading-relaxed">
+					<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] max-w-xl leading-relaxed">
 						Names with completed renewals, ranked by how much runway they earned.
 						Sort by total renewals or by years of registration delivered.
 					</p>
