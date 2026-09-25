@@ -26,10 +26,10 @@ export default function Hero({ onExplore, onLeaderboard, priced }: Props) {
 					className="text-4xl sm:text-5xl md:text-6xl lg:text-[80px] font-normal text-[#5E6470] mb-2 tracking-tight leading-[1.05]"
 				>
 					<TextAnimate as="span" by="character" duration={0.55} delay={0.15}>
-						Keep your name
+						Give a name more
 					</TextAnimate>{" "}
 					<TextAnimate as="span" by="character" duration={0.55} delay={1.35} className="text-[#1c3a29]">
-						alive
+						time
 					</TextAnimate>
 				</h1>
 
