@@ -17,7 +17,7 @@ export default function HeroBadge() {
 				<span className="text-[16px] leading-none">
 					🌳
 				</span>
-				<span className="text-[13px] text-[#5E6470] whitespace-nowrap">
+				<span className="text-[13px] text-[#1c3a29] whitespace-nowrap">
 					Built for ENS v2
 				</span>
 			</button>

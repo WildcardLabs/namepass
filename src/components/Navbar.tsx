@@ -12,10 +12,8 @@ interface Props {
 
 /**
  * Header in the original RIVR-template design this project was built on: brand
- * mark left, plain centred text links, one action right. Links use the muted
- * blue-grey (#5E6470) the template reads over the video with, rather than the
- * body navy. The button is squared (10px), not a pill, and has no circled-arrow
- * chrome.
+ * mark left, plain centred text links, one action right. The button is squared
+ * (10px), not a pill, and has no circled-arrow chrome.
  */
 export default function Navbar({
 	onProtocol,
@@ -50,12 +48,12 @@ export default function Navbar({
 			</a>
 
 			{showMenu && (
-				<ul className="hidden md:flex items-center gap-8 text-[#5E6470] font-medium text-[15px]">
+				<ul className="hidden md:flex items-center gap-8 text-[#1c3a29] font-medium text-[15px]">
 					{items.map((item) => (
 						<li key={item.label}>
 							<button
 								onClick={item.action}
-								className="cursor-pointer hover:text-[#3a3f4a] transition-colors"
+								className="cursor-pointer hover:text-[#16301f] transition-colors"
 							>
 								{item.label}
 							</button>
