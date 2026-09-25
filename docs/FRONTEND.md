@@ -41,6 +41,7 @@ After a source-chain burn, an unclaimed payment is not a spendable source-wallet
 Pages share `PageShell` and `Navbar`. Reuse existing visual primitives, tooltips and chain labels.
 On public pages, filled cards and controls have no visible perimeter border. Use borders for
 unfilled controls and internal dividers, and keep keyboard focus indicators visible.
+Small white controls on grey sections use a soft shadow for separation.
 Monitoring is a separately loaded, GitHub-authenticated page built with the existing shadcn
 components. Its snapshot and manual gas-read behavior are defined in [MONITORING.md](MONITORING.md).
 

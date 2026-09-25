@@ -1458,7 +1458,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 					</div>
 
 					<div className="w-full md:w-[340px] shrink-0">
-						<div className="flex items-center gap-2 bg-white rounded-[12px] pl-4 pr-1.5 py-1.5 focus-within:ring-2 focus-within:ring-[rgba(28,58,41,0.3)] transition-shadow">
+						<div className="flex items-center gap-2 bg-white rounded-[12px] pl-4 pr-1.5 py-1.5 shadow-[0_3px_10px_rgba(28,58,41,0.08)] focus-within:ring-2 focus-within:ring-[rgba(28,58,41,0.3)] transition-shadow">
 							<input
 								aria-label="Search an ENS name"
 								value={query}
@@ -1481,7 +1481,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 						</div>
 
 						{suggestions.length > 0 && (
-							<div className="mt-2 rounded-[0.9rem] overflow-hidden bg-white">
+							<div className="mt-2 rounded-[0.9rem] overflow-hidden bg-white shadow-[0_3px_10px_rgba(28,58,41,0.08)]">
 								{suggestions.map((s) => (
 									<button
 										key={s.name}

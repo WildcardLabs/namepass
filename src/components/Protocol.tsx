@@ -35,7 +35,7 @@ export default function Protocol({ onSearch }: Props) {
 						whileHover={{ scale: 1.02 }}
 						whileTap={{ scale: 0.98 }}
 						onClick={onSearch}
-						className="shrink-0 self-start sm:self-auto inline-flex items-center gap-2 rounded-[10px] bg-white px-5 py-2.5 text-[14px] text-[rgba(28,58,41,0.9)] hover:bg-[rgba(28,58,41,0.04)] transition-colors"
+						className="shrink-0 self-start sm:self-auto inline-flex items-center gap-2 rounded-[10px] bg-white px-5 py-2.5 text-[14px] text-[rgba(28,58,41,0.9)] shadow-[0_3px_10px_rgba(28,58,41,0.08)] hover:bg-[rgba(28,58,41,0.04)] transition-colors"
 					>
 						Get Started
 						<ArrowUpRight className="w-4 h-4" />
