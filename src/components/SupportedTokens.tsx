@@ -46,7 +46,7 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 
 				<div className="mt-8 space-y-3">
 					{IS_TESTNET && (
-						<div className="flex items-start gap-2.5 rounded-[1.4rem] border border-[rgba(28,58,41,0.14)] bg-[rgba(28,58,41,0.03)] px-5 py-4">
+						<div className="flex items-start gap-2.5 rounded-[8px] bg-[rgba(28,58,41,0.03)] px-5 py-4">
 							<FlaskConical className="w-4 h-4 shrink-0 mt-0.5 text-[rgba(28,58,41,0.9)]" />
 							<p className="text-[13.5px] text-[rgba(28,58,41,0.75)] leading-relaxed">
 								Testnet only. This USDC has no real value.
@@ -54,7 +54,7 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 						</div>
 					)}
 
-					<div className="flex items-start gap-2.5 rounded-[1.4rem] border border-[rgba(28,58,41,0.14)] bg-[rgba(28,58,41,0.03)] px-5 py-4">
+					<div className="flex items-start gap-2.5 rounded-[8px] bg-[rgba(28,58,41,0.03)] px-5 py-4">
 						<ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-[rgba(28,58,41,0.9)]" />
 						<p className="text-[13.5px] text-[rgba(28,58,41,0.75)] leading-relaxed">
 							Anything else sent to a deposit address cannot be recovered. There is no
@@ -115,7 +115,7 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 							    address-swap attack changes. */}
 							<button
 								onClick={() => copy(t.address)}
-								className="mt-3 w-full text-left rounded-[1.1rem] border border-[rgba(28,58,41,0.1)] bg-[rgba(28,58,41,0.03)] hover:border-[rgba(28,58,41,0.25)] px-3.5 py-2.5 transition-colors group"
+								className="mt-3 w-full text-left rounded-[8px] bg-[rgba(28,58,41,0.03)] hover:bg-[rgba(28,58,41,0.06)] px-3.5 py-2.5 transition-colors group"
 							>
 								<div className="flex items-start justify-between gap-3">
 									<span className="text-[12.5px] leading-snug text-[rgba(28,58,41,0.95)] font-mono break-all">

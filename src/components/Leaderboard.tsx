@@ -23,7 +23,7 @@ function Toggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void })
 		<div
 			role="group"
 			aria-label="Rank names by"
-			className="inline-flex items-center gap-1 rounded-[10px] border border-[rgba(28,58,41,0.12)] bg-[rgba(28,58,41,0.04)] p-1"
+			className="inline-flex items-center gap-1 rounded-[10px] bg-[rgba(28,58,41,0.04)] p-1"
 		>
 			{OPTIONS.map((o) => (
 				<button
@@ -286,11 +286,7 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 
 									<NameAvatar
 										name={r.name}
-										className={`shrink-0 w-9 h-9 rounded-[10px] bg-[rgba(28,58,41,0.05)] object-cover ${
-											rank === 1
-												? "border-2 border-[rgba(28,58,41,0.6)]"
-												: "border border-[rgba(28,58,41,0.1)]"
-										}`}
+										className="shrink-0 w-9 h-9 rounded-[10px] bg-[rgba(28,58,41,0.05)] object-cover"
 									/>
 
 									<div className="min-w-0 flex-1">
@@ -334,7 +330,7 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 												<LatestTransactions state={recent[r.name]} />
 												<button
 													onClick={() => onViewName(r.name)}
-													className="mt-3 w-full flex items-center justify-center gap-2 rounded-[10px] border border-[rgba(28,58,41,0.1)] bg-white py-3 text-[13.5px] text-[rgba(28,58,41,0.8)] hover:border-[rgba(28,58,41,0.25)] transition-colors"
+													className="mt-3 w-full flex items-center justify-center gap-2 rounded-[10px] bg-white py-3 text-[13.5px] text-[rgba(28,58,41,0.8)] hover:bg-white/80 transition-colors"
 												>
 													View {r.name} profile
 													<ArrowRight className="w-3.5 h-3.5" />

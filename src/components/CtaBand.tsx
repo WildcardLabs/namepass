@@ -148,7 +148,7 @@ export default function CtaBand({ onSearch, onSimulate }: Props) {
 						{/* Right: liquid glass */}
 						<button
 							onClick={onSimulate}
-							className="inline-flex items-center rounded-[10px] bg-white/10 backdrop-blur-md border border-white/25 text-white px-5 py-3 text-[15px] shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] hover:bg-white/20 transition-colors"
+							className="inline-flex items-center rounded-[10px] bg-white/10 backdrop-blur-md text-white px-5 py-3 text-[15px] hover:bg-white/20 transition-colors"
 						>
 							Explore pricing
 						</button>

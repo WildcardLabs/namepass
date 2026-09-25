@@ -311,7 +311,7 @@ function ChainRow({
 				<button
 					type="button"
 					onClick={onTrigger}
-					className="shrink-0 rounded-[10px] border border-[rgba(28,58,41,0.25)] px-3 py-1 text-[12px] text-[rgba(28,58,41,0.8)] hover:bg-[rgba(28,58,41,0.05)] transition-colors"
+					className="shrink-0 rounded-[10px] border border-[rgba(28,58,41,0.25)] px-3 py-1 text-[12px] text-[rgba(28,58,41,0.8)] hover:border-transparent hover:bg-[rgba(28,58,41,0.05)] transition-colors"
 				>
 					{actionLabel}
 				</button>

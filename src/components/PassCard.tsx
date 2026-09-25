@@ -96,11 +96,11 @@ export default function PassCard({
 
 	const glass = surface === "glass";
 	const cardBg = glass
-		? "bg-white/45 border-white/50"
-		: "bg-white border-[rgba(28,58,41,0.1)]";
+		? "bg-white/45"
+		: "bg-white border border-[rgba(28,58,41,0.1)]";
 	const fieldBg = glass
-		? "bg-white/50 border-white/60 hover:bg-white/70"
-		: "bg-[rgba(28,58,41,0.03)] border-[rgba(28,58,41,0.1)] hover:border-[rgba(28,58,41,0.25)]";
+		? "bg-white/50 hover:bg-white/70"
+		: "bg-[rgba(28,58,41,0.03)] hover:bg-[rgba(28,58,41,0.06)]";
 
 	const size = matrix?.length ?? 0;
 	/* Draw at unit scale in a 0..size viewBox — crisp at any rendered size. */
@@ -108,16 +108,14 @@ export default function PassCard({
 	const split = layout === "split";
 
 	return (
-		<div className={`rounded-[1.4rem] border ${cardBg} p-5 md:p-6`}>
+		<div className={`rounded-[1.4rem] ${cardBg} p-5 md:p-6`}>
 			<div className={split ? "sm:flex sm:items-start sm:gap-6" : ""}>
 			<div className={split ? "sm:w-[200px] sm:shrink-0" : ""}>
 			{/* QR */}
 			<div className="flex justify-center">
 				<div className="relative">
 					<div
-						className={`rounded-[1.4rem] p-4 ${glass ? "bg-white/80" : "bg-white"} border ${
-							glass ? "border-white/60" : "border-[rgba(28,58,41,0.08)]"
-						}`}
+						className={`rounded-[1.4rem] p-4 ${glass ? "bg-white/80" : "bg-white border border-[rgba(28,58,41,0.08)]"}`}
 					>
 						{matrix ? (
 							<svg
@@ -177,7 +175,7 @@ export default function PassCard({
 			<div className={split ? "sm:flex-1 sm:min-w-0" : ""}>
 			<button
 				onClick={() => copy(subdomain)}
-				className={`${split ? "mt-5 sm:mt-0" : "mt-5"} w-full text-left rounded-[8px] border px-4 py-3 group ${fieldBg}`}
+				className={`${split ? "mt-5 sm:mt-0" : "mt-5"} w-full text-left rounded-[8px] px-4 py-3 group ${fieldBg}`}
 				aria-label={`Copy ${subdomain}`}
 			>
 				<span className="block text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">Namepass</span>
@@ -191,7 +189,7 @@ export default function PassCard({
 			</button>
 			<button
 				onClick={() => copy(address)}
-				className={`mt-3 w-full text-left rounded-[8px] border px-4 py-3 transition-colors group ${fieldBg}`}
+				className={`mt-3 w-full text-left rounded-[8px] px-4 py-3 transition-colors group ${fieldBg}`}
 			>
 				<div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
 					<InfinityIcon className="w-3 h-3" />
@@ -222,8 +220,8 @@ export default function PassCard({
 
 			{/* What this address accepts — the question every sender has. */}
 			<div
-				className={`mt-5 rounded-[8px] border px-4 py-3.5 ${
-					glass ? "bg-white/35 border-white/50" : "bg-[rgba(28,58,41,0.025)] border-[rgba(28,58,41,0.08)]"
+				className={`mt-5 rounded-[8px] px-4 py-3.5 ${
+					glass ? "bg-white/35" : "bg-[rgba(28,58,41,0.025)]"
 				}`}
 			>
 				<div className="flex items-center justify-center gap-2">

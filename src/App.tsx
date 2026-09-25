@@ -310,6 +310,7 @@ function ActiveApp() {
 				onExplore={goExplorer}
 				onSimulate={goSimulate}
 				onLeaderboard={goLeaderboard}
+				onSupported={goSupported}
 				onTerms={goTerms}
 				onPrivacy={goPrivacy}
 			/>

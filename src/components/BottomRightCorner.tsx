@@ -48,7 +48,7 @@ export default function BottomRightCorner({ onOpen }: { onOpen: () => void }) {
 			<button
 				onClick={onOpen}
 				aria-label="Open Explorer"
-				className="bg-[rgba(28,58,41,0.05)] w-10 h-10 md:w-14 md:h-14 rounded-[14px] flex items-center justify-center border border-[rgba(28,58,41,0.1)] hover:bg-[rgba(28,58,41,0.1)] transition-colors"
+				className="bg-[rgba(28,58,41,0.05)] w-10 h-10 md:w-14 md:h-14 rounded-[14px] flex items-center justify-center hover:bg-[rgba(28,58,41,0.1)] transition-colors"
 			>
 				<Activity className="w-5 h-5 md:w-6 md:h-6 text-[rgba(28,58,41,0.8)]" />
 			</button>

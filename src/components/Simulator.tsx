@@ -76,7 +76,7 @@ export default function Simulator({
 					</p>
 				</div>
 
-				<div className="mt-10 bg-white rounded-[1.5rem] md:rounded-[2rem] border border-[rgba(28,58,41,0.08)] overflow-hidden">
+				<div className="mt-10 bg-white rounded-[1.5rem] md:rounded-[2rem] overflow-hidden">
 					{priced ? (
 						<SimulatorBody />
 					) : problem ? (
@@ -297,7 +297,7 @@ function SimulatorBody() {
 											aria-pressed={on}
 											className={`relative rounded-[8px] border px-1.5 py-4 text-center transition-colors ${
 												on
-													? "border-[rgba(28,58,41,0.5)] bg-[rgba(28,58,41,0.06)]"
+													? "border-transparent bg-[rgba(28,58,41,0.06)]"
 													: "border-[rgba(28,58,41,0.12)] hover:border-[rgba(28,58,41,0.3)] hover:bg-[rgba(28,58,41,0.02)]"
 											}`}
 										>
@@ -308,9 +308,8 @@ function SimulatorBody() {
 												<span
 													/* Fixed height + flex centring rather than vertical
 													   padding: `leading-none` leaves the glyphs sitting
-													   off-centre, and a border in *both* states — dropping
-													   it when selected made the badge 2px shorter the
-													   moment it lit up.
+													   off-centre. A transparent border in the filled
+													   state keeps the badge the same height.
 
 													   `pb-px` is optical, not arithmetic: this font's
 													   inline box is lopsided (ascent 11, descent 3 at
@@ -321,7 +320,7 @@ function SimulatorBody() {
 													   no better. */
 													className={`absolute -top-[9px] right-1 inline-flex h-[18px] items-center justify-center rounded-[4px] border px-1.5 pb-px text-[10px] leading-none tabular-nums transition-colors ${
 														on
-															? "border-[rgba(28,58,41,0.92)] bg-[rgba(28,58,41,0.92)] text-white"
+															? "border-transparent bg-[rgba(28,58,41,0.92)] text-white"
 															: "border-[rgba(28,58,41,0.12)] bg-white text-[rgba(28,58,41,0.5)]"
 													}`}
 												>
@@ -369,7 +368,7 @@ function SimulatorBody() {
 									>
 										<button
 											onClick={() => setBudget(ceilToCent(hint.payable + ALLOWANCE))}
-											className="mt-4 w-full text-left rounded-[8px] border border-[rgba(28,58,41,0.2)] bg-[rgba(28,58,41,0.04)] px-4 py-3 hover:bg-[rgba(28,58,41,0.07)] transition-colors group"
+											className="mt-4 w-full text-left rounded-[8px] bg-[rgba(28,58,41,0.04)] px-4 py-3 hover:bg-[rgba(28,58,41,0.07)] transition-colors group"
 										>
 											<div className="flex items-start gap-2.5">
 												<TrendingUp className="w-4 h-4 mt-0.5 shrink-0 text-[rgba(28,58,41,0.7)]" />
