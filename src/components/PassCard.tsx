@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, Check, Copy, Infinity as InfinityIcon } from "lucide-react";
 import { normalizeLabel } from "../lib/namepass";
 import { encodeQR } from "../lib/qr";
@@ -30,6 +30,9 @@ interface Props {
    Deliberately one-shot — a QR that keeps moving is a QR nobody can scan. */
 const WAVE_MS = 420;
 const MODULE_MS = 140;
+const NAME_FONT_SIZE = 15;
+const ADDRESS_FONT_SIZE = 12.5;
+const useBrowserLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export default function PassCard({
 	name,
@@ -41,6 +44,38 @@ export default function PassCard({
 }: Props) {
 	const [copied, setCopied] = useState<string | null>(null);
 	const subdomain = `${normalizeLabel(name)}.namepass.eth`;
+	const [valueScale, setValueScale] = useState(1);
+	const nameSpaceRef = useRef<HTMLSpanElement>(null);
+	const addressSpaceRef = useRef<HTMLSpanElement>(null);
+	const nameMeasureRef = useRef<HTMLSpanElement>(null);
+	const addressMeasureRef = useRef<HTMLSpanElement>(null);
+
+	useBrowserLayoutEffect(() => {
+		const nameSpace = nameSpaceRef.current;
+		const addressSpace = addressSpaceRef.current;
+		const nameMeasure = nameMeasureRef.current;
+		const addressMeasure = addressMeasureRef.current;
+		if (!nameSpace || !addressSpace || !nameMeasure || !addressMeasure) return;
+
+		let active = true;
+		const fitValues = () => {
+			const nameWidth = nameMeasure.getBoundingClientRect().width;
+			const addressWidth = addressMeasure.getBoundingClientRect().width;
+			const nameSpaceWidth = nameSpace.clientWidth;
+			const addressSpaceWidth = addressSpace.clientWidth;
+			if (!nameWidth || !addressWidth || !nameSpaceWidth || !addressSpaceWidth) return;
+			// Use the tighter field to set one scale for both values. The small
+			// margin covers fractional pixel rounding on narrow mobile screens.
+			setValueScale(Math.min(1, nameSpaceWidth / nameWidth * 0.99, addressSpaceWidth / addressWidth * 0.99));
+		};
+
+		fitValues();
+		const observer = new ResizeObserver(fitValues);
+		observer.observe(nameSpace);
+		observer.observe(addressSpace);
+		document.fonts?.ready.then(() => { if (active) fitValues(); });
+		return () => { active = false; observer.disconnect(); };
+	}, [subdomain, address]);
 
 	const matrix = useMemo(() => {
 		try {
@@ -146,8 +181,11 @@ export default function PassCard({
 				aria-label={`Copy ${subdomain}`}
 			>
 				<span className="block text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">Namepass</span>
-				<span className="mt-1 flex items-center justify-between gap-3 text-[15px] text-[rgba(28,58,41,0.95)]">
-					<span className="min-w-0 break-all">{subdomain}</span>
+				<span className="mt-1 flex items-center gap-3 text-[rgba(28,58,41,0.95)]">
+					<span ref={nameSpaceRef} className="relative min-w-0 flex-1 whitespace-nowrap">
+						<span style={{ fontSize: NAME_FONT_SIZE * valueScale }}>{subdomain}</span>
+						<span ref={nameMeasureRef} aria-hidden="true" className="pointer-events-none invisible absolute left-0 top-0 w-max text-[15px]">{subdomain}</span>
+					</span>
 					{copied === subdomain ? <Check aria-label="Copied" className="w-4 h-4 shrink-0" /> : <Copy className="w-4 h-4 shrink-0" />}
 				</span>
 			</button>
@@ -159,14 +197,15 @@ export default function PassCard({
 					<InfinityIcon className="w-3 h-3" />
 					Deposit address · any supported chain
 				</div>
-				<div className="mt-1 flex items-center justify-between gap-3">
-					<span className="min-w-0 text-[12.5px] leading-snug text-[rgba(28,58,41,0.95)] font-mono break-all">
-						{address}
+				<div className="mt-1 flex items-center gap-3">
+					<span ref={addressSpaceRef} className="relative min-w-0 flex-1 whitespace-nowrap leading-snug text-[rgba(28,58,41,0.95)] font-mono">
+						<span style={{ fontSize: ADDRESS_FONT_SIZE * valueScale }}>{address}</span>
+						<span ref={addressMeasureRef} aria-hidden="true" className="pointer-events-none invisible absolute left-0 top-0 w-max text-[12.5px]">{address}</span>
 					</span>
 					{copied === address ? (
-						<span className="flex items-center gap-1.5 shrink-0 text-[12px] text-[rgba(28,58,41,0.8)]">
-							<Check className="w-3.5 h-3.5" />
-							Copied
+						<span className="shrink-0 text-[rgba(28,58,41,0.8)]">
+							<Check className="w-4 h-4" />
+							<span className="sr-only" role="status">Copied</span>
 						</span>
 					) : (
 						<Copy className="w-4 h-4 shrink-0 text-[rgba(28,58,41,0.35)] group-hover:text-[rgba(28,58,41,0.75)] transition-colors" />
