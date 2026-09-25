@@ -60,7 +60,7 @@ export const ACTIVE_ENVIRONMENT: ChainEnvironment = "testnet";
 
 /**
  * This remains false until the Phase 8 gate is complete. A mainnet change must
- * update this value, the three deployment rows, and the canary evidence in one
+ * update this value, the four deployment rows, and the canary evidence in one
  * reviewed change.
  */
 export const MAINNET_LAUNCH_APPROVED = false;
@@ -253,6 +253,34 @@ export const CHAIN_REGISTRY: readonly ChainDefinition[] = [
 			receiptMs: 5_000,
 			transactionReplacementMs: 3 * 60_000,
 			attestation: { initialMs: 30_000, maxMs: 120_000 },
+		},
+	},
+	{
+		key: "arc",
+		name: "Arc",
+		network: "Arc",
+		chainId: 5042,
+		environment: "mainnet",
+		status: "planned",
+		logo: "arc.svg",
+		tagColor: "#1B3158",
+		tagPingDelayMs: 1200,
+		tokenOrder: 3,
+		fundingOrder: 2,
+		goldskyPrefix: "arc",
+		usdcAddress: "0x3600000000000000000000000000000000000000",
+		tokenNote:
+			"USDC is Arc's gas token, so it lives at a system address rather than a deployed contract.",
+		tokenMessengerAddress: MAINNET_TOKEN_MESSENGER,
+		messageTransmitterAddress: MAINNET_MESSAGE_TRANSMITTER,
+		circleDomain: 26,
+		circleFinalityThreshold: 2000,
+		explorerUrl: "https://explorer.arc.io",
+		rpcEnv: "ARC_RPC_URL",
+		polling: {
+			receiptMs: 5_000,
+			transactionReplacementMs: 3 * 60_000,
+			attestation: { initialMs: 5_000, maxMs: 30_000 },
 		},
 	},
 ];

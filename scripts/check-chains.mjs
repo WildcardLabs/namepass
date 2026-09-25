@@ -25,7 +25,7 @@ if (
 	STABLE_TESTNET_CHAINS.map((chain) => chain.key).join(",") !==
 		"base,arbitrum,ethereum,arc" ||
 	INITIAL_MAINNET_CHAINS.map((chain) => chain.key).join(",") !==
-		"ethereum,base,arbitrum" ||
+		"ethereum,base,arbitrum,arc" ||
 	!STABLE_TESTNET_CHAINS.every((chain) => chain.status === "active") ||
 	!INITIAL_MAINNET_CHAINS.every((chain) => chain.status === "planned")
 ) {
@@ -51,6 +51,13 @@ const mainnetCircle = {
 		chainId: 42161,
 		usdcAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
 		circleDomain: 3,
+		tokenMessengerAddress: "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+		messageTransmitterAddress: "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+	},
+	arc: {
+		chainId: 5042,
+		usdcAddress: "0x3600000000000000000000000000000000000000",
+		circleDomain: 26,
 		tokenMessengerAddress: "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
 		messageTransmitterAddress: "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
 	},

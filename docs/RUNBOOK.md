@@ -175,9 +175,13 @@ curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://<stable-domain>/api/cr
 ## Mainnet release requirements
 
 Do not change `ACTIVE_ENVIRONMENT` or `MAINNET_LAUNCH_APPROVED` until every item in this section
-has recorded evidence. The current registry is deliberately testnet-only. Ethereum, Base, and
-Arbitrum mainnet rows contain only Circle public data. They do not contain a Namepass factory,
-helper, or ENS deployment. Arc has no mainnet row and is excluded from this launch.
+has recorded evidence. The active chains are deliberately testnet-only. Ethereum, Base, Arbitrum,
+and Arc mainnet rows contain only public chain and Circle data. They do not contain a Namepass
+factory, helper, or ENS deployment. All four chains are in scope for the initial mainnet release.
+Arc mainnet uses chain ID 5042 and native USDC, with its ERC-20 interface at
+`0x3600000000000000000000000000000000000000`; verify the production integration against the
+[Arc network details](https://docs.arc.io/arc/references/connect-to-arc) and
+[contract addresses](https://docs.arc.io/arc/references/contract-addresses) before deployment.
 
 Before the reviewed public-configuration change:
 
@@ -190,15 +194,15 @@ Before the reviewed public-configuration change:
 6. Run one low-value canary on each launch chain.
 7. Attach the evidence below to the release PR before one reviewed change activates mainnet.
 
-| Canary evidence | Ethereum | Base | Arbitrum |
-|---|---|---|---|
-| Deposit | Deposit address, sender transaction, final block | Deposit address, sender transaction, final block | Deposit address, sender transaction, final block |
-| Flow | API flow ID and canonical Goldsky event ID | API flow ID and canonical Goldsky event ID | API flow ID and canonical Goldsky event ID |
-| Circle | Not applicable | Burn, Iris attestation, and Ethereum claim | Burn, Iris attestation, and Ethereum claim |
-| Settlement | `DepositProcessed` and `Renewed` receipt logs | Ethereum claim `CCTPClaimed` and `Renewed` receipt logs | Ethereum claim `CCTPClaimed` and `Renewed` receipt logs |
-| ENS | Exact name expiry before and after renewal | Exact name expiry before and after renewal | Exact name expiry before and after renewal |
-| API | Name, activity, flow, and stats responses match receipts | Name, activity, flow, and stats responses match receipts | Name, activity, flow, and stats responses match receipts |
-| Frontend | The public screen shows the same chain, amount, state, and transactions | The public screen shows the same chain, amount, state, and transactions | The public screen shows the same chain, amount, state, and transactions |
+| Canary evidence | Ethereum | Base | Arbitrum | Arc |
+|---|---|---|---|---|
+| Deposit | Deposit address, sender transaction, final block | Deposit address, sender transaction, final block | Deposit address, sender transaction, final block | Deposit address, native USDC sender transaction, final block |
+| Flow | API flow ID and canonical Goldsky event ID | API flow ID and canonical Goldsky event ID | API flow ID and canonical Goldsky event ID | API flow ID and canonical Goldsky event ID |
+| Circle | Not applicable | Burn, Iris attestation, and Ethereum claim | Burn, Iris attestation, and Ethereum claim | Burn, Iris attestation, and Ethereum claim |
+| Settlement | `DepositProcessed` and `Renewed` receipt logs | Ethereum claim `CCTPClaimed` and `Renewed` receipt logs | Ethereum claim `CCTPClaimed` and `Renewed` receipt logs | Ethereum claim `CCTPClaimed` and `Renewed` receipt logs |
+| ENS | Exact name expiry before and after renewal | Exact name expiry before and after renewal | Exact name expiry before and after renewal | Exact name expiry before and after renewal |
+| API | Name, activity, flow, and stats responses match receipts | Name, activity, flow, and stats responses match receipts | Name, activity, flow, and stats responses match receipts | Name, activity, flow, and stats responses match receipts |
+| Frontend | The public screen shows the same chain, amount, state, and transactions | The public screen shows the same chain, amount, state, and transactions | The public screen shows the same chain, amount, state, and transactions | The public screen shows the same chain, amount, state, and transactions |
 
 Store the evidence in the release PR or its linked private operator record. Do not store secrets in
 the repository. Re-run `node scripts/check-chains.mjs` after the reviewed change. That check must

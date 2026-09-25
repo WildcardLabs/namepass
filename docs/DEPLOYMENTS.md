@@ -50,7 +50,8 @@ transaction receipts. The configured testing use case resolves to testnet deposi
 though the parent ENS record is on Ethereum mainnet. That does not enable mainnet USDC funding or
 mainnet renewal contracts.
 
-No audited mainnet protocol release is recorded. Mainnet requirements are in
+No audited mainnet protocol release is recorded. Ethereum, Base, Arbitrum, and Arc are planned for
+the initial mainnet release; none has a recorded Namepass mainnet deployment. Requirements are in
 [RUNBOOK.md](RUNBOOK.md#mainnet-release-requirements).
 
 ## Historical evidence
