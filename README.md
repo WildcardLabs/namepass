@@ -71,6 +71,24 @@ is separate from payment execution.
 | [ENSV2RenewalHelper](contracts/ENSV2RenewalHelper.sol) | Selects the ENS renewal path and calculates exact duration |
 | [NamepassResolver](contracts/NamepassResolver.sol) | Provides optional ENSIP-10 and CCIP-Read resolution |
 
+### Verified testnet deployments
+
+Sourcify shows matching deployed bytecode and source for the current September 22 contracts:
+
+| Contract | Network | Verified source |
+| --- | --- | --- |
+| NamepassFactory | Ethereum Sepolia | [Sourcify](https://repo.sourcify.dev/11155111/0x2dCB5CA6b21372b43e37C35Da8D5D15160423150) |
+| NamepassFactory | Base Sepolia | [Sourcify](https://repo.sourcify.dev/84532/0x2dCB5CA6b21372b43e37C35Da8D5D15160423150) |
+| NamepassFactory | Arbitrum Sepolia | [Sourcify](https://repo.sourcify.dev/421614/0x2dCB5CA6b21372b43e37C35Da8D5D15160423150) |
+| NamepassFactory | Arc Testnet | [Sourcify](https://repo.sourcify.dev/5042002/0x2dCB5CA6b21372b43e37C35Da8D5D15160423150) |
+| NamepassL1Gateway | Ethereum Sepolia | [Sourcify](https://repo.sourcify.dev/11155111/0x39351C9f9eAb6093eFB4e865a6330ECd2a756F0f) |
+| RenewalHelperPointer | Ethereum Sepolia | [Sourcify](https://repo.sourcify.dev/11155111/0x774f942194d612e126A05Ce40a3A4D88AfBB6ae6) |
+| ENSV2RenewalHelper | Ethereum Sepolia | [Sourcify](https://repo.sourcify.dev/11155111/0x7Bfee7c257ff48f8D787A61F15925e24743C8F88) |
+
+These links show source matches, not a security audit. The current release record does not include
+a verified NamepassResolver deployment. See the [source-verification record](docs/deployments/2026-09-22/source-verification.json)
+for the underlying checks.
+
 The factory is not an upgradeable proxy. Its initialized payment route is fixed. The gateway has
 no owner and fixes its payment token, Circle contracts, factory, pointer, and residue recipient at
 construction. Each ENS helper has immutable ENS contract addresses. There is no owner sweep from

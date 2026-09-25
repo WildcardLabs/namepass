@@ -238,7 +238,7 @@ function ActiveApp() {
 
 						{/* What the protocol actually is — four real properties, in the
 						    RIVR template's bento. Static copy, so it never waits on pricing. */}
-						<Protocol onSearch={focusSearch} />
+						<Protocol />
 
 						{/* Renders its own frame either way — heading, card, tabs — with
 						    skeletons standing in for the two panels that quote a price.

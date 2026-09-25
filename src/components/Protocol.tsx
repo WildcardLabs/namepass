@@ -1,10 +1,6 @@
 import { motion } from "motion/react";
-import { ArrowUpRight } from "lucide-react";
+import { Github } from "lucide-react";
 import { AnimatedBeamDemo } from "./AnimatedBeamDemo";
-
-interface Props {
-	onSearch: () => void;
-}
 
 /* The RIVR template's "Architected for high-performance DeFi" bento, repurposed
    as the four things that actually make Namepass work. Each card is one real
@@ -16,7 +12,7 @@ const TAG =
 const CARD =
 	"rounded-[1.25rem] bg-white p-6 md:p-7";
 
-export default function Protocol({ onSearch }: Props) {
+export default function Protocol() {
 	return (
 		<section id="protocol" className="bg-[#f0f0f0] px-5 md:px-10 py-14 md:py-20">
 			<div className="max-w-[1100px] mx-auto">
@@ -27,18 +23,20 @@ export default function Protocol({ onSearch }: Props) {
 							The protocol behind ENS renewals.
 						</h2>
 						<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] leading-relaxed">
-							Immutable Namepass contracts derive a deterministic USDC deposit address for every name and
+							Namepass contracts derive a deterministic USDC deposit address for every name and
 							execute renewals at ENS's on-chain rates.
 						</p>
 					</div>
-					<motion.button
+					<motion.a
 						whileTap={{ scale: 0.98 }}
-						onClick={onSearch}
-						className="group shrink-0 self-start sm:self-auto inline-flex items-center gap-2 rounded-[10px] bg-white px-5 py-2.5 text-[14px] text-[rgba(28,58,41,0.9)] shadow-[0_3px_10px_rgba(28,58,41,0.08)]"
+						href="https://github.com/stevegachau/namepass-v2"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="group shrink-0 self-start sm:self-auto inline-flex items-center gap-2 rounded-[10px] bg-white px-5 py-2.5 text-[14px] text-[rgba(28,58,41,0.9)] shadow-[0_3px_10px_rgba(28,58,41,0.08)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 					>
-						Get Started
-						<ArrowUpRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-					</motion.button>
+						<Github aria-hidden="true" className="w-4 h-4 transition-transform duration-200 group-hover:-translate-y-0.5" />
+						View source
+					</motion.a>
 				</div>
 
 				{/* Bento: tall card left, one wide + two half cards right */}

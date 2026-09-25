@@ -1,3 +1,4 @@
+import { Github } from "lucide-react";
 import { XIcon } from "./icons";
 
 interface Props {
@@ -42,17 +43,28 @@ export default function Footer({
 							className="h-4 w-auto"
 						/>
 						<p className="mt-3 text-[13px] text-[rgba(28,58,41,0.55)] leading-relaxed">
-							Immutable Namepass contracts derive a deterministic USDC deposit address for every name and execute renewals at ENS's on-chain rates.
+							Namepass contracts derive a deterministic USDC deposit address for every name and execute renewals at ENS's on-chain rates.
 						</p>
-						<a
-							href="https://x.com/namepass_eth"
-							target="_blank"
-							rel="noopener noreferrer"
-							aria-label="Namepass on X"
-							className="mt-5 inline-flex items-center justify-center w-9 h-9 rounded-[10px] border border-[rgba(28,58,41,0.12)] text-[rgba(28,58,41,0.7)] hover:text-[rgba(28,58,41,0.95)] hover:border-[rgba(28,58,41,0.3)] transition-colors"
-						>
-							<XIcon className="w-4 h-4" />
-						</a>
+						<div className="mt-5 flex items-center gap-2">
+							<a
+								href="https://x.com/namepass_eth"
+								target="_blank"
+								rel="noopener noreferrer"
+								aria-label="Namepass on X"
+								className="inline-flex items-center justify-center w-9 h-9 rounded-[10px] bg-white text-[rgba(28,58,41,0.7)] shadow-[0_2px_8px_rgba(28,58,41,0.06)] hover:text-[rgba(28,58,41,0.95)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+							>
+								<XIcon className="w-4 h-4" />
+							</a>
+							<a
+								href="https://github.com/stevegachau/namepass-v2"
+								target="_blank"
+								rel="noopener noreferrer"
+								aria-label="Namepass on GitHub"
+								className="inline-flex items-center justify-center w-9 h-9 rounded-[10px] bg-white text-[rgba(28,58,41,0.7)] shadow-[0_2px_8px_rgba(28,58,41,0.06)] hover:text-[rgba(28,58,41,0.95)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+							>
+								<Github aria-hidden="true" className="w-4 h-4" />
+							</a>
+						</div>
 					</div>
 
 					<div className="grid grid-cols-2 gap-10 sm:gap-16">
