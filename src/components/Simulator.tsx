@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
-import { TrendingUp } from "lucide-react";
+import { BadgePercent, TrendingUp } from "lucide-react";
 import {
 	ceilToCent,
 	nextTierHint,
@@ -335,6 +335,23 @@ function SimulatorBody() {
 										</button>
 									);
 								})}
+							</div>
+							<div className="mt-5 flex items-start gap-2.5 text-[12px] leading-relaxed text-[rgba(28,58,41,0.58)]">
+								<span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-[rgba(28,58,41,0.07)] text-[rgba(28,58,41,0.72)]">
+									<BadgePercent aria-hidden="true" className="h-3.5 w-3.5" />
+								</span>
+								<p className="pt-0.5">
+									Discounts follow{" "}
+									<a
+										href="https://docs.ens.domains/ensv2/eth-registrar/#multi-year-discounts"
+										target="_blank"
+										rel="noopener noreferrer"
+										className="font-semibold text-[rgba(28,58,41,0.82)] hover:text-[rgba(28,58,41,0.95)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+									>
+										ENS's renewal tiers
+									</a>
+									; longer terms can unlock a higher discount.
+								</p>
 							</div>
 
 						</div>
