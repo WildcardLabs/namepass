@@ -21,7 +21,7 @@ export default function Hero({ onExplore, onLeaderboard, priced }: Props) {
 			<div className="w-full flex flex-col items-center pt-12 md:pt-16 px-6 text-center max-w-4xl">
 				<HeroBadge />
 
-				<h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-[70px] font-normal text-[#1c3a29] mb-2 tracking-tight leading-[1.05]">
+				<h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-[70px] font-normal text-[#1c3a29f2] mb-2 tracking-tight leading-[1.05]">
 					Give a name more time
 				</h1>
 

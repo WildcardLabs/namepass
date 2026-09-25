@@ -102,7 +102,7 @@ export default function TestnetBanner() {
 
 	return (
 		<div
-			className="w-full bg-[#1c3a29] text-white/90 overflow-hidden select-none"
+			className="w-full bg-[#1c3a29f2] text-white/90 overflow-hidden select-none"
 			role="status"
 			aria-label={
 				live
