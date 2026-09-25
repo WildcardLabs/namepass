@@ -5,6 +5,7 @@ interface Props {
 	onExplore: () => void;
 	onSimulate: () => void;
 	onLeaderboard: () => void;
+	onSupported: () => void;
 	onTerms: () => void;
 	onPrivacy: () => void;
 }
@@ -14,6 +15,7 @@ export default function Footer({
 	onExplore,
 	onSimulate,
 	onLeaderboard,
+	onSupported,
 	onTerms,
 	onPrivacy,
 }: Props) {
@@ -22,6 +24,7 @@ export default function Footer({
 		{ label: "ENS v2 pricing", action: onSimulate },
 		{ label: "Explorer", action: onExplore },
 		{ label: "Leaderboard", action: onLeaderboard },
+		{ label: "Supported networks", action: onSupported },
 	];
 	const legal = [
 		{ label: "Terms of service", action: onTerms },
