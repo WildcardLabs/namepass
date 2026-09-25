@@ -22,12 +22,12 @@ import { fmtDurationPrecise } from "../lib/format";
  */
 
 /**
- * Desktop fills the viewport below the strip. Mobile keeps enough height for
- * the copy and both floating panels without leaving a large empty cover.
+ * Height for a section that should fill the viewport *below* the strip.
+ * Lives here so it cannot drift from the strip's own height.
  */
 export const VIEWPORT_BELOW_BANNER = IS_TESTNET
-	? "h-[700px] md:h-[calc(100vh-2.25rem)]"
-	: "h-[700px] md:h-screen";
+	? "h-[calc(100vh-2rem)] md:h-[calc(100vh-2.25rem)]"
+	: "h-screen";
 
 const NOTICES = [
 	"Testnet preview",
