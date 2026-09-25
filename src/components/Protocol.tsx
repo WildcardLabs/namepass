@@ -14,7 +14,7 @@ const NUM = "font-normal text-[13px] text-[rgba(28,58,41,0.35)] tabular-nums";
 const TAG =
 	"text-[11px] uppercase tracking-[0.16em] text-[rgba(28,58,41,0.5)]";
 const CARD =
-	"rounded-[1.25rem] border border-[rgba(28,58,41,0.14)] bg-white p-6 md:p-7";
+	"rounded-[1.25rem] bg-white p-6 md:p-7";
 
 export default function Protocol({ onSearch }: Props) {
 	return (
@@ -35,7 +35,7 @@ export default function Protocol({ onSearch }: Props) {
 						whileHover={{ scale: 1.02 }}
 						whileTap={{ scale: 0.98 }}
 						onClick={onSearch}
-						className="shrink-0 self-start sm:self-auto inline-flex items-center gap-2 rounded-[10px] border border-[rgba(28,58,41,0.2)] bg-white px-5 py-2.5 text-[14px] text-[rgba(28,58,41,0.9)] hover:bg-[rgba(28,58,41,0.04)] transition-colors"
+						className="shrink-0 self-start sm:self-auto inline-flex items-center gap-2 rounded-[10px] bg-white px-5 py-2.5 text-[14px] text-[rgba(28,58,41,0.9)] hover:bg-[rgba(28,58,41,0.04)] transition-colors"
 					>
 						Get Started
 						<ArrowUpRight className="w-4 h-4" />

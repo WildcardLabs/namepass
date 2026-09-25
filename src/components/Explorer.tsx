@@ -114,7 +114,7 @@ function DiscountTag({ off }: { off: string | null }) {
 		return <span className="text-[rgba(28,58,41,0.35)]">-</span>;
 	}
 	return (
-		<span className="inline-flex items-center rounded-md bg-[rgba(28,58,41,0.06)] border border-[rgba(28,58,41,0.1)] px-2 py-0.5 text-[12px] text-[rgba(28,58,41,0.8)] whitespace-nowrap">
+		<span className="inline-flex items-center rounded-md bg-[rgba(28,58,41,0.06)] px-2 py-0.5 text-[12px] text-[rgba(28,58,41,0.8)] whitespace-nowrap">
 			{off} off
 		</span>
 	);
@@ -165,7 +165,7 @@ function MobileFlowSummary({
 						aria-expanded={expanded}
 						aria-controls={controlsId}
 						aria-label={expanded ? "Hide flow details" : "Show flow details"}
-						className={`${QUIET_ICON_BUTTON_CLASS} ${expanded ? "border-[rgba(28,58,41,0.28)] bg-[rgba(28,58,41,0.06)]" : "border-[rgba(28,58,41,0.16)] bg-white"}`}
+						className={`${QUIET_ICON_BUTTON_CLASS} ${expanded ? "border-transparent bg-[rgba(28,58,41,0.06)]" : "border-[rgba(28,58,41,0.16)] bg-white"}`}
 					>
 						<span className="sr-only">{expanded ? "Hide flow details" : "Show flow details"}</span>
 						<ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -336,7 +336,7 @@ function FeedRowContent({
 										<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">Transactions</div>
 										<ol className="mt-2 grid gap-2 sm:grid-cols-2">
 											{transactions.map((transaction, index) => (
-												<li key={transaction.tx} className="flex min-w-0 items-center gap-2.5 rounded-lg border border-[rgba(28,58,41,0.09)] bg-white/80 px-3 py-2">
+												<li key={transaction.tx} className="flex min-w-0 items-center gap-2.5 rounded-lg bg-white/80 px-3 py-2">
 													<span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[rgba(28,58,41,0.06)] text-[10px] tabular-nums text-[rgba(28,58,41,0.55)]">{index + 1}</span>
 													<div className="min-w-0 flex-1">
 														<div className="flex items-center justify-between gap-2 text-[12px]">
@@ -656,7 +656,7 @@ function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 		? (event.amountApplied * YEAR_SECONDS + event.seconds / 2n) / event.seconds
 		: 0n;
 	return (
-		<div className="mx-4 md:mx-5 my-3 rounded-xl border border-[rgba(28,58,41,0.1)] bg-white p-4 md:p-5 grid gap-5 md:grid-cols-2">
+		<div className="mx-4 md:mx-5 my-3 rounded-xl bg-white p-4 md:p-5 grid gap-5 md:grid-cols-2">
 			<div className="min-w-0">
 				<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
 					Amount
@@ -721,7 +721,7 @@ function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 				</div>
 				<ol className="mt-3 space-y-2">
 					{event.steps.map((s, i) => (
-						<li key={s.tx} className="flex min-w-0 items-center gap-2.5 rounded-lg border border-[rgba(28,58,41,0.09)] bg-[rgba(28,58,41,0.015)] px-3 py-2.5">
+						<li key={s.tx} className="flex min-w-0 items-center gap-2.5 rounded-lg bg-[rgba(28,58,41,0.015)] px-3 py-2.5">
 							<span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[rgba(28,58,41,0.06)] text-[10px] text-[rgba(28,58,41,0.55)] tabular-nums">
 								{i + 1}
 							</span>
@@ -766,7 +766,7 @@ function UnclaimedFlowCard({ label, flow, renewable, onRetry }: { label: string;
 		}
 	};
 	return (
-		<div className="mt-5 rounded-2xl border border-[rgba(28,58,41,0.18)] bg-[rgba(28,58,41,0.035)] p-4">
+		<div className="mt-5 rounded-2xl bg-[rgba(28,58,41,0.035)] p-4">
 			<h4 className="text-[15px] text-[rgba(28,58,41,0.95)]">Waiting to renew</h4>
 			<p className="mt-1.5 text-[13px] leading-relaxed text-[rgba(28,58,41,0.65)]">The USDC left {chain?.name ?? "the origin chain"} and is secured in a Circle message. This name cannot be renewed now. Namepass will retry when renewal is possible.</p>
 			<dl className="mt-3 space-y-1 text-[12px] text-[rgba(28,58,41,0.6)]">
@@ -777,7 +777,7 @@ function UnclaimedFlowCard({ label, flow, renewable, onRetry }: { label: string;
 			</dl>
 			{evidence?.originTxHash && chain && <a href={explorerUrl(chain.name, evidence.originTxHash)} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 font-mono text-[12px] text-[rgba(28,58,41,0.65)] hover:text-[rgba(28,58,41,0.95)]">Origin transaction {truncTx(evidence.originTxHash)} <ExternalLink className="w-3 h-3" /></a>}
 			<p className="mt-3 text-[12px] leading-relaxed text-[rgba(28,58,41,0.5)]">This transfer cannot return to {chain?.name ?? "the origin chain"}. A retry uses the same Circle message.</p>
-			{renewable && <button type="button" onClick={() => void retry()} disabled={retrying} className="mt-3 inline-flex items-center gap-2 rounded-[10px] border border-[rgba(28,58,41,0.25)] px-3 py-1.5 text-[12px] text-[rgba(28,58,41,0.8)] hover:bg-white disabled:opacity-50">{retrying && <Loader2 className="w-3 h-3 animate-spin" />}Retry renewal</button>}
+			{renewable && <button type="button" onClick={() => void retry()} disabled={retrying} className="mt-3 inline-flex items-center gap-2 rounded-[10px] border border-[rgba(28,58,41,0.25)] px-3 py-1.5 text-[12px] text-[rgba(28,58,41,0.8)] hover:border-transparent hover:bg-white disabled:opacity-50">{retrying && <Loader2 className="w-3 h-3 animate-spin" />}Retry renewal</button>}
 			{error && <p role="alert" className="mt-2 text-[12px] text-red-700">{error}</p>}
 		</div>
 	);
@@ -787,7 +787,7 @@ function FailedCctpFlowCard({ flow }: { flow: PublicFlow }) {
 	const chain = chainById(safeInteger(flow.originChainId) ?? -1);
 	const originTxHash = flow.evidence?.originTxHash;
 	return (
-		<div className="mt-5 rounded-2xl border border-red-900/20 bg-red-950/[0.025] p-4">
+		<div className="mt-5 rounded-2xl bg-red-950/[0.025] p-4">
 			<h4 className="text-[15px] text-[rgba(28,58,41,0.95)]">Renewal needs attention</h4>
 			<p className="mt-1.5 text-[13px] leading-relaxed text-[rgba(28,58,41,0.65)]">
 				The USDC left {chain?.name ?? "the origin chain"} through Circle, but the Ethereum renewal did not complete. This flow needs repair by Namepass. The funds are not waiting at the deposit address.
@@ -981,7 +981,7 @@ function NameDetail({
 					    All three matter to someone deciding whether to send, and the
 					    amount is the actionable part — see `graceMinimum`. */}
 					{onchain?.graceRemaining != null && (
-						<div className="mt-3 flex items-start gap-2 rounded-xl border border-[rgba(28,58,41,0.15)] bg-[rgba(28,58,41,0.03)] px-3 py-2.5">
+						<div className="mt-3 flex items-start gap-2 rounded-xl bg-[rgba(28,58,41,0.03)] px-3 py-2.5">
 							<Clock className="w-3.5 h-3.5 mt-[2px] shrink-0 text-[rgba(28,58,41,0.5)]" />
 							<p className="text-[12.5px] text-[rgba(28,58,41,0.7)] leading-relaxed">
 								<span className="text-[rgba(28,58,41,0.95)]">
@@ -1011,7 +1011,7 @@ function NameDetail({
 					    sent here, so it's worth saying before someone sends any
 					    rather than explaining it afterwards next to a stuck balance. */}
 					{onchain && !onchain.renewable && (
-						<div className="mt-3 flex items-start gap-2 rounded-xl border border-[rgba(28,58,41,0.15)] bg-[rgba(28,58,41,0.03)] px-3 py-2.5">
+						<div className="mt-3 flex items-start gap-2 rounded-xl bg-[rgba(28,58,41,0.03)] px-3 py-2.5">
 							<Clock className="w-3.5 h-3.5 mt-[2px] shrink-0 text-[rgba(28,58,41,0.5)]" />
 							<p className="text-[12.5px] text-[rgba(28,58,41,0.7)] leading-relaxed">
 								ENS won't renew this name right now. The address still works —
@@ -1068,7 +1068,7 @@ function NameDetail({
 
 						{/* Avatar + description */}
 						<div className="mt-3 flex items-start gap-3">
-							<div className="relative w-11 h-11 shrink-0 rounded-xl bg-[rgba(28,58,41,0.07)] border border-[rgba(28,58,41,0.1)] overflow-hidden flex items-center justify-center">
+							<div className="relative w-11 h-11 shrink-0 rounded-xl bg-[rgba(28,58,41,0.07)] overflow-hidden flex items-center justify-center">
 								<span aria-hidden="true" className="text-[13px] text-[rgba(28,58,41,0.45)]">
 									{record.name.slice(0, 2)}
 								</span>
@@ -1147,7 +1147,7 @@ function NameDetail({
 			</div>
 
 			{/* Aggregates */}
-			<div className="mt-4 grid grid-cols-3 gap-px bg-[rgba(28,58,41,0.1)] border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
+			<div className="mt-4 grid grid-cols-3 gap-px bg-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
 				{[
 					/* "y" not " years" — at three-up on a phone the long form wraps and
 					   drops this value below the other two. Matches fmtDuration anyway. */
@@ -1458,7 +1458,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 					</div>
 
 					<div className="w-full md:w-[340px] shrink-0">
-						<div className="flex items-center gap-2 bg-white border border-[rgba(28,58,41,0.15)] rounded-[12px] pl-4 pr-1.5 py-1.5 focus-within:border-[rgba(28,58,41,0.45)] transition-colors">
+						<div className="flex items-center gap-2 bg-white rounded-[12px] pl-4 pr-1.5 py-1.5 focus-within:ring-2 focus-within:ring-[rgba(28,58,41,0.3)] transition-shadow">
 							<input
 								aria-label="Search an ENS name"
 								value={query}
@@ -1481,7 +1481,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 						</div>
 
 						{suggestions.length > 0 && (
-							<div className="mt-2 border border-[rgba(28,58,41,0.12)] rounded-[0.9rem] overflow-hidden bg-white">
+							<div className="mt-2 rounded-[0.9rem] overflow-hidden bg-white">
 								{suggestions.map((s) => (
 									<button
 										key={s.name}
@@ -1504,7 +1504,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								initial={{ opacity: 0, y: -4 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ duration: 0.25 }}
-								className="mt-2 rounded-[0.9rem] border border-[rgba(28,58,41,0.15)] bg-[rgba(28,58,41,0.03)] p-4"
+								className="mt-2 rounded-[0.9rem] bg-[rgba(28,58,41,0.03)] p-4"
 							>
 								<div className="text-[13.5px] text-[rgba(28,58,41,0.9)]">
 									<span className="font-medium">{notFound}</span> can't be registered.
@@ -1523,7 +1523,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								initial={{ opacity: 0, y: -4 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ duration: 0.25 }}
-								className="mt-2 rounded-[0.9rem] border border-[rgba(28,58,41,0.15)] bg-[rgba(28,58,41,0.03)] p-4"
+								className="mt-2 rounded-[0.9rem] bg-[rgba(28,58,41,0.03)] p-4"
 							>
 								<div className="text-[13.5px] text-[rgba(28,58,41,0.9)]">
 									<span className="font-medium">{notFound}</span> is not monitored by
@@ -1568,7 +1568,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 				</div>
 				{requestError && <p role="alert" className="mt-3 text-[12.5px] text-red-700">{requestError}</p>}
 
-				<div className="mt-8 md:mt-10 bg-white rounded-2xl border border-[rgba(28,58,41,0.1)] p-4 md:p-6">
+				<div className="mt-8 md:mt-10 bg-white rounded-2xl p-4 md:p-6">
 					{record ? (
 						<NameDetail
 							record={record}
