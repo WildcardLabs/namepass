@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { Github } from "lucide-react";
+import { ArrowLeftRight, Github, Timer, Unplug, WalletMinimal } from "lucide-react";
 import { AnimatedBeamDemo } from "./AnimatedBeamDemo";
 
 /* The RIVR template's "Architected for high-performance DeFi" bento, repurposed
@@ -9,8 +9,10 @@ import { AnimatedBeamDemo } from "./AnimatedBeamDemo";
 const NUM = "font-normal text-[13px] text-[rgba(28,58,41,0.35)] tabular-nums";
 const TAG =
 	"text-[11px] uppercase tracking-[0.16em] text-[rgba(28,58,41,0.5)]";
+const META_ICON = "h-3.5 w-3.5 text-[rgba(28,58,41,0.62)]";
 const CARD =
 	"rounded-[1.25rem] bg-white p-6 md:p-7";
+const HOVER = { y: -2, boxShadow: "0 12px 28px rgba(28,58,41,0.06)", transition: { duration: 0.18 } };
 
 export default function Protocol() {
 	return (
@@ -43,6 +45,7 @@ export default function Protocol() {
 				<div className="mt-10 grid md:grid-cols-2 gap-4">
 					{/* 01 — tall */}
 					<motion.div
+						whileHover={HOVER}
 						initial={{ opacity: 0, y: 20 }}
 						whileInView={{ opacity: 1, y: 0 }}
 						viewport={{ once: true, margin: "-80px" }}
@@ -50,7 +53,10 @@ export default function Protocol() {
 						className={`${CARD} md:row-span-2 flex flex-col`}
 					>
 						<div className="flex items-center justify-between">
-							<span className={TAG}>Deposit Address</span>
+							<span className={`${TAG} inline-flex items-center gap-2`}>
+								<WalletMinimal aria-hidden="true" className={META_ICON} strokeWidth={1.6} />
+								Deposit Address
+							</span>
 							<span className={NUM}>01</span>
 						</div>
 
@@ -68,6 +74,7 @@ export default function Protocol() {
 
 					{/* 02 — wide */}
 					<motion.div
+						whileHover={HOVER}
 						initial={{ opacity: 0, y: 20 }}
 						whileInView={{ opacity: 1, y: 0 }}
 						viewport={{ once: true, margin: "-80px" }}
@@ -75,7 +82,10 @@ export default function Protocol() {
 						className={CARD}
 					>
 						<div className="flex items-center justify-between">
-							<span className={TAG}>Renewal execution</span>
+							<span className={`${TAG} inline-flex items-center gap-2`}>
+								<Timer aria-hidden="true" className={META_ICON} strokeWidth={1.6} />
+								Renewal execution
+							</span>
 							<span className={NUM}>02</span>
 						</div>
 						<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-tight">
@@ -89,6 +99,7 @@ export default function Protocol() {
 					{/* 03 + 04 — two halves */}
 					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						<motion.div
+							whileHover={HOVER}
 							initial={{ opacity: 0, y: 20 }}
 							whileInView={{ opacity: 1, y: 0 }}
 							viewport={{ once: true, margin: "-80px" }}
@@ -96,7 +107,10 @@ export default function Protocol() {
 							className={CARD}
 						>
 							<div className="flex items-center justify-between">
-								<span className={TAG}>Walkaway test</span>
+								<span className={`${TAG} inline-flex items-center gap-2`}>
+									<Unplug aria-hidden="true" className={META_ICON} strokeWidth={1.6} />
+									Walkaway test
+								</span>
 								<span className={NUM}>03</span>
 							</div>
 							<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-tight">
@@ -108,6 +122,7 @@ export default function Protocol() {
 						</motion.div>
 
 						<motion.div
+							whileHover={HOVER}
 							initial={{ opacity: 0, y: 20 }}
 							whileInView={{ opacity: 1, y: 0 }}
 							viewport={{ once: true, margin: "-80px" }}
@@ -115,7 +130,10 @@ export default function Protocol() {
 							className={`${CARD} relative`}
 						>
 							<div className="flex items-center justify-between">
-								<span className={TAG}>Cross-chain</span>
+								<span className={`${TAG} inline-flex items-center gap-2`}>
+									<ArrowLeftRight aria-hidden="true" className={META_ICON} strokeWidth={1.6} />
+									Cross-chain
+								</span>
 								<span className={NUM}>04</span>
 							</div>
 							<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-tight">
