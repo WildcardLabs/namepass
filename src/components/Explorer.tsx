@@ -25,6 +25,7 @@ import {
 	ChevronDown,
 	Copy,
 	Check,
+	CheckCircle2,
 } from "lucide-react";
 import { BackButton, ICON_BUTTON_BASE_CLASS, QUIET_ICON_BUTTON_CLASS } from "./BackButton";
 import {
@@ -393,9 +394,13 @@ function StatusCell({ row, reduced }: { row: FeedItem; reduced: boolean }) {
 				animate={{ opacity: row.pending ? 0 : 1 }}
 				transition={fade}
 				aria-hidden={row.pending}
-				className="whitespace-nowrap text-[rgba(28,58,41,0.45)] tabular-nums"
+				className="inline-flex flex-col items-end gap-0.5 whitespace-nowrap tabular-nums"
 			>
-				{fmtAgo(row.at)}
+				<span className="inline-flex items-center gap-1 text-[rgba(28,58,41,0.78)]">
+					<CheckCircle2 aria-hidden="true" className="h-3 w-3" />
+					Renewed
+				</span>
+				<span className="text-[11px] text-[rgba(28,58,41,0.45)]">{fmtAgo(row.at)}</span>
 			</motion.span>
 		</span>
 	);
