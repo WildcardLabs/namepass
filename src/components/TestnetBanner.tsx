@@ -26,7 +26,7 @@ import { fmtDurationPrecise } from "../lib/format";
  * Lives here so it cannot drift from the strip's own height.
  */
 export const VIEWPORT_BELOW_BANNER = IS_TESTNET
-	? "h-[calc(100vh-2rem)] md:h-[calc(100vh-2.25rem)]"
+	? "h-[calc(100svh-2rem)] md:h-[calc(100vh-2.25rem)]"
 	: "h-screen";
 
 const NOTICES = [
