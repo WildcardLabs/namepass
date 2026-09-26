@@ -45,9 +45,9 @@ Public page backgrounds use the cool gray `surface-canvas`, including the hero c
 Use `surface-selected` for pricing selections and `surface-table` for Explorer headers.
 Use `inset-panel` for shaded information, address fields, renewal hints and transaction rows.
 It owns the opaque `surface-inset` fill, 8px corners and 12px/16px padding. Add `inset-action`
-only when the whole panel is a button or link. It supplies the shared `surface-hover` interaction
-fill, with hover restricted to devices that support hover. Do not add local opacity, radius or
-padding variants for the same role. Glass parent cards use the same opaque inset panels.
+only when the whole panel is a button or link. Keep its fill steady on hover and press.
+Do not add local opacity, radius or padding variants for the same role. Glass parent cards
+use the same opaque inset panels.
 Use `primary-action` for filled public actions. The `public-ui` shell supplies keyboard focus
 outlines; dark actions use a white inset outline. Error and warning surfaces retain their meaning.
 Reserve the green `savings` and `savings-soft` pair for discount badges; actions, time values and status
@@ -74,8 +74,6 @@ owns the track and thumb styles for WebKit/Blink and Firefox; do not replace it 
 The range has a 44px interaction area and exposes the actual USDC amount through `aria-valuetext`.
 Update renewal results in place during dragging. Public tooltip triggers support focus, touch
 toggle, outside dismissal and Escape, and link to their description with `aria-describedby`.
-
-The [UI consistency audit](UI_AUDIT.md) records the affected surfaces and verification limits.
 
 The Explorer keeps its card in place and renders only the active view. The detail view fades and
 slides in over 400 ms; its ENS profile fields show inline loading skeletons. The parent retains the

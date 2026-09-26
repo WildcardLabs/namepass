@@ -67,14 +67,7 @@ body {
 	}
 	.inset-action {
 		cursor: pointer;
-		transition: background-color 150ms;
 		-webkit-tap-highlight-color: transparent;
-	}
-	.inset-action:active {
-		background-color: var(--color-surface-hover);
-	}
-	@media (hover: hover) {
-		.inset-action:hover { background-color: var(--color-surface-hover); }
 	}
 }
 
