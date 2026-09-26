@@ -208,7 +208,7 @@ function SimulatorBody() {
 									onClick={() => setLen(l.len)}
 									aria-pressed={on}
 									className={`flex-1 px-5 py-4 text-left transition-colors border-b sm:border-b-0 sm:border-r border-[rgba(28,58,41,0.08)] last:border-0 ${
-										on ? "bg-surface-selected" : "hover:bg-surface-inset"
+										on ? "bg-surface-selected" : ""
 									}`}
 								>
 									<div
@@ -341,7 +341,7 @@ function SimulatorBody() {
 								})}
 							</div>
 							<div className="mt-5 flex items-start gap-2.5 text-[12px] leading-relaxed text-ink-secondary">
-								<span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-[rgba(28,58,41,0.07)] text-ink-secondary">
+								<span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-surface-selected text-ink-secondary">
 									<BadgePercent aria-hidden="true" className="h-3.5 w-3.5" />
 								</span>
 								<p className="pt-0.5">

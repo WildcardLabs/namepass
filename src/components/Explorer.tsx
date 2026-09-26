@@ -28,7 +28,7 @@ import {
 	Check,
 	CheckCircle2,
 } from "lucide-react";
-import { BackButton, ICON_BUTTON_BASE_CLASS, QUIET_ICON_BUTTON_CLASS } from "./BackButton";
+import { BackButton, ICON_BUTTON_BASE_CLASS } from "./BackButton";
 import {
 	activeFlows,
 	activityEmptyState,
@@ -126,8 +126,8 @@ function DiscountTag({ off }: { off: string | null }) {
 /* Live feed — Etherscan-style table                                   */
 /* ------------------------------------------------------------------ */
 
-const LIVE_FEED_COLUMNS = "lg:grid-cols-[minmax(9rem,1.45fr)_minmax(5.75rem,0.8fr)_minmax(6rem,0.9fr)_minmax(5.5rem,0.85fr)_minmax(5rem,0.7fr)_minmax(6.5rem,1fr)_7rem]";
-const NAME_ACTIVITY_COLUMNS = "lg:grid-cols-[minmax(5.5rem,0.8fr)_minmax(9rem,1.2fr)_minmax(5rem,0.8fr)_minmax(6rem,0.85fr)_minmax(5.5rem,0.8fr)_minmax(5rem,0.7fr)_7rem]";
+const LIVE_FEED_COLUMNS = "lg:grid-cols-[minmax(9rem,1.45fr)_minmax(5.75rem,0.8fr)_minmax(6rem,0.9fr)_minmax(5.5rem,0.85fr)_minmax(5rem,0.7fr)_minmax(6.5rem,1fr)_2.75rem]";
+const NAME_ACTIVITY_COLUMNS = "lg:grid-cols-[minmax(5.5rem,0.8fr)_minmax(9rem,1.2fr)_minmax(5rem,0.8fr)_minmax(6rem,0.85fr)_minmax(5.5rem,0.8fr)_minmax(5rem,0.7fr)_1.25rem]";
 const SEARCH_ICON_BUTTON_CLASS = `${ICON_BUTTON_BASE_CLASS} primary-action`;
 
 /** The exact shared mobile layout for activity rows in both Explorer views. */
@@ -157,7 +157,12 @@ function MobileFlowSummary({
 	showDetails?: boolean;
 }) {
 	return (
-		<div className={`lg:hidden px-4 md:px-5 py-4 md:py-3.5 ${expandable ? "hover:bg-surface-inset transition-colors" : ""}`}>
+		<div
+			className={`lg:hidden px-4 md:px-5 py-4 md:py-3.5 ${expandable ? "cursor-pointer" : ""}`}
+			onClick={(event) => {
+				if (expandable && !(event.target as Element).closest("button, a")) onToggle();
+			}}
+		>
 			<div className="flex items-center justify-between gap-2">
 				{title}
 				{expandable && (
@@ -167,7 +172,7 @@ function MobileFlowSummary({
 						aria-expanded={expanded}
 						aria-controls={controlsId}
 						aria-label={expanded ? "Hide flow details" : "Show flow details"}
-						className={`${QUIET_ICON_BUTTON_CLASS} ${expanded ? "border-transparent bg-surface-hover" : "border-[rgba(28,58,41,0.16)] bg-white"}`}
+						className={`${ICON_BUTTON_BASE_CLASS} text-ink-action`}
 					>
 						<span className="sr-only">{expanded ? "Hide flow details" : "Show flow details"}</span>
 						<ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -268,10 +273,10 @@ function FeedRowContent({
 	const transactions = row.pending && row.flow ? completedFlowTransactions(row.flow) : [];
 	const toggleExpanded = () => setExpanded((open) => !open);
 	const nameTitle = (
-		<button type="button" onClick={() => onSelect(row.name)} aria-label={`Open ${row.name}`} className="group inline-flex min-w-0 flex-1 items-center gap-1 text-left text-[15px] lg:text-[14.5px] text-ink-primary transition-colors hover:text-ink-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]">
+		<button type="button" onClick={() => onSelect(row.name)} aria-label={`Open ${row.name}`} className="inline-flex min-w-0 max-w-full justify-self-start items-center gap-1 text-left text-[15px] lg:text-[14.5px] font-medium text-ink-link focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]">
 			<img src={`${import.meta.env.BASE_URL}logos/ens-mark-dark-blue.svg`} alt="" aria-hidden="true" className="relative top-px h-3 w-3 shrink-0 object-contain grayscale opacity-40" />
 			<span className="truncate">{row.name}</span>
-			<ArrowUpRight className="-ml-1 h-3.5 w-3.5 shrink-0 translate-y-px transition-transform group-hover:translate-x-px group-hover:translate-y-0" />
+			<ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
 		</button>
 	);
 	const timeAdded = row.seconds === null
@@ -299,7 +304,12 @@ function FeedRowContent({
 				controlsId={`flow-details-${row.key}`}
 				onToggle={toggleExpanded}
 			/>
-			<div className={`hidden lg:grid px-4 md:px-5 py-3.5 ${LIVE_FEED_COLUMNS} gap-4 items-center hover:bg-surface-inset transition-colors`}>
+			<div
+				className={`hidden lg:grid px-4 md:px-5 py-3.5 ${LIVE_FEED_COLUMNS} gap-4 items-center cursor-pointer`}
+				onClick={(event) => {
+					if (!(event.target as Element).closest("button, a")) toggleExpanded();
+				}}
+			>
 				{nameTitle}
 				<span className="text-[13.5px]"><ChainTag chain={row.chain} /></span>
 				<span className="text-right"><AmountCell deposited={row.amountDeposited} applied={row.amountApplied} showApplied={row.gasAllowance > 0n} /></span>
@@ -314,10 +324,10 @@ function FeedRowContent({
 					onClick={toggleExpanded}
 					aria-expanded={expanded}
 					aria-controls={`flow-details-${row.key}`}
-					className="inline-flex h-7 shrink-0 items-center justify-center justify-self-end gap-1 rounded-md border border-[rgba(28,58,41,0.14)] px-2 text-[11px] text-ink-action hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+					className={`${ICON_BUTTON_BASE_CLASS} justify-self-end text-ink-action`}
 				>
-					{expanded ? "Hide details" : "Flow details"}
-					<ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+					<span className="sr-only">{expanded ? "Hide flow details" : "Show flow details"}</span>
+					<ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
 				</button>
 			</div>
 			<AnimatePresence initial={false}>
@@ -569,7 +579,7 @@ function LiveFeed({ onSelect, feed, setFeed, pageIndex, setPageIndex }: {
 				<span className="text-center">Discount</span>
 				<span className="text-right">Time added</span>
 				<span className="text-right">Status</span>
-				<span className="text-right">Details</span>
+				<span className="sr-only">Details</span>
 			</div>
 
 			<div>
@@ -1189,7 +1199,7 @@ function NameDetail({
 						<span className="text-right">Received</span>
 						<span className="text-center">Discount</span>
 						<span className="text-right">Time added</span>
-						<span className="text-right">Details</span>
+						<span className="sr-only">Details</span>
 					</div>
 
 					<div className="divide-y divide-[rgba(28,58,41,0.07)]">
@@ -1222,7 +1232,7 @@ function NameDetail({
 									aria-expanded={expandable ? isOpen : undefined}
 									aria-controls={expandable ? `renewal-details-${e.id}` : undefined}
 									onClick={toggleEvent}
-									className={`hidden lg:grid w-full text-left px-5 py-3.5 ${NAME_ACTIVITY_COLUMNS} gap-4 items-center ${expandable ? "hover:bg-surface-inset transition-colors" : "cursor-default"}`}
+									className={`hidden lg:grid w-full text-left px-5 py-3.5 ${NAME_ACTIVITY_COLUMNS} gap-4 items-center ${expandable ? "cursor-pointer" : "cursor-default"}`}
 								>
 									<span className="text-[13px] text-ink-secondary tabular-nums">{fmtDate(e.at)}</span>
 									<span className="text-[14.5px] text-ink-primary">{eventTitle}</span>
@@ -1230,7 +1240,10 @@ function NameDetail({
 									<span className="text-[13.5px] text-ink-secondary text-right tabular-nums">{e.kind !== "activated" ? <AmountCell deposited={e.amountDeposited} applied={e.amountApplied} showApplied={e.kind === "renewal" && e.gasAllowance > 0n} /> : "-"}</span>
 									<span className="flex justify-center">{e.kind === "renewal" ? <DiscountTag off={e.off} /> : <span className="text-ink-secondary">-</span>}</span>
 									<span className="text-[13.5px] text-ink-primary text-right tabular-nums">{eventTime}</span>
-									<span className="flex justify-end">{expandable && <span className="inline-flex min-h-9 w-full items-center justify-end gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11px] text-ink-secondary">{isOpen ? "Hide details" : "Flow details"}<ChevronDown className={`w-4 h-4 text-ink-secondary transition-transform ${isOpen ? "rotate-180" : ""}`} /></span>}</span>
+									<span className="flex justify-end">{expandable && <>
+										<span className="sr-only">{isOpen ? "Hide details" : "Show details"}</span>
+										<ChevronDown aria-hidden="true" className={`w-4 h-4 text-ink-secondary transition-transform ${isOpen ? "rotate-180" : ""}`} />
+									</>}</span>
 								</button>
 							{e.kind === "deposit" && (
 								<p className="px-4 pb-3 text-[12px] text-ink-secondary md:px-5" aria-label={`Funded by ${e.funder}`}>
