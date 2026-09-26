@@ -122,10 +122,10 @@ export default function CtaBand({ onSearch, onSimulate }: Props) {
 						transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
 						className="max-w-md"
 					>
-						<h2 className="text-[30px] md:text-[42px] font-normal text-white tracking-tight leading-[1.05]">
+						<h2 className="text-[30px] md:text-[42px] font-normal text-ink-inverse tracking-tight leading-[1.05]">
 							Keep your name alive.
 						</h2>
-						<p className="mt-3 text-[14px] md:text-[15px] text-white/70 leading-relaxed">
+						<p className="mt-3 text-[14px] md:text-[15px] text-ink-inverse-secondary leading-relaxed">
 							Send USDC to a Namepass address. Namepass executes the renewal using the best qualifying discount tier.
 						</p>
 					</motion.div>
@@ -140,7 +140,7 @@ export default function CtaBand({ onSearch, onSimulate }: Props) {
 						{/* Left: solid white */}
 						<button
 							onClick={onSearch}
-							className="inline-flex items-center gap-2 rounded-[10px] bg-white text-[rgba(28,58,41,0.95)] px-5 py-3 text-[15px] hover:bg-white/90 transition-colors"
+							className="inline-flex items-center gap-2 rounded-[10px] bg-white text-ink-primary px-5 py-3 text-[15px] hover:bg-white/90 transition-colors"
 						>
 							Get Started
 							<ArrowUpRight className="w-4 h-4" />
@@ -148,7 +148,7 @@ export default function CtaBand({ onSearch, onSimulate }: Props) {
 						{/* Right: liquid glass */}
 						<button
 							onClick={onSimulate}
-							className="inline-flex items-center rounded-[10px] bg-white/10 backdrop-blur-md text-white px-5 py-3 text-[15px] hover:bg-white/20 transition-colors"
+							className="inline-flex items-center rounded-[10px] bg-white/10 backdrop-blur-md text-ink-inverse px-5 py-3 text-[15px] hover:bg-white/20 transition-colors"
 						>
 							Explore pricing
 						</button>

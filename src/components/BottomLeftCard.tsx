@@ -33,9 +33,9 @@ const LeaderboardButton = memo(function LeaderboardButton({
 			className="flex items-center bg-white rounded-[10px] pl-1.5 pr-4 py-1.5 gap-2 hover:bg-white/90 transition-colors self-start w-fit"
 		>
 			<div className="bg-[rgba(28,58,41,0.1)] p-1 rounded-md flex items-center justify-center">
-				<Trophy className="w-4 h-4 text-[rgba(28,58,41,0.9)]" />
+				<Trophy className="w-4 h-4 text-ink-action" />
 			</div>
-			<span className="text-[14px] font-normal text-[rgba(28,58,41,0.9)]">
+			<span className="text-[14px] font-normal text-ink-action">
 				Leaderboard
 			</span>
 		</motion.button>
@@ -73,9 +73,9 @@ export default function BottomLeftCard({ onLeaderboard }: { onLeaderboard: () =>
 			initial={{ x: -20, opacity: 0 }}
 			animate={{ x: 0, opacity: 1 }}
 			transition={{ duration: 0.8, delay: 0.2 }}
-			className="absolute bottom-28 right-4 left-auto md:left-6 md:right-auto md:bottom-6 lg:bottom-10 lg:left-10 p-3 md:p-4 lg:p-5 rounded-[14px] bg-white/55 backdrop-blur-xl flex flex-col gap-2 lg:gap-3 min-w-[140px] md:min-w-[150px] lg:min-w-[180px] w-fit"
+			className="absolute bottom-28 right-4 left-auto md:left-6 md:right-auto md:bottom-6 lg:bottom-10 lg:left-10 p-3 md:p-4 lg:p-5 rounded-[14px] bg-white/90 backdrop-blur-xl flex flex-col gap-2 lg:gap-3 min-w-[140px] md:min-w-[150px] lg:min-w-[180px] w-fit"
 		>
-			<span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[rgba(28,58,41,0.72)]">
+			<span className="text-[10px] font-medium uppercase tracking-[0.12em] text-ink-label">
 				Illustrative example
 			</span>
 			<div className="flex flex-col">
@@ -86,12 +86,12 @@ export default function BottomLeftCard({ onLeaderboard }: { onLeaderboard: () =>
 						animate={{ opacity: 1, y: 0 }}
 						exit={{ opacity: 0, y: -6 }}
 						transition={{ duration: 0.35, ease: "easeOut" }}
-						className="text-2xl md:text-3xl font-normal text-[rgba(28,58,41,0.9)] tracking-tight"
+						className="text-2xl md:text-3xl font-normal text-ink-primary tracking-tight"
 					>
 						{fmtMonthYear(expiry)}
 					</motion.span>
 				</AnimatePresence>
-				<span className="text-[10px] md:text-[12px] font-normal text-[rgba(28,58,41,0.6)] uppercase tracking-wider">
+				<span className="text-[10px] md:text-[12px] font-normal text-ink-secondary uppercase tracking-wider">
 					Renewed Until
 				</span>
 			</div>
@@ -103,12 +103,12 @@ export default function BottomLeftCard({ onLeaderboard }: { onLeaderboard: () =>
 					animate={{ opacity: 1 }}
 					exit={{ opacity: 0 }}
 					transition={{ duration: 0.3 }}
-					className="flex items-baseline gap-1.5 text-[rgba(28,58,41,0.75)]"
+					className="flex items-baseline gap-1.5 text-ink-primary"
 				>
 					<span className="text-[13px] md:text-[14px] font-normal">
 						+{current.label}
 					</span>
-					<span className="text-[10px] md:text-[11px] font-normal text-[rgba(28,58,41,0.5)]">
+					<span className="text-[10px] md:text-[11px] font-normal text-ink-secondary">
 						{current.chain}
 					</span>
 					<span className="text-[13px] md:text-[14px] font-normal ml-auto">

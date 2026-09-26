@@ -94,12 +94,12 @@ function AmountCell({
 	return (
 		<>
 			<span
-				className={`block ${dense ? "text-[12.5px]" : "text-[13.5px]"} text-[rgba(28,58,41,0.75)] tabular-nums`}
+				className={`block ${dense ? "text-[12.5px]" : "text-[13.5px]"} text-ink-primary tabular-nums`}
 			>
 				{fmtUsdc(deposited)}
 			</span>
 			{showApplied && (
-				<span className="block text-[11px] text-[rgba(28,58,41,0.4)] tabular-nums">
+				<span className="block text-[11px] text-ink-secondary tabular-nums">
 					{fmtUsdc(applied)} applied
 				</span>
 			)}
@@ -109,13 +109,13 @@ function AmountCell({
 
 function DiscountTag({ off }: { off: string | null }) {
 	if (off === null) {
-		return <span className="text-[rgba(28,58,41,0.35)]">—</span>;
+		return <span className="text-ink-secondary">—</span>;
 	}
 	if (!off) {
-		return <span className="text-[rgba(28,58,41,0.35)]">-</span>;
+		return <span className="text-ink-secondary">-</span>;
 	}
 	return (
-		<span className="inline-flex items-center rounded-md bg-[rgba(28,58,41,0.06)] px-2 py-0.5 text-[12px] text-[rgba(28,58,41,0.8)] whitespace-nowrap">
+		<span className="inline-flex items-center rounded-md bg-[rgba(28,58,41,0.06)] px-2 py-0.5 text-[12px] text-ink-primary whitespace-nowrap">
 			{off} off
 		</span>
 	);
@@ -127,7 +127,7 @@ function DiscountTag({ off }: { off: string | null }) {
 
 const LIVE_FEED_COLUMNS = "lg:grid-cols-[minmax(9rem,1.45fr)_minmax(5.75rem,0.8fr)_minmax(6rem,0.9fr)_minmax(5.5rem,0.85fr)_minmax(5rem,0.7fr)_minmax(6.5rem,1fr)_7rem]";
 const NAME_ACTIVITY_COLUMNS = "lg:grid-cols-[minmax(5.5rem,0.8fr)_minmax(9rem,1.2fr)_minmax(5rem,0.8fr)_minmax(6rem,0.85fr)_minmax(5.5rem,0.8fr)_minmax(5rem,0.7fr)_7rem]";
-const SEARCH_ICON_BUTTON_CLASS = `${ICON_BUTTON_BASE_CLASS} bg-[rgba(28,58,41,0.95)] text-white hover:bg-[rgba(28,58,41,1)]`;
+const SEARCH_ICON_BUTTON_CLASS = `${ICON_BUTTON_BASE_CLASS} bg-[rgba(28,58,41,0.95)] text-ink-inverse hover:bg-[rgba(28,58,41,1)]`;
 
 /** The exact shared mobile layout for activity rows in both Explorer views. */
 function MobileFlowSummary({
@@ -176,23 +176,23 @@ function MobileFlowSummary({
 
 			{showDetails && <dl className="mt-2.5 grid grid-cols-2 gap-x-6 gap-y-2">
 				<div>
-					<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">From</dt>
+					<dt className="text-[10px] uppercase tracking-wider text-ink-label">From</dt>
 					<dd className="mt-0.5 text-[12.5px]">{chain}</dd>
 				</div>
 				<div>
-					<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">Received</dt>
+					<dt className="text-[10px] uppercase tracking-wider text-ink-label">Received</dt>
 					<dd className="mt-0.5">{received}</dd>
 				</div>
 				<div>
-					<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">Rate</dt>
-					<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.75)]">{rate}</dd>
+					<dt className="text-[10px] uppercase tracking-wider text-ink-label">Rate</dt>
+					<dd className="mt-0.5 text-[12.5px] text-ink-secondary">{rate}</dd>
 				</div>
 				<div>
-					<dt className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">Time</dt>
-					<dd className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.95)] tabular-nums">{time}</dd>
+					<dt className="text-[10px] uppercase tracking-wider text-ink-label">Time</dt>
+					<dd className="mt-0.5 text-[12.5px] text-ink-primary tabular-nums">{time}</dd>
 				</div>
 			</dl>}
-			<div className="mt-2 flex justify-end text-[11.5px] text-[rgba(28,58,41,0.4)]">{footer}</div>
+			<div className="mt-2 flex justify-end text-[11.5px] text-ink-secondary">{footer}</div>
 		</div>
 	);
 }
@@ -267,7 +267,7 @@ function FeedRowContent({
 	const transactions = row.pending && row.flow ? completedFlowTransactions(row.flow) : [];
 	const toggleExpanded = () => setExpanded((open) => !open);
 	const nameTitle = (
-		<button type="button" onClick={() => onSelect(row.name)} aria-label={`Open ${row.name}`} className="group inline-flex min-w-0 flex-1 items-center gap-1 text-left text-[15px] lg:text-[14.5px] text-black transition-colors hover:text-[rgba(28,88,52,0.95)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]">
+		<button type="button" onClick={() => onSelect(row.name)} aria-label={`Open ${row.name}`} className="group inline-flex min-w-0 flex-1 items-center gap-1 text-left text-[15px] lg:text-[14.5px] text-ink-primary transition-colors hover:text-ink-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]">
 			<img src={`${import.meta.env.BASE_URL}logos/ens-mark-dark-blue.svg`} alt="" aria-hidden="true" className="relative top-px h-3 w-3 shrink-0 object-contain grayscale opacity-40" />
 			<span className="truncate">{row.name}</span>
 			<ArrowUpRight className="-ml-1 h-3.5 w-3.5 shrink-0 translate-y-px transition-transform group-hover:translate-x-px group-hover:translate-y-0" />
@@ -304,7 +304,7 @@ function FeedRowContent({
 				<span className="text-right"><AmountCell deposited={row.amountDeposited} applied={row.amountApplied} showApplied={row.gasAllowance > 0n} /></span>
 				<span className="flex justify-center text-[13px]"><DiscountTag off={row.off} /></span>
 				{/* Pending time uses ~ because it has not been added yet. */}
-				<span className={`text-[13.5px] text-right tabular-nums transition-colors duration-500 ${pending ? "text-[rgba(28,58,41,0.5)]" : "text-[rgba(28,58,41,0.95)]"}`}>
+				<span className={`text-[13.5px] text-right tabular-nums transition-colors duration-500 ${pending ? "text-ink-secondary" : "text-ink-primary"}`}>
 					{timeAdded}
 				</span>
 				<span className="flex min-w-0 items-center justify-end gap-1.5 text-[12px]"><StatusCell row={row} reduced={reduced} /></span>
@@ -313,7 +313,7 @@ function FeedRowContent({
 					onClick={toggleExpanded}
 					aria-expanded={expanded}
 					aria-controls={`flow-details-${row.key}`}
-					className="inline-flex h-7 shrink-0 items-center justify-center justify-self-end gap-1 rounded-md border border-[rgba(28,58,41,0.14)] px-2 text-[11px] text-[rgba(28,58,41,0.72)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+					className="inline-flex h-7 shrink-0 items-center justify-center justify-self-end gap-1 rounded-md border border-[rgba(28,58,41,0.14)] px-2 text-[11px] text-ink-action hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 				>
 					{expanded ? "Hide details" : "Flow details"}
 					<ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -331,20 +331,20 @@ function FeedRowContent({
 					>
 						{row.pending ? (
 							<div className="px-4 md:px-5 py-4 border-t border-[rgba(28,58,41,0.06)] bg-[rgba(28,58,41,0.015)]">
-								<p className="text-[13px] text-[rgba(28,58,41,0.8)]">{flowPresentation(row.status, row.originChainId).detail}</p>
+								<p className="text-[13px] text-ink-action">{flowPresentation(row.status, row.originChainId).detail}</p>
 								{transactions.length > 0 && (
 									<div className="mt-4">
-										<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">Transactions</div>
+										<div className="text-[10px] uppercase tracking-wider text-ink-label">Transactions</div>
 										<ol className="mt-2 grid gap-2 sm:grid-cols-2">
 											{transactions.map((transaction, index) => (
 												<li key={transaction.tx} className="flex min-w-0 items-center gap-2.5 rounded-lg bg-white/80 px-3 py-2">
-													<span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[rgba(28,58,41,0.06)] text-[10px] tabular-nums text-[rgba(28,58,41,0.55)]">{index + 1}</span>
+													<span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[rgba(28,58,41,0.06)] text-[10px] tabular-nums text-ink-secondary">{index + 1}</span>
 													<div className="min-w-0 flex-1">
 														<div className="flex items-center justify-between gap-2 text-[12px]">
-															<span className="text-[rgba(28,58,41,0.8)]">{transaction.label}</span>
-															<span className="shrink-0 text-[11px] text-[rgba(28,58,41,0.45)]">{transaction.chain}</span>
+															<span className="text-ink-action">{transaction.label}</span>
+															<span className="shrink-0 text-[11px] text-ink-secondary">{transaction.chain}</span>
 														</div>
-														<a href={explorerUrl(transaction.chain, transaction.tx)} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 font-mono text-[11.5px] text-[#1c683d] transition-colors hover:text-[#174a2c]">
+														<a href={explorerUrl(transaction.chain, transaction.tx)} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 font-mono text-[11.5px] text-ink-action transition-colors hover:text-ink-primary">
 															{truncTx(transaction.tx)} <ExternalLink className="h-3 w-3" />
 														</a>
 													</div>
@@ -384,7 +384,7 @@ function StatusCell({ row, reduced }: { row: FeedItem; reduced: boolean }) {
 				animate={{ opacity: row.pending ? 1 : 0 }}
 				transition={fade}
 				aria-hidden={!row.pending}
-				className="inline-flex items-center gap-1.5 whitespace-nowrap text-[rgba(28,58,41,0.55)]"
+				className="inline-flex items-center gap-1.5 whitespace-nowrap text-ink-secondary"
 			>
 				<Loader2 className={`w-3 h-3 shrink-0 ${row.pending ? "motion-safe:animate-spin" : ""}`} />
 				{pendingLabel}
@@ -396,11 +396,11 @@ function StatusCell({ row, reduced }: { row: FeedItem; reduced: boolean }) {
 				aria-hidden={row.pending}
 				className="inline-flex flex-col items-end gap-0.5 whitespace-nowrap tabular-nums"
 			>
-				<span className="inline-flex items-center gap-1 text-[rgba(28,58,41,0.78)]">
+				<span className="inline-flex items-center gap-1 text-ink-action">
 					<CheckCircle2 aria-hidden="true" className="h-3 w-3" />
 					Renewed
 				</span>
-				<span className="text-[11px] text-[rgba(28,58,41,0.45)]">{fmtAgo(row.at)}</span>
+				<span className="text-[11px] text-ink-secondary">{fmtAgo(row.at)}</span>
 			</motion.span>
 		</span>
 	);
@@ -424,14 +424,14 @@ function ActivityPagination({
 	if (totalPages <= 1) return null;
 	const previous = page > 0;
 	const next = page + 1 < totalPages;
-	const buttonClass = "flex h-10 items-center justify-center rounded-xl border border-[rgba(28,58,41,0.12)] px-3 text-[13px] text-[rgba(28,58,41,0.7)] transition-colors hover:border-[rgba(28,58,41,0.3)] disabled:pointer-events-none disabled:opacity-35";
+	const buttonClass = "flex h-10 items-center justify-center rounded-xl border border-[rgba(28,58,41,0.12)] px-3 text-[13px] text-ink-action transition-colors hover:border-[rgba(28,58,41,0.3)] disabled:pointer-events-none disabled:opacity-35";
 	return (
 		<div className="mt-6 flex items-center justify-center gap-2">
 			<button type="button" onClick={() => onPage(0)} disabled={!previous || loading} className={buttonClass}>First</button>
 			<button type="button" aria-label="Previous page" onClick={() => onPage(page - 1)} disabled={!previous || loading} className={buttonClass}>
 				<ArrowLeft className="h-4 w-4" />
 			</button>
-			<span className="flex h-10 items-center rounded-xl border border-[rgba(28,58,41,0.12)] px-4 text-[13px] text-[rgba(28,58,41,0.7)] tabular-nums">
+			<span className="flex h-10 items-center rounded-xl border border-[rgba(28,58,41,0.12)] px-4 text-[13px] text-ink-secondary tabular-nums">
 				{loading && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
 				Page {page + 1} of {totalPages}
 			</span>
@@ -572,7 +572,7 @@ function LiveFeed({ onSelect, feed, setFeed, pageIndex, setPageIndex }: {
 			{loadError && <p role="alert" className="mb-3 text-[12.5px] text-red-700">{loadError}</p>}
 			<div ref={tableRef} className="scroll-mt-6 border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
 			{/* Desktop column headers, hidden on mobile where rows become cards */}
-			<div className={`hidden lg:grid ${LIVE_FEED_COLUMNS} gap-4 px-5 py-3 bg-[rgba(28,58,41,0.03)] border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]`}>
+			<div className={`hidden lg:grid ${LIVE_FEED_COLUMNS} gap-4 px-5 py-3 bg-[rgba(28,58,41,0.03)] border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-ink-label`}>
 				<span>ENS name</span>
 				<span>Chain</span>
 				<span className="text-right">Received</span>
@@ -591,7 +591,7 @@ function LiveFeed({ onSelect, feed, setFeed, pageIndex, setPageIndex }: {
 						))}
 					</AnimatePresence>
 					{items.length === 0 && !loadError && (
-						<p className="px-5 py-8 text-center text-[13px] text-[rgba(28,58,41,0.5)]">No renewal activity yet.</p>
+						<p className="px-5 py-8 text-center text-[13px] text-ink-secondary">No renewal activity yet.</p>
 					)}
 			</div>
 			</div>
@@ -639,7 +639,7 @@ function CopyableAddress({ address, label }: { address: string; label: string })
 					onClick={() => void copyAddress()}
 					aria-label={copied ? `${label} address copied` : `Copy ${label} address`}
 					title={copied ? "Copied" : `Copy ${label} address`}
-					className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[rgba(28,58,41,0.5)] transition-colors hover:bg-[rgba(28,58,41,0.06)] hover:text-[rgba(28,58,41,0.9)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+					className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-secondary transition-colors hover:bg-[rgba(28,58,41,0.06)] hover:text-ink-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 				>
 					{copied ? <Check aria-hidden="true" className="h-3.5 w-3.5" /> : <Copy aria-hidden="true" className="h-3.5 w-3.5" />}
 				</button>
@@ -663,7 +663,7 @@ function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 	return (
 		<div className="mx-4 md:mx-5 my-3 rounded-xl bg-white p-4 md:p-5 grid gap-5 md:grid-cols-2">
 			<div className="min-w-0">
-				<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
+				<div className="text-[10px] uppercase tracking-wider text-ink-label">
 					Amount
 				</div>
 				{/* Exact amounts here, not rounded ones. This is the panel someone opens
@@ -672,22 +672,22 @@ function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 			    43.75% off) and $27.00 (four years eleven months at 31.25%). */}
 				<dl className="mt-2.5 space-y-1.5 text-[13px]">
 					<div className="flex justify-between gap-4">
-						<dt className="text-[rgba(28,58,41,0.6)]">Received</dt>
-						<dd className="text-[rgba(28,58,41,0.9)] tabular-nums">
+						<dt className="text-ink-secondary">Received</dt>
+						<dd className="text-ink-action tabular-nums">
 							{fmtUsdcExact(event.amountDeposited)}
 						</dd>
 					</div>
 					{event.gasAllowance > 0n && (
 						<div className="flex justify-between gap-4">
-							<dt className="text-[rgba(28,58,41,0.6)]">Gas allowance</dt>
-							<dd className="text-[rgba(28,58,41,0.55)] tabular-nums">
+							<dt className="text-ink-secondary">Gas allowance</dt>
+							<dd className="text-ink-secondary tabular-nums">
 								−{fmtUsdcExact(event.gasAllowance)}
 							</dd>
 						</div>
 					)}
 					<div className="flex justify-between gap-4 pt-1.5 border-t border-[rgba(28,58,41,0.08)]">
-						<dt className="text-[rgba(28,58,41,0.6)]">Applied to renewal</dt>
-						<dd className="text-[rgba(28,58,41,0.95)] tabular-nums">
+						<dt className="text-ink-secondary">Applied to renewal</dt>
+						<dd className="text-ink-primary tabular-nums">
 							{fmtUsdcExact(event.amountApplied)}
 						</dd>
 					</div>
@@ -696,8 +696,8 @@ function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 					    you notice the bulk rate is $4.50, not the headline $8. */}
 					{hasMeaningfulDuration && (
 						<div className="flex justify-between gap-4">
-							<dt className="text-[rgba(28,58,41,0.6)]">Effective rate</dt>
-							<dd className="text-[rgba(28,58,41,0.7)] tabular-nums">
+							<dt className="text-ink-secondary">Effective rate</dt>
+							<dd className="text-ink-secondary tabular-nums">
 								{fmtUsdc(effectiveRate)}/year
 							</dd>
 						</div>
@@ -705,14 +705,14 @@ function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 				</dl>
 				<dl className="mt-4 space-y-1.5 border-t border-[rgba(28,58,41,0.08)] pt-3 text-[12px]">
 					<div>
-						<dt className="text-[rgba(28,58,41,0.5)]">Funded by</dt>
-						<dd className="mt-0.5 flex min-w-0 items-start gap-1.5 text-[rgba(28,58,41,0.8)]">
+						<dt className="text-ink-secondary">Funded by</dt>
+						<dd className="mt-0.5 flex min-w-0 items-start gap-1.5 text-ink-action">
 							<CopyableAddress address={event.funder} label="funded by" />
 						</dd>
 					</div>
 					<div>
-						<dt className="text-[rgba(28,58,41,0.5)]">Processed by</dt>
-						<dd className="mt-0.5 flex min-w-0 items-start gap-1.5 text-[rgba(28,58,41,0.8)]">
+						<dt className="text-ink-secondary">Processed by</dt>
+						<dd className="mt-0.5 flex min-w-0 items-start gap-1.5 text-ink-action">
 							{event.executorIsRelayer && <span className="shrink-0">Namepass ·</span>}
 							<CopyableAddress address={event.executor} label="processed by" />
 						</dd>
@@ -721,25 +721,25 @@ function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 				</div>
 
 			<div className="min-w-0 md:border-l md:border-[rgba(28,58,41,0.08)] md:pl-5">
-				<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
+				<div className="text-[10px] uppercase tracking-wider text-ink-label">
 					Transactions
 				</div>
 				<ol className="mt-3 space-y-2">
 					{event.steps.map((s, i) => (
 						<li key={s.tx} className="flex min-w-0 items-center gap-2.5 rounded-lg bg-[rgba(28,58,41,0.015)] px-3 py-2.5">
-							<span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[rgba(28,58,41,0.06)] text-[10px] text-[rgba(28,58,41,0.55)] tabular-nums">
+							<span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[rgba(28,58,41,0.06)] text-[10px] text-ink-secondary tabular-nums">
 								{i + 1}
 							</span>
 							<div className="min-w-0 flex-1">
 								<div className="flex items-center justify-between gap-2 text-[12.5px]">
 									<span>{stepLabel(s, bridged)}</span>
-									<span className="shrink-0 text-[11px] text-[rgba(28,58,41,0.45)]">{s.chain}</span>
+									<span className="shrink-0 text-[11px] text-ink-secondary">{s.chain}</span>
 								</div>
 								<a
 									href={explorerUrl(s.chain, s.tx)}
 									target="_blank"
 									rel="noopener noreferrer"
-									className="mt-1 inline-flex items-center gap-1.5 font-mono text-[12px] text-[#1c683d] hover:text-[#174a2c] transition-colors"
+									className="mt-1 inline-flex items-center gap-1.5 font-mono text-[12px] text-ink-action hover:text-ink-primary transition-colors"
 								>
 									{truncTx(s.tx)}
 									<ExternalLink className="w-2.5 h-2.5 shrink-0" />
@@ -772,17 +772,17 @@ function UnclaimedFlowCard({ label, flow, renewable, onRetry }: { label: string;
 	};
 	return (
 		<div className="mt-5 rounded-2xl bg-[rgba(28,58,41,0.035)] p-4">
-			<h4 className="text-[15px] text-[rgba(28,58,41,0.95)]">Waiting to renew</h4>
-			<p className="mt-1.5 text-[13px] leading-relaxed text-[rgba(28,58,41,0.65)]">The USDC left {chain?.name ?? "the origin chain"} and is secured in a Circle message. This name cannot be renewed now. Namepass will retry when renewal is possible.</p>
-			<dl className="mt-3 space-y-1 text-[12px] text-[rgba(28,58,41,0.6)]">
+			<h4 className="text-[15px] text-ink-primary">Waiting to renew</h4>
+			<p className="mt-1.5 text-[13px] leading-relaxed text-ink-secondary">The USDC left {chain?.name ?? "the origin chain"} and is secured in a Circle message. This name cannot be renewed now. Namepass will retry when renewal is possible.</p>
+			<dl className="mt-3 space-y-1 text-[12px] text-ink-secondary">
 				<div className="flex justify-between gap-4"><dt>Amount</dt><dd>{fmtUsdcExact(flowAmount(flow))}</dd></div>
 				<div className="flex justify-between gap-4"><dt>Origin chain</dt><dd>{chain?.name ?? flow.originChainId}</dd></div>
 				<div className="flex justify-between gap-4"><dt>Circle nonce</dt><dd className="font-mono truncate">{flow.cctpNonce ?? "Not available"}</dd></div>
 				<div className="flex justify-between gap-4"><dt>Latest retry</dt><dd>{flow.nextActionAt ? fmtDate(new Date(flow.nextActionAt).getTime()) : "Not scheduled"}</dd></div>
 			</dl>
-			{evidence?.originTxHash && chain && <a href={explorerUrl(chain.name, evidence.originTxHash)} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 font-mono text-[12px] text-[rgba(28,58,41,0.65)] hover:text-[rgba(28,58,41,0.95)]">Origin transaction {truncTx(evidence.originTxHash)} <ExternalLink className="w-3 h-3" /></a>}
-			<p className="mt-3 text-[12px] leading-relaxed text-[rgba(28,58,41,0.5)]">This transfer cannot return to {chain?.name ?? "the origin chain"}. A retry uses the same Circle message.</p>
-			{renewable && <button type="button" onClick={() => void retry()} disabled={retrying} className="mt-3 inline-flex items-center gap-2 rounded-[10px] border border-[rgba(28,58,41,0.25)] px-3 py-1.5 text-[12px] text-[rgba(28,58,41,0.8)] hover:border-transparent hover:bg-white disabled:opacity-50">{retrying && <Loader2 className="w-3 h-3 animate-spin" />}Retry renewal</button>}
+			{evidence?.originTxHash && chain && <a href={explorerUrl(chain.name, evidence.originTxHash)} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 font-mono text-[12px] text-ink-action hover:text-ink-primary">Origin transaction {truncTx(evidence.originTxHash)} <ExternalLink className="w-3 h-3" /></a>}
+			<p className="mt-3 text-[12px] leading-relaxed text-ink-secondary">This transfer cannot return to {chain?.name ?? "the origin chain"}. A retry uses the same Circle message.</p>
+			{renewable && <button type="button" onClick={() => void retry()} disabled={retrying} className="mt-3 inline-flex items-center gap-2 rounded-[10px] border border-[rgba(28,58,41,0.25)] px-3 py-1.5 text-[12px] text-ink-action hover:border-transparent hover:bg-white disabled:opacity-50">{retrying && <Loader2 className="w-3 h-3 animate-spin" />}Retry renewal</button>}
 			{error && <p role="alert" className="mt-2 text-[12px] text-red-700">{error}</p>}
 		</div>
 	);
@@ -793,16 +793,16 @@ function FailedCctpFlowCard({ flow }: { flow: PublicFlow }) {
 	const originTxHash = flow.evidence?.originTxHash;
 	return (
 		<div className="mt-5 rounded-2xl bg-red-950/[0.025] p-4">
-			<h4 className="text-[15px] text-[rgba(28,58,41,0.95)]">Renewal needs attention</h4>
-			<p className="mt-1.5 text-[13px] leading-relaxed text-[rgba(28,58,41,0.65)]">
+			<h4 className="text-[15px] text-ink-primary">Renewal needs attention</h4>
+			<p className="mt-1.5 text-[13px] leading-relaxed text-ink-secondary">
 				The USDC left {chain?.name ?? "the origin chain"} through Circle, but the Ethereum renewal did not complete. This flow needs repair by Namepass. The funds are not waiting at the deposit address.
 			</p>
-			<dl className="mt-3 space-y-1 text-[12px] text-[rgba(28,58,41,0.6)]">
+			<dl className="mt-3 space-y-1 text-[12px] text-ink-secondary">
 				<div className="flex justify-between gap-4"><dt>Amount</dt><dd>{fmtUsdcExact(flowAmount(flow))}</dd></div>
 				<div className="flex justify-between gap-4"><dt>Origin chain</dt><dd>{chain?.name ?? flow.originChainId}</dd></div>
 			</dl>
 			{originTxHash && chain && (
-				<a href={explorerUrl(chain.name, originTxHash)} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 font-mono text-[12px] text-[rgba(28,58,41,0.65)] hover:text-[rgba(28,58,41,0.95)]">
+				<a href={explorerUrl(chain.name, originTxHash)} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 font-mono text-[12px] text-ink-action hover:text-ink-primary">
 					Origin transaction {truncTx(originTxHash)} <ExternalLink className="w-3 h-3" />
 				</a>
 			)}
@@ -938,7 +938,7 @@ function NameDetail({
 					className="relative -top-0.5 md:top-1"
 				/>
 
-				<h3 className="min-w-0 break-words text-[32px] md:text-[44px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-none">
+				<h3 className="min-w-0 break-words text-[32px] md:text-[44px] font-normal text-ink-primary tracking-tight leading-none">
 					{record.name}
 				</h3>
 			</div>
@@ -946,7 +946,7 @@ function NameDetail({
 			{/* The two-panel model: what expires vs. what is permanent */}
 			<div className="mt-8 grid md:grid-cols-2 gap-4">
 				<div className="rounded-2xl border border-[rgba(28,58,41,0.12)] bg-white p-5 flex flex-col">
-					<div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
+					<div className="flex items-center gap-2 text-[11px] uppercase tracking-section text-ink-label">
 						<Clock className="w-3.5 h-3.5" />
 						The ENS name · expires
 					</div>
@@ -962,19 +962,19 @@ function NameDetail({
 						</>
 					) : onchain.expiry === null ? (
 						<>
-							<div className="mt-3 text-[26px] md:text-[30px] text-[rgba(28,58,41,0.5)] tracking-tight leading-none">
+							<div className="mt-3 text-[26px] md:text-[30px] text-ink-secondary tracking-tight leading-none">
 								Not registered
 							</div>
-							<div className="mt-2 text-[13px] text-[rgba(28,58,41,0.55)]">
+							<div className="mt-2 text-[13px] text-ink-secondary">
 								Nobody holds this name on Ethereum yet.
 							</div>
 						</>
 					) : (
 						<>
-							<div className="mt-3 text-[26px] md:text-[30px] text-[rgba(28,58,41,0.95)] tracking-tight leading-none">
+							<div className="mt-3 text-[26px] md:text-[30px] text-ink-primary tracking-tight leading-none">
 								{fmtDate(expiry)}
 							</div>
-							<div className="mt-2 text-[13px] text-[rgba(28,58,41,0.55)]">
+							<div className="mt-2 text-[13px] text-ink-secondary">
 								{daysLeft > 0
 									? `${daysLeft.toLocaleString("en-US")} days of registration remaining`
 									: `Expired ${Math.floor((onchain.lapsedFor ?? 0) / 86_400_000).toLocaleString("en-US")} days ago`}
@@ -987,9 +987,9 @@ function NameDetail({
 					    amount is the actionable part — see `graceMinimum`. */}
 					{onchain?.graceRemaining != null && (
 						<div className="mt-3 flex items-start gap-2 rounded-xl bg-[rgba(28,58,41,0.03)] px-3 py-2.5">
-							<Clock className="w-3.5 h-3.5 mt-[2px] shrink-0 text-[rgba(28,58,41,0.5)]" />
-							<p className="text-[12.5px] text-[rgba(28,58,41,0.7)] leading-relaxed">
-								<span className="text-[rgba(28,58,41,0.95)]">
+							<Clock className="w-3.5 h-3.5 mt-[2px] shrink-0 text-ink-secondary" />
+							<p className="text-[12.5px] text-ink-secondary leading-relaxed">
+								<span className="text-ink-primary">
 									In its grace period.
 								</span>{" "}
 								ENS will still renew it for{" "}
@@ -1000,7 +1000,7 @@ function NameDetail({
 								{graceMinimum !== null && (
 									<>
 										It takes at least{" "}
-										<span className="text-[rgba(28,58,41,0.95)] tabular-nums">
+										<span className="text-ink-primary tabular-nums">
 											{fmtUsdc(graceMinimum.amount)}
 										</span>{" "}
 										{graceMinimum.bound === "catch-up"
@@ -1017,8 +1017,8 @@ function NameDetail({
 					    rather than explaining it afterwards next to a stuck balance. */}
 					{onchain && !onchain.renewable && (
 						<div className="mt-3 flex items-start gap-2 rounded-xl bg-[rgba(28,58,41,0.03)] px-3 py-2.5">
-							<Clock className="w-3.5 h-3.5 mt-[2px] shrink-0 text-[rgba(28,58,41,0.5)]" />
-							<p className="text-[12.5px] text-[rgba(28,58,41,0.7)] leading-relaxed">
+							<Clock className="w-3.5 h-3.5 mt-[2px] shrink-0 text-ink-secondary" />
+							<p className="text-[12.5px] text-ink-secondary leading-relaxed">
 								ENS won't renew this name right now. The address still works —
 								anything sent waits at it until the name can be renewed again.
 							</p>
@@ -1054,7 +1054,7 @@ function NameDetail({
 					{/* ENS records — identity, not payment history */}
 					<div className="mt-5 pt-5 border-t border-[rgba(28,58,41,0.08)] flex-1">
 						<div className="flex items-center justify-between">
-							<span className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
+							<span className="text-[10px] uppercase tracking-wider text-ink-label">
 								Profile
 							</span>
 							{profile?.contenthash && (
@@ -1062,7 +1062,7 @@ function NameDetail({
 									href={`https://${record.name}.limo`}
 									target="_blank"
 									rel="noopener noreferrer"
-									className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(28,58,41,0.55)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
+									className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-action hover:text-ink-primary transition-colors"
 								>
 									<Globe className="w-3.5 h-3.5" />
 									Serves a site
@@ -1074,7 +1074,7 @@ function NameDetail({
 						{/* Avatar + description */}
 						<div className="mt-3 flex items-start gap-3">
 							<div className="relative w-11 h-11 shrink-0 rounded-xl bg-[rgba(28,58,41,0.07)] overflow-hidden flex items-center justify-center">
-								<span aria-hidden="true" className="text-[13px] text-[rgba(28,58,41,0.45)]">
+								<span aria-hidden="true" className="text-[13px] text-ink-secondary">
 									{record.name.slice(0, 2)}
 								</span>
 								<img
@@ -1096,16 +1096,16 @@ function NameDetail({
 										<div className="h-3 w-1/2 rounded bg-[rgba(28,58,41,0.06)] animate-pulse" />
 									</div>
 								) : profile?.text.description ? (
-									<p className="text-[13px] text-[rgba(28,58,41,0.8)] leading-snug">
+									<p className="text-[13px] text-ink-action leading-snug">
 										{profile.text.description}
 									</p>
 								) : (
-									<p className="text-[13px] text-[rgba(28,58,41,0.45)]">
+									<p className="text-[13px] text-ink-secondary">
 										No description set.
 									</p>
 								)}
 								{profile?.addr && (
-									<div className="mt-1.5 min-w-0 text-[12px] text-[rgba(28,58,41,0.55)] font-mono truncate">
+									<div className="mt-1.5 min-w-0 text-[12px] text-ink-secondary font-mono truncate">
 										{truncAddress(profile.addr)}
 									</div>
 								)}
@@ -1121,15 +1121,15 @@ function NameDetail({
 									return (
 										<span
 											key={l.key}
-											className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(28,58,41,0.7)] min-w-0"
+											className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-secondary min-w-0"
 										>
-											<l.Icon className="w-3.5 h-3.5 shrink-0 text-[rgba(28,58,41,0.45)]" />
+											<l.Icon className="w-3.5 h-3.5 shrink-0 text-ink-secondary" />
 											{href ? (
 												<a
 													href={href}
 													target="_blank"
 														rel="noopener noreferrer"
-													className="truncate hover:text-[rgba(28,58,41,0.95)] hover:font-semibold transition-colors"
+													className="truncate hover:text-ink-primary hover:font-semibold transition-colors"
 												>
 													{label}
 													</a>
@@ -1166,10 +1166,10 @@ function NameDetail({
 					/* Labels wrap to two lines at narrow widths ("Renewals" doesn't), so
 					   the label absorbs the slack and the values stay on one line. */
 					<div key={s.k} className="bg-white px-3 md:px-4 py-4 flex flex-col">
-						<div className="flex-1 text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
+						<div className="flex-1 text-[10px] uppercase tracking-wider text-ink-label">
 							{s.k}
 						</div>
-							<span className="mt-1.5 block text-[19px] text-[rgba(28,58,41,0.95)] tracking-tight tabular-nums whitespace-nowrap">
+							<span className="mt-1.5 block text-[19px] text-ink-primary tracking-tight tabular-nums whitespace-nowrap">
 								{s.value}
 							</span>
 					</div>
@@ -1179,18 +1179,18 @@ function NameDetail({
 			{/* Activity table */}
 			<div ref={activityRef} className="mt-10 scroll-mt-6">
 				<div className="flex items-baseline justify-between mb-4">
-					<span className="text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
+					<span className="text-[11px] uppercase tracking-section text-ink-label">
 						Activity
 					</span>
 					{emptyActivity && (
-						<span className="text-[12px] text-[rgba(28,58,41,0.5)]">
+						<span className="text-[12px] text-ink-secondary">
 							{emptyActivity === "no_completed_renewals" ? "No completed renewals yet" : "Waiting for the first payment"}
 						</span>
 					)}
 				</div>
 
 				<div className="border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
-					<div className={`hidden lg:grid ${NAME_ACTIVITY_COLUMNS} gap-4 px-5 py-3 bg-[rgba(28,58,41,0.03)] border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]`}>
+					<div className={`hidden lg:grid ${NAME_ACTIVITY_COLUMNS} gap-4 px-5 py-3 bg-[rgba(28,58,41,0.03)] border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-ink-label`}>
 						<span>Date</span>
 						<span>Event</span>
 						<span>Chain</span>
@@ -1212,7 +1212,7 @@ function NameDetail({
 							return (
 							<div key={e.id}>
 								<MobileFlowSummary
-									title={<span className="min-w-0 flex-1 truncate text-[15px] text-[rgba(28,58,41,0.95)]">{eventTitle}</span>}
+									title={<span className="min-w-0 flex-1 truncate text-[15px] text-ink-primary">{eventTitle}</span>}
 									chain={e.kind === "activated" ? "-" : <ChainTag chain={e.chain} />}
 									received={e.kind === "activated" ? "-" : <AmountCell deposited={e.amountDeposited} applied={e.amountApplied} showApplied={e.kind === "renewal" && e.gasAllowance > 0n} dense />}
 									rate={eventRate}
@@ -1232,16 +1232,16 @@ function NameDetail({
 									onClick={toggleEvent}
 									className={`hidden lg:grid w-full text-left px-5 py-3.5 ${NAME_ACTIVITY_COLUMNS} gap-4 items-center ${expandable ? "hover:bg-[rgba(28,58,41,0.025)] transition-colors" : "cursor-default"}`}
 								>
-									<span className="text-[13px] text-[rgba(28,58,41,0.6)] tabular-nums">{fmtDate(e.at)}</span>
-									<span className="text-[14.5px] text-[rgba(28,58,41,0.95)]">{eventTitle}</span>
-									<span className="text-[13.5px]">{e.kind !== "activated" ? <ChainTag chain={e.chain} /> : <span className="text-[rgba(28,58,41,0.35)]">-</span>}</span>
-									<span className="text-[13.5px] text-[rgba(28,58,41,0.75)] text-right tabular-nums">{e.kind !== "activated" ? <AmountCell deposited={e.amountDeposited} applied={e.amountApplied} showApplied={e.kind === "renewal" && e.gasAllowance > 0n} /> : "-"}</span>
-									<span className="flex justify-center">{e.kind === "renewal" ? <DiscountTag off={e.off} /> : <span className="text-[rgba(28,58,41,0.35)]">-</span>}</span>
-									<span className="text-[13.5px] text-[rgba(28,58,41,0.95)] text-right tabular-nums">{eventTime}</span>
-									<span className="flex justify-end">{expandable && <span className="inline-flex min-h-9 w-full items-center justify-end gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11px] text-[rgba(28,58,41,0.72)]">{isOpen ? "Hide details" : "Flow details"}<ChevronDown className={`w-4 h-4 text-[rgba(28,58,41,0.45)] transition-transform ${isOpen ? "rotate-180" : ""}`} /></span>}</span>
+									<span className="text-[13px] text-ink-secondary tabular-nums">{fmtDate(e.at)}</span>
+									<span className="text-[14.5px] text-ink-primary">{eventTitle}</span>
+									<span className="text-[13.5px]">{e.kind !== "activated" ? <ChainTag chain={e.chain} /> : <span className="text-ink-secondary">-</span>}</span>
+									<span className="text-[13.5px] text-ink-secondary text-right tabular-nums">{e.kind !== "activated" ? <AmountCell deposited={e.amountDeposited} applied={e.amountApplied} showApplied={e.kind === "renewal" && e.gasAllowance > 0n} /> : "-"}</span>
+									<span className="flex justify-center">{e.kind === "renewal" ? <DiscountTag off={e.off} /> : <span className="text-ink-secondary">-</span>}</span>
+									<span className="text-[13.5px] text-ink-primary text-right tabular-nums">{eventTime}</span>
+									<span className="flex justify-end">{expandable && <span className="inline-flex min-h-9 w-full items-center justify-end gap-1.5 rounded-lg border border-[rgba(28,58,41,0.14)] px-2.5 text-[11px] text-ink-secondary">{isOpen ? "Hide details" : "Flow details"}<ChevronDown className={`w-4 h-4 text-ink-secondary transition-transform ${isOpen ? "rotate-180" : ""}`} /></span>}</span>
 								</button>
 							{e.kind === "deposit" && (
-								<p className="px-4 pb-3 text-[12px] text-[rgba(28,58,41,0.6)] md:px-5" aria-label={`Funded by ${e.funder}`}>
+								<p className="px-4 pb-3 text-[12px] text-ink-secondary md:px-5" aria-label={`Funded by ${e.funder}`}>
 									Funded by <span className="font-mono">{e.funder}</span>
 								</p>
 							)}
@@ -1449,14 +1449,14 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								<span className="absolute inline-flex w-full h-full rounded-full bg-[rgba(28,58,41,0.35)] animate-ping" />
 								<span className="relative inline-flex w-2 h-2 rounded-full bg-[rgba(28,58,41,0.8)]" />
 							</span>
-							<span className="text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
+							<span className="text-[11px] uppercase tracking-section text-ink-label">
 								Explorer · Live
 							</span>
 						</div>
-						<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
+						<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-ink-primary tracking-tight leading-[1.05]">
 							ENS renewal activity.
 						</h2>
-						<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] max-w-xl leading-relaxed">
+						<p className="mt-3 text-[15px] md:text-[16px] text-ink-secondary max-w-xl leading-relaxed">
 							Search a name to inspect its deterministic deposit wallet, balances, and renewal history.
 							Recent public deposits and flows appear below.
 						</p>
@@ -1473,7 +1473,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								}}
 								onKeyDown={(e) => e.key === "Enter" && submit()}
 								placeholder="Search a name, e.g. vitalik.eth"
-								className="flex-1 min-w-0 bg-transparent outline-none text-[14px] text-[rgba(28,58,41,0.95)] placeholder:text-[rgba(28,58,41,0.4)]"
+								className="flex-1 min-w-0 bg-transparent outline-none text-[14px] text-ink-primary placeholder:text-ink-secondary"
 							/>
 							<button
 								type="button"
@@ -1493,10 +1493,10 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 										onClick={() => {
 											void submit(s.name);
 										}}
-										className="w-full text-left px-4 py-2.5 text-[14px] text-[rgba(28,58,41,0.85)] hover:bg-[rgba(28,58,41,0.04)] transition-colors flex items-center justify-between gap-3"
+										className="w-full text-left px-4 py-2.5 text-[14px] text-ink-action hover:bg-[rgba(28,58,41,0.04)] transition-colors flex items-center justify-between gap-3"
 									>
 										{s.name}
-										<span className="text-[11px] text-[rgba(28,58,41,0.4)]">
+										<span className="text-[11px] text-ink-secondary">
 											{fmtDate(nameExpiry(s))}
 										</span>
 									</button>
@@ -1511,13 +1511,13 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								transition={{ duration: 0.25 }}
 								className="mt-2 rounded-[0.9rem] bg-[rgba(28,58,41,0.03)] p-4"
 							>
-								<div className="text-[13.5px] text-[rgba(28,58,41,0.9)]">
+								<div className="text-[13.5px] text-ink-action">
 									<span className="font-medium">{notFound}</span> can't be registered.
 								</div>
 								{/* A name ENS can't hold — too short to be priced, or not a name
 								    ENSIP-15 admits — could never buy any time, so say so rather
 								    than letting someone activate an address that can never work. */}
-								<p className="mt-1 text-[12.5px] text-[rgba(28,58,41,0.55)] leading-relaxed">
+								<p className="mt-1 text-[12.5px] text-ink-secondary leading-relaxed">
 									{LABEL_PROBLEM_TEXT[problem]}
 								</p>
 							</motion.div>
@@ -1530,11 +1530,11 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								transition={{ duration: 0.25 }}
 								className="mt-2 rounded-[0.9rem] bg-[rgba(28,58,41,0.03)] p-4"
 							>
-								<div className="text-[13.5px] text-[rgba(28,58,41,0.9)]">
+								<div className="text-[13.5px] text-ink-action">
 									<span className="font-medium">{notFound}</span> is not monitored by
 									Namepass yet.
 								</div>
-								<p className="mt-1 text-[12.5px] text-[rgba(28,58,41,0.55)] leading-relaxed">
+								<p className="mt-1 text-[12.5px] text-ink-secondary leading-relaxed">
 									Start tracking it to see its deposit address, balances, and renewal activity.
 									You do not have to own the name.
 								</p>
@@ -1553,7 +1553,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 											.finally(() => setActivating(false));
 									}}
 									disabled={activating}
-									className="mt-3 w-full flex items-center justify-center gap-2 bg-[rgba(28,58,41,0.9)] text-white rounded-[10px] py-2.5 hover:bg-[rgba(28,58,41,1)] transition-colors disabled:opacity-70"
+									className="mt-3 w-full flex items-center justify-center gap-2 bg-[rgba(28,58,41,0.9)] text-ink-inverse rounded-[10px] py-2.5 hover:bg-[rgba(28,58,41,1)] transition-colors disabled:opacity-70"
 								>
 									{activating ? (
 										<>

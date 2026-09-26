@@ -42,6 +42,13 @@ Pages share `PageShell` and `Navbar`. Reuse existing visual primitives, tooltips
 On public pages, filled cards and controls have no visible perimeter border. Use borders for
 unfilled controls and internal dividers, and keep keyboard focus indicators visible.
 Small white controls on grey sections use a soft shadow for separation.
+Text colors use the shared `ink-*` theme roles in `src/index.css`: `primary` for headings
+and key values, `secondary` for descriptions and supporting data, `label` for small labels,
+and `action` for links and controls. Supporting text and labels use 70% brand green for
+readability on white and grey surfaces. Use `decorative` only for nonessential numbering.
+Dark surfaces use `inverse` and `inverse-secondary`. Section labels use `tracking-section`.
+Monitoring foreground tokens map to these same roles, including content rendered in portals.
+Keep error, warning, chart-series and network-brand colors distinct where they convey meaning.
 Monitoring is a separately loaded, GitHub-authenticated page built with the existing shadcn
 components. Its snapshot and manual gas-read behavior are defined in [MONITORING.md](MONITORING.md).
 

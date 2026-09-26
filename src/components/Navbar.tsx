@@ -48,12 +48,12 @@ export default function Navbar({
 			</a>
 
 			{showMenu && (
-				<ul className="hidden md:flex items-center gap-8 text-[#1c3a29f2] font-medium text-[15px]">
+				<ul className="hidden md:flex items-center gap-8 text-ink-primary font-medium text-[15px]">
 					{items.map((item) => (
 						<li key={item.label}>
 							<button
 								onClick={item.action}
-								className="cursor-pointer hover:text-[#16301f] transition-colors"
+								className="cursor-pointer hover:text-ink-primary transition-colors"
 							>
 								{item.label}
 							</button>
@@ -67,7 +67,7 @@ export default function Navbar({
 					whileHover={{ scale: 1.02 }}
 					whileTap={{ scale: 0.98 }}
 					onClick={onSearch}
-					className="flex items-center gap-2 bg-[#1c3a29f2] text-white rounded-[10px] px-4 md:px-5 py-2 md:py-2.5 hover:bg-[#16301f] transition-colors"
+					className="flex items-center gap-2 bg-[#1c3a29f2] text-ink-inverse rounded-[10px] px-4 md:px-5 py-2 md:py-2.5 hover:bg-[#16301f] transition-colors"
 				>
 					<span className="text-[14px] font-normal">Get Started</span>
 					<ArrowUpRight className="w-4 h-4 md:w-[18px] md:h-[18px]" />

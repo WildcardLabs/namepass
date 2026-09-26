@@ -37,33 +37,33 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 			<div className="max-w-[720px] mx-auto">
 				<BackButton onClick={onBack} label="Back to Namepass" />
 
-				<h1 className="mt-8 text-[32px] md:text-[44px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-tight">
+				<h1 className="mt-8 text-[32px] md:text-[44px] font-normal text-ink-primary tracking-tight leading-tight">
 					Supported networks & USDC
 				</h1>
-				<p className="mt-6 text-[15px] text-[rgba(28,58,41,0.65)] leading-relaxed">
+				<p className="mt-6 text-[15px] text-ink-secondary leading-relaxed">
 					Namepass currently accepts USDC on the four test networks below.
 				</p>
 
 				<div className="mt-8 space-y-3">
 					{IS_TESTNET && (
 						<div className="flex items-start gap-2.5 rounded-[8px] bg-[rgba(28,58,41,0.03)] px-5 py-4">
-							<FlaskConical className="w-4 h-4 shrink-0 mt-0.5 text-[rgba(28,58,41,0.9)]" />
-							<p className="text-[13.5px] text-[rgba(28,58,41,0.75)] leading-relaxed">
+							<FlaskConical className="w-4 h-4 shrink-0 mt-0.5 text-ink-action" />
+							<p className="text-[13.5px] text-ink-secondary leading-relaxed">
 								Testnet only. This USDC has no real value.
 							</p>
 						</div>
 					)}
 
 					<div className="flex items-start gap-2.5 rounded-[8px] bg-[rgba(28,58,41,0.03)] px-5 py-4">
-						<ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-[rgba(28,58,41,0.9)]" />
-						<p className="text-[13.5px] text-[rgba(28,58,41,0.75)] leading-relaxed">
+						<ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-ink-action" />
+						<p className="text-[13.5px] text-ink-secondary leading-relaxed">
 							Anything else sent to a deposit address cannot be recovered. There is no
 							rescue function.
 						</p>
 					</div>
 				</div>
 
-				<h2 className="mt-12 flex items-center gap-2 text-[16px] text-[rgba(28,58,41,0.9)] tracking-tight">
+				<h2 className="mt-12 flex items-center gap-2 text-[16px] text-ink-primary tracking-tight">
 					<img
 						src={`${import.meta.env.BASE_URL}logos/usdc.svg`}
 						alt=""
@@ -72,7 +72,7 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 					/>
 					USDC contracts
 				</h2>
-				<p className="mt-2 text-[14px] text-[rgba(28,58,41,0.6)] leading-relaxed">
+				<p className="mt-2 text-[14px] text-ink-secondary leading-relaxed">
 					Match the address for your network exactly before sending. Some networks carry
 					other tokens also labelled USDC.
 				</p>
@@ -92,10 +92,10 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 										className="w-5 h-5 shrink-0"
 									/>
 									<div className="min-w-0">
-										<div className="text-[15px] text-[rgba(28,58,41,0.95)] tracking-tight">
+										<div className="text-[15px] text-ink-primary tracking-tight">
 											{t.chain}
 										</div>
-										<div className="text-[11.5px] text-[rgba(28,58,41,0.45)]">
+										<div className="text-[11.5px] text-ink-secondary">
 											{t.network}
 										</div>
 									</div>
@@ -104,7 +104,7 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 									href={t.explorer}
 									target="_blank"
 									rel="noopener noreferrer"
-									className="flex items-center gap-1.5 shrink-0 text-[12px] text-[rgba(28,58,41,0.5)] hover:text-[rgba(28,58,41,0.85)] transition-colors"
+									className="flex items-center gap-1.5 shrink-0 text-[12px] text-ink-action hover:text-ink-primary transition-colors"
 								>
 									Verify
 									<ExternalLink className="w-3.5 h-3.5" />
@@ -118,22 +118,22 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 								className="mt-3 w-full text-left rounded-[8px] bg-[rgba(28,58,41,0.03)] hover:bg-[rgba(28,58,41,0.06)] px-3.5 py-2.5 transition-colors group"
 							>
 								<div className="flex items-start justify-between gap-3">
-									<span className="text-[12.5px] leading-snug text-[rgba(28,58,41,0.95)] font-mono break-all">
+									<span className="text-[12.5px] leading-snug text-ink-primary font-mono break-all">
 										{t.address}
 									</span>
 									{copied === t.address ? (
-										<span className="flex items-center gap-1.5 shrink-0 text-[12px] text-[rgba(28,58,41,0.8)]">
+										<span className="flex items-center gap-1.5 shrink-0 text-[12px] text-ink-action">
 											<Check className="w-3.5 h-3.5" />
 											Copied
 										</span>
 									) : (
-										<Copy className="w-4 h-4 shrink-0 text-[rgba(28,58,41,0.35)] group-hover:text-[rgba(28,58,41,0.75)] transition-colors" />
+										<Copy className="w-4 h-4 shrink-0 text-ink-secondary group-hover:text-ink-primary transition-colors" />
 									)}
 								</div>
 							</button>
 
 							{t.note && (
-								<p className="mt-2.5 text-[12.5px] text-[rgba(28,58,41,0.55)] leading-relaxed">
+								<p className="mt-2.5 text-[12.5px] text-ink-secondary leading-relaxed">
 									{t.note}
 								</p>
 							)}
@@ -141,15 +141,15 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 					))}
 				</div>
 
-				<h2 className="mt-10 text-[16px] text-[rgba(28,58,41,0.9)] tracking-tight">
+				<h2 className="mt-10 text-[16px] text-ink-primary tracking-tight">
 					Balances do not combine
 				</h2>
-				<p className="mt-2 text-[14px] text-[rgba(28,58,41,0.6)] leading-relaxed">
+				<p className="mt-2 text-[14px] text-ink-secondary leading-relaxed">
 					A name's deposit address is the same on all four networks, but USDC sent on
 					each is a separate balance. Every one converts to renewal time on its own.
 				</p>
 
-				<p className="mt-12 text-[12px] text-[rgba(28,58,41,0.45)] leading-relaxed">
+				<p className="mt-12 text-[12px] text-ink-secondary leading-relaxed">
 					Addresses verified 5 August 2026 against Circle's published list.
 				</p>
 			</div>

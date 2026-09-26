@@ -33,8 +33,8 @@ function Toggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void })
 					onClick={() => onChange(o.key)}
 					className={`rounded-[7px] px-4 py-2 text-[13px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)] ${
 						mode === o.key
-							? "bg-white text-[rgba(28,58,41,0.95)] shadow-[0_1px_3px_rgba(28,58,41,0.12)]"
-							: "text-[rgba(28,58,41,0.55)] hover:bg-white/60 hover:text-[rgba(28,58,41,0.9)]"
+							? "bg-white text-ink-primary shadow-[0_1px_3px_rgba(28,58,41,0.12)]"
+							: "text-ink-secondary hover:bg-white/60 hover:text-ink-primary"
 					}`}
 				>
 					{o.label}
@@ -63,7 +63,7 @@ type RecentTransactions = {
 function LatestTransactions({ state }: { state: RecentTransactions | undefined }) {
 	if (!state || state.loading) {
 		return (
-			<div className="flex items-center gap-2 py-5 text-[13px] text-[rgba(28,58,41,0.55)]">
+			<div className="flex items-center gap-2 py-5 text-[13px] text-ink-secondary">
 				<Loader2 className="w-4 h-4 animate-spin" />
 				Loading latest transactions
 			</div>
@@ -73,7 +73,7 @@ function LatestTransactions({ state }: { state: RecentTransactions | undefined }
 		return <p role="alert" className="py-4 text-[13px] text-red-700">{state.error}</p>;
 	}
 	if (state.events.length === 0) {
-		return <p className="py-4 text-[13px] text-[rgba(28,58,41,0.55)]">No completed renewal transactions yet.</p>;
+		return <p className="py-4 text-[13px] text-ink-secondary">No completed renewal transactions yet.</p>;
 	}
 	return (
 		<ol className="divide-y divide-[rgba(28,58,41,0.07)]">
@@ -84,14 +84,14 @@ function LatestTransactions({ state }: { state: RecentTransactions | undefined }
 						<div className="min-w-0">
 							<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px]">
 								<ChainTag chain={event.chain} />
-								<span className="text-[rgba(28,58,41,0.45)] tabular-nums">{fmtDate(event.at)}</span>
+								<span className="text-ink-secondary tabular-nums">{fmtDate(event.at)}</span>
 							</div>
 							{renewal && (
 								<a
 									href={explorerUrl(renewal.chain, renewal.tx)}
 									target="_blank"
 									rel="noopener noreferrer"
-									className="mt-1.5 inline-flex items-center gap-1.5 font-mono text-[11.5px] text-[rgba(28,58,41,0.5)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
+									className="mt-1.5 inline-flex items-center gap-1.5 font-mono text-[11.5px] text-ink-action hover:text-ink-primary transition-colors"
 								>
 									{truncTx(renewal.tx)}
 									<ExternalLink className="w-2.5 h-2.5" />
@@ -99,8 +99,8 @@ function LatestTransactions({ state }: { state: RecentTransactions | undefined }
 							)}
 						</div>
 						<div className="text-right tabular-nums">
-							<div className="text-[14px] text-[rgba(28,58,41,0.9)]">{fmtUsdc(event.amountDeposited)}</div>
-							<div className="mt-0.5 text-[11.5px] text-[rgba(28,58,41,0.48)]">{fmtDuration(event.seconds)}</div>
+							<div className="text-[14px] text-ink-action">{fmtUsdc(event.amountDeposited)}</div>
+							<div className="mt-0.5 text-[11.5px] text-ink-secondary">{fmtDuration(event.seconds)}</div>
 						</div>
 					</li>
 				);
@@ -237,15 +237,15 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 								<span className="absolute inline-flex w-full h-full rounded-full bg-[rgba(28,58,41,0.35)] animate-ping" />
 								<span className="relative inline-flex w-2 h-2 rounded-full bg-[rgba(28,58,41,0.8)]" />
 							</span>
-							<span className="text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
+							<span className="text-[11px] uppercase tracking-section text-ink-label">
 								Leaderboard · Live
 							</span>
 						</div>
-						<h1 className="relative -left-0.5 mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
+						<h1 className="relative -left-0.5 mt-3 text-[36px] md:text-[52px] font-normal text-ink-primary tracking-tight leading-[1.05]">
 							Ranked by impact.
 						</h1>
 					</div>
-					<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] max-w-xl leading-relaxed">
+					<p className="mt-3 text-[15px] md:text-[16px] text-ink-secondary max-w-xl leading-relaxed">
 						Names with completed renewals, ranked by how much runway they earned.
 						Sort by total renewals or by years of registration delivered.
 					</p>
@@ -257,7 +257,7 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 
 				<div className="mt-6 border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden divide-y divide-[rgba(28,58,41,0.07)]">
 					{loaded && !loadError && page.length === 0 && (
-						<p role="status" className="px-5 py-10 text-center text-[13px] text-[rgba(28,58,41,0.55)]">
+						<p role="status" className="px-5 py-10 text-center text-[13px] text-ink-secondary">
 							No completed renewals yet.
 						</p>
 					)}
@@ -290,10 +290,10 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 									/>
 
 									<div className="min-w-0 flex-1">
-										<div className="text-[15px] md:text-[14.5px] text-[rgba(28,58,41,0.95)] truncate">
+										<div className="text-[15px] md:text-[14.5px] text-ink-primary truncate">
 											{r.name}
 										</div>
-										<div className="mt-0.5 text-[12.5px] text-[rgba(28,58,41,0.5)] tabular-nums">
+										<div className="mt-0.5 text-[12.5px] text-ink-secondary tabular-nums">
 											{renewalCount(r).toString()} renewals · {fmtDelivered(timeDelivered(r))}{" "}
 											delivered
 										</div>
@@ -301,15 +301,15 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 
 									<div className="shrink-0 flex items-center gap-3">
 										<div className="text-right">
-											<span className="block text-[17px] md:text-[19px] text-[rgba(28,58,41,0.95)] tracking-tight tabular-nums">
+											<span className="block text-[17px] md:text-[19px] text-ink-primary tracking-tight tabular-nums">
 												{primary}
 											</span>
-											<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.4)]">
+											<div className="text-[10px] uppercase tracking-wider text-ink-label">
 												{mode === "renewals" ? "Renewals" : "Delivered"}
 											</div>
 										</div>
 										<ChevronDown
-											className={`w-4 h-4 text-[rgba(28,58,41,0.35)] transition-transform ${isOpen ? "rotate-180" : ""}`}
+											className={`w-4 h-4 text-ink-secondary transition-transform ${isOpen ? "rotate-180" : ""}`}
 										/>
 									</div>
 								</button>
@@ -324,13 +324,13 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 											className="overflow-hidden"
 										>
 											<div className="px-4 md:px-5 py-5 bg-[rgba(28,58,41,0.015)] border-t border-[rgba(28,58,41,0.06)]">
-												<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
+												<div className="text-[10px] uppercase tracking-wider text-ink-label">
 													Latest transactions
 												</div>
 												<LatestTransactions state={recent[r.name]} />
 												<button
 													onClick={() => onViewName(r.name)}
-													className="mt-3 w-full flex items-center justify-center gap-2 rounded-[10px] bg-white py-3 text-[13.5px] text-[rgba(28,58,41,0.8)] hover:bg-white/80 transition-colors"
+													className="mt-3 w-full flex items-center justify-center gap-2 rounded-[10px] bg-white py-3 text-[13.5px] text-ink-action hover:bg-white/80 transition-colors"
 												>
 													View {r.name} profile
 													<ArrowRight className="w-3.5 h-3.5" />
@@ -347,7 +347,7 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 
 				{pageCount > 1 && (
 					<div className="mt-6 flex items-center justify-between">
-						<span className="text-[12.5px] text-[rgba(28,58,41,0.5)] tabular-nums">
+						<span className="text-[12.5px] text-ink-secondary tabular-nums">
 							Page {pageIndex + 1} of {pageCount}
 						</span>
 						<div className="flex items-center gap-2">
@@ -357,7 +357,7 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 									setPageIndex((p) => Math.max(0, p - 1));
 								}}
 								disabled={pageIndex === 0}
-								className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] border border-[rgba(28,58,41,0.12)] text-[13px] text-[rgba(28,58,41,0.7)] hover:border-[rgba(28,58,41,0.3)] transition-colors disabled:opacity-35 disabled:pointer-events-none"
+								className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] border border-[rgba(28,58,41,0.12)] text-[13px] text-ink-secondary hover:border-[rgba(28,58,41,0.3)] transition-colors disabled:opacity-35 disabled:pointer-events-none"
 							>
 								<ArrowLeft className="w-3.5 h-3.5" />
 								Prev
@@ -368,7 +368,7 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 									setPageIndex((p) => Math.min(pageCount - 1, p + 1));
 								}}
 								disabled={pageIndex >= pageCount - 1}
-								className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] border border-[rgba(28,58,41,0.12)] text-[13px] text-[rgba(28,58,41,0.7)] hover:border-[rgba(28,58,41,0.3)] transition-colors disabled:opacity-35 disabled:pointer-events-none"
+								className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] border border-[rgba(28,58,41,0.12)] text-[13px] text-ink-secondary hover:border-[rgba(28,58,41,0.3)] transition-colors disabled:opacity-35 disabled:pointer-events-none"
 							>
 								Next
 								<ArrowRight className="w-3.5 h-3.5" />

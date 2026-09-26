@@ -55,7 +55,7 @@ export function AnimatedBeamDemo() {
           ))}
         </div>
         <Circle ref={addressRef} className="relative size-16 shrink-0">
-          <Fingerprint aria-hidden="true" className="size-8 text-[#1c3a29f2]" />
+          <Fingerprint aria-hidden="true" className="size-8 text-ink-primary" />
         </Circle>
         <Circle ref={ensRef} className="relative size-12 shrink-0">
           <img src={`${import.meta.env.BASE_URL}logos/ens.svg`} alt="ENS" className="size-full scale-125 object-contain" />
