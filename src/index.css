@@ -84,6 +84,11 @@ body {
 	outline-offset: -4px;
 }
 
+/* The search container provides focus feedback with its focus-within shadow. */
+.public-ui .search-input:focus {
+	outline: none;
+}
+
 /* Keep native range semantics and keyboard handling, but own every painted
    part: accent-color alone lets browsers change the green on press/hover. */
 .amount-slider {

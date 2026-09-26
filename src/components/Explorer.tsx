@@ -1478,7 +1478,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								}}
 								onKeyDown={(e) => e.key === "Enter" && submit()}
 								placeholder="Search a name, e.g. vitalik.eth"
-								className="flex-1 min-w-0 bg-transparent outline-none text-[16px] md:text-[14px] text-ink-primary placeholder:text-ink-secondary"
+								className="search-input flex-1 min-w-0 bg-transparent text-[16px] md:text-[14px] text-ink-primary placeholder:text-ink-secondary"
 							/>
 							<button
 								type="button"
