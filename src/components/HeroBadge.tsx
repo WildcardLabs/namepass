@@ -13,7 +13,7 @@ export default function HeroBadge() {
 			transition={{ duration: 0.6, ease: "easeOut" }}
 			className="mx-auto mb-4 w-fit"
 		>
-			<button className="group inline-flex items-center gap-2 rounded-[10px] bg-white/70 backdrop-blur-md pl-1.5 pr-2.5 py-1.5 shadow-[0_1px_2px_rgba(28,58,41,0.05)] hover:bg-white/85 transition-colors">
+			<button className="group inline-flex items-center gap-2 rounded-[10px] backdrop-blur-md pl-1.5 pr-2.5 py-1.5 shadow-[0_1px_2px_rgba(28,58,41,0.05)] transition-colors">
 				<span className="text-[16px] leading-none">
 					🌳
 				</span>
