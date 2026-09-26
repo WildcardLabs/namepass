@@ -42,6 +42,7 @@ Pages share `PageShell` and `Navbar`. Reuse existing visual primitives, tooltips
 On public pages, filled cards and controls have no visible perimeter border. Use borders for
 unfilled controls and internal dividers, and keep keyboard focus indicators visible.
 Public page backgrounds use the cool gray `surface-canvas`, including the hero corner cutouts.
+The hero video uses reduced saturation and multiplies over that canvas to cool its sky highlights.
 Use `surface-selected` for pricing selections and `surface-table` for Explorer headers.
 Use `inset-panel` for shaded information, address fields, renewal hints and transaction rows.
 It owns the opaque `surface-inset` fill, 8px corners and 12px/16px padding. Add `inset-action`

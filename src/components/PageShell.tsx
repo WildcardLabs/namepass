@@ -40,7 +40,7 @@ export default function PageShell({ children, video, outerClassName = "", cardCl
 	return (
 		<div className={`w-full flex items-center justify-center p-3 md:p-5 bg-surface-canvas ${outerClassName}`}>
 			<section
-				className={`relative w-full max-w-[1536px] rounded-[1.5rem] md:rounded-[3rem] overflow-hidden flex flex-col items-center ${video ? "" : "bg-white"} ${cardClassName}`}
+				className={`relative isolate w-full max-w-[1536px] rounded-[1.5rem] md:rounded-[3rem] overflow-hidden flex flex-col items-center ${video ? "bg-surface-canvas" : "bg-white"} ${cardClassName}`}
 			>
 				{/* Deliberately size rather than use `scale`: a transform makes
 				    the video a compositing layer whose rounded clip is computed
@@ -83,7 +83,7 @@ export default function PageShell({ children, video, outerClassName = "", cardCl
 						loop
 						playsInline
 						src={video}
-						className="absolute -inset-1 max-w-none w-[calc(100%_+_0.5rem)] h-[calc(100%_+_0.5rem)] object-cover object-[65%] lg:object-center rounded-br-[4rem] md:rounded-br-[6rem] z-0"
+						className="hero-video absolute -inset-1 max-w-none w-[calc(100%_+_0.5rem)] h-[calc(100%_+_0.5rem)] object-cover object-[65%] lg:object-center rounded-br-[4rem] md:rounded-br-[6rem] z-0"
 					/>
 				)}
 				<div className="relative z-10 w-full h-full flex flex-col items-center">{children}</div>

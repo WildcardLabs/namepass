@@ -72,6 +72,12 @@ body {
 	}
 }
 
+/* Neutralize the warm cast; white highlights blend into the canvas color. */
+.hero-video {
+	filter: saturate(0.75);
+	mix-blend-mode: multiply;
+}
+
 /* Public controls share a visible keyboard focus treatment. Monitoring owns
    its separate component system. Inset outlines stay inside clipped cards. */
 .public-ui :where(button, a, input):focus-visible {
@@ -82,6 +88,11 @@ body {
 .public-ui .primary-action:focus-visible {
 	outline-color: white;
 	outline-offset: -4px;
+}
+
+/* The search container provides focus feedback with its focus-within shadow. */
+.public-ui .search-input:focus {
+	outline: none;
 }
 
 /* Keep native range semantics and keyboard handling, but own every painted
