@@ -157,7 +157,7 @@ body {
  --card-foreground: var(--color-ink-primary);
  --popover: #fff;
  --popover-foreground: var(--color-ink-primary);
- --primary: var(--color-ink-action);
+ --primary: #243e88;
  --primary-foreground: var(--color-ink-inverse);
  --secondary: #edf0f7;
  --secondary-foreground: var(--color-ink-action);
@@ -173,7 +173,7 @@ body {
  --radius: 0.5rem;
 	--sidebar: #ffffff;
 	--sidebar-foreground: var(--color-ink-primary);
-	--sidebar-primary: var(--color-ink-action);
+	--sidebar-primary: #243e88;
 	--sidebar-primary-foreground: var(--color-ink-inverse);
 	--sidebar-accent: #eef2ff;
 	--sidebar-accent-foreground: var(--color-ink-primary);
