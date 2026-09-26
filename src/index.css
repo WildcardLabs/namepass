@@ -7,6 +7,12 @@
 
 @theme {
 	--font-helvetica: "Helvetica Regular", ui-sans-serif, system-ui, sans-serif;
+	/* Public palette: warm canvas, sage selection, brass savings badges. */
+	--color-surface-canvas: #f4f3ee;
+	--color-surface-selected: #e8ede5;
+	--color-surface-table: #f0f3ed;
+	--color-savings: #87651f;
+	--color-savings-soft: #f5ebcf;
 	/* Shared text roles for public pages and monitoring. */
 	--color-ink-primary: #1c3a29f2;
 	--color-ink-secondary: rgba(28, 58, 41, 0.7);
@@ -32,7 +38,7 @@ body {
 	margin: 0;
 	overflow-x: hidden;
 	overscroll-behavior-y: none;
-	background-color: #f0f0f0;
+	background-color: var(--color-surface-canvas);
 }
 
 @keyframes shine-rotate {

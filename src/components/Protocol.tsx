@@ -16,7 +16,7 @@ const HOVER = { y: -2, boxShadow: "0 12px 28px rgba(28,58,41,0.06)", transition:
 
 export default function Protocol() {
 	return (
-		<section id="protocol" className="bg-[#f0f0f0] px-5 md:px-10 py-14 md:py-20">
+		<section id="protocol" className="bg-surface-canvas px-5 md:px-10 py-14 md:py-20">
 			<div className="max-w-[1100px] mx-auto">
 				<div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
 					<div className="max-w-2xl">

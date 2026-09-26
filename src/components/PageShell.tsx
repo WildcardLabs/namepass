@@ -38,7 +38,7 @@ export default function PageShell({ children, video, outerClassName = "", cardCl
 		};
 	}, [video]);
 	return (
-		<div className={`w-full flex items-center justify-center p-3 md:p-5 bg-[#f0f0f0] ${outerClassName}`}>
+		<div className={`w-full flex items-center justify-center p-3 md:p-5 bg-surface-canvas ${outerClassName}`}>
 			<section
 				className={`relative w-full max-w-[1536px] rounded-[1.5rem] md:rounded-[3rem] overflow-hidden flex flex-col items-center ${video ? "" : "bg-white"} ${cardClassName}`}
 			>

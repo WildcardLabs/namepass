@@ -213,7 +213,7 @@ function ActiveApp() {
 	}
 
 	return (
-		<main className="min-h-screen bg-[#f0f0f0] flex flex-col">
+		<main className="min-h-screen bg-surface-canvas flex flex-col">
 			<TestnetBanner />
 			<div className="flex-1">
 				{/* The hero is copy over video and quotes nothing, so it renders

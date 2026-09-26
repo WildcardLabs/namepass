@@ -33,7 +33,7 @@ export default function Footer({
 	];
 
 	return (
-		<footer className="bg-[#f0f0f0] border-t border-[rgba(28,58,41,0.08)] px-5 md:px-10 py-14 md:py-16">
+		<footer className="bg-surface-canvas border-t border-[rgba(28,58,41,0.08)] px-5 md:px-10 py-14 md:py-16">
 			<div className="max-w-[1100px] mx-auto">
 				<div className="flex flex-col md:flex-row md:justify-between gap-10 md:gap-6">
 					<div className="max-w-xs">
