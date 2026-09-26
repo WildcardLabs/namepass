@@ -43,6 +43,13 @@ On public pages, filled cards and controls have no visible perimeter border. Use
 unfilled controls and internal dividers, and keep keyboard focus indicators visible.
 Public page backgrounds use the cool gray `surface-canvas`, including the hero corner cutouts.
 Use `surface-selected` for pricing selections and `surface-table` for Explorer headers.
+Use `inset-panel` for shaded information, address fields, renewal hints and transaction rows.
+It owns the opaque `surface-inset` fill, 8px corners and 12px/16px padding. Add `inset-action`
+only when the whole panel is a button or link. It supplies the shared `surface-hover` interaction
+fill, with hover restricted to devices that support hover. Do not add local opacity, radius or
+padding variants for the same role. Glass parent cards use the same opaque inset panels.
+Use `primary-action` for filled public actions. The `public-ui` shell supplies keyboard focus
+outlines; dark actions use a white inset outline. Error and warning surfaces retain their meaning.
 Reserve the green `savings` and `savings-soft` pair for discount badges; actions, time values and status
 keep their existing green roles. Small white controls use a soft shadow for separation.
 Text colors use the shared `ink-*` theme roles in `src/index.css`: `primary` for headings
@@ -56,7 +63,19 @@ Monitoring is a separately loaded, GitHub-authenticated page built with the exis
 components. Its snapshot and manual gas-read behavior are defined in [MONITORING.md](MONITORING.md).
 
 The deposit card shows separate copy targets for `<label>.namepass.eth` and the full deposit
-address. Its QR encodes the address. Static QR codes use one SVG path.
+address. Its QR encodes the address. Static QR codes use one SVG path. Full address values wrap
+at a readable font size on narrow screens; do not shrink them to fit one line. Public copy actions
+use `useCopyFeedback`: show success only after the clipboard write succeeds, report failures,
+keep icon geometry stable, and clear obsolete feedback timers.
+
+The amount slider keeps a native range input for touch and keyboard behavior. `amount-slider`
+owns the track and thumb styles for WebKit/Blink and Firefox; do not replace it with
+`accent-color`. The thumb and filled track keep one opaque color in every interaction state.
+The range has a 44px interaction area and exposes the actual USDC amount through `aria-valuetext`.
+Update renewal results in place during dragging. Public tooltip triggers support focus, touch
+toggle, outside dismissal and Escape, and link to their description with `aria-describedby`.
+
+The [UI consistency audit](UI_AUDIT.md) records the affected surfaces and verification limits.
 
 The Explorer keeps its card in place and renders only the active view. The detail view fades and
 slides in over 400 ms; its ENS profile fields show inline loading skeletons. The parent retains the

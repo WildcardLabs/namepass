@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCopyFeedback } from "../hooks/use-copy-feedback";
 import { Check, Copy, ExternalLink, FlaskConical, ShieldAlert } from "lucide-react";
 import { BackButton } from "./BackButton";
 import { SUPPORTED_TOKENS, IS_TESTNET } from "../lib/tokens";
@@ -21,16 +21,7 @@ import { SUPPORTED_TOKENS, IS_TESTNET } from "../lib/tokens";
  * not one they read.
  */
 export default function SupportedTokens({ onBack }: { onBack: () => void }) {
-	const [copied, setCopied] = useState<string | null>(null);
-
-	function copy(address: string) {
-		const done = () => {
-			setCopied(address);
-			setTimeout(() => setCopied(null), 1600);
-		};
-		if (navigator.clipboard) navigator.clipboard.writeText(address).then(done, done);
-		else done();
-	}
+	const { copied, error, copy } = useCopyFeedback();
 
 	return (
 		<div className="w-full px-5 md:px-10 pt-4 pb-20 md:pb-28">
@@ -46,7 +37,7 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 
 				<div className="mt-8 space-y-3">
 					{IS_TESTNET && (
-						<div className="flex items-start gap-2.5 rounded-[8px] bg-[rgba(28,58,41,0.03)] px-5 py-4">
+						<div className="flex items-start gap-2.5 inset-panel">
 							<FlaskConical className="w-4 h-4 shrink-0 mt-0.5 text-ink-action" />
 							<p className="text-[13.5px] text-ink-secondary leading-relaxed">
 								Testnet only. This USDC has no real value.
@@ -54,7 +45,7 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 						</div>
 					)}
 
-					<div className="flex items-start gap-2.5 rounded-[8px] bg-[rgba(28,58,41,0.03)] px-5 py-4">
+					<div className="flex items-start gap-2.5 inset-panel">
 						<ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-ink-action" />
 						<p className="text-[13.5px] text-ink-secondary leading-relaxed">
 							Anything else sent to a deposit address cannot be recovered. There is no
@@ -81,7 +72,7 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 					{SUPPORTED_TOKENS.map((t) => (
 						<div
 							key={t.chain}
-							className="rounded-[1.4rem] border border-[rgba(28,58,41,0.1)] bg-white px-4 py-4"
+							className="rounded-[1.4rem] bg-white shadow-[0_3px_10px_rgba(28,58,41,0.08)] px-4 py-4"
 						>
 							<div className="flex items-center justify-between gap-3">
 								<div className="flex items-center gap-2.5 min-w-0">
@@ -104,7 +95,7 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 									href={t.explorer}
 									target="_blank"
 									rel="noopener noreferrer"
-									className="flex items-center gap-1.5 shrink-0 text-[12px] text-ink-action hover:text-ink-primary transition-colors"
+									className="inline-flex min-h-11 items-center gap-1.5 shrink-0 text-[12px] text-ink-action hover:text-ink-primary transition-colors"
 								>
 									Verify
 									<ExternalLink className="w-3.5 h-3.5" />
@@ -114,23 +105,23 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 							{/* Full address, never truncated. The middle is what an
 							    address-swap attack changes. */}
 							<button
-								onClick={() => copy(t.address)}
-								className="mt-3 w-full text-left rounded-[8px] bg-[rgba(28,58,41,0.03)] hover:bg-[rgba(28,58,41,0.06)] px-3.5 py-2.5 transition-colors group"
+								onClick={() => void copy(t.address)}
+								aria-label={`Copy ${t.chain} USDC contract address ${t.address}`}
+								className="inset-panel inset-action mt-3 w-full text-left group"
 							>
 								<div className="flex items-start justify-between gap-3">
 									<span className="text-[12.5px] leading-snug text-ink-primary font-mono break-all">
 										{t.address}
 									</span>
 									{copied === t.address ? (
-										<span className="flex items-center gap-1.5 shrink-0 text-[12px] text-ink-action">
-											<Check className="w-3.5 h-3.5" />
-											Copied
-										</span>
+										<Check aria-hidden="true" className="w-4 h-4 shrink-0 text-ink-action" />
 									) : (
 										<Copy className="w-4 h-4 shrink-0 text-ink-secondary group-hover:text-ink-primary transition-colors" />
 									)}
 								</div>
 							</button>
+
+							{error?.value === t.address && <p role="alert" className="mt-2 text-[12px] text-red-700">{error.message}</p>}
 
 							{t.note && (
 								<p className="mt-2.5 text-[12.5px] text-ink-secondary leading-relaxed">
@@ -140,6 +131,8 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 						</div>
 					))}
 				</div>
+
+				<p role="status" className="sr-only">{copied ? "Copied to clipboard" : ""}</p>
 
 				<h2 className="mt-10 text-[16px] text-ink-primary tracking-tight">
 					Balances do not combine

@@ -9,6 +9,11 @@
 	--font-helvetica: "Helvetica Regular", ui-sans-serif, system-ui, sans-serif;
 	/* Public palette: cool gray canvas and restrained green emphasis. */
 	--color-surface-canvas: #f1f3f4;
+	--color-surface-inset: #f1f3f4;
+	--color-surface-hover: #e7ece9;
+	--color-control: #274333;
+	--color-control-hover: #1c3a29;
+	--color-control-track: #dbe2de;
 	--color-surface-selected: #e3ece8;
 	--color-surface-table: #edf2f0;
 	--color-savings: #365e4f;
@@ -39,6 +44,105 @@ body {
 	overflow-x: hidden;
 	overscroll-behavior-y: none;
 	background-color: var(--color-surface-canvas);
+}
+
+/* One inset treatment for informational panels, copy fields and transactions.
+   Opaque colors keep the same appearance over white, gray and glass cards. */
+@layer components {
+	.primary-action {
+		min-height: 44px;
+		border-radius: 10px;
+		background-color: var(--color-control);
+		color: var(--color-ink-inverse);
+		transition: background-color 150ms;
+	}
+	.primary-action:active { background-color: var(--color-control-hover); }
+	@media (hover: hover) {
+		.primary-action:hover { background-color: var(--color-control-hover); }
+	}
+	.inset-panel {
+		border-radius: 8px;
+		background-color: var(--color-surface-inset);
+		padding: 12px 16px;
+	}
+	.inset-action {
+		cursor: pointer;
+		transition: background-color 150ms;
+		-webkit-tap-highlight-color: transparent;
+	}
+	.inset-action:active {
+		background-color: var(--color-surface-hover);
+	}
+	@media (hover: hover) {
+		.inset-action:hover { background-color: var(--color-surface-hover); }
+	}
+}
+
+/* Public controls share a visible keyboard focus treatment. Monitoring owns
+   its separate component system. Inset outlines stay inside clipped cards. */
+.public-ui :where(button, a, input):focus-visible {
+	outline: 2px solid var(--color-control);
+	outline-offset: -2px;
+}
+
+.public-ui .primary-action:focus-visible {
+	outline-color: white;
+	outline-offset: -4px;
+}
+
+/* Keep native range semantics and keyboard handling, but own every painted
+   part: accent-color alone lets browsers change the green on press/hover. */
+.amount-slider {
+	-webkit-appearance: none;
+	appearance: none;
+	display: block;
+	width: 100%;
+	height: 44px;
+	margin-inline: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	cursor: pointer;
+	touch-action: pan-y;
+	-webkit-tap-highlight-color: transparent;
+}
+.amount-slider::-webkit-slider-runnable-track {
+	height: 6px;
+	border-radius: 999px;
+	background: linear-gradient(to right, var(--color-control) var(--range-fill), var(--color-control-track) var(--range-fill));
+}
+.amount-slider::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 22px;
+	height: 22px;
+	margin-top: -8px;
+	border: 0;
+	border-radius: 50%;
+	background: var(--color-control);
+	box-shadow: none;
+}
+.amount-slider::-moz-range-track {
+	height: 6px;
+	border-radius: 999px;
+	background: var(--color-control-track);
+}
+.amount-slider::-moz-range-progress {
+	height: 6px;
+	border-radius: 999px;
+	background: var(--color-control);
+}
+.amount-slider::-moz-range-thumb {
+	width: 22px;
+	height: 22px;
+	border: 0;
+	border-radius: 50%;
+	background: var(--color-control);
+	box-shadow: none;
+}
+@media (forced-colors: active) {
+	.amount-slider { --color-control: Highlight; --color-control-track: GrayText; forced-color-adjust: none; }
 }
 
 @keyframes shine-rotate {

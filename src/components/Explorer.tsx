@@ -1,3 +1,4 @@
+import { useCopyFeedback } from "../hooks/use-copy-feedback";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import {
 	useEffect,
@@ -127,7 +128,7 @@ function DiscountTag({ off }: { off: string | null }) {
 
 const LIVE_FEED_COLUMNS = "lg:grid-cols-[minmax(9rem,1.45fr)_minmax(5.75rem,0.8fr)_minmax(6rem,0.9fr)_minmax(5.5rem,0.85fr)_minmax(5rem,0.7fr)_minmax(6.5rem,1fr)_7rem]";
 const NAME_ACTIVITY_COLUMNS = "lg:grid-cols-[minmax(5.5rem,0.8fr)_minmax(9rem,1.2fr)_minmax(5rem,0.8fr)_minmax(6rem,0.85fr)_minmax(5.5rem,0.8fr)_minmax(5rem,0.7fr)_7rem]";
-const SEARCH_ICON_BUTTON_CLASS = `${ICON_BUTTON_BASE_CLASS} bg-[rgba(28,58,41,0.95)] text-ink-inverse hover:bg-[rgba(28,58,41,1)]`;
+const SEARCH_ICON_BUTTON_CLASS = `${ICON_BUTTON_BASE_CLASS} primary-action`;
 
 /** The exact shared mobile layout for activity rows in both Explorer views. */
 function MobileFlowSummary({
@@ -156,7 +157,7 @@ function MobileFlowSummary({
 	showDetails?: boolean;
 }) {
 	return (
-		<div className={`lg:hidden px-4 md:px-5 py-4 md:py-3.5 ${expandable ? "hover:bg-[rgba(28,58,41,0.025)] transition-colors" : ""}`}>
+		<div className={`lg:hidden px-4 md:px-5 py-4 md:py-3.5 ${expandable ? "hover:bg-surface-inset transition-colors" : ""}`}>
 			<div className="flex items-center justify-between gap-2">
 				{title}
 				{expandable && (
@@ -166,7 +167,7 @@ function MobileFlowSummary({
 						aria-expanded={expanded}
 						aria-controls={controlsId}
 						aria-label={expanded ? "Hide flow details" : "Show flow details"}
-						className={`${QUIET_ICON_BUTTON_CLASS} ${expanded ? "border-transparent bg-[rgba(28,58,41,0.06)]" : "border-[rgba(28,58,41,0.16)] bg-white"}`}
+						className={`${QUIET_ICON_BUTTON_CLASS} ${expanded ? "border-transparent bg-surface-hover" : "border-[rgba(28,58,41,0.16)] bg-white"}`}
 					>
 						<span className="sr-only">{expanded ? "Hide flow details" : "Show flow details"}</span>
 						<ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -298,7 +299,7 @@ function FeedRowContent({
 				controlsId={`flow-details-${row.key}`}
 				onToggle={toggleExpanded}
 			/>
-			<div className={`hidden lg:grid px-4 md:px-5 py-3.5 ${LIVE_FEED_COLUMNS} gap-4 items-center hover:bg-[rgba(28,58,41,0.025)] transition-colors`}>
+			<div className={`hidden lg:grid px-4 md:px-5 py-3.5 ${LIVE_FEED_COLUMNS} gap-4 items-center hover:bg-surface-inset transition-colors`}>
 				{nameTitle}
 				<span className="text-[13.5px]"><ChainTag chain={row.chain} /></span>
 				<span className="text-right"><AmountCell deposited={row.amountDeposited} applied={row.amountApplied} showApplied={row.gasAllowance > 0n} /></span>
@@ -330,25 +331,14 @@ function FeedRowContent({
 						className="overflow-hidden"
 					>
 						{row.pending ? (
-							<div className="px-4 md:px-5 py-4 border-t border-[rgba(28,58,41,0.06)] bg-[rgba(28,58,41,0.015)]">
+							<div className="px-4 md:px-5 py-4 border-t border-[rgba(28,58,41,0.06)] bg-white">
 								<p className="text-[13px] text-ink-action">{flowPresentation(row.status, row.originChainId).detail}</p>
 								{transactions.length > 0 && (
 									<div className="mt-4">
 										<div className="text-[10px] uppercase tracking-wider text-ink-label">Transactions</div>
 										<ol className="mt-2 grid gap-2 sm:grid-cols-2">
 											{transactions.map((transaction, index) => (
-												<li key={transaction.tx} className="flex min-w-0 items-center gap-2.5 rounded-lg bg-white/80 px-3 py-2">
-													<span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[rgba(28,58,41,0.06)] text-[10px] tabular-nums text-ink-secondary">{index + 1}</span>
-													<div className="min-w-0 flex-1">
-														<div className="flex items-center justify-between gap-2 text-[12px]">
-															<span className="text-ink-action">{transaction.label}</span>
-															<span className="shrink-0 text-[11px] text-ink-secondary">{transaction.chain}</span>
-														</div>
-														<a href={explorerUrl(transaction.chain, transaction.tx)} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 font-mono text-[11.5px] text-ink-action transition-colors hover:text-ink-primary">
-															{truncTx(transaction.tx)} <ExternalLink className="h-3 w-3" />
-														</a>
-													</div>
-												</li>
+												<TransactionRow key={transaction.tx} index={index} label={transaction.label} chain={transaction.chain} tx={transaction.tx} />
 											))}
 										</ol>
 									</div>
@@ -616,30 +606,51 @@ function stepLabel(step: FlowStep, bridged: boolean): string {
 	return bridged ? "Minted and renewed" : "Renewed";
 }
 
-function CopyableAddress({ address, label }: { address: string; label: string }) {
-	const [copied, setCopied] = useState(false);
-	const copyable = /^0x[a-f\d]{40}$/i.test(address);
+/** Pending and settled flows use the same full-row transaction link. */
+function TransactionRow({ index, label, chain, tx }: { index: number; label: string; chain: string; tx: string }) {
+	return (
+		<li>
+			<a
+				href={explorerUrl(chain, tx)}
+				target="_blank"
+				rel="noopener noreferrer"
+				aria-label={`View ${label.toLowerCase()} transaction on ${chain}`}
+				className="inset-panel inset-action flex min-w-0 items-center gap-2.5"
+			>
+				<span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-hover text-[10px] text-ink-secondary tabular-nums">{index + 1}</span>
+				<span className="min-w-0 flex-1">
+					<span className="flex items-center justify-between gap-2 text-[12.5px] text-ink-primary">
+						<span>{label}</span>
+						<span className="shrink-0 text-[11px] text-ink-secondary">{chain}</span>
+					</span>
+					<span className="mt-1 inline-flex items-center gap-1.5 font-mono text-[12px] text-ink-action">
+						{truncTx(tx)} <ExternalLink className="w-3 h-3 shrink-0" />
+					</span>
+				</span>
+			</a>
+		</li>
+	);
+}
 
-	const copyAddress = async () => {
-		try {
-			await navigator.clipboard.writeText(address);
-			setCopied(true);
-			window.setTimeout(() => setCopied(false), 1200);
-		} catch {
-			setCopied(false);
-		}
-	};
+function CopyableAddress({ address, label }: { address: string; label: string }) {
+	const { copied: copiedValue, error, copy } = useCopyFeedback();
+	const copied = copiedValue === address;
+	const copyable = /^0x[a-f\d]{40}$/i.test(address);
 
 	return (
 		<>
-			<span className="min-w-0 flex-1 break-all font-mono">{address}</span>
+			<span className="min-w-0 flex-1 break-all font-mono">
+				{address}
+				<span role="status" className="sr-only">{copied ? "Copied to clipboard" : ""}</span>
+				{error && <span role="alert" className="mt-1 block font-sans text-red-700">{error.message}</span>}
+			</span>
 			{copyable && (
 				<button
 					type="button"
-					onClick={() => void copyAddress()}
+					onClick={() => void copy(address)}
 					aria-label={copied ? `${label} address copied` : `Copy ${label} address`}
 					title={copied ? "Copied" : `Copy ${label} address`}
-					className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-secondary transition-colors hover:bg-[rgba(28,58,41,0.06)] hover:text-ink-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+					className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-secondary transition-colors hover:bg-surface-hover hover:text-ink-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 				>
 					{copied ? <Check aria-hidden="true" className="h-3.5 w-3.5" /> : <Copy aria-hidden="true" className="h-3.5 w-3.5" />}
 				</button>
@@ -726,26 +737,7 @@ function RenewalBreakdown({ event }: { event: ActivityEvent }) {
 				</div>
 				<ol className="mt-3 space-y-2">
 					{event.steps.map((s, i) => (
-						<li key={s.tx} className="flex min-w-0 items-center gap-2.5 rounded-lg bg-[rgba(28,58,41,0.015)] px-3 py-2.5">
-							<span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[rgba(28,58,41,0.06)] text-[10px] text-ink-secondary tabular-nums">
-								{i + 1}
-							</span>
-							<div className="min-w-0 flex-1">
-								<div className="flex items-center justify-between gap-2 text-[12.5px]">
-									<span>{stepLabel(s, bridged)}</span>
-									<span className="shrink-0 text-[11px] text-ink-secondary">{s.chain}</span>
-								</div>
-								<a
-									href={explorerUrl(s.chain, s.tx)}
-									target="_blank"
-									rel="noopener noreferrer"
-									className="mt-1 inline-flex items-center gap-1.5 font-mono text-[12px] text-ink-action hover:text-ink-primary transition-colors"
-								>
-									{truncTx(s.tx)}
-									<ExternalLink className="w-2.5 h-2.5 shrink-0" />
-								</a>
-							</div>
-						</li>
+						<TransactionRow key={s.tx} index={i} label={stepLabel(s, bridged)} chain={s.chain} tx={s.tx} />
 					))}
 				</ol>
 			</div>
@@ -771,7 +763,7 @@ function UnclaimedFlowCard({ label, flow, renewable, onRetry }: { label: string;
 		}
 	};
 	return (
-		<div className="mt-5 rounded-2xl bg-[rgba(28,58,41,0.035)] p-4">
+		<div className="inset-panel mt-5">
 			<h4 className="text-[15px] text-ink-primary">Waiting to renew</h4>
 			<p className="mt-1.5 text-[13px] leading-relaxed text-ink-secondary">The USDC left {chain?.name ?? "the origin chain"} and is secured in a Circle message. This name cannot be renewed now. Namepass will retry when renewal is possible.</p>
 			<dl className="mt-3 space-y-1 text-[12px] text-ink-secondary">
@@ -782,7 +774,7 @@ function UnclaimedFlowCard({ label, flow, renewable, onRetry }: { label: string;
 			</dl>
 			{evidence?.originTxHash && chain && <a href={explorerUrl(chain.name, evidence.originTxHash)} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 font-mono text-[12px] text-ink-action hover:text-ink-primary">Origin transaction {truncTx(evidence.originTxHash)} <ExternalLink className="w-3 h-3" /></a>}
 			<p className="mt-3 text-[12px] leading-relaxed text-ink-secondary">This transfer cannot return to {chain?.name ?? "the origin chain"}. A retry uses the same Circle message.</p>
-			{renewable && <button type="button" onClick={() => void retry()} disabled={retrying} className="mt-3 inline-flex items-center gap-2 rounded-[10px] border border-[rgba(28,58,41,0.25)] px-3 py-1.5 text-[12px] text-ink-action hover:border-transparent hover:bg-white disabled:opacity-50">{retrying && <Loader2 className="w-3 h-3 animate-spin" />}Retry renewal</button>}
+			{renewable && <button type="button" onClick={() => void retry()} disabled={retrying} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-[10px] border border-[rgba(28,58,41,0.25)] px-3 py-1.5 text-[12px] text-ink-action hover:border-transparent hover:bg-white disabled:opacity-50">{retrying && <Loader2 className="w-3 h-3 animate-spin" />}Retry renewal</button>}
 			{error && <p role="alert" className="mt-2 text-[12px] text-red-700">{error}</p>}
 		</div>
 	);
@@ -945,7 +937,7 @@ function NameDetail({
 
 			{/* The two-panel model: what expires vs. what is permanent */}
 			<div className="mt-8 grid md:grid-cols-2 gap-4">
-				<div className="rounded-2xl border border-[rgba(28,58,41,0.12)] bg-white p-5 flex flex-col">
+				<div className="rounded-[1.4rem] bg-white shadow-[0_3px_10px_rgba(28,58,41,0.08)] p-5 flex flex-col">
 					<div className="flex items-center gap-2 text-[11px] uppercase tracking-section text-ink-label">
 						<Clock className="w-3.5 h-3.5" />
 						The ENS name · expires
@@ -958,7 +950,7 @@ function NameDetail({
 					{!onchain ? (
 						<>
 							<div className="mt-3 h-[30px] w-40 rounded-lg bg-[rgba(28,58,41,0.07)] motion-safe:animate-pulse" />
-							<div className="mt-3 h-[13px] w-56 rounded-full bg-[rgba(28,58,41,0.06)] motion-safe:animate-pulse" />
+							<div className="mt-3 h-[13px] w-56 rounded-full bg-surface-hover motion-safe:animate-pulse" />
 						</>
 					) : onchain.expiry === null ? (
 						<>
@@ -986,7 +978,7 @@ function NameDetail({
 					    All three matter to someone deciding whether to send, and the
 					    amount is the actionable part — see `graceMinimum`. */}
 					{onchain?.graceRemaining != null && (
-						<div className="mt-3 flex items-start gap-2 rounded-xl bg-[rgba(28,58,41,0.03)] px-3 py-2.5">
+						<div className="mt-3 flex items-start gap-2 inset-panel">
 							<Clock className="w-3.5 h-3.5 mt-[2px] shrink-0 text-ink-secondary" />
 							<p className="text-[12.5px] text-ink-secondary leading-relaxed">
 								<span className="text-ink-primary">
@@ -1016,7 +1008,7 @@ function NameDetail({
 					    sent here, so it's worth saying before someone sends any
 					    rather than explaining it afterwards next to a stuck balance. */}
 					{onchain && !onchain.renewable && (
-						<div className="mt-3 flex items-start gap-2 rounded-xl bg-[rgba(28,58,41,0.03)] px-3 py-2.5">
+						<div className="mt-3 flex items-start gap-2 inset-panel">
 							<Clock className="w-3.5 h-3.5 mt-[2px] shrink-0 text-ink-secondary" />
 							<p className="text-[12.5px] text-ink-secondary leading-relaxed">
 								ENS won't renew this name right now. The address still works —
@@ -1093,7 +1085,7 @@ function NameDetail({
 								{profileLoading ? (
 									<div className="space-y-1.5 pt-1">
 										<div className="h-3 w-3/4 rounded bg-[rgba(28,58,41,0.08)] animate-pulse" />
-										<div className="h-3 w-1/2 rounded bg-[rgba(28,58,41,0.06)] animate-pulse" />
+										<div className="h-3 w-1/2 rounded bg-surface-hover animate-pulse" />
 									</div>
 								) : profile?.text.description ? (
 									<p className="text-[13px] text-ink-action leading-snug">
@@ -1230,7 +1222,7 @@ function NameDetail({
 									aria-expanded={expandable ? isOpen : undefined}
 									aria-controls={expandable ? `renewal-details-${e.id}` : undefined}
 									onClick={toggleEvent}
-									className={`hidden lg:grid w-full text-left px-5 py-3.5 ${NAME_ACTIVITY_COLUMNS} gap-4 items-center ${expandable ? "hover:bg-[rgba(28,58,41,0.025)] transition-colors" : "cursor-default"}`}
+									className={`hidden lg:grid w-full text-left px-5 py-3.5 ${NAME_ACTIVITY_COLUMNS} gap-4 items-center ${expandable ? "hover:bg-surface-inset transition-colors" : "cursor-default"}`}
 								>
 									<span className="text-[13px] text-ink-secondary tabular-nums">{fmtDate(e.at)}</span>
 									<span className="text-[14.5px] text-ink-primary">{eventTitle}</span>
@@ -1473,7 +1465,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								}}
 								onKeyDown={(e) => e.key === "Enter" && submit()}
 								placeholder="Search a name, e.g. vitalik.eth"
-								className="flex-1 min-w-0 bg-transparent outline-none text-[14px] text-ink-primary placeholder:text-ink-secondary"
+								className="flex-1 min-w-0 bg-transparent outline-none text-[16px] md:text-[14px] text-ink-primary placeholder:text-ink-secondary"
 							/>
 							<button
 								type="button"
@@ -1493,7 +1485,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 										onClick={() => {
 											void submit(s.name);
 										}}
-										className="w-full text-left px-4 py-2.5 text-[14px] text-ink-action hover:bg-[rgba(28,58,41,0.04)] transition-colors flex items-center justify-between gap-3"
+										className="w-full text-left px-4 py-2.5 text-[14px] text-ink-action hover:bg-surface-hover transition-colors flex items-center justify-between gap-3"
 									>
 										{s.name}
 										<span className="text-[11px] text-ink-secondary">
@@ -1509,7 +1501,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								initial={{ opacity: 0, y: -4 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ duration: 0.25 }}
-								className="mt-2 rounded-[0.9rem] bg-[rgba(28,58,41,0.03)] p-4"
+								className="inset-panel mt-2"
 							>
 								<div className="text-[13.5px] text-ink-action">
 									<span className="font-medium">{notFound}</span> can't be registered.
@@ -1528,7 +1520,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								initial={{ opacity: 0, y: -4 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ duration: 0.25 }}
-								className="mt-2 rounded-[0.9rem] bg-[rgba(28,58,41,0.03)] p-4"
+								className="inset-panel mt-2"
 							>
 								<div className="text-[13.5px] text-ink-action">
 									<span className="font-medium">{notFound}</span> is not monitored by
@@ -1553,7 +1545,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 											.finally(() => setActivating(false));
 									}}
 									disabled={activating}
-									className="mt-3 w-full flex items-center justify-center gap-2 bg-[rgba(28,58,41,0.9)] text-ink-inverse rounded-[10px] py-2.5 hover:bg-[rgba(28,58,41,1)] transition-colors disabled:opacity-70"
+									className="mt-3 w-full flex items-center justify-center gap-2 primary-action rounded-[10px] py-2.5 transition-colors disabled:opacity-70"
 								>
 									{activating ? (
 										<>
