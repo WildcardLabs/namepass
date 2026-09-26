@@ -23,7 +23,7 @@ function Toggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void })
 		<div
 			role="group"
 			aria-label="Rank names by"
-			className="inline-flex items-center gap-1 rounded-[10px] bg-[rgba(28,58,41,0.04)] p-1"
+			className="inline-flex items-center gap-1 rounded-[10px] bg-surface-inset p-1"
 		>
 			{OPTIONS.map((o) => (
 				<button
@@ -276,8 +276,8 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 								<button
 									onClick={() => toggleRow(r)}
 									aria-expanded={isOpen}
-									className={`relative w-full flex items-center gap-3 md:gap-4 px-4 md:px-5 py-4 hover:bg-[rgba(28,58,41,0.02)] transition-colors text-left ${
-										rank === 1 ? "bg-[rgba(28,58,41,0.035)]" : ""
+									className={`relative w-full flex items-center gap-3 md:gap-4 px-4 md:px-5 py-4 hover:bg-surface-hover transition-colors text-left ${
+										rank === 1 ? "bg-surface-inset" : ""
 									}`}
 								>
 									{rank === 1 && (
@@ -323,7 +323,7 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 											transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
 											className="overflow-hidden"
 										>
-											<div className="px-4 md:px-5 py-5 bg-[rgba(28,58,41,0.015)] border-t border-[rgba(28,58,41,0.06)]">
+											<div className="px-4 md:px-5 py-5 bg-surface-inset border-t border-[rgba(28,58,41,0.06)]">
 												<div className="text-[10px] uppercase tracking-wider text-ink-label">
 													Latest transactions
 												</div>

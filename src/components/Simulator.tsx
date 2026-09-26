@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { BadgePercent, TrendingUp } from "lucide-react";
 import {
 	ceilToCent,
@@ -206,8 +206,9 @@ function SimulatorBody() {
 								<button
 									key={l.len}
 									onClick={() => setLen(l.len)}
+									aria-pressed={on}
 									className={`flex-1 px-5 py-4 text-left transition-colors border-b sm:border-b-0 sm:border-r border-[rgba(28,58,41,0.08)] last:border-0 ${
-										on ? "bg-surface-selected" : "hover:bg-[rgba(28,58,41,0.02)]"
+										on ? "bg-surface-selected" : "hover:bg-surface-inset"
 									}`}
 								>
 									<div
@@ -244,6 +245,7 @@ function SimulatorBody() {
 											if (e.key === "Enter") commitDraft();
 											if (e.key === "Escape") setEditing(false);
 										}}
+										aria-label="Enter payment amount in USDC"
 										inputMode="decimal"
 										placeholder="0.00"
 										className="w-full min-w-0 bg-transparent outline-none text-[44px] md:text-[56px] font-normal text-ink-primary tracking-tight leading-none tabular-nums border-b-2 border-[rgba(28,58,41,0.3)]"
@@ -263,7 +265,7 @@ function SimulatorBody() {
 							)}
 
 							<div className="mt-1.5 text-[12px] text-ink-secondary">
-								Click the amount to type your own
+								Tap or click the amount to type your own
 							</div>
 
 							<input
@@ -274,7 +276,9 @@ function SimulatorBody() {
 								value={tFor(len, budget)}
 								onChange={(e) => setBudget(budgetFor(len, Number(e.target.value)))}
 								aria-label="Payment amount"
-								className="mt-5 w-full accent-[rgba(28,58,41,0.9)]"
+								aria-valuetext={`${fmtUsdc(budget)} USDC`}
+								style={{ "--range-fill": `calc(11px + (100% - 22px) * ${tFor(len, budget)})` } as CSSProperties}
+								className="amount-slider mt-2"
 							/>
 
 							{/* One card per discount tier: the period, and what it saves.
@@ -298,7 +302,7 @@ function SimulatorBody() {
 											className={`relative rounded-[8px] border px-1.5 py-4 text-center transition-colors ${
 												on
 													? "border-transparent bg-surface-selected"
-													: "border-[rgba(28,58,41,0.12)] hover:border-[rgba(28,58,41,0.3)] hover:bg-[rgba(28,58,41,0.02)]"
+													: "border-[rgba(28,58,41,0.12)] hover:border-[rgba(28,58,41,0.3)] hover:bg-surface-inset"
 											}`}
 										>
 											{/* Exact, not rounded to a whole percent. "−13%" for a
@@ -361,17 +365,9 @@ function SimulatorBody() {
 							<div className="text-[11px] uppercase tracking-section text-ink-label">
 								Renewal time bought
 							</div>
-							<AnimatePresence mode="popLayout">
-								<motion.div
-									key={result.seconds.toString()}
-									initial={{ opacity: 0, y: 4 }}
-									animate={{ opacity: 1, y: 0 }}
-									transition={{ duration: 0.18 }}
-									className="mt-1 text-[30px] md:text-[38px] font-normal text-ink-primary tracking-tight leading-[1.1]"
-								>
-									{fmtDurationPrecise(result.seconds)}
-								</motion.div>
-							</AnimatePresence>
+							<div className="mt-1 text-[30px] md:text-[38px] font-normal text-ink-primary tracking-tight leading-[1.1]">
+								{fmtDurationPrecise(result.seconds)}
+							</div>
 
 							{/* The boost hint — where the real money is saved */}
 							<AnimatePresence>
@@ -385,7 +381,7 @@ function SimulatorBody() {
 									>
 										<button
 											onClick={() => setBudget(ceilToCent(hint.payable + ALLOWANCE))}
-											className="mt-4 w-full text-left rounded-[8px] bg-[rgba(28,58,41,0.04)] px-4 py-3 hover:bg-[rgba(28,58,41,0.07)] transition-colors group"
+											className="inset-panel inset-action mt-4 w-full text-left group"
 										>
 											<div className="flex items-start gap-2.5">
 												<TrendingUp className="w-4 h-4 mt-0.5 shrink-0 text-ink-secondary" />

@@ -33,7 +33,7 @@ export default function PricingError({
 				</p>
 				<button
 					onClick={onRetry}
-					className="mt-5 inline-flex items-center gap-2 bg-[rgba(28,58,41,0.9)] text-ink-inverse rounded-[10px] px-5 py-2.5 hover:bg-[rgba(28,58,41,1)] transition-colors"
+					className="mt-5 inline-flex items-center gap-2 primary-action rounded-[10px] px-5 py-2.5 transition-colors"
 				>
 					<RefreshCw className="w-3.5 h-3.5" />
 					<span className="text-[14px]">Try again</span>

@@ -67,7 +67,7 @@ export default function Navbar({
 					whileHover={{ scale: 1.02 }}
 					whileTap={{ scale: 0.98 }}
 					onClick={onSearch}
-					className="flex items-center gap-2 bg-[#1c3a29f2] text-ink-inverse rounded-[10px] px-4 md:px-5 py-2 md:py-2.5 hover:bg-[#16301f] transition-colors"
+					className="flex items-center gap-2 primary-action rounded-[10px] px-4 md:px-5 py-2 md:py-2.5 transition-colors"
 				>
 					<span className="text-[14px] font-normal">Get Started</span>
 					<ArrowUpRight className="w-4 h-4 md:w-[18px] md:h-[18px]" />

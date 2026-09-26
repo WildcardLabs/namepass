@@ -1,8 +1,9 @@
 import { motion } from "motion/react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import { ArrowUpRight, Check, Copy, Infinity as InfinityIcon } from "lucide-react";
 import { normalizeLabel } from "../lib/namepass";
 import { encodeQR } from "../lib/qr";
+import { useCopyFeedback } from "../hooks/use-copy-feedback";
 import { FUNDING_CHAINS } from "../lib/chains";
 
 interface Props {
@@ -30,9 +31,6 @@ interface Props {
    Deliberately one-shot — a QR that keeps moving is a QR nobody can scan. */
 const WAVE_MS = 420;
 const MODULE_MS = 140;
-const NAME_FONT_SIZE = 15;
-const ADDRESS_FONT_SIZE = 12.5;
-const useBrowserLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export default function PassCard({
 	name,
@@ -42,40 +40,8 @@ export default function PassCard({
 	surface = "solid",
 	layout = "stack",
 }: Props) {
-	const [copied, setCopied] = useState<string | null>(null);
+	const { copied, error, copy } = useCopyFeedback();
 	const subdomain = `${normalizeLabel(name)}.namepass.eth`;
-	const [valueScale, setValueScale] = useState(1);
-	const nameSpaceRef = useRef<HTMLSpanElement>(null);
-	const addressSpaceRef = useRef<HTMLSpanElement>(null);
-	const nameMeasureRef = useRef<HTMLSpanElement>(null);
-	const addressMeasureRef = useRef<HTMLSpanElement>(null);
-
-	useBrowserLayoutEffect(() => {
-		const nameSpace = nameSpaceRef.current;
-		const addressSpace = addressSpaceRef.current;
-		const nameMeasure = nameMeasureRef.current;
-		const addressMeasure = addressMeasureRef.current;
-		if (!nameSpace || !addressSpace || !nameMeasure || !addressMeasure) return;
-
-		let active = true;
-		const fitValues = () => {
-			const nameWidth = nameMeasure.getBoundingClientRect().width;
-			const addressWidth = addressMeasure.getBoundingClientRect().width;
-			const nameSpaceWidth = nameSpace.clientWidth;
-			const addressSpaceWidth = addressSpace.clientWidth;
-			if (!nameWidth || !addressWidth || !nameSpaceWidth || !addressSpaceWidth) return;
-			// Use the tighter field to set one scale for both values. The small
-			// margin covers fractional pixel rounding on narrow mobile screens.
-			setValueScale(Math.min(1, nameSpaceWidth / nameWidth * 0.99, addressSpaceWidth / addressWidth * 0.99));
-		};
-
-		fitValues();
-		const observer = new ResizeObserver(fitValues);
-		observer.observe(nameSpace);
-		observer.observe(addressSpace);
-		document.fonts?.ready.then(() => { if (active) fitValues(); });
-		return () => { active = false; observer.disconnect(); };
-	}, [subdomain, address]);
 
 	const matrix = useMemo(() => {
 		try {
@@ -85,22 +51,10 @@ export default function PassCard({
 		}
 	}, [address]);
 
-	function copy(text: string) {
-		const done = () => {
-			setCopied(text);
-			setTimeout(() => setCopied(null), 1600);
-		};
-		if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, done);
-		else done();
-	}
-
 	const glass = surface === "glass";
 	const cardBg = glass
 		? "bg-white/45"
-		: "bg-white border border-[rgba(28,58,41,0.1)]";
-	const fieldBg = glass
-		? "bg-white/50 hover:bg-white/70"
-		: "bg-[rgba(28,58,41,0.03)] hover:bg-[rgba(28,58,41,0.06)]";
+		: "bg-white shadow-[0_3px_10px_rgba(28,58,41,0.08)]";
 
 	const size = matrix?.length ?? 0;
 	/* Draw at unit scale in a 0..size viewBox — crisp at any rendered size. */
@@ -115,7 +69,7 @@ export default function PassCard({
 			<div className="flex justify-center">
 				<div className="relative">
 					<div
-						className={`rounded-[1.4rem] p-4 ${glass ? "bg-white/80" : "bg-white border border-[rgba(28,58,41,0.08)]"}`}
+						className={`rounded-[1.4rem] p-4 ${glass ? "bg-white/80" : "bg-white"}`}
 					>
 						{matrix ? (
 							<svg
@@ -174,42 +128,39 @@ export default function PassCard({
 
 			<div className={split ? "sm:flex-1 sm:min-w-0" : ""}>
 			<button
-				onClick={() => copy(subdomain)}
-				className={`${split ? "mt-5 sm:mt-0" : "mt-5"} w-full text-left rounded-[8px] px-4 py-3 group ${fieldBg}`}
+				onClick={() => void copy(subdomain)}
+				className={`${split ? "mt-5 sm:mt-0" : "mt-5"} inset-panel inset-action w-full text-left group`}
 				aria-label={`Copy ${subdomain}`}
 			>
 				<span className="block text-[10px] uppercase tracking-wider text-ink-label">Namepass</span>
 				<span className="mt-1 flex items-center gap-3 text-ink-primary">
-					<span ref={nameSpaceRef} className="relative min-w-0 flex-1 whitespace-nowrap">
-						<span style={{ fontSize: NAME_FONT_SIZE * valueScale }}>{subdomain}</span>
-						<span ref={nameMeasureRef} aria-hidden="true" className="pointer-events-none invisible absolute left-0 top-0 w-max text-[15px]">{subdomain}</span>
-					</span>
-					{copied === subdomain ? <Check aria-label="Copied" className="w-4 h-4 shrink-0" /> : <Copy className="w-4 h-4 shrink-0" />}
+					<span className="min-w-0 flex-1 break-all text-[15px] leading-snug">{subdomain}</span>
+					{copied === subdomain ? <Check aria-hidden="true" className="w-4 h-4 shrink-0" /> : <Copy className="w-4 h-4 shrink-0" />}
 				</span>
 			</button>
 			<button
-				onClick={() => copy(address)}
-				className={`mt-3 w-full text-left rounded-[8px] px-4 py-3 transition-colors group ${fieldBg}`}
+				onClick={() => void copy(address)}
+				aria-label={`Copy deposit address ${address}`}
+				className="mt-3 inset-panel inset-action w-full text-left group"
 			>
 				<div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-ink-label">
 					<InfinityIcon className="w-3 h-3" />
 					Deposit address · any supported chain
 				</div>
 				<div className="mt-1 flex items-center gap-3">
-					<span ref={addressSpaceRef} className="relative min-w-0 flex-1 whitespace-nowrap leading-snug text-ink-primary font-mono">
-						<span style={{ fontSize: ADDRESS_FONT_SIZE * valueScale }}>{address}</span>
-						<span ref={addressMeasureRef} aria-hidden="true" className="pointer-events-none invisible absolute left-0 top-0 w-max text-[12.5px]">{address}</span>
-					</span>
+					<span className="min-w-0 flex-1 break-all text-[12.5px] leading-snug text-ink-primary font-mono">{address}</span>
 					{copied === address ? (
 						<span className="shrink-0 text-ink-action">
 							<Check className="w-4 h-4" />
-							<span className="sr-only" role="status">Copied</span>
 						</span>
 					) : (
 						<Copy className="w-4 h-4 shrink-0 text-ink-secondary group-hover:text-ink-primary transition-colors" />
 					)}
 				</div>
 			</button>
+
+			<p role="status" className="sr-only">{copied ? "Copied to clipboard" : ""}</p>
+			{error && <p role="alert" className="mt-2 text-[12px] text-red-700">{error.message}</p>}
 
 			<p className="mt-4 text-center text-[12px] text-ink-secondary leading-relaxed">
 				Every payment extends{" "}
@@ -219,11 +170,7 @@ export default function PassCard({
 			</div>
 
 			{/* What this address accepts — the question every sender has. */}
-			<div
-				className={`mt-5 rounded-[8px] px-4 py-3.5 ${
-					glass ? "bg-white/35" : "bg-[rgba(28,58,41,0.025)]"
-				}`}
-			>
+			<div className="inset-panel mt-5">
 				<div className="flex items-center justify-center gap-2">
 					<img
 						src={`${import.meta.env.BASE_URL}logos/usdc.svg`}
@@ -260,7 +207,7 @@ export default function PassCard({
 					    the token isn't enough — point at the exact contracts. */}
 					<button
 						onClick={onSupportedTokens}
-						className="mt-3 w-full inline-flex items-center justify-center gap-1 text-[12px] text-ink-secondary hover:text-ink-primary transition-colors"
+						className="mt-3 min-h-11 w-full inline-flex items-center justify-center gap-1 text-[12px] text-ink-secondary hover:text-ink-primary transition-colors"
 					>
 						Check contract addresses
 						<ArrowUpRight className="w-3.5 h-3.5" />

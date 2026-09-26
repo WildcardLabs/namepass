@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Info } from "lucide-react";
 
@@ -28,6 +28,8 @@ type Pos = { left: number; top?: number; bottom?: number; below: boolean };
  */
 export default function Tooltip({ text, label }: Props) {
 	const ref = useRef<HTMLButtonElement>(null);
+	const id = useId();
+	const touch = useRef(false);
 	const [pos, setPos] = useState<Pos | null>(null);
 
 	function show() {
@@ -50,9 +52,15 @@ export default function Tooltip({ text, label }: Props) {
 	/* A fixed bubble would drift away from its trigger on scroll. */
 	useEffect(() => {
 		if (!pos) return;
+		const dismiss = (event: KeyboardEvent) => { if (event.key === "Escape") hide(); };
+		const outside = (event: PointerEvent) => { if (!ref.current?.contains(event.target as Node)) hide(); };
+		window.addEventListener("keydown", dismiss);
+		window.addEventListener("pointerdown", outside);
 		window.addEventListener("scroll", hide, true);
 		window.addEventListener("resize", hide);
 		return () => {
+			window.removeEventListener("keydown", dismiss);
+			window.removeEventListener("pointerdown", outside);
 			window.removeEventListener("scroll", hide, true);
 			window.removeEventListener("resize", hide);
 		};
@@ -64,11 +72,14 @@ export default function Tooltip({ text, label }: Props) {
 				ref={ref}
 				type="button"
 				aria-label={label}
-				onMouseEnter={show}
+				aria-describedby={pos ? id : undefined}
+				onPointerDown={(event) => { touch.current = event.pointerType === "touch"; }}
+				onClick={() => { if (touch.current) { pos ? hide() : show(); } }}
+				onMouseEnter={() => { if (!touch.current) show(); }}
 				onMouseLeave={hide}
-				onFocus={show}
-				onBlur={hide}
-				className="inline-flex text-ink-secondary hover:text-ink-primary focus:text-ink-primary transition-colors outline-none"
+				onFocus={() => { if (!touch.current) show(); }}
+				onBlur={() => { touch.current = false; hide(); }}
+				className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-secondary hover:text-ink-primary focus-visible:outline-2 focus-visible:outline-control transition-colors"
 			>
 				<Info className="w-3.5 h-3.5" />
 			</button>
@@ -79,6 +90,7 @@ export default function Tooltip({ text, label }: Props) {
 						<motion.span
 							key="tip"
 							role="tooltip"
+							id={id}
 							initial={{ opacity: 0, y: pos.below ? -4 : 4 }}
 							animate={{ opacity: 1, y: 0 }}
 							exit={{ opacity: 0 }}
