@@ -8,7 +8,7 @@ flow state through the public API. Executors can use the renewal contracts witho
 | Module | Responsibility |
 | --- | --- |
 | `src/App.tsx` | Page state, browser history and shared page shell |
-| `src/lib/namepass.ts` | ENS normalization and deterministic wallet derivation |
+| `src/lib/namepass.ts` | ENS normalization and universal wallet derivation |
 | `src/lib/chains.ts` | Shared chain and deployment registry |
 | `src/lib/publicApi.ts` | Typed HTTP reads and activation |
 | `src/lib/readModel.ts` | Presentation adapters for stored facts |

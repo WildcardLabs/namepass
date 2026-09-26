@@ -1457,7 +1457,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 							ENS renewal activity.
 						</h2>
 						<p className="mt-3 text-[15px] md:text-[16px] text-ink-secondary max-w-xl leading-relaxed">
-							Search a name to inspect its deterministic deposit wallet, balances, and renewal history.
+							Search a name to inspect its universal deposit wallet, balances, and renewal history.
 							Recent public deposits and flows appear below.
 						</p>
 					</div>

@@ -1,6 +1,6 @@
 # Repository guidance
 
-Namepass turns USDC deposits at deterministic ENS-name addresses into renewal time.
+Namepass turns USDC deposits at universal ENS-name addresses into renewal time.
 The application uses Goldsky Turbo, Neon, Vercel Functions and Vercel Workflow.
 Deployment status and release limitations belong in `docs/DEPLOYMENTS.md`.
 

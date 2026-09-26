@@ -3,7 +3,7 @@
 This reference records current design choices. Implementation history and superseded plans
 remain in Git history.
 
-## Deterministic wallets
+## Universal wallets
 
 CREATE2 wallets let anyone derive a payment address without trusting the website. Each chain
 uses the same factory within a deployment set. A factory replacement changes addresses; it is

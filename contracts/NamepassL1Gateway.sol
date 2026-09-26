@@ -200,7 +200,7 @@ contract NamepassL1Gateway is ReentrancyGuard {
         _validateLabel(label);
 
         /*
-         * BurnMessageV2.messageSender is the deterministic source
+         * BurnMessageV2.messageSender is the universal source
          * wallet that called TokenMessengerV2.
          */
         address sourceWallet = address(uint160(uint256(_readBytes32(message, BURN_MESSAGE_SENDER_OFFSET))));

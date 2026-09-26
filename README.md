@@ -4,7 +4,7 @@
 
 # Namepass
 
-USDC-funded ENS renewals from deterministic deposit wallets.
+USDC-funded ENS renewals from universal deposit wallets.
 
 ![Testnet](https://img.shields.io/badge/environment-testnet-2E466F)
 ![Mainnet disabled](https://img.shields.io/badge/mainnet-disabled-A23B3B)
@@ -20,7 +20,7 @@ USDC-funded ENS renewals from deterministic deposit wallets.
 > Do not send mainnet funds to a testnet deposit address.
 
 Namepass lets anyone fund an ENS name without owning it. Each normalized `.eth` label maps to a
-deterministic deposit wallet within one deployment set. A funder sends the configured USDC to that
+universal deposit wallet within one deployment set. A funder sends the configured USDC to that
 wallet. Any executor can then convert its balance into renewal time at ENS's on-chain price.
 The payment route is permissionless: it does not depend on the Namepass website or its automation.
 

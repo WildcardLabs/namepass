@@ -25,7 +25,7 @@ export default function Protocol() {
 							The protocol behind ENS renewals.
 						</h2>
 						<p className="mt-3 text-[15px] md:text-[16px] text-ink-secondary leading-relaxed">
-							Namepass contracts derive a deterministic USDC deposit address for every name and
+							Namepass contracts derive a universal USDC deposit address for every name and
 							execute renewals at ENS's on-chain rates.
 						</p>
 					</div>

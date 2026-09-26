@@ -71,13 +71,13 @@ Sepolia USDC with ratio `(1, 1000000)`. The registry used in the fork is
 The published oracle source differs from the vendored pricing implementation in its compiler
 pragma, StringUtils import path, and interface documentation. Its pricing function bodies are
 unchanged. The deployed source pins Solidity 0.8.25. Keep the vendored 0.8.24-compatible fixture
-for deterministic pricing tests and use the deployed oracle in fork tests. Do not change the
+for universal pricing tests and use the deployed oracle in fork tests. Do not change the
 factory compiler to compile the new ENS source.
 
 The V1 path also runs the new renewer's real wrapper synchronization on the fork. It is not a
 mock of the new renewal selector alone.
 
-Run deterministic tests:
+Run universal tests:
 
 ```sh
 forge build

@@ -99,7 +99,7 @@ library MinimalProxy {
      * Creation bytecode: 55 bytes.
      * Storage slots: none.
      */
-    function cloneDeterministic(
+    function cloneUniversal(
         address implementation,
         bytes32 salt
     ) internal returns (address instance) {
@@ -144,7 +144,7 @@ library MinimalProxy {
     /**
      * @notice Predicts the CREATE2 address of the minimal proxy.
      */
-    function predictDeterministicAddress(
+    function predictUniversalAddress(
         address implementation,
         bytes32 salt,
         address deployer
@@ -200,7 +200,7 @@ library MinimalProxy {
 /**
  * @title NamepassFactory
  *
- * @notice Creates deterministic USDC deposit wallets for normalized
+ * @notice Creates universal USDC deposit wallets for normalized
  * ENS labels and processes their balances.
  *
  * @dev A **label** is the single name component with no TLD and no
@@ -227,7 +227,7 @@ library MinimalProxy {
  * Constructor arguments are part of the creation code, so
  * `initialOwner` and `hubChainId` must be identical on every chain
  * in a deployment set. Everything chain-*specific* lives in storage
- * and does not affect deterministic wallet addresses, which is *why*
+ * and does not affect universal wallet addresses, which is *why*
  * the frozen values below are set-once storage rather than
  * `immutable`. A constructor argument that differed per chain would
  * move the factory address per chain and break the one-address
@@ -241,7 +241,7 @@ library MinimalProxy {
  * Deployment order:
  *
  * 1. Deploy this factory, same address on every chain, through a
- *    deterministic deployer.
+ *    universal deployer.
  * 2. Deploy the single L1 helper, hardcoding this factory's address
  *    so it can derive deposit addresses without calling back.
  * 3. `initialize` once per chain. It can never be called again.
@@ -322,7 +322,7 @@ contract NamepassFactory {
      * @dev Longest label ENS will price, in raw UTF-8 bytes.
      *
      * Not a Namepass policy — the one validity constraint ENS
-     * applies that can be checked deterministically on any chain.
+     * applies that can be checked universally on any chain.
      */
     uint256 private constant MAX_LABEL_BYTES = 255;
 
@@ -341,7 +341,7 @@ contract NamepassFactory {
      * address(this) == SELF
      *
      * Wallet delegatecall execution:
-     * address(this) == deterministic wallet
+     * address(this) == universal wallet
      * SELF          == real factory
      */
     /**
@@ -577,7 +577,7 @@ contract NamepassFactory {
     }
 
     /**
-     * @dev Requires execution through a deterministic wallet and
+     * @dev Requires execution through a universal wallet and
      * requires the real factory to be its immediate caller.
      *
      * Expected call path:
@@ -889,7 +889,7 @@ contract NamepassFactory {
     }
 
     /*//////////////////////////////////////////////////////////////
-                    DETERMINISTIC ADDRESS LOGIC
+                    UNIVERSAL ADDRESS LOGIC
     //////////////////////////////////////////////////////////////*/
 
     /**
@@ -931,7 +931,7 @@ contract NamepassFactory {
          * ENS's pricing path rejects labels beyond this length
          * outright, so a longer one derives an address that is
          * provably useless: fundable, burnable, and impossible to
-         * renew against. Mirroring the one deterministic constraint
+         * renew against. Mirroring the one universal constraint
          * ENS applies costs a comparison and removes that whole
          * class of address.
          *
@@ -990,7 +990,7 @@ contract NamepassFactory {
         returns (address)
     {
         return MinimalProxy
-            .predictDeterministicAddress(
+            .predictUniversalAddress(
                 SELF,
                 salt,
                 SELF
@@ -1003,7 +1003,7 @@ contract NamepassFactory {
 
     /**
      * @notice Processes all native USDC currently held by the
-     * deterministic wallet for `label`.
+     * universal wallet for `label`.
      *
      * @dev Permissionless, and authorizes **no** CCTP fee — which
      * is the right default while Standard is free. Every destination
@@ -1225,7 +1225,7 @@ contract NamepassFactory {
         }
 
         address deployed =
-            MinimalProxy.cloneDeterministic(
+            MinimalProxy.cloneUniversal(
                 SELF,
                 salt
             );
@@ -1254,7 +1254,7 @@ contract NamepassFactory {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Runs through delegatecall inside the deterministic
+     * @notice Runs through delegatecall inside the universal
      * wallet.
      *
      * @dev The wallet stores nothing. The label and the amount are
