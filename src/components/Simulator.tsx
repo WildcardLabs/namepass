@@ -65,13 +65,13 @@ export default function Simulator({
 		<section id="simulator" className="bg-[#f0f0f0] px-5 md:px-10 py-14 md:py-20">
 			<div className="max-w-[1100px] mx-auto">
 				<div className="max-w-2xl">
-					<span className="text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
+					<span className="text-[11px] uppercase tracking-section text-ink-label">
 						ENS v2 pricing
 					</span>
-					<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.05]">
+					<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-ink-primary tracking-tight leading-[1.05]">
 						Check ENS renewal prices.
 					</h2>
-					<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] leading-relaxed">
+					<p className="mt-3 text-[15px] md:text-[16px] text-ink-secondary leading-relaxed">
 						Choose a name length and payment amount to see how much renewal time it can buy at current ENS prices.
 					</p>
 				</div>
@@ -111,7 +111,7 @@ function SimulatorSkeleton() {
 						className="flex-1 px-5 py-4 border-b sm:border-b-0 sm:border-r border-[rgba(28,58,41,0.08)] last:border-0"
 					>
 						{/* The labels are ours and known; only the rate beside them is ENS's. */}
-						<div className="text-[15px] text-[rgba(28,58,41,0.6)]">{l.label}</div>
+						<div className="text-[15px] text-ink-secondary">{l.label}</div>
 						<Bar className="mt-1.5 h-[10px] w-32" />
 					</div>
 				))}
@@ -119,7 +119,7 @@ function SimulatorSkeleton() {
 
 			<div className="p-6 md:p-10 grid md:grid-cols-2 gap-10 md:gap-16 items-start">
 				<div>
-					<div className="text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
+					<div className="text-[11px] uppercase tracking-section text-ink-label">
 						Payment received
 					</div>
 					<Bar className="mt-3 h-[44px] md:h-[52px] w-48 !rounded-2xl" />
@@ -135,7 +135,7 @@ function SimulatorSkeleton() {
 				</div>
 
 				<div className="md:border-l md:border-[rgba(28,58,41,0.08)] md:pl-16">
-					<div className="text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
+					<div className="text-[11px] uppercase tracking-section text-ink-label">
 						Renewal time bought
 					</div>
 					<Bar className="mt-3 h-[32px] md:h-[38px] w-40 !rounded-2xl" />
@@ -211,11 +211,11 @@ function SimulatorBody() {
 									}`}
 								>
 									<div
-										className={`text-[15px] ${on ? "text-[rgba(28,58,41,0.95)]" : "text-[rgba(28,58,41,0.6)]"}`}
+										className={`text-[15px] ${on ? "text-ink-primary" : "text-ink-secondary"}`}
 									>
 										{l.label}
 									</div>
-									<div className="mt-0.5 text-[12px] text-[rgba(28,58,41,0.45)]">
+									<div className="mt-0.5 text-[12px] text-ink-secondary">
 										{l.example} · {fmtUsdc(oneYearCost(l.len))}/year
 									</div>
 								</button>
@@ -226,13 +226,13 @@ function SimulatorBody() {
 					<div className="p-6 md:p-10 grid md:grid-cols-2 gap-10 md:gap-16 items-start">
 						{/* input */}
 						<div>
-							<div className="text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
+							<div className="text-[11px] uppercase tracking-section text-ink-label">
 								Payment received
 							</div>
 
 							{editing ? (
 								<div className="mt-1 flex items-baseline gap-1">
-									<span className="text-[44px] md:text-[56px] text-[rgba(28,58,41,0.5)] leading-none">
+									<span className="text-[44px] md:text-[56px] text-ink-secondary leading-none">
 										$
 									</span>
 									<input
@@ -246,7 +246,7 @@ function SimulatorBody() {
 										}}
 										inputMode="decimal"
 										placeholder="0.00"
-										className="w-full min-w-0 bg-transparent outline-none text-[44px] md:text-[56px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-none tabular-nums border-b-2 border-[rgba(28,58,41,0.3)]"
+										className="w-full min-w-0 bg-transparent outline-none text-[44px] md:text-[56px] font-normal text-ink-primary tracking-tight leading-none tabular-nums border-b-2 border-[rgba(28,58,41,0.3)]"
 									/>
 								</div>
 							) : (
@@ -256,13 +256,13 @@ function SimulatorBody() {
 										setEditing(true);
 									}}
 									title="Click to type an amount"
-									className="mt-1 block text-[44px] md:text-[56px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-none tabular-nums border-b-2 border-transparent hover:border-[rgba(28,58,41,0.2)] transition-colors"
+									className="mt-1 block text-[44px] md:text-[56px] font-normal text-ink-primary tracking-tight leading-none tabular-nums border-b-2 border-transparent hover:border-[rgba(28,58,41,0.2)] transition-colors"
 								>
 									{fmtUsdc(budget)}
 								</button>
 							)}
 
-							<div className="mt-1.5 text-[12px] text-[rgba(28,58,41,0.4)]">
+							<div className="mt-1.5 text-[12px] text-ink-secondary">
 								Click the amount to type your own
 							</div>
 
@@ -320,15 +320,15 @@ function SimulatorBody() {
 													   no better. */
 													className={`absolute -top-[9px] right-1 inline-flex h-[18px] items-center justify-center rounded-[4px] border px-1.5 pb-px text-[10px] leading-none tabular-nums transition-colors ${
 														on
-															? "border-transparent bg-[rgba(28,58,41,0.92)] text-white"
-															: "border-[rgba(28,58,41,0.12)] bg-white text-[rgba(28,58,41,0.5)]"
+															? "border-transparent bg-[rgba(28,58,41,0.92)] text-ink-inverse"
+															: "border-[rgba(28,58,41,0.12)] bg-white text-ink-secondary"
 													}`}
 												>
 													−{m.off}
 												</span>
 											)}
 											<div
-												className={`text-[14px] ${on ? "text-[rgba(28,58,41,0.95)]" : "text-[rgba(28,58,41,0.65)]"}`}
+												className={`text-[14px] ${on ? "text-ink-primary" : "text-ink-secondary"}`}
 											>
 												{m.years > 0 ? `${m.years} years` : "Bulk rate"}
 											</div>
@@ -336,8 +336,8 @@ function SimulatorBody() {
 									);
 								})}
 							</div>
-							<div className="mt-5 flex items-start gap-2.5 text-[12px] leading-relaxed text-[rgba(28,58,41,0.58)]">
-								<span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-[rgba(28,58,41,0.07)] text-[rgba(28,58,41,0.72)]">
+							<div className="mt-5 flex items-start gap-2.5 text-[12px] leading-relaxed text-ink-secondary">
+								<span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-[rgba(28,58,41,0.07)] text-ink-secondary">
 									<BadgePercent aria-hidden="true" className="h-3.5 w-3.5" />
 								</span>
 								<p className="pt-0.5">
@@ -346,7 +346,7 @@ function SimulatorBody() {
 										href="https://docs.ens.domains/ensv2/eth-registrar/#multi-year-discounts"
 										target="_blank"
 										rel="noopener noreferrer"
-										className="font-semibold text-[rgba(28,58,41,0.82)] hover:text-[rgba(28,58,41,0.95)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+										className="font-semibold text-ink-action hover:text-ink-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 									>
 										ENS's renewal tiers
 									</a>
@@ -358,7 +358,7 @@ function SimulatorBody() {
 
 						{/* result */}
 						<div className="md:border-l md:border-[rgba(28,58,41,0.08)] md:pl-16">
-							<div className="text-[11px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
+							<div className="text-[11px] uppercase tracking-section text-ink-label">
 								Renewal time bought
 							</div>
 							<AnimatePresence mode="popLayout">
@@ -367,7 +367,7 @@ function SimulatorBody() {
 									initial={{ opacity: 0, y: 4 }}
 									animate={{ opacity: 1, y: 0 }}
 									transition={{ duration: 0.18 }}
-									className="mt-1 text-[30px] md:text-[38px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.1]"
+									className="mt-1 text-[30px] md:text-[38px] font-normal text-ink-primary tracking-tight leading-[1.1]"
 								>
 									{fmtDurationPrecise(result.seconds)}
 								</motion.div>
@@ -388,15 +388,15 @@ function SimulatorBody() {
 											className="mt-4 w-full text-left rounded-[8px] bg-[rgba(28,58,41,0.04)] px-4 py-3 hover:bg-[rgba(28,58,41,0.07)] transition-colors group"
 										>
 											<div className="flex items-start gap-2.5">
-												<TrendingUp className="w-4 h-4 mt-0.5 shrink-0 text-[rgba(28,58,41,0.7)]" />
+												<TrendingUp className="w-4 h-4 mt-0.5 shrink-0 text-ink-secondary" />
 												<div className="min-w-0">
-													<div className="text-[13.5px] text-[rgba(28,58,41,0.95)] leading-snug">
+													<div className="text-[13.5px] text-ink-primary leading-snug">
 														Add {fmtUsdc(hint.delta)} to get{" "}
 														<span className="whitespace-nowrap">
 															{Math.round(Number(hint.gain) / 2629800)} more months
 														</span>
 													</div>
-													<div className="mt-0.5 text-[12px] text-[rgba(28,58,41,0.55)]">
+													<div className="mt-0.5 text-[12px] text-ink-secondary">
 														Unlocks the {hint.years}-year rate · {hint.off} off
 													</div>
 												</div>
@@ -410,42 +410,42 @@ function SimulatorBody() {
 								{/* Same shape as a settled renewal in the Explorer: what went in,
 								    what the bridge takes, what the registry actually sees. */}
 								<div className="flex justify-between gap-4">
-									<dt className="text-[rgba(28,58,41,0.55)]">Gas allowance</dt>
-									<dd className="text-[rgba(28,58,41,0.55)] text-right tabular-nums">
+									<dt className="text-ink-secondary">Gas allowance</dt>
+									<dd className="text-ink-secondary text-right tabular-nums">
 										−{fmtUsdc(ALLOWANCE)}
 									</dd>
 								</div>
 								<div className="flex justify-between gap-4 pb-3 border-b border-[rgba(28,58,41,0.08)]">
-									<dt className="text-[rgba(28,58,41,0.55)]">Reaches renewal</dt>
-									<dd className="text-[rgba(28,58,41,0.95)] text-right tabular-nums">
+									<dt className="text-ink-secondary">Reaches renewal</dt>
+									<dd className="text-ink-primary text-right tabular-nums">
 										{fmtUsdc(applied)}
 									</dd>
 								</div>
 								<div className="flex justify-between gap-4">
-									<dt className="text-[rgba(28,58,41,0.55)]">Rate applied</dt>
-									<dd className="text-[rgba(28,58,41,0.95)] text-right">
+									<dt className="text-ink-secondary">Rate applied</dt>
+									<dd className="text-ink-primary text-right">
 										{result.off ? `${result.tierYears}-year bulk` : "Standard"}
 									</dd>
 								</div>
 								<div className="flex justify-between gap-4">
-									<dt className="text-[rgba(28,58,41,0.55)]">Discount</dt>
+									<dt className="text-ink-secondary">Discount</dt>
 									<dd
-										className={`text-right ${result.off ? "text-[rgba(28,58,41,0.95)]" : "text-[rgba(28,58,41,0.4)]"}`}
+										className={`text-right ${result.off ? "text-ink-primary" : "text-ink-secondary"}`}
 									>
 										{result.off ? `${result.off} off` : "None"}
 									</dd>
 								</div>
 								<div className="flex justify-between gap-4">
-									<dt className="text-[rgba(28,58,41,0.55)]">Effective cost</dt>
-									<dd className="text-[rgba(28,58,41,0.95)] text-right tabular-nums">
+									<dt className="text-ink-secondary">Effective cost</dt>
+									<dd className="text-ink-primary text-right tabular-nums">
 										{years > 0.01
 											? `${fmtUsdc(BigInt(Math.round(Number(budget) / years)))}/year`
 											: "-"}
 									</dd>
 								</div>
 								<div className="flex justify-between gap-4 pt-3 border-t border-[rgba(28,58,41,0.08)]">
-									<dt className="text-[rgba(28,58,41,0.55)]">Exact seconds</dt>
-									<dd className="text-[rgba(28,58,41,0.7)] text-right tabular-nums text-[13px]">
+									<dt className="text-ink-secondary">Exact seconds</dt>
+									<dd className="text-ink-secondary text-right tabular-nums text-[13px]">
 										{result.seconds.toLocaleString("en-US")}
 									</dd>
 								</div>
@@ -453,7 +453,7 @@ function SimulatorBody() {
 
 							{/* The ENS math here is exact; the amount reaching it is a dime
 							    less. Say so, but keep it to one line. */}
-							<div className="mt-6 flex items-center gap-1.5 text-[12px] text-[rgba(28,58,41,0.45)]">
+							<div className="mt-6 flex items-center gap-1.5 text-[12px] text-ink-secondary">
 								<span>Amounts include a {fmtUsdc(ALLOWANCE)} gas allowance.</span>
 								<Tooltip
 									label="What the gas allowance covers"

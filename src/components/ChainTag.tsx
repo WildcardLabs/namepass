@@ -5,7 +5,7 @@ export default function ChainTag({ chain }: { chain: string }) {
 	const entry = chainByName(chain);
 	const color = entry?.tagColor ?? "#8899aa";
 	return (
-		<span className="inline-flex items-baseline gap-1.5 text-[rgba(28,58,41,0.7)] whitespace-nowrap">
+		<span className="inline-flex items-baseline gap-1.5 text-ink-secondary whitespace-nowrap">
 			<span className="relative flex w-1.5 h-1.5 shrink-0 self-center">
 				<span
 					className="absolute inline-flex w-full h-full rounded-full opacity-70 animate-ping"

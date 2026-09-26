@@ -102,7 +102,7 @@ export default function TestnetBanner() {
 
 	return (
 		<div
-			className="w-full bg-[#1c3a29f2] text-white/90 overflow-hidden select-none"
+			className="w-full bg-[#1c3a29f2] text-ink-inverse overflow-hidden select-none"
 			role="status"
 			aria-label={
 				live
@@ -112,7 +112,7 @@ export default function TestnetBanner() {
 		>
 			<div className="flex items-center gap-2 h-8 md:h-9">
 				{/* Label: a live pulse when showing renewals, the flask otherwise. */}
-				<div className="flex items-center gap-1.5 shrink-0 pl-4 md:pl-6 text-[11px] uppercase tracking-wider text-white">
+				<div className="flex items-center gap-1.5 shrink-0 pl-4 md:pl-6 text-[11px] uppercase tracking-wider text-ink-inverse">
 					{live ? (
 						<span className="relative flex h-1.5 w-1.5">
 							<span className="absolute inline-flex h-full w-full rounded-full bg-white/70 motion-safe:animate-ping" />
@@ -140,7 +140,7 @@ export default function TestnetBanner() {
 						{track.map((text, i) => (
 							<span
 								key={i}
-								className="flex items-center text-[11.5px] md:text-[12px] text-white/75"
+								className="flex items-center text-[11.5px] md:text-[12px] text-ink-inverse-secondary"
 							>
 								{text}
 								<span className="mx-4 md:mx-6 text-white/30">·</span>

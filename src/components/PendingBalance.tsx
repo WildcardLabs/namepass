@@ -153,22 +153,22 @@ export default function PendingBalance({ record, onSettled }: Props) {
 				aria-controls="pending-renewal-details"
 				className="w-full text-left group focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 			>
-				<span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
+				<span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-ink-label">
 					<Wallet className="w-3 h-3" />
 					Pending renewal
 				</span>
 				<span className="mt-2 flex min-w-0 items-center justify-between gap-2">
-					<span className="flex min-w-0 flex-1 items-center gap-2 text-[15px] text-[rgba(28,58,41,0.95)]">
+					<span className="flex min-w-0 flex-1 items-center gap-2 text-[15px] text-ink-primary">
 						{(p.flows.length > 0 || detecting.length > 0) && stuck.length === 0 && (
-							<Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-[rgba(28,58,41,0.5)]" />
+							<Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-ink-secondary" />
 						)}
 						{summary}
 					</span>
-					<span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[rgba(28,58,41,0.14)] text-[rgba(28,58,41,0.72)] group-hover:bg-white lg:h-10 lg:w-auto lg:gap-1.5 lg:px-2.5 lg:text-[11.5px]">
+					<span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[rgba(28,58,41,0.14)] text-ink-secondary group-hover:bg-white lg:h-10 lg:w-auto lg:gap-1.5 lg:px-2.5 lg:text-[11.5px]">
 						<span className="sr-only lg:not-sr-only">{open ? "Hide details" : p.flows.length > 0 ? "Flow details" : "Balance details"}</span>
 						<ChevronDown
 							aria-hidden="true"
-							className={`w-3.5 h-3.5 text-[rgba(28,58,41,0.55)] transition-all ${open ? "rotate-180" : ""}`}
+							className={`w-3.5 h-3.5 text-ink-secondary transition-all ${open ? "rotate-180" : ""}`}
 						/>
 					</span>
 				</span>
@@ -216,7 +216,7 @@ export default function PendingBalance({ record, onSettled }: Props) {
 
 						{/* The thing a single balance figure hides. */}
 						{chains.length > 1 && (
-							<p className="mt-4 text-[11.5px] text-[rgba(28,58,41,0.4)] leading-relaxed">
+							<p className="mt-4 text-[11.5px] text-ink-secondary leading-relaxed">
 								Balances on different chains can't be combined. Each one renews on
 								its own.
 							</p>
@@ -260,7 +260,7 @@ function ChainRow({
 					const transactions = completedFlowTransactions(flow.api);
 					return (
 					<div key={flow.id} className="mt-1">
-						<div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-[rgba(28,58,41,0.65)]">
+						<div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-ink-secondary">
 							<Loader2 className="w-3 h-3 animate-spin shrink-0" />
 							{fmtUsdc(flow.amount)} · {flowPresentation(flow.status, flow.originChainId).detail}
 						</div>
@@ -268,7 +268,7 @@ function ChainRow({
 							<ol className="mt-2 space-y-1.5">
 								{transactions.map((transaction) => (
 									<li key={`${transaction.label}:${transaction.tx}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px]">
-										<span className="inline-flex items-center gap-1.5 text-[rgba(28,58,41,0.55)]">
+										<span className="inline-flex items-center gap-1.5 text-ink-secondary">
 											<CheckCircle2 className="w-3 h-3 shrink-0 text-emerald-600" />
 											{transaction.label}
 										</span>
@@ -276,7 +276,7 @@ function ChainRow({
 											href={explorerUrl(transaction.chain, transaction.tx)}
 											target="_blank"
 											rel="noopener noreferrer"
-											className="inline-flex items-center gap-1 font-mono text-[rgba(28,58,41,0.5)] hover:text-[rgba(28,58,41,0.9)] transition-colors"
+											className="inline-flex items-center gap-1 font-mono text-ink-action hover:text-ink-primary transition-colors"
 										>
 											{truncTx(transaction.tx)}
 											<ExternalLink className="w-2.5 h-2.5 shrink-0" />
@@ -290,7 +290,7 @@ function ChainRow({
 				})}
 
 				{balance && (
-					<div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-[rgba(28,58,41,0.55)]">
+					<div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-ink-secondary">
 						<span>
 							{balance.amount === null ? balanceLabel : `${fmtUsdc(balance.amount)} · ${balanceLabel}`}
 						</span>
@@ -311,7 +311,7 @@ function ChainRow({
 				<button
 					type="button"
 					onClick={onTrigger}
-					className="shrink-0 rounded-[10px] border border-[rgba(28,58,41,0.25)] px-3 py-1 text-[12px] text-[rgba(28,58,41,0.8)] hover:border-transparent hover:bg-[rgba(28,58,41,0.05)] transition-colors"
+					className="shrink-0 rounded-[10px] border border-[rgba(28,58,41,0.25)] px-3 py-1 text-[12px] text-ink-action hover:border-transparent hover:bg-[rgba(28,58,41,0.05)] transition-colors"
 				>
 					{actionLabel}
 				</button>

@@ -42,7 +42,7 @@ export default function Footer({
 							alt="Namepass"
 							className="h-4 w-auto"
 						/>
-						<p className="mt-3 text-[13px] text-[rgba(28,58,41,0.55)] leading-relaxed">
+						<p className="mt-3 text-[13px] text-ink-secondary leading-relaxed">
 							Namepass contracts derive a deterministic USDC deposit address for every name and execute renewals at ENS's on-chain rates.
 						</p>
 						<div className="mt-5 flex items-center gap-2">
@@ -51,7 +51,7 @@ export default function Footer({
 								target="_blank"
 								rel="noopener noreferrer"
 								aria-label="Namepass on X"
-								className="inline-flex items-center justify-center w-9 h-9 rounded-[10px] bg-white text-[rgba(28,58,41,0.7)] shadow-[0_2px_8px_rgba(28,58,41,0.06)] hover:text-[rgba(28,58,41,0.95)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+								className="inline-flex items-center justify-center w-9 h-9 rounded-[10px] bg-white text-ink-action shadow-[0_2px_8px_rgba(28,58,41,0.06)] hover:text-ink-primary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 							>
 								<XIcon className="w-4 h-4" />
 							</a>
@@ -60,7 +60,7 @@ export default function Footer({
 								target="_blank"
 								rel="noopener noreferrer"
 								aria-label="Namepass on GitHub"
-								className="inline-flex items-center justify-center w-9 h-9 rounded-[10px] bg-white text-[rgba(28,58,41,0.7)] shadow-[0_2px_8px_rgba(28,58,41,0.06)] hover:text-[rgba(28,58,41,0.95)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+								className="inline-flex items-center justify-center w-9 h-9 rounded-[10px] bg-white text-ink-action shadow-[0_2px_8px_rgba(28,58,41,0.06)] hover:text-ink-primary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 							>
 								<Github aria-hidden="true" className="w-4 h-4" />
 							</a>
@@ -69,7 +69,7 @@ export default function Footer({
 
 					<div className="grid grid-cols-2 gap-10 sm:gap-16">
 						<div>
-							<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
+							<div className="text-[10px] uppercase tracking-wider text-ink-label">
 								Product
 							</div>
 							<ul className="mt-3 space-y-2.5">
@@ -77,7 +77,7 @@ export default function Footer({
 									<li key={l.label}>
 										<button
 											onClick={l.action}
-											className="text-[13.5px] text-[rgba(28,58,41,0.65)] hover:text-[rgba(28,58,41,0.95)] transition-colors"
+											className="text-[13.5px] text-ink-action hover:text-ink-primary transition-colors"
 										>
 											{l.label}
 										</button>
@@ -87,7 +87,7 @@ export default function Footer({
 						</div>
 
 						<div>
-							<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)]">
+							<div className="text-[10px] uppercase tracking-wider text-ink-label">
 								Legal
 							</div>
 							<ul className="mt-3 space-y-2.5">
@@ -95,7 +95,7 @@ export default function Footer({
 									<li key={l.label}>
 										<button
 											onClick={l.action}
-											className="text-[13.5px] text-[rgba(28,58,41,0.65)] hover:text-[rgba(28,58,41,0.95)] transition-colors"
+											className="text-[13.5px] text-ink-action hover:text-ink-primary transition-colors"
 										>
 											{l.label}
 										</button>
@@ -107,10 +107,10 @@ export default function Footer({
 				</div>
 
 				<div className="mt-12 pt-6 border-t border-[rgba(28,58,41,0.08)] flex flex-col-reverse sm:flex-row items-center justify-between gap-4">
-					<span className="text-[12px] text-[rgba(28,58,41,0.45)]">
+					<span className="text-[12px] text-ink-secondary">
 						© {new Date().getFullYear()} Namepass. All rights reserved.
 					</span>
-					<span className="text-[12px] text-[rgba(28,58,41,0.4)]">
+					<span className="text-[12px] text-ink-secondary">
 						Built on ENS · Transfers via Circle CCTP
 					</span>
 				</div>

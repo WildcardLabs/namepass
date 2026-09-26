@@ -24,16 +24,16 @@ export default function PricingError({
 	return (
 		<div className="w-full flex items-center justify-center py-10">
 			<div className="max-w-[400px] text-center">
-				<AlertTriangle className="w-5 h-5 mx-auto text-[rgba(28,58,41,0.5)]" />
-				<p className="mt-4 text-[15px] text-[rgba(28,58,41,0.9)]">
+				<AlertTriangle className="w-5 h-5 mx-auto text-ink-secondary" />
+				<p className="mt-4 text-[15px] text-ink-action">
 					Couldn't reach ENS to check the current rates
 				</p>
-				<p className="mt-1.5 text-[13px] text-[rgba(28,58,41,0.55)] leading-relaxed">
+				<p className="mt-1.5 text-[13px] text-ink-secondary leading-relaxed">
 					{message}
 				</p>
 				<button
 					onClick={onRetry}
-					className="mt-5 inline-flex items-center gap-2 bg-[rgba(28,58,41,0.9)] text-white rounded-[10px] px-5 py-2.5 hover:bg-[rgba(28,58,41,1)] transition-colors"
+					className="mt-5 inline-flex items-center gap-2 bg-[rgba(28,58,41,0.9)] text-ink-inverse rounded-[10px] px-5 py-2.5 hover:bg-[rgba(28,58,41,1)] transition-colors"
 				>
 					<RefreshCw className="w-3.5 h-3.5" />
 					<span className="text-[14px]">Try again</span>

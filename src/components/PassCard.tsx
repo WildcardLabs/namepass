@@ -166,7 +166,7 @@ export default function PassCard({
 				</div>
 			</div>
 
-			<p className="mt-3 text-center text-[12px] text-[rgba(28,58,41,0.5)]">
+			<p className="mt-3 text-center text-[12px] text-ink-secondary">
 				Scan to send from any wallet
 			</p>
 
@@ -178,8 +178,8 @@ export default function PassCard({
 				className={`${split ? "mt-5 sm:mt-0" : "mt-5"} w-full text-left rounded-[8px] px-4 py-3 group ${fieldBg}`}
 				aria-label={`Copy ${subdomain}`}
 			>
-				<span className="block text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">Namepass</span>
-				<span className="mt-1 flex items-center gap-3 text-[rgba(28,58,41,0.95)]">
+				<span className="block text-[10px] uppercase tracking-wider text-ink-label">Namepass</span>
+				<span className="mt-1 flex items-center gap-3 text-ink-primary">
 					<span ref={nameSpaceRef} className="relative min-w-0 flex-1 whitespace-nowrap">
 						<span style={{ fontSize: NAME_FONT_SIZE * valueScale }}>{subdomain}</span>
 						<span ref={nameMeasureRef} aria-hidden="true" className="pointer-events-none invisible absolute left-0 top-0 w-max text-[15px]">{subdomain}</span>
@@ -191,29 +191,29 @@ export default function PassCard({
 				onClick={() => copy(address)}
 				className={`mt-3 w-full text-left rounded-[8px] px-4 py-3 transition-colors group ${fieldBg}`}
 			>
-				<div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.5)]">
+				<div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-ink-label">
 					<InfinityIcon className="w-3 h-3" />
 					Deposit address · any supported chain
 				</div>
 				<div className="mt-1 flex items-center gap-3">
-					<span ref={addressSpaceRef} className="relative min-w-0 flex-1 whitespace-nowrap leading-snug text-[rgba(28,58,41,0.95)] font-mono">
+					<span ref={addressSpaceRef} className="relative min-w-0 flex-1 whitespace-nowrap leading-snug text-ink-primary font-mono">
 						<span style={{ fontSize: ADDRESS_FONT_SIZE * valueScale }}>{address}</span>
 						<span ref={addressMeasureRef} aria-hidden="true" className="pointer-events-none invisible absolute left-0 top-0 w-max text-[12.5px]">{address}</span>
 					</span>
 					{copied === address ? (
-						<span className="shrink-0 text-[rgba(28,58,41,0.8)]">
+						<span className="shrink-0 text-ink-action">
 							<Check className="w-4 h-4" />
 							<span className="sr-only" role="status">Copied</span>
 						</span>
 					) : (
-						<Copy className="w-4 h-4 shrink-0 text-[rgba(28,58,41,0.35)] group-hover:text-[rgba(28,58,41,0.75)] transition-colors" />
+						<Copy className="w-4 h-4 shrink-0 text-ink-secondary group-hover:text-ink-primary transition-colors" />
 					)}
 				</div>
 			</button>
 
-			<p className="mt-4 text-center text-[12px] text-[rgba(28,58,41,0.5)] leading-relaxed">
+			<p className="mt-4 text-center text-[12px] text-ink-secondary leading-relaxed">
 				Every payment extends{" "}
-				<span className="text-[rgba(28,58,41,0.8)]">{name}</span>
+				<span className="text-ink-action">{name}</span>
 			</p>
 			</div>
 			</div>
@@ -230,20 +230,20 @@ export default function PassCard({
 						alt=""
 						className="w-[18px] h-[18px]"
 					/>
-					<span className="text-[13.5px] text-[rgba(28,58,41,0.9)]">
+					<span className="text-[13.5px] text-ink-action">
 						USDC accepted
 					</span>
 				</div>
 
 				<div className="mt-3 pt-3 border-t border-[rgba(28,58,41,0.08)]">
-					<div className="text-[10px] uppercase tracking-wider text-[rgba(28,58,41,0.45)] text-center">
+					<div className="text-[10px] uppercase tracking-wider text-ink-label text-center">
 						On any of these chains
 					</div>
 					<div className="mt-2.5 flex items-center justify-center gap-x-5 gap-y-2 flex-wrap">
 						{FUNDING_CHAINS.map((c) => (
 							<span
 								key={c.name}
-								className="inline-flex items-center gap-1.5 text-[12.5px] text-[rgba(28,58,41,0.7)]"
+								className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-secondary"
 							>
 								<img
 									src={`${import.meta.env.BASE_URL}logos/${c.logo}`}
@@ -260,7 +260,7 @@ export default function PassCard({
 					    the token isn't enough — point at the exact contracts. */}
 					<button
 						onClick={onSupportedTokens}
-						className="mt-3 w-full inline-flex items-center justify-center gap-1 text-[12px] text-[rgba(28,58,41,0.5)] hover:text-[rgba(28,58,41,0.85)] transition-colors"
+						className="mt-3 w-full inline-flex items-center justify-center gap-1 text-[12px] text-ink-secondary hover:text-ink-primary transition-colors"
 					>
 						Check contract addresses
 						<ArrowUpRight className="w-3.5 h-3.5" />

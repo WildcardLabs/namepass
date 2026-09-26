@@ -7,6 +7,15 @@
 
 @theme {
 	--font-helvetica: "Helvetica Regular", ui-sans-serif, system-ui, sans-serif;
+	/* Shared text roles for public pages and monitoring. */
+	--color-ink-primary: #1c3a29f2;
+	--color-ink-secondary: rgba(28, 58, 41, 0.7);
+	--color-ink-label: var(--color-ink-secondary);
+	--color-ink-action: rgba(28, 58, 41, 0.9);
+	--color-ink-decorative: rgba(28, 58, 41, 0.35);
+	--color-ink-inverse: #fff;
+	--color-ink-inverse-secondary: rgba(255, 255, 255, 0.7);
+	--tracking-section: 0.16em;
 }
 
 :root {
@@ -19,6 +28,7 @@ html {
 }
 
 body {
+	color: var(--color-ink-primary);
 	margin: 0;
 	overflow-x: hidden;
 	overscroll-behavior-y: none;
@@ -142,31 +152,31 @@ body {
 }
 :root {
  --background: #f6f7fa;
- --foreground: #19253b;
+ --foreground: var(--color-ink-primary);
  --card: #fff;
- --card-foreground: #19253b;
+ --card-foreground: var(--color-ink-primary);
  --popover: #fff;
- --popover-foreground: #19253b;
+ --popover-foreground: var(--color-ink-primary);
  --primary: #243e88;
- --primary-foreground: #fff;
+ --primary-foreground: var(--color-ink-inverse);
  --secondary: #edf0f7;
- --secondary-foreground: #263f74;
+ --secondary-foreground: var(--color-ink-action);
  --muted: #f0f2f6;
- --muted-foreground: #667085;
+ --muted-foreground: var(--color-ink-secondary);
  --accent: #e9edf5;
- --accent-foreground: #19253b;
+ --accent-foreground: var(--color-ink-primary);
  --destructive: #b42318;
- --destructive-foreground: #fff;
+ --destructive-foreground: var(--color-ink-inverse);
  --border: #e1e5ec;
  --input: #d8dfe9;
  --ring: #365bcc;
  --radius: 0.5rem;
 	--sidebar: #ffffff;
-	--sidebar-foreground: #344054;
+	--sidebar-foreground: var(--color-ink-primary);
 	--sidebar-primary: #243e88;
-	--sidebar-primary-foreground: #ffffff;
+	--sidebar-primary-foreground: var(--color-ink-inverse);
 	--sidebar-accent: #eef2ff;
-	--sidebar-accent-foreground: #243e88;
+	--sidebar-accent-foreground: var(--color-ink-primary);
 	--sidebar-border: #e4e7ec;
 	--sidebar-ring: #365bcc;
 }

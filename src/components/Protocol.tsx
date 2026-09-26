@@ -6,10 +6,10 @@ import { AnimatedBeamDemo } from "./AnimatedBeamDemo";
    as the four things that actually make Namepass work. Each card is one real
    property of the protocol — nothing here is aspirational copy. */
 
-const NUM = "font-normal text-[13px] text-[rgba(28,58,41,0.35)] tabular-nums";
+const NUM = "font-normal text-[13px] text-ink-decorative tabular-nums";
 const TAG =
-	"text-[11px] uppercase tracking-[0.16em] text-[rgba(28,58,41,0.5)]";
-const META_ICON = "h-3.5 w-3.5 text-[rgba(28,58,41,0.62)]";
+	"text-[11px] uppercase tracking-section text-ink-label";
+const META_ICON = "h-3.5 w-3.5 text-ink-secondary";
 const CARD =
 	"rounded-[1.25rem] bg-white p-6 md:p-7";
 const HOVER = { y: -2, boxShadow: "0 12px 28px rgba(28,58,41,0.06)", transition: { duration: 0.18 } };
@@ -21,10 +21,10 @@ export default function Protocol() {
 				<div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
 					<div className="max-w-2xl">
 						<span className={TAG}>The protocol</span>
-						<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-[1.03]">
+						<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-ink-primary tracking-tight leading-[1.03]">
 							The protocol behind ENS renewals.
 						</h2>
-						<p className="mt-3 text-[15px] md:text-[16px] text-[rgba(28,58,41,0.6)] leading-relaxed">
+						<p className="mt-3 text-[15px] md:text-[16px] text-ink-secondary leading-relaxed">
 							Namepass contracts derive a deterministic USDC deposit address for every name and
 							execute renewals at ENS's on-chain rates.
 						</p>
@@ -34,7 +34,7 @@ export default function Protocol() {
 						href="https://github.com/stevegachau/namepass-v2"
 						target="_blank"
 						rel="noopener noreferrer"
-						className="group shrink-0 self-start sm:self-auto inline-flex items-center gap-2 rounded-[10px] bg-white px-5 py-2.5 text-[14px] text-[rgba(28,58,41,0.9)] shadow-[0_3px_10px_rgba(28,58,41,0.08)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+						className="group shrink-0 self-start sm:self-auto inline-flex items-center gap-2 rounded-[10px] bg-white px-5 py-2.5 text-[14px] text-ink-action shadow-[0_3px_10px_rgba(28,58,41,0.08)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 					>
 						<Github aria-hidden="true" className="w-4 h-4 transition-transform duration-200 group-hover:-translate-y-0.5" />
 						View source
@@ -63,10 +63,10 @@ export default function Protocol() {
 						<AnimatedBeamDemo />
 
 						<div>
-							<h3 className="text-[22px] md:text-[26px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-tight">
+							<h3 className="text-[22px] md:text-[26px] font-normal text-ink-primary tracking-tight leading-tight">
 								One address, any chain
 							</h3>
-							<p className="mt-2 text-[14px] text-[rgba(28,58,41,0.6)] leading-relaxed">
+							<p className="mt-2 text-[14px] text-ink-secondary leading-relaxed">
 								Each ENS name maps to the same deposit address across supported chains.
 							</p>
 						</div>
@@ -88,10 +88,10 @@ export default function Protocol() {
 							</span>
 							<span className={NUM}>02</span>
 						</div>
-						<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-tight">
+						<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-ink-primary tracking-tight leading-tight">
 							USDC buys renewal time
 						</h3>
-						<p className="mt-2 text-[14px] text-[rgba(28,58,41,0.6)] leading-relaxed max-w-md">
+						<p className="mt-2 text-[14px] text-ink-secondary leading-relaxed max-w-md">
 							Namepass turns USDC into renewal time at ENS rates. Larger amounts qualify for discounted rates.
 						</p>
 					</motion.div>
@@ -113,10 +113,10 @@ export default function Protocol() {
 								</span>
 								<span className={NUM}>03</span>
 							</div>
-							<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-tight">
+							<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-ink-primary tracking-tight leading-tight">
 								Anyone can trigger
 							</h3>
-							<p className="mt-2 text-[13.5px] text-[rgba(28,58,41,0.6)] leading-relaxed">
+							<p className="mt-2 text-[13.5px] text-ink-secondary leading-relaxed">
 								Renewal flows remain executable even if the Namepass service goes offline.
 							</p>
 						</motion.div>
@@ -136,10 +136,10 @@ export default function Protocol() {
 								</span>
 								<span className={NUM}>04</span>
 							</div>
-							<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-[rgba(28,58,41,0.95)] tracking-tight leading-tight">
+							<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-ink-primary tracking-tight leading-tight">
 								Circle CCTP
 							</h3>
-							<p className="mt-2 text-[13.5px] text-[rgba(28,58,41,0.6)] leading-relaxed">
+							<p className="mt-2 text-[13.5px] text-ink-secondary leading-relaxed">
 								USDC moves natively across chains before the renewal settles.
 							</p>
 										</motion.div>
