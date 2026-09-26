@@ -25,7 +25,7 @@ import { HUB_CHAIN } from "./chains";
 export const GAS_ALLOWANCE = 100000n;
 
 /**
- * The renewal gateway on Sepolia — `docs/DEPLOYMENTS.md`. Not deterministic,
+ * The renewal gateway on Sepolia — `docs/DEPLOYMENTS.md`. Not universal,
  * so unlike the factory there is nothing to derive; it has to be pinned.
  */
 export const NAMEPASS_GATEWAY = HUB_CHAIN.gatewayAddress!;

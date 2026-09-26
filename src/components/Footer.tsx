@@ -43,7 +43,7 @@ export default function Footer({
 							className="h-4 w-auto"
 						/>
 						<p className="mt-3 text-[13px] text-ink-secondary leading-relaxed">
-							Namepass contracts derive a deterministic USDC deposit address for every name and execute renewals at ENS's on-chain rates.
+							Namepass contracts derive a universal USDC deposit address for every name and execute renewals at ENS's on-chain rates.
 						</p>
 						<div className="mt-5 flex items-center gap-2">
 							<a

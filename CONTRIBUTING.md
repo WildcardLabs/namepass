@@ -4,7 +4,7 @@
 
 Use Node.js 22, npm and Foundry. CI pins the Foundry version and test dependency in
 [the workflow](.github/workflows/ci.yml). Solidity compiler settings are in `foundry.toml` and
-must remain consistent with deterministic deployment requirements.
+must remain consistent with universal deployment requirements.
 
 ```sh
 npm ci

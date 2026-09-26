@@ -10,7 +10,7 @@ interface Props {
 	className?: string;
 }
 
-/** ENS avatar via the resolvio profile API, falling back to a deterministic DiceBear voxel-bot avatar. */
+/** ENS avatar via the resolvio profile API, falling back to a universal DiceBear voxel-bot avatar. */
 export default function NameAvatar({ name, className = "" }: Props) {
 	const [src, setSrc] = useState(() => dicebearUrl(name));
 
