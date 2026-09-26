@@ -62,7 +62,7 @@ export default function Simulator({
 	onRetry: () => void;
 }) {
 	return (
-		<section id="simulator" className="bg-[#f0f0f0] px-5 md:px-10 py-14 md:py-20">
+		<section id="simulator" className="bg-surface-canvas px-5 md:px-10 py-14 md:py-20">
 			<div className="max-w-[1100px] mx-auto">
 				<div className="max-w-2xl">
 					<span className="text-[11px] uppercase tracking-section text-ink-label">
@@ -207,7 +207,7 @@ function SimulatorBody() {
 									key={l.len}
 									onClick={() => setLen(l.len)}
 									className={`flex-1 px-5 py-4 text-left transition-colors border-b sm:border-b-0 sm:border-r border-[rgba(28,58,41,0.08)] last:border-0 ${
-										on ? "bg-[rgba(28,58,41,0.05)]" : "hover:bg-[rgba(28,58,41,0.02)]"
+										on ? "bg-surface-selected" : "hover:bg-[rgba(28,58,41,0.02)]"
 									}`}
 								>
 									<div
@@ -297,7 +297,7 @@ function SimulatorBody() {
 											aria-pressed={on}
 											className={`relative rounded-[8px] border px-1.5 py-4 text-center transition-colors ${
 												on
-													? "border-transparent bg-[rgba(28,58,41,0.06)]"
+													? "border-transparent bg-surface-selected"
 													: "border-[rgba(28,58,41,0.12)] hover:border-[rgba(28,58,41,0.3)] hover:bg-[rgba(28,58,41,0.02)]"
 											}`}
 										>
@@ -320,7 +320,7 @@ function SimulatorBody() {
 													   no better. */
 													className={`absolute -top-[9px] right-1 inline-flex h-[18px] items-center justify-center rounded-[4px] border px-1.5 pb-px text-[10px] leading-none tabular-nums transition-colors ${
 														on
-															? "border-transparent bg-[rgba(28,58,41,0.92)] text-ink-inverse"
+															? "border-transparent bg-savings text-ink-inverse"
 															: "border-[rgba(28,58,41,0.12)] bg-white text-ink-secondary"
 													}`}
 												>

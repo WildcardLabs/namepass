@@ -17,7 +17,7 @@ import { Activity, ChevronRight } from "lucide-react";
 export default function BottomRightCorner({ onOpen }: { onOpen: () => void }) {
 	return (
 		<div
-			className="absolute bottom-0 right-0 p-3 pt-5 pl-7 sm:p-4 sm:pt-6 sm:pl-8 md:p-6 md:pt-7 md:pl-10 bg-[#f0f0f0] rounded-tl-[1rem] sm:rounded-tl-[1.25rem] md:rounded-tl-[1.5rem] flex items-center gap-3 sm:gap-4 md:gap-6"
+			className="absolute bottom-0 right-0 p-3 pt-5 pl-7 sm:p-4 sm:pt-6 sm:pl-8 md:p-6 md:pt-7 md:pl-10 bg-surface-canvas rounded-tl-[1rem] sm:rounded-tl-[1.25rem] md:rounded-tl-[1.5rem] flex items-center gap-3 sm:gap-4 md:gap-6"
 		>
 			{/* Top intersection mask */}
 			<div className="absolute -top-[1rem] sm:-top-[1.25rem] md:-top-[1.5rem] right-0 w-[1rem] sm:w-[1.25rem] md:w-[1.5rem] h-[1rem] sm:h-[1.25rem] md:h-[1.5rem] pointer-events-none">
@@ -28,7 +28,7 @@ export default function BottomRightCorner({ onOpen }: { onOpen: () => void }) {
 					fill="none"
 					xmlns="http://www.w3.org/2000/svg"
 				>
-					<path d="M56 56V0C56 30.9279 30.9279 56 0 56H56Z" fill="#f0f0f0" />
+					<path d="M56 56V0C56 30.9279 30.9279 56 0 56H56Z" fill="var(--color-surface-canvas)" />
 				</svg>
 			</div>
 
@@ -41,7 +41,7 @@ export default function BottomRightCorner({ onOpen }: { onOpen: () => void }) {
 					fill="none"
 					xmlns="http://www.w3.org/2000/svg"
 				>
-					<path d="M56 56H0C30.9279 56 56 30.9279 56 0V56Z" fill="#f0f0f0" />
+					<path d="M56 56H0C30.9279 56 56 30.9279 56 0V56Z" fill="var(--color-surface-canvas)" />
 				</svg>
 			</div>
 

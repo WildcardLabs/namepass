@@ -41,7 +41,10 @@ After a source-chain burn, an unclaimed payment is not a spendable source-wallet
 Pages share `PageShell` and `Navbar`. Reuse existing visual primitives, tooltips and chain labels.
 On public pages, filled cards and controls have no visible perimeter border. Use borders for
 unfilled controls and internal dividers, and keep keyboard focus indicators visible.
-Small white controls on grey sections use a soft shadow for separation.
+Public page backgrounds use the cool gray `surface-canvas`, including the hero corner cutouts.
+Use `surface-selected` for pricing selections and `surface-table` for Explorer headers.
+Reserve the green `savings` and `savings-soft` pair for discount badges; actions, time values and status
+keep their existing green roles. Small white controls use a soft shadow for separation.
 Text colors use the shared `ink-*` theme roles in `src/index.css`: `primary` for headings
 and key values, `secondary` for descriptions and supporting data, `label` for small labels,
 and `action` for links and controls. Supporting text and labels use 70% brand green for

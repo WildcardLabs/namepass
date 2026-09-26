@@ -115,7 +115,7 @@ function DiscountTag({ off }: { off: string | null }) {
 		return <span className="text-ink-secondary">-</span>;
 	}
 	return (
-		<span className="inline-flex items-center rounded-md bg-[rgba(28,58,41,0.06)] px-2 py-0.5 text-[12px] text-ink-primary whitespace-nowrap">
+		<span className="inline-flex items-center rounded-md bg-savings-soft px-2 py-0.5 text-[12px] text-savings whitespace-nowrap">
 			{off} off
 		</span>
 	);
@@ -572,7 +572,7 @@ function LiveFeed({ onSelect, feed, setFeed, pageIndex, setPageIndex }: {
 			{loadError && <p role="alert" className="mb-3 text-[12.5px] text-red-700">{loadError}</p>}
 			<div ref={tableRef} className="scroll-mt-6 border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
 			{/* Desktop column headers, hidden on mobile where rows become cards */}
-			<div className={`hidden lg:grid ${LIVE_FEED_COLUMNS} gap-4 px-5 py-3 bg-[rgba(28,58,41,0.03)] border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-ink-label`}>
+			<div className={`hidden lg:grid ${LIVE_FEED_COLUMNS} gap-4 px-5 py-3 bg-surface-table border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-ink-label`}>
 				<span>ENS name</span>
 				<span>Chain</span>
 				<span className="text-right">Received</span>
@@ -1190,7 +1190,7 @@ function NameDetail({
 				</div>
 
 				<div className="border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
-					<div className={`hidden lg:grid ${NAME_ACTIVITY_COLUMNS} gap-4 px-5 py-3 bg-[rgba(28,58,41,0.03)] border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-ink-label`}>
+					<div className={`hidden lg:grid ${NAME_ACTIVITY_COLUMNS} gap-4 px-5 py-3 bg-surface-table border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-ink-label`}>
 						<span>Date</span>
 						<span>Event</span>
 						<span>Chain</span>
@@ -1440,7 +1440,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 	}, [query]);
 
 	return (
-		<section id="explorer" className="bg-[#f0f0f0] px-5 md:px-10 py-14 md:py-20">
+		<section id="explorer" className="bg-surface-canvas px-5 md:px-10 py-14 md:py-20">
 			<div className="max-w-[1100px] mx-auto">
 				<div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
 					<div>
