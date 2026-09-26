@@ -208,7 +208,7 @@ function SimulatorBody() {
 									onClick={() => setLen(l.len)}
 									aria-pressed={on}
 									className={`flex-1 px-5 py-4 text-left transition-colors border-b sm:border-b-0 sm:border-r border-[rgba(28,58,41,0.08)] last:border-0 ${
-										on ? "bg-surface-selected" : "hover:bg-surface-inset"
+										on ? "bg-surface-selected" : ""
 									}`}
 								>
 									<div
