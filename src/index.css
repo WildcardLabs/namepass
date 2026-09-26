@@ -7,12 +7,12 @@
 
 @theme {
 	--font-helvetica: "Helvetica Regular", ui-sans-serif, system-ui, sans-serif;
-	/* Public palette: warm canvas, sage selection, brass savings badges. */
-	--color-surface-canvas: #f4f3ee;
-	--color-surface-selected: #e8ede5;
-	--color-surface-table: #f0f3ed;
-	--color-savings: #87651f;
-	--color-savings-soft: #f5ebcf;
+	/* Public palette: cool gray canvas and restrained green emphasis. */
+	--color-surface-canvas: #f1f3f4;
+	--color-surface-selected: #e3ece8;
+	--color-surface-table: #edf2f0;
+	--color-savings: #365e4f;
+	--color-savings-soft: #e5efeb;
 	/* Shared text roles for public pages and monitoring. */
 	--color-ink-primary: #1c3a29f2;
 	--color-ink-secondary: rgba(28, 58, 41, 0.7);
