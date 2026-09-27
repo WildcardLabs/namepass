@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { ArrowLeftRight, Github, Timer, Unplug, WalletMinimal } from "lucide-react";
+import { AtSign, Github, Timer, Unplug, WalletMinimal } from "lucide-react";
 import { AnimatedBeamDemo } from "./AnimatedBeamDemo";
 
 /* The RIVR template's "Architected for high-performance DeFi" bento, repurposed
@@ -9,7 +9,7 @@ import { AnimatedBeamDemo } from "./AnimatedBeamDemo";
 const NUM = "font-normal text-[13px] text-ink-decorative tabular-nums";
 const TAG =
 	"text-[11px] uppercase tracking-section text-ink-label";
-const META_ICON = "h-3.5 w-3.5 text-ink-secondary";
+const META_ICON = "h-3.5 w-3.5 shrink-0 text-ink-secondary";
 const CARD =
 	"rounded-[1.25rem] bg-white p-6 md:p-7";
 const HOVER = { y: -2, boxShadow: "0 12px 28px rgba(28,58,41,0.06)", transition: { duration: 0.18 } };
@@ -25,8 +25,8 @@ export default function Protocol() {
 							A USDC payment protocol for ENS renewals.
 						</h2>
 						<p className="mt-3 text-[15px] md:text-[16px] text-ink-secondary leading-relaxed">
-							Each ENS name gets a universal deposit address across supported chains.
-							Namepass monitors deposits and processes eligible payments into renewal time.
+							No wallet connection, message signing, or token approvals.
+							Just send USDC from your wallet, exchange, or neobank.
 						</p>
 					</div>
 					<motion.a
@@ -42,7 +42,7 @@ export default function Protocol() {
 				</div>
 
 				{/* Bento: tall card left, one wide + two half cards right */}
-				<div className="mt-10 grid md:grid-cols-2 gap-4">
+				<div className="mt-10 grid lg:grid-cols-2 gap-4">
 					{/* 01 — tall */}
 					<motion.div
 						whileHover={HOVER}
@@ -50,9 +50,9 @@ export default function Protocol() {
 						whileInView={{ opacity: 1, y: 0 }}
 						viewport={{ once: true, margin: "-80px" }}
 						transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-						className={`${CARD} md:row-span-2 flex flex-col`}
+						className={`${CARD} lg:row-span-2 flex flex-col`}
 					>
-						<div className="flex items-center justify-between">
+						<div className="flex items-center justify-between gap-2">
 							<span className={`${TAG} inline-flex items-center gap-2`}>
 								<WalletMinimal aria-hidden="true" className={META_ICON} strokeWidth={1.6} />
 								Deposit Address
@@ -64,10 +64,11 @@ export default function Protocol() {
 
 						<div>
 							<h3 className="text-[22px] md:text-[26px] font-normal text-ink-primary tracking-tight leading-tight">
-								One address across supported chains
+								One name. One universal address.
 							</h3>
 							<p className="mt-2 text-[14px] text-ink-secondary leading-relaxed">
-								Each ENS name maps to the same deposit address across supported chains.
+								The deposit address is derived from the ENS name. It stays the same across supported chains
+								and can be used by any application.
 							</p>
 						</div>
 					</motion.div>
@@ -81,7 +82,7 @@ export default function Protocol() {
 						transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
 						className={CARD}
 					>
-						<div className="flex items-center justify-between">
+						<div className="flex items-center justify-between gap-2">
 							<span className={`${TAG} inline-flex items-center gap-2`}>
 								<Timer aria-hidden="true" className={META_ICON} strokeWidth={1.6} />
 								Renewal execution
@@ -92,7 +93,8 @@ export default function Protocol() {
 							From deposit to renewal
 						</h3>
 						<p className="mt-2 text-[14px] text-ink-secondary leading-relaxed max-w-md">
-							Namepass monitors deposits, manages cross-chain settlement, and executes renewals.
+							Namepass monitors deposits, manages settlement, and executes renewals.
+							The contracts convert USDC into renewal time at ENS’s on-chain rates.
 						</p>
 					</motion.div>
 
@@ -106,7 +108,7 @@ export default function Protocol() {
 							transition={{ duration: 0.7, delay: 0.16, ease: [0.16, 1, 0.3, 1] }}
 							className={CARD}
 						>
-							<div className="flex items-center justify-between">
+							<div className="flex items-center justify-between gap-2">
 								<span className={`${TAG} inline-flex items-center gap-2`}>
 									<Unplug aria-hidden="true" className={META_ICON} strokeWidth={1.6} />
 									Permissionless
@@ -114,10 +116,10 @@ export default function Protocol() {
 								<span className={NUM}>03</span>
 							</div>
 							<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-ink-primary tracking-tight leading-tight">
-								Anyone can trigger
+								Anyone can execute.
 							</h3>
 							<p className="mt-2 text-[13.5px] text-ink-secondary leading-relaxed">
-								Renewal flows remain executable even if the Namepass service goes offline.
+								Renewal flows remain executable independently of the Namepass website and service.
 							</p>
 						</motion.div>
 
@@ -129,20 +131,21 @@ export default function Protocol() {
 							transition={{ duration: 0.7, delay: 0.24, ease: [0.16, 1, 0.3, 1] }}
 							className={`${CARD} relative`}
 						>
-							<div className="flex items-center justify-between">
+							<div className="flex items-center justify-between gap-2">
 								<span className={`${TAG} inline-flex items-center gap-2`}>
-									<ArrowLeftRight aria-hidden="true" className={META_ICON} strokeWidth={1.6} />
-									Cross-chain
+									<AtSign aria-hidden="true" className={META_ICON} strokeWidth={1.6} />
+									Subdomains
 								</span>
 								<span className={NUM}>04</span>
 							</div>
 							<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-ink-primary tracking-tight leading-tight">
-								Circle CCTP
+								A readable deposit address.
 							</h3>
 							<p className="mt-2 text-[13.5px] text-ink-secondary leading-relaxed">
-								USDC moves natively across chains before the renewal settles.
+								<span className="break-words">alice.namepass.eth</span> automatically resolves to the universal deposit address for alice.eth.
+								Send USDC on a supported chain to add renewal time.
 							</p>
-										</motion.div>
+						</motion.div>
 					</div>
 				</div>
 			</div>
