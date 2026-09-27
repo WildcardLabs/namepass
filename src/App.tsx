@@ -198,7 +198,6 @@ function ActiveApp() {
 
 	const navProps = {
 		onProtocol: goProtocol,
-		onExplore: goExplorer,
 		onSimulate: goSimulate,
 		onSearch: focusSearch,
 		onHome: goHome,
@@ -258,7 +257,7 @@ function ActiveApp() {
 							onSupportedTokens={goSupported}
 						/>
 
-						<CtaBand onSearch={focusSearch} onSimulate={goSimulate} />
+						<CtaBand />
 					</>
 				)}
 

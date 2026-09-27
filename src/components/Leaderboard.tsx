@@ -238,7 +238,7 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 								<span className="relative inline-flex w-2 h-2 rounded-full bg-[rgba(28,58,41,0.8)]" />
 							</span>
 							<span className="text-[11px] uppercase tracking-section text-ink-label">
-								Leaderboard · Live
+								Leaderboard · Testnet activity
 							</span>
 						</div>
 						<h1 className="relative -left-0.5 mt-3 text-[36px] md:text-[52px] font-normal text-ink-primary tracking-tight leading-[1.05]">

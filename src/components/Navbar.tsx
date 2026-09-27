@@ -3,7 +3,6 @@ import { ArrowUpRight } from "lucide-react";
 
 interface Props {
 	onProtocol: () => void;
-	onExplore: () => void;
 	onSimulate: () => void;
 	onSearch: () => void;
 	onHome: () => void;
@@ -17,7 +16,6 @@ interface Props {
  */
 export default function Navbar({
 	onProtocol,
-	onExplore,
 	onSimulate,
 	onSearch,
 	onHome,
@@ -25,12 +23,11 @@ export default function Navbar({
 }: Props) {
 	const items = [
 		{ label: "Protocol", action: onProtocol },
-		{ label: "ENS v2 pricing", action: onSimulate },
-		{ label: "Explorer", action: onExplore },
+		{ label: "Rates", action: onSimulate },
 	];
 
 	return (
-		<nav className="flex items-center justify-between py-6 px-6 md:px-10 w-full relative z-10">
+		<nav className="flex items-center justify-between flex-wrap gap-y-5 py-6 px-6 md:px-10 w-full relative z-10">
 			<a
 				href={import.meta.env.BASE_URL}
 				aria-label="Namepass home"
@@ -48,7 +45,7 @@ export default function Navbar({
 			</a>
 
 			{showMenu && (
-				<ul className="hidden md:flex items-center gap-8 text-ink-primary font-medium text-[15px]">
+				<ul className="order-last flex w-full justify-center items-center gap-6 md:order-none md:w-auto md:gap-8 text-ink-primary font-medium text-[15px]">
 					{items.map((item) => (
 						<li key={item.label}>
 							<button
@@ -59,6 +56,9 @@ export default function Navbar({
 							</button>
 						</li>
 					))}
+					<li>
+						<a href="#docs" className="hover:text-ink-primary transition-colors">Docs</a>
+					</li>
 				</ul>
 			)}
 

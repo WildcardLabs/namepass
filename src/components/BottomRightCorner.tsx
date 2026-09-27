@@ -62,7 +62,7 @@ export default function BottomRightCorner({ onOpen }: { onOpen: () => void }) {
 					className="flex items-center gap-1 text-ink-secondary cursor-pointer hover:text-ink-primary transition-colors"
 				>
 					<span className="text-[10px] md:text-[11px] font-normal">
-						Live renewals
+						Testnet renewals
 					</span>
 					<ChevronRight className="w-3 h-3 md:w-4 md:h-4" />
 				</button>

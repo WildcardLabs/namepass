@@ -22,7 +22,7 @@ export default function Footer({
 }: Props) {
 	const product = [
 		{ label: "Protocol", action: onProtocol },
-		{ label: "ENS v2 pricing", action: onSimulate },
+		{ label: "Rates", action: onSimulate },
 		{ label: "Explorer", action: onExplore },
 		{ label: "Leaderboard", action: onLeaderboard },
 		{ label: "Supported networks", action: onSupported },

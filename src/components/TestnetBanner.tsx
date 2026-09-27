@@ -121,7 +121,7 @@ export default function TestnetBanner() {
 					) : (
 						<FlaskConical className="w-3.5 h-3.5" />
 					)}
-					<span>{live ? "Latest renewals" : "Testnet"}</span>
+					<span>{live ? "Latest testnet renewals" : "Testnet"}</span>
 				</div>
 
 				{/* Fades the scrolling text in at the left edge, so it doesn't read

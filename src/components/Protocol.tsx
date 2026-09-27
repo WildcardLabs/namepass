@@ -22,11 +22,11 @@ export default function Protocol() {
 					<div className="max-w-2xl">
 						<span className={TAG}>The protocol</span>
 						<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-ink-primary tracking-tight leading-[1.03]">
-							The protocol behind ENS renewals.
+							A USDC payment protocol for ENS renewals.
 						</h2>
 						<p className="mt-3 text-[15px] md:text-[16px] text-ink-secondary leading-relaxed">
-							Namepass contracts derive a universal USDC deposit address for every name and
-							execute renewals at ENS's on-chain rates.
+							Each ENS name gets a universal deposit address across supported chains.
+							Namepass monitors deposits and processes eligible payments into renewal time.
 						</p>
 					</div>
 					<motion.a
@@ -64,7 +64,7 @@ export default function Protocol() {
 
 						<div>
 							<h3 className="text-[22px] md:text-[26px] font-normal text-ink-primary tracking-tight leading-tight">
-								One address, any chain
+								One address across supported chains
 							</h3>
 							<p className="mt-2 text-[14px] text-ink-secondary leading-relaxed">
 								Each ENS name maps to the same deposit address across supported chains.
@@ -89,10 +89,10 @@ export default function Protocol() {
 							<span className={NUM}>02</span>
 						</div>
 						<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-ink-primary tracking-tight leading-tight">
-							USDC buys renewal time
+							From deposit to renewal
 						</h3>
 						<p className="mt-2 text-[14px] text-ink-secondary leading-relaxed max-w-md">
-							Namepass turns USDC into renewal time at ENS rates. Larger amounts qualify for discounted rates.
+							Namepass detects deposits, submits renewals, and retries interrupted processing.
 						</p>
 					</motion.div>
 
@@ -109,7 +109,7 @@ export default function Protocol() {
 							<div className="flex items-center justify-between">
 								<span className={`${TAG} inline-flex items-center gap-2`}>
 									<Unplug aria-hidden="true" className={META_ICON} strokeWidth={1.6} />
-									Walkaway test
+									Permissionless execution
 								</span>
 								<span className={NUM}>03</span>
 							</div>

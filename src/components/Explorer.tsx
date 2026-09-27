@@ -1455,7 +1455,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								<span className="relative inline-flex w-2 h-2 rounded-full bg-[rgba(28,58,41,0.8)]" />
 							</span>
 							<span className="text-[11px] uppercase tracking-section text-ink-label">
-								Explorer · Live
+								Explorer · Testnet activity
 							</span>
 						</div>
 						<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-ink-primary tracking-tight leading-[1.05]">
