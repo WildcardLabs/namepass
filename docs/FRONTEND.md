@@ -40,8 +40,8 @@ After a source-chain burn, an unclaimed payment is not a spendable source-wallet
 
 Homepage navigation uses `Rates` for the pricing simulator. The temporary `Docs` link
 targets the developer CTA at `#docs`; its `Read the docs` button stays disabled
-until documentation is available. The desktop menu sits beside `Get Started`.
-On mobile, it stays visible in a right-aligned row. The footer lists Explorer,
+until documentation is available. The desktop menu is centered between the brand and
+`Get Started`. On mobile, it stays visible in a centered row. The footer lists Explorer,
 Rates, Supported networks, Docs, and the legal pages.
 Public activity labels identify the testnet deployment.
 
