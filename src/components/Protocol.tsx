@@ -109,7 +109,7 @@ export default function Protocol() {
 							<div className="flex items-center justify-between">
 								<span className={`${TAG} inline-flex items-center gap-2`}>
 									<Unplug aria-hidden="true" className={META_ICON} strokeWidth={1.6} />
-									Permissionless execution
+									Permissionless
 								</span>
 								<span className={NUM}>03</span>
 							</div>
