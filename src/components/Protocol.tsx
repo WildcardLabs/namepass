@@ -149,9 +149,9 @@ export default function Protocol() {
 								A readable deposit address.
 							</h3>
 							<p className="mt-2 text-[13.5px] text-ink-secondary leading-relaxed">
-								<span className="box-decoration-clone rounded-md bg-surface-inset px-1.5 py-0.5 font-mono text-[12.5px] text-ink-link break-all">alice.namepass.eth</span>{" "}
+								<span className="box-decoration-clone rounded-md bg-surface-inset px-0.5 py-0.5 text-ink-link break-all">alice.namepass.eth</span>{" "}
 								automatically resolves to the universal deposit address for{" "}
-								<span className="box-decoration-clone rounded-md bg-surface-inset px-1.5 py-0.5 font-mono text-[12.5px] text-ink-link">alice.eth</span>.
+								<span className="box-decoration-clone rounded-md bg-surface-inset px-0.5 py-0.5 text-ink-link">alice.eth</span>.
 							</p>
 						</motion.div>
 					</div>
