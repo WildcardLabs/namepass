@@ -92,7 +92,10 @@ export default function Protocol() {
 							From deposit to renewal
 						</h3>
 						<p className="mt-2 text-[14px] text-ink-secondary leading-relaxed max-w-md">
-							Namepass detects deposits, submits renewals, and retries interrupted processing.
+							Namepass operates the infrastructure that takes deposits through to completed renewals.
+							The service monitors deposits, submits transactions, tracks cross-chain settlement, and
+							recovers interrupted flows. Users and integrating apps don’t need to run their own
+							monitoring and execution systems.
 						</p>
 					</motion.div>
 
