@@ -39,8 +39,8 @@ After a source-chain burn, an unclaimed payment is not a spendable source-wallet
 ## Interface conventions
 
 Homepage navigation uses `Rates` for the pricing simulator. The temporary `Docs` link
-targets the developer CTA at `#docs`; its `Read the docs` button stays disabled with a
-`Coming soon` note until documentation is available. The navigation remains visible on mobile.
+targets the developer CTA at `#docs`; its `Read the docs` button stays disabled
+until documentation is available. The navigation remains visible on mobile.
 Public activity labels identify the testnet deployment.
 
 Pages share `PageShell` and `Navbar`. Reuse existing visual primitives, tooltips and chain labels.

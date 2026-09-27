@@ -121,8 +121,7 @@ export default function CtaBand() {
 							Bring ENS renewals into your app.
 						</h2>
 						<p className="mt-3 text-[14px] md:text-[15px] text-ink-inverse-secondary leading-relaxed">
-							Let users fund ENS renewals from your app with universal deposit addresses and settlement tracking.
-							Namepass handles deposit monitoring and renewal execution.
+							Let users fund ENS renewals from your app, wallet, or neobank.
 						</p>
 					</motion.div>
 
@@ -135,13 +134,11 @@ export default function CtaBand() {
 					>
 						<button
 							disabled
-							aria-describedby="docs-coming-soon"
 							className="inline-flex items-center gap-2 rounded-[10px] bg-white text-ink-primary px-5 py-3 text-[15px] disabled:cursor-not-allowed"
 						>
 							Read the docs
 							<ArrowUpRight aria-hidden="true" className="w-4 h-4" />
 						</button>
-						<span id="docs-coming-soon" className="text-[13px] text-ink-inverse-secondary">Coming soon</span>
 					</motion.div>
 				</div>
 			</div>
