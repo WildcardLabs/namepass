@@ -143,7 +143,6 @@ export default function Protocol() {
 							</h3>
 							<p className="mt-2 text-[13.5px] text-ink-secondary leading-relaxed">
 								<span className="break-words">alice.namepass.eth</span> automatically resolves to the universal deposit address for alice.eth.
-								Send USDC on a supported chain to add renewal time.
 							</p>
 						</motion.div>
 					</div>
