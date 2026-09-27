@@ -11,7 +11,7 @@ interface Props {
 
 /**
  * Header in the original RIVR-template design this project was built on: brand
- * mark left, plain centred text links, one action right. The button is squared
+ * mark left, text links beside the action on desktop. The button is squared
  * (10px), not a pill, and has no circled-arrow chrome.
  */
 export default function Navbar({
@@ -45,7 +45,7 @@ export default function Navbar({
 			</a>
 
 			{showMenu && (
-				<ul className="order-last flex w-full justify-center items-center gap-6 md:order-none md:w-auto md:gap-8 text-ink-primary font-medium text-[15px]">
+				<ul className="order-last flex w-full justify-end items-center gap-6 md:order-none md:w-auto md:gap-8 text-ink-primary font-medium text-[15px]">
 					{items.map((item) => (
 						<li key={item.label}>
 							<button
@@ -62,7 +62,7 @@ export default function Navbar({
 				</ul>
 			)}
 
-			<div className="flex-1 flex justify-end">
+			<div className="flex-1 md:flex-none flex justify-end md:ml-8">
 				<motion.button
 					whileHover={{ scale: 1.02 }}
 					whileTap={{ scale: 0.98 }}

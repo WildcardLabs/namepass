@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { AtSign, Github, Timer, Unplug, WalletMinimal } from "lucide-react";
+import { Github, Timer, Unplug, WalletMinimal } from "lucide-react";
 import { AnimatedBeamDemo } from "./AnimatedBeamDemo";
 
 /* The RIVR template's "Architected for high-performance DeFi" bento, repurposed
@@ -133,7 +133,14 @@ export default function Protocol() {
 						>
 							<div className="flex items-center justify-between gap-2">
 								<span className={`${TAG} inline-flex items-center gap-2`}>
-									<AtSign aria-hidden="true" className={META_ICON} strokeWidth={1.6} />
+									<span
+										aria-hidden="true"
+										className="inline-block h-3.5 w-3.5 shrink-0 bg-current text-ink-secondary"
+										style={{
+											mask: `url(${import.meta.env.BASE_URL}logos/ens.svg) center / contain no-repeat`,
+											WebkitMask: `url(${import.meta.env.BASE_URL}logos/ens.svg) center / contain no-repeat`,
+										}}
+									/>
 									Subdomains
 								</span>
 								<span className={NUM}>04</span>
@@ -142,7 +149,9 @@ export default function Protocol() {
 								A readable deposit address.
 							</h3>
 							<p className="mt-2 text-[13.5px] text-ink-secondary leading-relaxed">
-								<span className="break-words">alice.namepass.eth</span> automatically resolves to the universal deposit address for alice.eth.
+								<span className="box-decoration-clone rounded-md bg-surface-inset px-1.5 py-0.5 font-mono text-ink-link break-all">alice.namepass.eth</span>{" "}
+								automatically resolves to the universal deposit address for{" "}
+								<span className="box-decoration-clone rounded-md bg-surface-inset px-1.5 py-0.5 font-mono text-ink-link">alice.eth</span>.
 							</p>
 						</motion.div>
 					</div>

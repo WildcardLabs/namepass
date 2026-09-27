@@ -164,6 +164,7 @@ function ActiveApp() {
 
 	const goHome = useCallback(() => navigate("home"), [navigate]);
 	const goProtocol = useCallback(() => goToSection("protocol"), [goToSection]);
+	const goDocs = useCallback(() => goToSection("docs"), [goToSection]);
 	const goSimulate = useCallback(() => goToSection("simulator"), [goToSection]);
 	const goLeaderboard = useCallback(() => navigate("leaderboard"), [navigate]);
 	const goSupported = useCallback(() => navigate("supported"), [navigate]);
@@ -305,11 +306,10 @@ function ActiveApp() {
 			</div>
 
 			<Footer
-				onProtocol={goProtocol}
 				onExplore={goExplorer}
 				onSimulate={goSimulate}
-				onLeaderboard={goLeaderboard}
 				onSupported={goSupported}
+				onDocs={goDocs}
 				onTerms={goTerms}
 				onPrivacy={goPrivacy}
 			/>

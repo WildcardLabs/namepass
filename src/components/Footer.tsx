@@ -2,30 +2,27 @@ import { Github } from "lucide-react";
 import { XIcon } from "./icons";
 
 interface Props {
-	onProtocol: () => void;
 	onExplore: () => void;
 	onSimulate: () => void;
-	onLeaderboard: () => void;
 	onSupported: () => void;
+	onDocs: () => void;
 	onTerms: () => void;
 	onPrivacy: () => void;
 }
 
 export default function Footer({
-	onProtocol,
 	onExplore,
 	onSimulate,
-	onLeaderboard,
 	onSupported,
+	onDocs,
 	onTerms,
 	onPrivacy,
 }: Props) {
 	const product = [
-		{ label: "Protocol", action: onProtocol },
-		{ label: "Rates", action: onSimulate },
 		{ label: "Explorer", action: onExplore },
-		{ label: "Leaderboard", action: onLeaderboard },
+		{ label: "Rates", action: onSimulate },
 		{ label: "Supported networks", action: onSupported },
+		{ label: "Docs", action: onDocs },
 	];
 	const legal = [
 		{ label: "Terms of service", action: onTerms },
