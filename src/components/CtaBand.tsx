@@ -118,10 +118,10 @@ export default function CtaBand() {
 						className="max-w-md"
 					>
 						<h2 className="text-[30px] md:text-[42px] font-normal text-ink-inverse tracking-tight leading-[1.05]">
-							Bring ENS renewals into your app.
+							Bring renewals into your application.
 						</h2>
 						<p className="mt-3 text-[14px] md:text-[15px] text-ink-inverse-secondary leading-relaxed">
-							Let users fund ENS renewals from your app, wallet, or neobank with universal deposit addresses and settlement tracking.
+							Let users fund ENS renewals from your app with universal deposit addresses and settlement tracking.
 						</p>
 					</motion.div>
 

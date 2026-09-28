@@ -26,7 +26,7 @@ export default function Protocol() {
 						</h2>
 						<p className="mt-3 text-[15px] md:text-[16px] text-ink-secondary leading-relaxed">
 							No wallet connection, message signing, or token approvals.
-							Just send USDC from your wallet, exchange, or neobank.
+							Just send USDC via your agent, wallet, exchange, or neobank.
 						</p>
 					</div>
 					<motion.a
