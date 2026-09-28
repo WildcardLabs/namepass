@@ -94,7 +94,7 @@ export default function Protocol() {
 						</h3>
 						<p className="mt-2 text-[14px] text-ink-secondary leading-relaxed max-w-md">
 							Namepass monitors deposits, manages settlement, and executes renewals.
-							The deposit wallet has no private key or owner withdrawal path. Deposited USDC can only follow the configured renewal route.
+							Deposited USDC can only move through the fixed renewal route.
 						</p>
 					</motion.div>
 
@@ -116,10 +116,10 @@ export default function Protocol() {
 								<span className={NUM}>03</span>
 							</div>
 							<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-ink-primary tracking-tight leading-tight">
-								The contracts accept any executor.
+								Anyone can trigger a renewal.
 							</h3>
 							<p className="mt-2 text-[13.5px] text-ink-secondary leading-relaxed">
-								Namepass handles the routine flow. If its service is unavailable, another executor can process a deposit and complete settlement.
+								Namepass handles the automation. The contracts are open to everyone.
 							</p>
 						</motion.div>
 
