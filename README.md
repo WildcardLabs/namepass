@@ -132,5 +132,5 @@ For the protocol's full contract rules, see [contract design](docs/CONTRACTS_V2.
 
 ## License
 
-A project license has not yet been selected. Third-party notices remain with their respective
-files.
+Namepass is licensed under the [MIT License](LICENSE). Third-party notices remain with their
+respective files.
