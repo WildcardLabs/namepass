@@ -45,7 +45,7 @@ export default function Navbar({
 			</a>
 
 			{showMenu && (
-				<ul className="order-last flex w-full justify-center items-center gap-6 md:order-none md:w-auto md:gap-8 text-ink-primary font-medium text-[15px]">
+				<ul className="hidden md:flex items-center gap-8 text-ink-primary font-medium text-[15px]">
 					{items.map((item) => (
 						<li key={item.label}>
 							<button
