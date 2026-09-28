@@ -22,6 +22,8 @@ export interface AnimatedBeamProps {
   duration?: number
   repeat?: number
   repeatDelay?: number
+  active?: boolean
+  onComplete?: () => void
   startXOffset?: number
   startYOffset?: number
   endXOffset?: number
@@ -44,6 +46,8 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
   gradientStopColor = "#9c40ff",
   repeat = Infinity,
   repeatDelay = 0,
+  active = true,
+  onComplete,
   startXOffset = 0,
   startYOffset = 0,
   endXOffset = 0,
@@ -145,14 +149,14 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
         strokeOpacity={pathOpacity}
         strokeLinecap="round"
       />
-      {!reducedMotion && <path
+      {active && !reducedMotion && <path
         d={pathD}
         strokeWidth={pathWidth}
         stroke={`url(#${id})`}
         strokeOpacity="1"
         strokeLinecap="round"
       />}
-      <defs>
+      {active && !reducedMotion && <defs>
         <motion.linearGradient
           className="transform-gpu"
           id={id}
@@ -169,6 +173,7 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
             y1: gradientCoordinates.y1,
             y2: gradientCoordinates.y2,
           }}
+          onAnimationComplete={onComplete}
           transition={{
             delay,
             duration,
@@ -186,8 +191,7 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
             stopOpacity="0"
           ></stop>
         </motion.linearGradient>
-      </defs>
+      </defs>}
     </svg>
   )
 }
-
