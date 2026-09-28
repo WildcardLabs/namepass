@@ -93,7 +93,7 @@ export default function Protocol() {
 							From deposit to renewal
 						</h3>
 						<p className="mt-2 text-[14px] text-ink-secondary leading-relaxed max-w-md">
-							Namepass monitors deposits, manages settlement, and executes renewals.
+							Deposits are monitored, settled, and executed as renewals.
 							Deposited USDC can only move through the fixed renewal route.
 						</p>
 					</motion.div>
@@ -111,15 +111,15 @@ export default function Protocol() {
 							<div className="flex items-center justify-between gap-2">
 								<span className={`${TAG} inline-flex items-center gap-2`}>
 									<Unplug aria-hidden="true" className={META_ICON} strokeWidth={1.6} />
-									Permissionless
+									Open participation
 								</span>
 								<span className={NUM}>03</span>
 							</div>
 							<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-ink-primary tracking-tight leading-tight">
-								Anyone can trigger a renewal.
+								Same contracts, other operators
 							</h3>
 							<p className="mt-2 text-[13.5px] text-ink-secondary leading-relaxed">
-								Namepass handles the automation. The contracts are open to everyone.
+								Automation runs here by default. Other operators can derive the wallets, process balances, and complete settlement on the same route.
 							</p>
 						</motion.div>
 
