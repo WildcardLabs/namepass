@@ -7,6 +7,11 @@ const cn = (...classes: (string | undefined)[]) => classes.filter(Boolean).join(
 import { AnimatedBeam } from "./magicui/AnimatedBeam"
 import { FUNDING_CHAINS } from "../lib/chains"
 
+const ANIMATION_CHAINS = [
+  ...FUNDING_CHAINS.filter((chain) => chain.key === "ethereum"),
+  ...FUNDING_CHAINS.filter((chain) => chain.key !== "ethereum"),
+]
+
 const Circle = forwardRef<
   HTMLDivElement,
   { className?: string; children?: React.ReactNode }
@@ -31,7 +36,7 @@ export function AnimatedBeamDemo() {
   const addressRef = useRef<HTMLDivElement>(null)
   const ensRef = useRef<HTMLDivElement>(null)
   const chainRefs = useMemo(
-    () => FUNDING_CHAINS.map(() => createRef<HTMLDivElement>()),
+    () => ANIMATION_CHAINS.map(() => createRef<HTMLDivElement>()),
     []
   )
 
@@ -44,7 +49,7 @@ export function AnimatedBeamDemo() {
     >
       <div className="flex size-full max-w-lg items-center justify-between gap-4">
         <div className="flex h-full flex-col justify-between">
-          {FUNDING_CHAINS.map((chain, i) => (
+          {ANIMATION_CHAINS.map((chain, i) => (
             <Circle key={chain.name} ref={chainRefs[i]}>
               <img
                 src={`${import.meta.env.BASE_URL}logos/${chain.logo}`}
@@ -66,7 +71,7 @@ export function AnimatedBeamDemo() {
         const position = chainRefs.length > 1 ? 2 * i / (chainRefs.length - 1) - 1 : 0
         return (
           <AnimatedBeam
-            key={FUNDING_CHAINS[i].name}
+            key={ANIMATION_CHAINS[i].name}
             containerRef={containerRef}
             fromRef={ref}
             toRef={addressRef}
