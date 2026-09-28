@@ -164,6 +164,7 @@ function ActiveApp() {
 
 	const goHome = useCallback(() => navigate("home"), [navigate]);
 	const goProtocol = useCallback(() => goToSection("protocol"), [goToSection]);
+	const goDocs = useCallback(() => goToSection("docs"), [goToSection]);
 	const goSimulate = useCallback(() => goToSection("simulator"), [goToSection]);
 	const goLeaderboard = useCallback(() => navigate("leaderboard"), [navigate]);
 	const goSupported = useCallback(() => navigate("supported"), [navigate]);
@@ -198,7 +199,6 @@ function ActiveApp() {
 
 	const navProps = {
 		onProtocol: goProtocol,
-		onExplore: goExplorer,
 		onSimulate: goSimulate,
 		onSearch: focusSearch,
 		onHome: goHome,
@@ -258,7 +258,7 @@ function ActiveApp() {
 							onSupportedTokens={goSupported}
 						/>
 
-						<CtaBand onSearch={focusSearch} onSimulate={goSimulate} />
+						<CtaBand />
 					</>
 				)}
 
@@ -306,11 +306,10 @@ function ActiveApp() {
 			</div>
 
 			<Footer
-				onProtocol={goProtocol}
 				onExplore={goExplorer}
 				onSimulate={goSimulate}
-				onLeaderboard={goLeaderboard}
 				onSupported={goSupported}
+				onDocs={goDocs}
 				onTerms={goTerms}
 				onPrivacy={goPrivacy}
 			/>

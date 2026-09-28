@@ -2,11 +2,6 @@ import { useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { ArrowUpRight } from "lucide-react";
 
-interface Props {
-	onSearch: () => void;
-	onSimulate: () => void;
-}
-
 type VantaEffect = { destroy: () => void };
 
 declare global {
@@ -49,10 +44,10 @@ function loadScript(src: string): Promise<void> {
 
 /**
  * Near-footer CTA band. The background is Vanta.js TOPOLOGY — an animated point
- * mesh in the brand green — with the copy left and two actions right. If the CDN
+ * mesh in the brand green — with the integration copy left and docs action right. If the CDN
  * scripts do not load, the solid dark-green panel behind them stands in.
  */
-export default function CtaBand({ onSearch, onSimulate }: Props) {
+export default function CtaBand() {
 	const bandRef = useRef<HTMLDivElement>(null);
 	const reduced = useReducedMotion();
 
@@ -108,7 +103,7 @@ export default function CtaBand({ onSearch, onSimulate }: Props) {
 	}, [reduced]);
 
 	return (
-		<section className="px-5 md:px-10 pb-14 md:pb-20">
+		<section id="docs" className="scroll-mt-6 px-5 md:px-10 pb-14 md:pb-20">
 			<div
 				ref={bandRef}
 				className="relative max-w-[1100px] mx-auto overflow-hidden rounded-[1.25rem] md:rounded-[1.75rem] min-h-[220px] md:min-h-[260px] bg-[#0e1c14]"
@@ -123,10 +118,10 @@ export default function CtaBand({ onSearch, onSimulate }: Props) {
 						className="max-w-md"
 					>
 						<h2 className="text-[30px] md:text-[42px] font-normal text-ink-inverse tracking-tight leading-[1.05]">
-							Keep your name alive.
+							Bring ENS renewals into your app.
 						</h2>
 						<p className="mt-3 text-[14px] md:text-[15px] text-ink-inverse-secondary leading-relaxed">
-							Send USDC to a Namepass address. Namepass executes the renewal using the best qualifying discount tier.
+							Let users fund ENS renewals from your app, wallet, or neobank with universal deposit addresses and settlement tracking.
 						</p>
 					</motion.div>
 
@@ -135,22 +130,14 @@ export default function CtaBand({ onSearch, onSimulate }: Props) {
 						whileInView={{ opacity: 1, y: 0 }}
 						viewport={{ once: true, margin: "-80px" }}
 						transition={{ duration: 0.7, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-						className="flex flex-wrap items-center gap-3 shrink-0"
+						className="flex flex-col items-start gap-3 shrink-0"
 					>
-						{/* Left: solid white */}
 						<button
-							onClick={onSearch}
-							className="inline-flex items-center gap-2 rounded-[10px] bg-white text-ink-primary px-5 py-3 text-[15px] hover:bg-white/90 transition-colors"
+							disabled
+							className="inline-flex items-center gap-2 rounded-[10px] bg-white text-ink-primary px-5 py-3 text-[15px] disabled:cursor-not-allowed"
 						>
-							Get Started
-							<ArrowUpRight className="w-4 h-4" />
-						</button>
-						{/* Right: liquid glass */}
-						<button
-							onClick={onSimulate}
-							className="inline-flex items-center rounded-[10px] bg-white/10 backdrop-blur-md text-ink-inverse px-5 py-3 text-[15px] hover:bg-white/20 transition-colors"
-						>
-							Explore pricing
+							Read the docs
+							<ArrowUpRight aria-hidden="true" className="w-4 h-4" />
 						</button>
 					</motion.div>
 				</div>
