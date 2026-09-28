@@ -93,7 +93,8 @@ export default function Protocol() {
 							From deposit to renewal
 						</h3>
 						<p className="mt-2 text-[14px] text-ink-secondary leading-relaxed max-w-md">
-							Deposits are monitored, settled, and executed as renewals.
+							Namepass runs automation on top of the protocol, monitoring deposits,
+							coordinating settlement, and executing renewals.
 							Deposited USDC can only move through the fixed renewal route.
 						</p>
 					</motion.div>

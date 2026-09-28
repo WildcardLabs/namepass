@@ -31,7 +31,7 @@ export default function Hero({ onExplore, onLeaderboard, priced }: Props) {
 					transition={{ duration: 0.7, delay: 0.15, ease: "easeOut" }}
 					className="text-sm sm:text-base md:text-lg text-ink-secondary leading-relaxed max-w-xl font-normal"
 				>
-					Send USDC to an ENS name’s deposit address. Namepass turns it into renewal time.
+					Send USDC to an ENS name’s deposit address. Watch it turn into renewal time.
 				</motion.p>
 			</div>
 
