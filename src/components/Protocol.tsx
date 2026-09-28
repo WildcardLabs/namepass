@@ -111,15 +111,15 @@ export default function Protocol() {
 							<div className="flex items-center justify-between gap-2">
 								<span className={`${TAG} inline-flex items-center gap-2`}>
 									<Unplug aria-hidden="true" className={META_ICON} strokeWidth={1.6} />
-									Open participation
+									Open infrastructure
 								</span>
 								<span className={NUM}>03</span>
 							</div>
 							<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-ink-primary tracking-tight leading-tight">
-								Open to anyone
+								Permissionless by design
 							</h3>
 							<p className="mt-2 text-[13.5px] text-ink-secondary leading-relaxed">
-								The protocol is permissionless. Anyone can derive deposit wallets and run the same renewal flows.
+								The protocol is open. Anyone can derive an address, process a deposit and settle a renewal flow.
 							</p>
 						</motion.div>
 
