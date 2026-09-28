@@ -116,10 +116,10 @@ export default function Protocol() {
 								<span className={NUM}>03</span>
 							</div>
 							<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-ink-primary tracking-tight leading-tight">
-								Same contracts, other operators
+								Open to anyone
 							</h3>
 							<p className="mt-2 text-[13.5px] text-ink-secondary leading-relaxed">
-								Automation runs here by default. Other operators can derive the wallets, process balances, and complete settlement on the same route.
+								The protocol is permissionless. Anyone can derive deposit wallets and run the same renewal flows.
 							</p>
 						</motion.div>
 
