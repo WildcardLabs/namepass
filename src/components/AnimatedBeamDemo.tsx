@@ -1,13 +1,16 @@
 "use client"
 
-import React, { createRef, forwardRef, useMemo, useRef, useState } from "react"
+import React, { createRef, forwardRef, useMemo, useRef } from "react"
 import { Fingerprint } from "lucide-react"
 
 const cn = (...classes: (string | undefined)[]) => classes.filter(Boolean).join(" ")
 import { AnimatedBeam } from "./magicui/AnimatedBeam"
-import { chainByKey } from "../lib/chains"
+import { FUNDING_CHAINS } from "../lib/chains"
 
-const ANIMATION_CHAINS = (["ethereum", "arbitrum", "base", "arc"] as const).map(chainByKey)
+const ANIMATION_CHAINS = [
+  ...FUNDING_CHAINS.filter((chain) => chain.key === "ethereum"),
+  ...FUNDING_CHAINS.filter((chain) => chain.key !== "ethereum"),
+]
 
 const Circle = forwardRef<
   HTMLDivElement,
@@ -29,10 +32,6 @@ const Circle = forwardRef<
 Circle.displayName = "Circle"
 
 export function AnimatedBeamDemo() {
-  const [flow, setFlow] = useState<{ chainIndex: number; phase: "deposit" | "settlement" }>({
-    chainIndex: 0,
-    phase: "deposit",
-  })
   const containerRef = useRef<HTMLDivElement>(null)
   const addressRef = useRef<HTMLDivElement>(null)
   const ensRef = useRef<HTMLDivElement>(null)
@@ -78,13 +77,6 @@ export function AnimatedBeamDemo() {
             toRef={addressRef}
             curvature={position * 75}
             endYOffset={position * 10}
-            active={flow.phase === "deposit" && flow.chainIndex === i}
-            repeat={0}
-            onComplete={() => setFlow((current) =>
-              current.phase === "deposit" && current.chainIndex === i
-                ? { chainIndex: i, phase: "settlement" }
-                : current
-            )}
           />
         )
       })}
@@ -92,13 +84,6 @@ export function AnimatedBeamDemo() {
         containerRef={containerRef}
         fromRef={addressRef}
         toRef={ensRef}
-        active={flow.phase === "settlement"}
-        repeat={0}
-        onComplete={() => setFlow((current) =>
-          current.phase === "settlement"
-            ? { chainIndex: (current.chainIndex + 1) % ANIMATION_CHAINS.length, phase: "deposit" }
-            : current
-        )}
       />
     </div>
   )
