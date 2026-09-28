@@ -85,7 +85,7 @@ export default function Protocol() {
 						<div className="flex items-center justify-between gap-2">
 							<span className={`${TAG} inline-flex items-center gap-2`}>
 								<Timer aria-hidden="true" className={META_ICON} strokeWidth={1.6} />
-								Renewal execution
+								Automated execution
 							</span>
 							<span className={NUM}>02</span>
 						</div>
@@ -94,7 +94,7 @@ export default function Protocol() {
 						</h3>
 						<p className="mt-2 text-[14px] text-ink-secondary leading-relaxed max-w-md">
 							Namepass monitors deposits, manages settlement, and executes renewals.
-							The contracts convert USDC into renewal time at ENS’s on-chain rates.
+							The deposit wallet has no private key or owner withdrawal path. Deposited USDC can only follow the configured renewal route.
 						</p>
 					</motion.div>
 
@@ -116,10 +116,10 @@ export default function Protocol() {
 								<span className={NUM}>03</span>
 							</div>
 							<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-ink-primary tracking-tight leading-tight">
-								Anyone can execute.
+								Open by design. Operated by Namepass.
 							</h3>
 							<p className="mt-2 text-[13.5px] text-ink-secondary leading-relaxed">
-								Renewal flows remain executable independently of the Namepass website and service.
+								Namepass keeps renewals moving day to day. Anyone can also execute the contract flow when needed.
 							</p>
 						</motion.div>
 
@@ -141,7 +141,7 @@ export default function Protocol() {
 											WebkitMask: `url(${import.meta.env.BASE_URL}logos/ens.svg) center / contain no-repeat`,
 										}}
 									/>
-									Subdomains
+									Subnames
 								</span>
 								<span className={NUM}>04</span>
 							</div>
