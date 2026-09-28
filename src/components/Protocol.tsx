@@ -116,10 +116,10 @@ export default function Protocol() {
 								<span className={NUM}>03</span>
 							</div>
 							<h3 className="mt-6 text-[22px] md:text-[26px] font-normal text-ink-primary tracking-tight leading-tight">
-								Open by design. Operated by Namepass.
+								The contracts accept any executor.
 							</h3>
 							<p className="mt-2 text-[13.5px] text-ink-secondary leading-relaxed">
-								Namepass keeps renewals moving day to day. Anyone can also execute the contract flow when needed.
+								Namepass handles the routine flow. If its service is unavailable, another executor can process a deposit and complete settlement.
 							</p>
 						</motion.div>
 
