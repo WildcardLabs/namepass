@@ -240,6 +240,14 @@ function ActiveApp() {
 						    RIVR template's bento. Static copy, so it never waits on pricing. */}
 						<Protocol />
 
+						{/* Search and public activity remain available while price quotes load. */}
+						<Explorer
+							selected={selected}
+							onSelect={selectName}
+							onActivated={goToName}
+							onSupportedTokens={goSupported}
+						/>
+
 						{/* Renders its own frame either way — heading, card, tabs — with
 						    skeletons standing in for the two panels that quote a price.
 						    So `#simulator` stays a valid scroll target and the section
@@ -248,14 +256,6 @@ function ActiveApp() {
 							priced={boot.status === "ready"}
 							problem={boot.status === "error" ? boot.message : null}
 							onRetry={loadPricing}
-						/>
-
-						{/* Search and public activity remain available while price quotes load. */}
-						<Explorer
-							selected={selected}
-							onSelect={selectName}
-							onActivated={goToName}
-							onSupportedTokens={goSupported}
 						/>
 
 						<CtaBand />
