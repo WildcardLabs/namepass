@@ -53,7 +53,7 @@ export default function Footer({
 								<XIcon className="w-4 h-4" />
 							</a>
 							<a
-								href="https://github.com/stevegachau/namepass-v2"
+								href="https://github.com/WildcardLabs/namepass"
 								target="_blank"
 								rel="noopener noreferrer"
 								aria-label="Namepass on GitHub"
