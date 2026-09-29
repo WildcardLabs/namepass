@@ -4,5 +4,8 @@ import { recoverOperations } from "../../../server/operations";
 
 export default handler("GET", async (request) => {
 	requireCronAuthorization(request.headers.get("authorization"));
-	return json(await recoverOperations());
+	const result = await recoverOperations();
+	await (await import("../../../server/integrations/wake")).wakeIntegrations();
+	await (await import("../../../server/integrations/retention")).retainIntegrations();
+	return json(result);
 });

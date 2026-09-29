@@ -79,6 +79,13 @@ later canonical events. Flow amounts are not another balance aggregate.
 
 ## API and operations
 
+The Integrations view uses the same GitHub operator session. It displays unpublished event count
+and oldest timestamp, pending evidence jobs, pending deliveries and paused/exhausted deliveries.
+It also provides audited partner/key management and safe job retries. These are database facts,
+not provider availability measurements. Investigate growing publication age or job/delivery age
+even when counts are stable. Hosted release checks must separately measure first webhook delay,
+RPC/finality availability and recovery time; no background health RPC polling is added.
+
 GitHub login requires `MONITORING_GITHUB_CLIENT_ID`, `MONITORING_GITHUB_CLIENT_SECRET`,
 `MONITORING_GITHUB_USERS` (two distinct usernames separated by a comma), and
 `MONITORING_SESSION_SECRET` (at least 32 random characters). Keep secrets in server environment

@@ -1,0 +1,18 @@
+{
+  "measuredAt": "2026-09-29T15:48:30.311Z",
+  "scope": "Local PostgreSQL only; excludes hosted network, Workflow scheduling and webhook transport.",
+  "durationSeconds": 900,
+  "retainedFlowDepositRecords": 100000,
+  "watchedNames": 10000,
+  "partners": 10,
+  "targetReadsPerSecond": 100,
+  "reads": 90000,
+  "actualReadsPerSecond": 100,
+  "changes": 18000,
+  "changesPerSecond": 20,
+  "storedReadP95Ms": 14.266540999989957,
+  "publicationBatchP95Ms": 21.744167000000743,
+  "failures": 0,
+  "noCursorGaps": true,
+  "remainingOutbox": 0
+}

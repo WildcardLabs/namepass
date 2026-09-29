@@ -2,7 +2,7 @@ import { defineConfig } from "drizzle-kit";
 
 export default defineConfig({
 	dialect: "postgresql",
-	schema: "./server/db/schema.ts",
+	schema: ["./server/db/schema.ts", "./server/integrations/schema.ts"],
 	out: "./drizzle",
 	// `check` and `generate` only read the schema. `server/db/migrate.ts` is
 	// the command that requires a real direct URL before it can modify Neon.

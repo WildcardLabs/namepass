@@ -172,6 +172,67 @@ loaded. Do not paste it into chat or a repository file:
 curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://<stable-domain>/api/cron/recover
 ```
 
+## Integration API operations
+
+Apply migration `0009_integration_journal.sql` before deploying its writers. Rehearse it on a
+copy of the current schema and representative data. It is additive and enqueues receipt
+verification for existing evidence. Its preflight rejects ambiguous historical native/ERC-20
+representations; reconcile those exact receipts before retrying the migration. Do not delete
+history to get past the check. The deployment's factory and environment must match the database.
+
+Configure these server-only values through the hosting provider:
+
+| Variable | Purpose |
+| --- | --- |
+| `NAMEPASS_INTEGRATIONS_ENABLED` | Set to `1` only after the release gates pass; otherwise API commands and integration workers remain disabled. |
+| `INTEGRATION_KEY_PEPPER` | Independent random secret of at least 32 characters for environment-bound API-key digests. |
+| `INTEGRATION_CURSOR_SECRET` | Independent random secret of at least 32 characters for deployment-bound cursors. |
+| `INTEGRATION_ENCRYPTION_KEY` | Base64 encoding of 32 random bytes for webhook secrets and idempotent responses. |
+| `NAMEPASS_ALIAS_VERIFIED_DEPLOYMENT` | Exact `/config` deployment ID, only after recording mainnet resolver/parent evidence and matching derived addresses. Omit until verified. |
+
+The existing database, chain RPC, Circle Iris, cron, Workflow and monitoring OAuth configuration
+also remains required. Archive receipts and a working hub `finalized` block tag are required to
+prove historical completion. Never reuse production credentials in previews. Keep encryption-key
+backups: replacing it without re-encrypting stored secrets breaks deliveries and idempotent replay.
+Changing the pepper revokes all existing partner credentials. Changing the cursor secret requires
+partners to bootstrap again. These are coordinated operator changes.
+
+Use **Monitoring → Integrations** with the existing GitHub operator login to create a partner,
+issue scoped keys, revoke keys, suspend access and retry eligible jobs. A key is displayed once.
+Record its recipient and scope in private operational records. Use the partner API to verify,
+test, rotate and replay webhook destinations. Raw signing secrets and API keys must not appear in
+logs or tickets. Operator mutations are same-origin requests and leave an audit record.
+
+The recovery cron wakes three independent pumps. A missed start has a 90-second dispatch lease;
+a running pump renews its lease for ten minutes. Evidence jobs have five-minute leases, and
+webhook attempts have 60-second leases. A source change during a job preserves another wake.
+Do not clear a live lease to force a retry. Inspect its Workflow run first. An uncertain broadcast
+belongs to the existing payment-intent recovery path, never a second bank payment.
+
+A failed receipt lookup is not proof of a removed deposit. For an indexer deletion, receipt absence
+and absence from the canonical block establish removal; a valid reminted receipt takes priority.
+History repair uses bounded block ranges and a durable receipt cursor. ERC-20/protocol ranges
+advance only after every discovered receipt commits. Arc native discovery has a separate recent
+activation range. Older or missed native transfers require the exact transaction hash or live
+indexer evidence; never claim complete native history from a token-log scan.
+
+After an outage, verify publication lag, pending jobs and paused/exhausted deliveries. Partners
+resume `/events` from their last committed cursor; `410` requires a new `/sync` snapshot. Replaying
+a delivery preserves its event ID and body. A destination edit pauses old queued work and requires
+explicit replay. Requests already sent can still reach the previous destination. Disabling the
+feature flag stops new API/worker work but preserves all durable records for resumption.
+
+Integration retention runs in bounded batches on the minute recovery cron and the daily retention
+cron. It removes expired snapshots/idempotency responses, bounds replay to 90 days, prunes
+superseded versions while preserving baselines, and clears expired rotation secrets. It never
+removes normalized payment evidence. Monitor backlog so its bounded batches can keep up.
+
+For local verification, use a disposable PostgreSQL server on loopback with a database-creation
+role, then set `TEST_DATABASE_URL` and run `npm run test:server`. The suite creates and drops its
+own databases. `scripts/integrations/capacity.ts` uses the same fixture, defaults to 15 minutes,
+and writes `/tmp/namepass-integration-capacity.json`. It measures stored reads/publication only;
+HTTP, RPC, Workflow scheduling and external webhook latency require hosted validation.
+
 ## Mainnet release requirements
 
 Do not change `ACTIVE_ENVIRONMENT` or `MAINNET_LAUNCH_APPROVED` until every item in this section

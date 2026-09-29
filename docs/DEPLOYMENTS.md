@@ -54,6 +54,27 @@ No audited mainnet protocol release is recorded. Ethereum, Base, Arbitrum, and A
 the initial mainnet release; none has a recorded Namepass mainnet deployment. Requirements are in
 [RUNBOOK.md](RUNBOOK.md#mainnet-release-requirements).
 
+## Integration release gate — 2026-09-29
+
+The integration implementation is not recorded as deployed. Migration `0009`, `/api/v1`,
+the three integration Workflow pumps and `/docs` are a separate release from the September 22
+contract canaries. Keep `NAMEPASS_INTEGRATIONS_ENABLED` disabled until the following evidence
+is attached to the release:
+
+- Additive migration/backfill rehearsal against representative hosted data, including native
+  identity preflight and rollback-by-disable verification.
+- Isolated preview credentials, partner provisioning/revocation, API quotas and read isolation.
+- Real HTTPS receiver verification, duplicate/out-of-order replay, destination edits, rotation,
+  a missed-start recovery drill and hosted latency measurements.
+- Archive receipt and hub-finality provider checks, followed by signed direct and CCTP funding
+  canaries that prove the partner transfer reaches verified consumption and final settlement.
+- Resolver/parent receipt evidence and address equality before enabling the alias verification
+  flag. Existing testnet payment receipts do not establish this mainnet ENS configuration.
+
+Hosted changes, merge and wallet signing retain their existing approval boundaries. Mainnet
+funding remains disabled. Local verification is recorded in [integration validation](api/VALIDATION.md);
+configuration and recovery steps are in [the runbook](RUNBOOK.md#integration-api-operations).
+
 ## Historical evidence
 
 The [September 18 manifest](deployments/2026-09-18/manifest.json) and accompanying receipts are

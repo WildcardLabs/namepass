@@ -10,9 +10,11 @@
     "preview": "vite preview",
     "check:server": "tsc --noEmit -p tsconfig.server.json",
     "test:frontend": "vitest run --config config/vitest.frontend.ts",
-    "test:server": "node --import tsx --test server/**/*.test.ts",
+    "test:server": "node --import tsx --test 'server/**/*.test.ts'",
     "test:transactions": "vitest run --config config/vitest.transactions.ts",
-    "test:workflow": "vitest run --config config/vitest.workflow.ts"
+    "test:workflow": "vitest run --config config/vitest.workflow.ts",
+    "generate:api": "node scripts/integrations/openapi.mjs && openapi-typescript docs/api/openapi.json -o src/lib/integration-api.generated.ts",
+    "check:api": "node scripts/integrations/check.mjs"
   },
   "dependencies": {
     "@adraffy/ens-normalize": "^1.11.1",
@@ -55,6 +57,7 @@
     "workflow": "4.8.5"
   },
   "devDependencies": {
+    "@apidevtools/swagger-parser": "^12.1.0",
     "@electric-sql/pglite": "^0.5.8",
     "@openzeppelin/contracts": "^5.6.1",
     "@tailwindcss/vite": "^4.0.0",
@@ -64,8 +67,12 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "@workflow/vitest": "4.0.21",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "drizzle-kit": "^0.31.10",
     "jsdom": "^30.1.1",
+    "openapi-typescript": "^7.13.0",
+    "prettier": "^3.9.9",
     "tailwindcss": "^4.0.0",
     "tsx": "^4.23.12",
     "typescript": "^5.6.3",

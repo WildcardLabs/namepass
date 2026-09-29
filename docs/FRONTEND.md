@@ -38,6 +38,12 @@ After a source-chain burn, an unclaimed payment is not a spendable source-wallet
 
 ## Interface conventions
 
+`/docs` is a lazy developer guide with activation, transfer reporting, settlement, sync, webhook
+and recovery instructions. Its API reference loads the generated static `/openapi.json` contract.
+Opening documentation or returning focus to it does not read pricing or chain state. The footer,
+navigation and integration call-to-action all open this page. Monitoring includes an authenticated
+Integrations view for partner credentials and delivery/job state.
+
 Homepage navigation uses `Rates` for the pricing simulator. The temporary `Docs` link
 targets the developer CTA at `#docs`; its `Read the docs` button stays disabled
 until documentation is available. The desktop menu is centered between the brand and

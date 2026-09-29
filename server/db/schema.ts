@@ -99,6 +99,7 @@ export const transactionKind = pgEnum("transaction_kind", [
 export const names = pgTable(
 	"names",
 	{
+		integrationRevision: bigint("integration_revision", { mode: "bigint" }).notNull().default(0n),
 		id: uuid("id").defaultRandom().primaryKey(),
 		normalizedLabel: varchar("normalized_label", { length: 255 }).notNull(),
 		displayName: text("display_name").notNull(),
@@ -143,6 +144,7 @@ export const watchedAddresses = goldsky.table("watched_addresses", {
 export const balanceSnapshots = pgTable(
 	"balance_snapshots",
 	{
+		integrationRevision: bigint("integration_revision", { mode: "bigint" }).notNull().default(0n),
 		nameId: uuid("name_id")
 			.notNull()
 			.references(() => names.id),
@@ -184,6 +186,7 @@ export const chainEvents = pgTable(
 		eventId: text("event_id").primaryKey(),
 		eventFamily: eventFamily("event_family").notNull(),
 		eventType: text("event_type").notNull(),
+		evidenceKind: text("evidence_kind").default("log").notNull(),
 		chainId: amount("chain_id").notNull(),
 		txHash: varchar("tx_hash", { length: 66 }).notNull(),
 		logIndex: integer("log_index").notNull(),
@@ -203,6 +206,7 @@ export const chainEvents = pgTable(
 			table.txHash,
 			table.logIndex,
 			table.eventType,
+			table.evidenceKind,
 		),
 		index("chain_events_canonical_time_idx").on(
 			table.canonical,
@@ -215,6 +219,7 @@ export const chainEvents = pgTable(
 export const deposits = pgTable(
 	"deposits",
 	{
+		integrationRevision: bigint("integration_revision", { mode: "bigint" }).notNull().default(0n),
 		eventId: text("event_id")
 			.primaryKey()
 			.references(() => chainEvents.eventId),
@@ -223,6 +228,7 @@ export const deposits = pgTable(
 			.references(() => names.id),
 		chainId: amount("chain_id").notNull(),
 		tokenAddress: varchar("token_address", { length: 42 }).notNull(),
+		transferKind: text("transfer_kind").default("erc20").notNull(),
 		senderAddress: varchar("sender_address", { length: 42 }),
 		amount: amount("amount").notNull(),
 		txHash: varchar("tx_hash", { length: 66 }).notNull(),
@@ -241,6 +247,7 @@ export const deposits = pgTable(
 export const flows = pgTable(
 	"flows",
 	{
+		integrationRevision: bigint("integration_revision", { mode: "bigint" }).notNull().default(0n),
 		id: uuid("id").defaultRandom().primaryKey(),
 		nameId: uuid("name_id")
 			.notNull()
@@ -351,6 +358,7 @@ export const relayerNonces = pgTable(
 export const transactionIntents = pgTable(
 	"transaction_intents",
 	{
+		integrationRevision: bigint("integration_revision", { mode: "bigint" }).notNull().default(0n),
 		id: uuid("id").defaultRandom().primaryKey(),
 		flowId: uuid("flow_id")
 			.notNull()

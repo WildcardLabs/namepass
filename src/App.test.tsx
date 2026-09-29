@@ -196,3 +196,16 @@ test("an older refresh cannot overwrite a newer validated result", async () => {
 	expect(container.querySelector('[role="alert"]')).toBeNull();
 	expect(setRates).toHaveBeenLastCalledWith({ ...rates, readAt: 3 });
 });
+
+test("documentation opens directly without price or chain reads", async () => {
+  window.history.replaceState({}, "", "/docs");
+  const fetchSpec=vi.fn().mockResolvedValue({ok:true,json:async()=>({paths:{}})});
+  vi.stubGlobal("fetch",fetchSpec);
+  await render();
+  await act(async()=>{await import('./components/Docs');});
+  await vi.waitFor(()=>expect(container.querySelector('#quickstart')).not.toBeNull());
+  await act(async()=>window.dispatchEvent(new Event('focus')));
+  expect(loadOracleRates).not.toHaveBeenCalled();
+  expect(assertGasAllowance).not.toHaveBeenCalled();
+  expect(fetchSpec.mock.calls.every(([url])=>url==='/openapi.json')).toBe(true);
+});

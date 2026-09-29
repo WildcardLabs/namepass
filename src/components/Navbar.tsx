@@ -6,6 +6,7 @@ interface Props {
 	onSimulate: () => void;
 	onSearch: () => void;
 	onHome: () => void;
+	onDocs?: () => void;
 	showMenu?: boolean;
 }
 
@@ -19,11 +20,13 @@ export default function Navbar({
 	onSimulate,
 	onSearch,
 	onHome,
+	onDocs,
 	showMenu = true,
 }: Props) {
 	const items = [
 		{ label: "Protocol", action: onProtocol },
 		{ label: "Rates", action: onSimulate },
+		...(onDocs ? [{label:"Docs",action:onDocs}] : []),
 	];
 
 	return (
@@ -56,9 +59,6 @@ export default function Navbar({
 							</button>
 						</li>
 					))}
-					<li>
-						<a href="#docs" className="hover:text-ink-primary transition-colors">Docs</a>
-					</li>
 				</ul>
 			)}
 

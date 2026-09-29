@@ -80,3 +80,42 @@ The frontend displays public read models, exact prices and transaction evidence.
 remain permissionless. Service health dashboards require GitHub authentication and add no scheduled
 health RPC polling. They do not replace provider alerts. Recovery and retention jobs are documented in
 [RUNBOOK.md](RUNBOOK.md); metric definitions are in [MONITORING.md](MONITORING.md).
+
+## Partner integrations
+
+`routes/api/v1/` uses scoped server credentials, database quotas and encrypted idempotent
+responses. Activation and receipt registration create durable jobs. Name and activity GETs
+read stored projections; they do not call an RPC or start payment workflows. Partner references,
+keys and webhook destinations are private. Watches subscribe to public name activity and do not
+claim ownership of that name or its pooled wallet.
+
+Migration `0009` adds the SQL journal and integration tables, described by
+`server/integrations/schema.ts`. Source triggers capture allowlisted public revisions in the same
+transaction as each change. The publisher locks one publication row and assigns positions only
+to committed outbox rows. An allocated outbox sequence is never a replay checkpoint. Event,
+resource version, audience and webhook delivery commit together. Source writers do not acquire
+the publication lock.
+
+`POST /sync` captures a published position and the caller's watches in a repeatable-read
+transaction. Its immutable snapshot lasts 24 hours. The matching event cursor follows subsequent
+publications. Replay lasts 90 days; retention preserves a baseline for each resource and every
+version required by a live snapshot. Canonical deposits, flows and settlements are not pruned by
+the legacy raw-payload retention job.
+
+Execution, deposit consumption and settlement finality are separate facts. Receipt verification
+binds chain, transaction, log index, wallet, token, amount and canonical block. CCTP settlement
+also binds the exact source-message index and attested nonce. The selected gateway renewal must
+agree with the ENS receipt's duration and charge. Hub finality is required for completion.
+Pooled deposits keep all possible processing slices through a proven full drain; no per-sender
+renewal-time allocation is invented. Evidence corrections revoke dependent completion in the
+same transaction. Missing provider evidence remains unresolved.
+
+Publication, evidence repair and webhook delivery run as separate bounded Workflow pumps.
+Durable job and delivery leases fence concurrent attempts. Recovery cron repairs missed starts.
+Webhooks use Standard Webhooks signatures, immutable bodies, destination verification, secret
+rotation and a 72-hour retry window. DNS is checked and pinned for each request; redirects and
+private destinations are blocked. Event replay remains the recovery authority.
+
+The public guide is `/docs`. The machine-readable contract is `docs/api/openapi.json`; run
+`npm run generate:api` after changing its builder, and `npm run check:api` to verify both generated
+artifacts. Runnable bank, receiver and reconciliation examples are in `examples/integration/`.
