@@ -369,22 +369,7 @@ export default function Docs() {
       <header className="docs-header">
         <div className="docs-header-inner">
           <a href="/" className="docs-brand" aria-label="Namepass home">
-            <svg
-              width="25"
-              height="25"
-              viewBox="0 0 28 28"
-              fill="none"
-              aria-hidden="true"
-            >
-              <rect width="28" height="28" rx="7" fill="#163d2b" />
-              <path
-                d="M8 20V8l12 12V8"
-                stroke="white"
-                strokeWidth="2.4"
-                strokeLinejoin="round"
-              />
-              <path d="M14 8h6v6" stroke="#8dc6a5" strokeWidth="2.4" />
-            </svg>
+            <img src="/favicon.svg" width="25" height="25" alt="" />
             <strong>Namepass</strong>
             <span className="brand-divider" />
             <span className="brand-docs">Docs</span>
