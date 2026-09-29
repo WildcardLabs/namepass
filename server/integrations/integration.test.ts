@@ -1348,7 +1348,9 @@ test(
 			await pool.end();
 			const { database } = await import("../db/client");
 			await (database() as unknown as { $client: Pool }).$client.end();
-			await admin.query(`drop database "${name}" with (force)`);
+			// Pool.end() can finish before the server observes every socket close.
+			// DROP without FORCE waits for them and does not kill a closing client.
+			await admin.query(`drop database "${name}"`);
 			await admin.end();
 		}
 	},
