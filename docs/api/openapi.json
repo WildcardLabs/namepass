@@ -1676,12 +1676,12 @@
                   "chainId": {
                     "type": "string",
                     "pattern": "^(0|[1-9][0-9]*)$",
-                    "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+                    "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
                   },
                   "amount": {
                     "type": "string",
                     "pattern": "^(0|[1-9][0-9]*)$",
-                    "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+                    "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
                   }
                 },
                 "required": [
@@ -1915,7 +1915,7 @@
                   "chainId": {
                     "type": "string",
                     "pattern": "^(0|[1-9][0-9]*)$",
-                    "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+                    "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
                   },
                   "txHash": {
                     "type": "string",
@@ -7125,7 +7125,7 @@
           "version": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "resourceType": {
             "type": "string"
@@ -7159,7 +7159,7 @@
           "version": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "resourceType": {
             "const": "name",
@@ -7210,28 +7210,28 @@
             "items": {
               "type": "string",
               "pattern": "^(0|[1-9][0-9]*)$",
-              "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+              "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
             }
           },
           "lifetimeReceived": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "lifetimeApplied": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "timeDeliveredSeconds": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "renewalCount": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           }
         },
         "required": [
@@ -7264,7 +7264,7 @@
           "version": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "resourceType": {
             "const": "deposit",
@@ -7287,7 +7287,7 @@
           "chainId": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "tokenAddress": {
             "type": "string",
@@ -7300,7 +7300,7 @@
           "amount": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "txHash": {
             "type": "string",
@@ -7322,7 +7322,7 @@
           "blockNumber": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "blockTime": {
             "type": "string",
@@ -7361,7 +7361,7 @@
           "version": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "resourceType": {
             "const": "flow",
@@ -7384,7 +7384,7 @@
           "originChainId": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "executionStatus": {
             "type": "string"
@@ -7404,7 +7404,7 @@
           "amountDetected": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "amountProcessed": {
             "type": [
@@ -7532,37 +7532,37 @@
           "amountProcessed": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "bridgeFee": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "amountReceivedOnHub": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "executorAllowance": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "amountApplied": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "roundingResidue": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "originWalletRemainder": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           }
         },
         "required": [
@@ -7582,7 +7582,7 @@
           "chainId": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "txHash": {
             "type": "string",
@@ -7591,7 +7591,7 @@
           "blockNumber": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "blockHash": {
             "type": "string",
@@ -7626,7 +7626,7 @@
           "version": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "resourceType": {
             "const": "settlement",
@@ -7685,7 +7685,7 @@
           "durationSeconds": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "expiryAfter": {
             "type": [
@@ -7751,7 +7751,7 @@
           "version": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "resourceType": {
             "const": "transfer",
@@ -7777,7 +7777,7 @@
           "chainId": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "transferKind": {
             "type": "string",
@@ -7854,7 +7854,7 @@
           "version": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "resourceType": {
             "const": "activation",
@@ -8174,7 +8174,7 @@
           "resourceVersion": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "recordedAt": {
             "type": "string",
@@ -8292,7 +8292,7 @@
           "chainId": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "deploymentId": {
             "type": "string"
@@ -8300,32 +8300,32 @@
           "amount": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "executorAllowance": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "bridgeFee": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "amountApplied": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "roundingResidue": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "durationSeconds": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "helperAddress": {
             "type": "string",
@@ -8334,7 +8334,7 @@
           "blockNumber": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "blockHash": {
             "type": "string",
@@ -8413,7 +8413,7 @@
               "resolutionChainId": {
                 "type": "string",
                 "pattern": "^(0|[1-9][0-9]*)$",
-                "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+                "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
               },
               "verified": {
                 "type": "boolean"
@@ -8434,7 +8434,7 @@
                 "chainId": {
                   "type": "string",
                   "pattern": "^(0|[1-9][0-9]*)$",
-                  "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+                  "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
                 },
                 "name": {
                   "type": "string"
@@ -8483,12 +8483,12 @@
                 "minimumTriggerAmount": {
                   "type": "string",
                   "pattern": "^(0|[1-9][0-9]*)$",
-                  "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+                  "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
                 },
                 "hubChainId": {
                   "type": "string",
                   "pattern": "^(0|[1-9][0-9]*)$",
-                  "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+                  "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
                 }
               },
               "required": [
@@ -8528,7 +8528,7 @@
           "version": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "resourceType": {
             "const": "consumption",
@@ -8593,12 +8593,12 @@
           "chainId": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "fromBlock": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "throughBlock": {
             "type": [
@@ -8657,12 +8657,12 @@
           "chainId": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "snapshotAmount": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "snapshotBlock": {
             "type": [
@@ -8689,7 +8689,7 @@
           "chainId": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "txHash": {
             "type": "string",
@@ -8698,7 +8698,7 @@
           "blockNumber": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "blockHash": {
             "type": "string",
@@ -8742,7 +8742,7 @@
           "version": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "resourceType": {
             "const": "name",
@@ -8793,28 +8793,28 @@
             "items": {
               "type": "string",
               "pattern": "^(0|[1-9][0-9]*)$",
-              "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+              "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
             }
           },
           "lifetimeReceived": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "lifetimeApplied": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "timeDeliveredSeconds": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "renewalCount": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "alias": {
             "type": "object",
@@ -8828,7 +8828,7 @@
               "resolutionChainId": {
                 "type": "string",
                 "pattern": "^(0|[1-9][0-9]*)$",
-                "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+                "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
               },
               "verified": {
                 "type": "boolean"
@@ -8896,7 +8896,7 @@
           "version": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "resourceType": {
             "const": "deposit",
@@ -8919,7 +8919,7 @@
           "chainId": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "tokenAddress": {
             "type": "string",
@@ -8932,7 +8932,7 @@
           "amount": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "txHash": {
             "type": "string",
@@ -8954,7 +8954,7 @@
           "blockNumber": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "blockTime": {
             "type": "string",
@@ -9019,7 +9019,7 @@
           "version": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "resourceType": {
             "const": "flow",
@@ -9042,7 +9042,7 @@
           "originChainId": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "executionStatus": {
             "type": "string"
@@ -9062,7 +9062,7 @@
           "amountDetected": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+            "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
           },
           "amountProcessed": {
             "type": [
@@ -9244,7 +9244,7 @@
                 "amount": {
                   "type": "string",
                   "pattern": "^(0|[1-9][0-9]*)$",
-                  "description": "Exact integer in micro-USDC (six decimals), unless the field names another unit."
+                  "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
                 },
                 "sender": {
                   "type": "string",

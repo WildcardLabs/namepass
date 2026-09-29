@@ -1,0 +1,17 @@
+[
+  {"slug":"introduction","title":"Introduction","description":"Add ENS renewals to your app, with a deposit address and proof of settlement.","group":"Start building","tab":"guides"},
+  {"slug":"quickstart","title":"Quickstart","description":"Connect a customer's ENS name to your payment and reconciliation systems.","group":"Start building","tab":"guides"},
+  {"slug":"contract","title":"Authentication & conventions","description":"Keys, scopes, idempotency, amounts and pagination.","group":"Start building","tab":"guides"},
+  {"slug":"addresses","title":"Deposit addresses","description":"Activate a name, retrieve its address and verify its ENS alias.","group":"Integrate renewals","tab":"guides"},
+  {"slug":"quotes","title":"Funding estimates","description":"Get an exact, block-pinned estimate before funding.","group":"Integrate renewals","tab":"guides"},
+  {"slug":"transfers","title":"Track a transfer","description":"Give your payment a private reference and verify its transaction.","group":"Integrate renewals","tab":"guides"},
+  {"slug":"settlement","title":"Understand settlement","description":"Distinguish a verified deposit, pooled consumption and a finalized renewal.","group":"Track & reconcile","tab":"guides"},
+  {"slug":"sync","title":"Sync & replay","description":"Bootstrap a consistent snapshot and resume all changes by cursor.","group":"Track & reconcile","tab":"guides"},
+  {"slug":"webhooks","title":"Receive webhooks","description":"Verify signatures, deduplicate events and recover delivery.","group":"Track & reconcile","tab":"guides"},
+  {"slug":"recovery","title":"Recover a flow","description":"Resume existing activity without sending funds twice.","group":"Track & reconcile","tab":"guides"},
+  {"slug":"release","title":"Availability & support","description":"Check deployment readiness and get help with a request.","group":"Resources","tab":"guides"},
+  {"slug":"agents","title":"Build with your agent","description":"Give your coding agent the Namepass contract and a focused integration workflow.","group":"Agent tools","tab":"agents"},
+  {"slug":"mcp","title":"Docs MCP server","description":"Search guides, read pages and inspect API operations from your editor.","group":"Agent tools","tab":"agents"},
+  {"slug":"skills","title":"Integration skill","description":"Install reusable guidance for building a correct Namepass integration.","group":"Agent tools","tab":"agents"},
+  {"slug":"reference","title":"API overview","description":"Explore every operation and the generated OpenAPI contract.","group":"API reference","tab":"api"}
+]

@@ -215,6 +215,10 @@ function ActiveApp() {
 		);
 	}
 
+	if (page === "docs") {
+		return <Suspense fallback={<div className="min-h-screen bg-white p-12 text-sm text-gray-500">Loading documentation…</div>}><Docs /></Suspense>;
+	}
+
 	return (
 		<main className="public-ui min-h-screen bg-surface-canvas flex flex-col">
 			<TestnetBanner />
@@ -224,7 +228,6 @@ function ActiveApp() {
 				    sections that price wait — they're below the fold at load, so the
 				    wait is invisible. Holding Home back as a whole put a white card
 				    where the hero belongs for ~220ms on every reload. */}
-				{page === "docs" && <PageShell><Navbar {...navProps}/><Suspense fallback={<p className="p-12">Loading documentation…</p>}><Docs/></Suspense></PageShell>}
 				{page === "home" && (
 					<>
 						<PageShell

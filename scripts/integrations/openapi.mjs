@@ -7,7 +7,7 @@ const text = { type: "string" },
 		type: "string",
 		pattern: "^(0|[1-9][0-9]*)$",
 		description:
-			"Exact integer in micro-USDC (six decimals), unless the field names another unit.",
+			"Exact non-negative integer encoded as a decimal string. The field name specifies its unit.",
 	};
 const uuid = { type: "string", format: "uuid" },
 	date = { type: "string", format: "date-time" },

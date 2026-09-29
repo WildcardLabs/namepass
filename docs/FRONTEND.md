@@ -38,20 +38,27 @@ After a source-chain burn, an unclaimed payment is not a spendable source-wallet
 
 ## Interface conventions
 
-`/docs` is a lazy developer guide with activation, transfer reporting, settlement, sync, webhook
-and recovery instructions. Its API reference loads the generated static `/openapi.json` contract.
-Opening documentation or returning focus to it does not read pricing or chain state. The footer,
-navigation and integration call-to-action all open this page. Monitoring includes an authenticated
-Integrations view for partner credentials and delivery/job state.
+`/docs` is a standalone, lazy documentation application. It has its own header, responsive
+navigation, typography and canvas in `src/components/docs.css`; it does not use `PageShell` or the
+main site's navigation. Guides cover activation, transfer reporting, settlement, sync, webhooks
+and recovery. The API reference is generated from the same OpenAPI contract as the public API.
+Search, page navigation and focus changes do not read pricing, account or chain state.
 
-Homepage navigation uses `Rates` for the pricing simulator. The temporary `Docs` link
-targets the developer CTA at `#docs`; its `Read the docs` button stays disabled
-until documentation is available. The desktop menu is centered between the brand and
+`docs/content/` owns guide Markdown and navigation. Run `npm run generate:docs` after editing
+content, the API contract or `skills/namepass-integration/SKILL.md`. It creates the shared browser/MCP
+catalog, public Markdown pages, downloadable skill, `llms.txt` and `llms-full.txt`.
+`npm run check:docs` verifies freshness and internal links in CI. Page actions copy Markdown,
+open its plain-text representation and prepare context for the developer's agent. The MCP server
+at `/api/docs/mcp` exposes public documentation and schemas only.
+
+The footer, navigation and integration call-to-action open `/docs`. Monitoring includes an
+authenticated Integrations view for partner credentials and delivery/job state. Homepage navigation
+uses `Rates` for the pricing simulator. The desktop menu is centered between the brand and
 `Get Started`. On mobile, it stays visible in a centered row. The footer lists Explorer,
 Rates, Supported networks, Docs, and the legal pages.
 Public activity labels identify the testnet deployment.
 
-Pages share `PageShell` and `Navbar`. Reuse existing visual primitives, tooltips and chain labels.
+Main-site pages share `PageShell` and `Navbar`. Reuse existing visual primitives, tooltips and chain labels.
 On public pages, filled cards and controls have no visible perimeter border. Use borders for
 unfilled controls and internal dividers, and keep keyboard focus indicators visible.
 Public page backgrounds use the cool gray `surface-canvas`, including the hero corner cutouts.

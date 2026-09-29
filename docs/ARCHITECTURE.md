@@ -119,3 +119,15 @@ private destinations are blocked. Event replay remains the recovery authority.
 The public guide is `/docs`. The machine-readable contract is `docs/api/openapi.json`; run
 `npm run generate:api` after changing its builder, and `npm run check:api` to verify both generated
 artifacts. Runnable bank, receiver and reconciliation examples are in `examples/integration/`.
+
+
+### Public documentation and agent tools
+
+The standalone `/docs` application and `/api/docs/mcp` use the generated catalog in `shared/docs/`.
+The catalog combines Markdown guides, API operation pages and the integration skill. Run
+`npm run generate:docs` after changing those inputs; CI verifies freshness with `check:docs`.
+Static Markdown and LLM indexes are served from `public/`. The public MCP route uses the official
+SDK with stateless Streamable HTTP, bounded JSON requests and no SSE session. Its tools search
+and read documentation and return operation schemas, including transitive references. Resources
+expose the same guides, skill and OpenAPI contract. It has no database, partner, wallet or chain
+access and does not depend on the authenticated API feature flag.

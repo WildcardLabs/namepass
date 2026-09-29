@@ -197,15 +197,25 @@ test("an older refresh cannot overwrite a newer validated result", async () => {
 	expect(setRates).toHaveBeenLastCalledWith({ ...rates, readAt: 3 });
 });
 
-test("documentation opens directly without price or chain reads", async () => {
+test("documentation opens directly and supports navigation without price or chain reads", async () => {
   window.history.replaceState({}, "", "/docs");
-  const fetchSpec=vi.fn().mockResolvedValue({ok:true,json:async()=>({paths:{}})});
-  vi.stubGlobal("fetch",fetchSpec);
+  const network = vi.fn();
+  vi.stubGlobal("fetch", network);
+  vi.stubGlobal("scrollTo", vi.fn());
   await render();
-  await act(async()=>{await import('./components/Docs');});
-  await vi.waitFor(()=>expect(container.querySelector('#quickstart')).not.toBeNull());
-  await act(async()=>window.dispatchEvent(new Event('focus')));
+  await act(async () => { await import("./components/Docs"); });
+  await vi.waitFor(() => expect(container.querySelector("#start-with-your-coding-agent")).not.toBeNull());
+  const settlement = container.querySelector<HTMLAnchorElement>('nav[aria-label="Documentation pages"] a[href="/docs/settlement"]');
+  expect(settlement).not.toBeNull();
+  await act(async () => settlement!.click());
+  expect(window.location.pathname).toBe("/docs/settlement");
+  expect(container.querySelector("h1")?.textContent).toBe("Understand settlement");
+  expect(container.querySelector("table")?.textContent).toContain("Transfer completed");
+  const popstate = nextPopState();
+  await act(async () => { window.history.back(); await popstate; });
+  expect(container.querySelector("#start-with-your-coding-agent")).not.toBeNull();
+  await act(async () => window.dispatchEvent(new Event("focus")));
   expect(loadOracleRates).not.toHaveBeenCalled();
   expect(assertGasAllowance).not.toHaveBeenCalled();
-  expect(fetchSpec.mock.calls.every(([url])=>url==='/openapi.json')).toBe(true);
+  expect(network).not.toHaveBeenCalled();
 });

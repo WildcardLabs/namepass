@@ -1,0 +1,63 @@
+# Namepass developer documentation
+
+> Integrate USDC funding for ENS renewals with activated deposit addresses, private transfer references and verified settlement tracking. API version 2026-09-28. Testnet availability is controlled by the operator; docs availability is not a mainnet launch.
+
+## Guides and API operations
+
+- [Introduction](https://beta.namepass.com/docs/introduction.md): Add ENS renewals to your app, with a deposit address and proof of settlement.
+- [Quickstart](https://beta.namepass.com/docs/quickstart.md): Connect a customer's ENS name to your payment and reconciliation systems.
+- [Authentication & conventions](https://beta.namepass.com/docs/contract.md): Keys, scopes, idempotency, amounts and pagination.
+- [Deposit addresses](https://beta.namepass.com/docs/addresses.md): Activate a name, retrieve its address and verify its ENS alias.
+- [Funding estimates](https://beta.namepass.com/docs/quotes.md): Get an exact, block-pinned estimate before funding.
+- [Track a transfer](https://beta.namepass.com/docs/transfers.md): Give your payment a private reference and verify its transaction.
+- [Understand settlement](https://beta.namepass.com/docs/settlement.md): Distinguish a verified deposit, pooled consumption and a finalized renewal.
+- [Sync & replay](https://beta.namepass.com/docs/sync.md): Bootstrap a consistent snapshot and resume all changes by cursor.
+- [Receive webhooks](https://beta.namepass.com/docs/webhooks.md): Verify signatures, deduplicate events and recover delivery.
+- [Recover a flow](https://beta.namepass.com/docs/recovery.md): Resume existing activity without sending funds twice.
+- [Availability & support](https://beta.namepass.com/docs/release.md): Check deployment readiness and get help with a request.
+- [Build with your agent](https://beta.namepass.com/docs/agents.md): Give your coding agent the Namepass contract and a focused integration workflow.
+- [Docs MCP server](https://beta.namepass.com/docs/mcp.md): Search guides, read pages and inspect API operations from your editor.
+- [Integration skill](https://beta.namepass.com/docs/skills.md): Install reusable guidance for building a correct Namepass integration.
+- [API overview](https://beta.namepass.com/docs/reference.md): Explore every operation and the generated OpenAPI contract.
+- [Discover the active deployment and supported funding modes](https://beta.namepass.com/docs/reference/get_config.md): GET /api/v1/config
+- [Activate a name and create the caller’s watch](https://beta.namepass.com/docs/reference/post_names_activate.md): POST /api/v1/names/activate
+- [Read a durable operation](https://beta.namepass.com/docs/reference/get_activations__id_.md): GET /api/v1/activations/{id}
+- [Read stored name, alias verification, balance snapshots and history coverage](https://beta.namepass.com/docs/reference/get_names__name_.md): GET /api/v1/names/{name}
+- [Refresh ENS and chain coverage asynchronously](https://beta.namepass.com/docs/reference/post_names__name__refresh.md): POST /api/v1/names/{name}/refresh
+- [List the caller’s enabled name watches](https://beta.namepass.com/docs/reference/get_watches.md): GET /api/v1/watches
+- [Watch an activated name; bootstrap with /sync](https://beta.namepass.com/docs/reference/put_watches__name_.md): PUT /api/v1/watches/{name}
+- [Stop new notifications for a name](https://beta.namepass.com/docs/reference/delete_watches__name_.md): DELETE /api/v1/watches/{name}
+- [Quote an exact input amount at a verified hub block](https://beta.namepass.com/docs/reference/post_quotes.md): POST /api/v1/quotes
+- [Register a transaction attempt with a private stable reference](https://beta.namepass.com/docs/reference/post_transfers.md): POST /api/v1/transfers
+- [List complete transfers at a fixed publication position](https://beta.namepass.com/docs/reference/get_transfers.md): GET /api/v1/transfers
+- [Add a replacement hash or choose a receipt log](https://beta.namepass.com/docs/reference/post_transfers__id__transactions.md): POST /api/v1/transfers/{id}/transactions
+- [Read one transfer](https://beta.namepass.com/docs/reference/get_transfers__id_.md): GET /api/v1/transfers/{id}
+- [List complete deposits at a fixed publication position](https://beta.namepass.com/docs/reference/get_deposits.md): GET /api/v1/deposits
+- [Read one deposit](https://beta.namepass.com/docs/reference/get_deposits__id_.md): GET /api/v1/deposits/{id}
+- [List complete flows at a fixed publication position](https://beta.namepass.com/docs/reference/get_flows.md): GET /api/v1/flows
+- [Read one flow](https://beta.namepass.com/docs/reference/get_flows__id_.md): GET /api/v1/flows/{id}
+- [List complete settlements at a fixed publication position](https://beta.namepass.com/docs/reference/get_settlements.md): GET /api/v1/settlements
+- [Read one settlement](https://beta.namepass.com/docs/reference/get_settlements__id_.md): GET /api/v1/settlements/{id}
+- [Revalidate and resume the same flow](https://beta.namepass.com/docs/reference/post_flows__id__retry.md): POST /api/v1/flows/{id}/retry
+- [Create a consistent snapshot and matching event cursor](https://beta.namepass.com/docs/reference/post_sync.md): POST /api/v1/sync
+- [Page an immutable snapshot for up to 24 hours](https://beta.namepass.com/docs/reference/get_sync__id_.md): GET /api/v1/sync/{id}
+- [Replay events; persist nextCursor only after durable processing](https://beta.namepass.com/docs/reference/get_events.md): GET /api/v1/events
+- [Read an event available to this partner](https://beta.namepass.com/docs/reference/get_events__id_.md): GET /api/v1/events/{id}
+- [List webhook destinations](https://beta.namepass.com/docs/reference/get_webhook_endpoints.md): GET /api/v1/webhook-endpoints
+- [Register an unverified HTTPS webhook destination](https://beta.namepass.com/docs/reference/post_webhook_endpoints.md): POST /api/v1/webhook-endpoints
+- [Read a webhook destination](https://beta.namepass.com/docs/reference/get_webhook_endpoints__id_.md): GET /api/v1/webhook-endpoints/{id}
+- [Edit destination or subscription; pending deliveries pause](https://beta.namepass.com/docs/reference/patch_webhook_endpoints__id_.md): PATCH /api/v1/webhook-endpoints/{id}
+- [Disable a destination](https://beta.namepass.com/docs/reference/delete_webhook_endpoints__id_.md): DELETE /api/v1/webhook-endpoints/{id}
+- [Send a signed synthetic test event](https://beta.namepass.com/docs/reference/post_webhook_endpoints__id__test.md): POST /api/v1/webhook-endpoints/{id}/test
+- [Activate a destination after it accepts a signed verification event](https://beta.namepass.com/docs/reference/post_webhook_endpoints__id__verify.md): POST /api/v1/webhook-endpoints/{id}/verify
+- [Rotate signing secret with a 24-hour overlap](https://beta.namepass.com/docs/reference/post_webhook_endpoints__id__rotate_secret.md): POST /api/v1/webhook-endpoints/{id}/rotate-secret
+- [List delivery outcomes](https://beta.namepass.com/docs/reference/get_webhook_deliveries.md): GET /api/v1/webhook-deliveries
+- [Read a delivery and its recent attempts](https://beta.namepass.com/docs/reference/get_webhook_deliveries__id_.md): GET /api/v1/webhook-deliveries/{id}
+- [Replay the immutable original event](https://beta.namepass.com/docs/reference/post_webhook_deliveries__id__replay.md): POST /api/v1/webhook-deliveries/{id}/replay
+
+## Agent resources
+
+- [Full documentation](https://beta.namepass.com/llms-full.txt)
+- [OpenAPI 3.1](https://beta.namepass.com/openapi.json)
+- [Integration skill](https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md)
+- Docs MCP (Streamable HTTP): https://beta.namepass.com/api/docs/mcp

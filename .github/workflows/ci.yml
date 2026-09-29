@@ -70,6 +70,9 @@ jobs:
       - name: Validate the API contract and generated types
         run: npm run check:api
 
+      - name: Validate documentation and agent artifacts
+        run: npm run check:docs
+
       - name: Test transaction polling and workflow composition
         run: npm run test:transactions
 

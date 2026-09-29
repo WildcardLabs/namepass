@@ -640,7 +640,7 @@ export interface components {
         };
         Resource: {
             id: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             version: string;
             resourceType: string;
             /** @enum {string} */
@@ -651,7 +651,7 @@ export interface components {
         };
         Name: {
             id: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             version: string;
             /** @constant */
             resourceType: "name";
@@ -668,20 +668,20 @@ export interface components {
             /** Format: date-time */
             ensSyncedAt: string;
             unscannedChainIds: string[];
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             lifetimeReceived: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             lifetimeApplied: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             timeDeliveredSeconds: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             renewalCount: string;
         } & {
             [key: string]: unknown;
         };
         Deposit: {
             id: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             version: string;
             /** @constant */
             resourceType: "deposit";
@@ -690,17 +690,17 @@ export interface components {
             deploymentId: string;
             /** Format: uuid */
             nameId: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             chainId: string;
             tokenAddress: string;
             senderAddress: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             amount: string;
             txHash: string;
             /** @enum {string} */
             transferKind: "erc20" | "native";
             logIndex: number | null;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             blockNumber: string;
             /** Format: date-time */
             blockTime: string;
@@ -710,7 +710,7 @@ export interface components {
         };
         Flow: {
             id: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             version: string;
             /** @constant */
             resourceType: "flow";
@@ -719,13 +719,13 @@ export interface components {
             deploymentId: string;
             /** Format: uuid */
             nameId: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             originChainId: string;
             executionStatus: string;
             status: string;
             trigger: string;
             holdReason: string | null;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             amountDetected: string;
             amountProcessed: string | null;
             originWalletRemainder: string | null;
@@ -747,26 +747,26 @@ export interface components {
             [key: string]: unknown;
         };
         Amounts: {
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             amountProcessed: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             bridgeFee: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             amountReceivedOnHub: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             executorAllowance: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             amountApplied: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             roundingResidue: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             originWalletRemainder: string;
         };
         Evidence: {
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             chainId: string;
             txHash: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             blockNumber: string;
             blockHash: string;
             transactionIndex: number;
@@ -776,7 +776,7 @@ export interface components {
         };
         Settlement: {
             id: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             version: string;
             /** @constant */
             resourceType: "settlement";
@@ -797,7 +797,7 @@ export interface components {
                 };
             };
             amounts: components["schemas"]["Amounts"];
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             durationSeconds: string;
             expiryAfter: string | null;
             /** Format: date-time */
@@ -812,7 +812,7 @@ export interface components {
         };
         Transfer: {
             id: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             version: string;
             /** @constant */
             resourceType: "transfer";
@@ -822,7 +822,7 @@ export interface components {
             /** Format: uuid */
             nameId: string;
             reference: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             chainId: string;
             /** @enum {string} */
             transferKind: "erc20" | "native";
@@ -841,7 +841,7 @@ export interface components {
         };
         Activation: {
             id: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             version: string;
             /** @constant */
             resourceType: "activation";
@@ -931,7 +931,7 @@ export interface components {
             deploymentId: string;
             resourceType: string;
             resourceId: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             resourceVersion: string;
             /** Format: date-time */
             recordedAt: string;
@@ -962,23 +962,23 @@ export interface components {
         };
         Quote: {
             name: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             chainId: string;
             deploymentId: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             amount: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             executorAllowance: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             bridgeFee: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             amountApplied: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             roundingResidue: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             durationSeconds: string;
             helperAddress: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             blockNumber: string;
             blockHash: string;
             /** Format: date-time */
@@ -998,12 +998,12 @@ export interface components {
             maxPageSize: number;
             alias: {
                 suffix: string;
-                /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+                /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
                 resolutionChainId: string;
                 verified: boolean;
             };
             chains: {
-                /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+                /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
                 chainId: string;
                 name: string;
                 factoryAddress: string;
@@ -1014,15 +1014,15 @@ export interface components {
                 };
                 fundingModes: ("erc20" | "native")[];
                 nativeDecimals: number | null;
-                /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+                /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
                 minimumTriggerAmount: string;
-                /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+                /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
                 hubChainId: string;
             }[];
         };
         Consumption: {
             id: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             version: string;
             /** @constant */
             resourceType: "consumption";
@@ -1039,9 +1039,9 @@ export interface components {
             [key: string]: unknown;
         };
         CoverageFields: {
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             chainId: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             fromBlock: string;
             throughBlock: string | null;
             throughBlockHash: string | null;
@@ -1053,19 +1053,19 @@ export interface components {
             checkedAt: string;
         };
         BalanceFields: {
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             chainId: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             snapshotAmount: string;
             snapshotBlock: string | null;
             /** Format: date-time */
             checkedAt: string;
         };
         DepositVerification: {
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             chainId: string;
             txHash: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             blockNumber: string;
             blockHash: string;
             transactionIndex: number;
@@ -1076,7 +1076,7 @@ export interface components {
         };
         NameDetail: {
             id: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             version: string;
             /** @constant */
             resourceType: "name";
@@ -1093,18 +1093,18 @@ export interface components {
             /** Format: date-time */
             ensSyncedAt: string;
             unscannedChainIds: string[];
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             lifetimeReceived: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             lifetimeApplied: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             timeDeliveredSeconds: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             renewalCount: string;
             alias: {
                 name: string;
                 suffix: string;
-                /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+                /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
                 resolutionChainId: string;
                 verified: boolean;
             };
@@ -1117,7 +1117,7 @@ export interface components {
         };
         DepositDetail: {
             id: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             version: string;
             /** @constant */
             resourceType: "deposit";
@@ -1126,17 +1126,17 @@ export interface components {
             deploymentId: string;
             /** Format: uuid */
             nameId: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             chainId: string;
             tokenAddress: string;
             senderAddress: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             amount: string;
             txHash: string;
             /** @enum {string} */
             transferKind: "erc20" | "native";
             logIndex: number | null;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             blockNumber: string;
             /** Format: date-time */
             blockTime: string;
@@ -1149,7 +1149,7 @@ export interface components {
         };
         FlowDetail: {
             id: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             version: string;
             /** @constant */
             resourceType: "flow";
@@ -1158,13 +1158,13 @@ export interface components {
             deploymentId: string;
             /** Format: uuid */
             nameId: string;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             originChainId: string;
             executionStatus: string;
             status: string;
             trigger: string;
             holdReason: string | null;
-            /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+            /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
             amountDetected: string;
             amountProcessed: string | null;
             originWalletRemainder: string | null;
@@ -1197,7 +1197,7 @@ export interface components {
                 /** @enum {string} */
                 kind: "native" | "erc20";
                 logIndex: number | null;
-                /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+                /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
                 amount: string;
                 sender: string;
                 aliasLogIndex?: number;
@@ -2472,9 +2472,9 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+                    /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
                     chainId: string;
-                    /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+                    /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
                     amount: string;
                 };
             };
@@ -2787,7 +2787,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    /** @description Exact integer in micro-USDC (six decimals), unless the field names another unit. */
+                    /** @description Exact non-negative integer encoded as a decimal string. The field name specifies its unit. */
                     chainId: string;
                     txHash: string;
                     reference: string;

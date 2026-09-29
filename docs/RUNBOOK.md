@@ -269,3 +269,14 @@ Store the evidence in the release PR or its linked private operator record. Do n
 the repository. Re-run `node scripts/check-chains.mjs` after the reviewed change. That check must
 change with the launch gate so it verifies the audited deployment set instead of the current
 testnet-only state.
+
+
+## Documentation MCP
+
+`/api/docs/mcp` is a public, stateless Streamable HTTP documentation server. It requires no
+partner key and has no account or chain access. Verify it with
+`node --import tsx --test server/docs/mcp.test.ts`, which connects the official SDK client to a
+disposable HTTP listener and checks retrieval, schemas, resources, prompts and input limits.
+Use a Streamable HTTP client for hosted checks; a browser GET is not a handshake.
+`npm run check:docs` verifies Markdown, skill and LLM-index freshness. Documentation access does
+not enable the integration API or bypass its deployment gates.

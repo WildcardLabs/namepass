@@ -63,9 +63,13 @@ fingerprint checks passed.
 
 ## Interface review
 
-The docs page was inspected in the browser at desktop and 390-pixel mobile widths. Section
-navigation and API reference loading worked without page overflow. A frontend regression checks
-that opening `/docs` and focusing it does not start pricing or chain reads.
+The standalone docs application contains 50 pages generated from guide Markdown and OpenAPI.
+The browser review covers desktop and 390-pixel mobile layouts, search-to-page navigation,
+Markdown copy, agent context, endpoint pages and mobile navigation. The frontend regression
+checks direct opening, settlement navigation and browser back without pricing, chain or account
+reads. A real MCP SDK client passes handshake, search, complete-guide retrieval, transitively
+referenced schemas, skill resources, prompts, unknown-page handling and request bounds.
+Documentation freshness and internal links are checked in CI.
 
 ## Release evidence still required
 

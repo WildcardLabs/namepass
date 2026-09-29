@@ -14,10 +14,13 @@
     "test:transactions": "vitest run --config config/vitest.transactions.ts",
     "test:workflow": "vitest run --config config/vitest.workflow.ts",
     "generate:api": "node scripts/integrations/openapi.mjs && openapi-typescript docs/api/openapi.json -o src/lib/integration-api.generated.ts",
-    "check:api": "node scripts/integrations/check.mjs"
+    "check:api": "node scripts/integrations/check.mjs",
+    "generate:docs": "node scripts/docs/generate.mjs",
+    "check:docs": "node scripts/docs/generate.mjs --check"
   },
   "dependencies": {
     "@adraffy/ens-normalize": "^1.11.1",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "@noble/hashes": "^1.8.0",
     "@radix-ui/react-accordion": "^1.2.20",
     "@radix-ui/react-avatar": "^1.2.6",
@@ -50,11 +53,14 @@
     "pg": "^8.23.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
     "recharts": "^2.15.4",
+    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0",
     "viem": "^2.55.13",
-    "workflow": "4.8.5"
+    "workflow": "4.8.5",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^12.1.0",
