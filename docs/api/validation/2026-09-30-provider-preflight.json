@@ -1,0 +1,65 @@
+{
+  "recordedAt": "2026-09-30T13:00:53.274Z",
+  "records": [
+    {
+      "chainId": 84532,
+      "network": "Base Sepolia",
+      "chainIdentity": true,
+      "tip": "47502478",
+      "factoryDeployed": true,
+      "predictedAddress": "0x5B7516768eD0b04E212041265BB1f11af71841d7",
+      "archiveReceipts": [],
+      "finalizedBlock": null
+    },
+    {
+      "chainId": 421614,
+      "network": "Arbitrum Sepolia",
+      "chainIdentity": true,
+      "tip": "314300197",
+      "factoryDeployed": true,
+      "predictedAddress": "0x5B7516768eD0b04E212041265BB1f11af71841d7",
+      "archiveReceipts": [],
+      "finalizedBlock": null
+    },
+    {
+      "chainId": 11155111,
+      "network": "Sepolia",
+      "chainIdentity": true,
+      "tip": "11814818",
+      "factoryDeployed": true,
+      "predictedAddress": "0x5B7516768eD0b04E212041265BB1f11af71841d7",
+      "archiveReceipts": [
+        {
+          "hash": "0x6ff18bbea3f1b627ff54812de2c43f307f4dc4b2332cefdd103dd9393e164b85",
+          "status": "success",
+          "blockNumber": "11754101",
+          "canonical": true
+        }
+      ],
+      "finalizedBlock": "11814732"
+    },
+    {
+      "chainId": 5042002,
+      "network": "Arc Testnet",
+      "chainIdentity": true,
+      "tip": "64780548",
+      "factoryDeployed": true,
+      "predictedAddress": "0x5B7516768eD0b04E212041265BB1f11af71841d7",
+      "archiveReceipts": [
+        {
+          "hash": "0x123333c440a4488deb1c54cd8ab5e537fc9c1776c0aacae95a45cf5a81e8f69e",
+          "status": "success",
+          "blockNumber": "63327520",
+          "canonical": true
+        },
+        {
+          "hash": "0x0a6449d918cb9a2d52199efdd73e5dd860c03e53448799b20b742f9fc40dba29",
+          "status": "success",
+          "blockNumber": "63327711",
+          "canonical": true
+        }
+      ],
+      "finalizedBlock": null
+    }
+  ]
+}

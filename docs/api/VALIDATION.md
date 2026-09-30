@@ -32,3 +32,19 @@ Hosted availability, platform abuse limits, indexer propagation/recovery, archiv
 and a signed public-flow funding canary remain release checks in
 [DEPLOYMENTS.md](../DEPLOYMENTS.md#integration-release-gate--2026-09-30). Local verification
 cannot establish a deployed mainnet service.
+
+The [September 30 migration rehearsal](validation/2026-09-30-migration-rehearsal.json)
+applied `0009_public_status.sql` to an isolated clone of the hosted testnet database. It
+preserved fingerprints for nine existing data tables, passed the native identity preflight
+and queued five deposit evidence jobs and eight flow evidence jobs. The snapshot had no
+pending flows. It did not migrate beta.
+
+The [provider preflight](validation/2026-09-30-provider-preflight.json) verified chain IDs,
+factory code and the same derived address on all four configured testnet RPCs. Historical
+receipts and canonical blocks passed on Sepolia and Arc; Sepolia also served `finalized`.
+Base and Arbitrum historical receipt checks are not recorded in this receipt. This is provider
+evidence, not a new public API funding canary.
+
+The rollout wallet page adds four payment boundary tests. The build, TypeScript checks and
+all 64 frontend tests passed. Hosted endpoint, recovery, abuse-limit and signed funding
+checks remain pending; the public API release flag is still disabled on beta.

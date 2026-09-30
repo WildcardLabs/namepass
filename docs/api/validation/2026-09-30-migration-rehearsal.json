@@ -1,0 +1,155 @@
+{
+  "recordedAt": "2026-09-30T13:00:52.705Z",
+  "source": {
+    "names": 10,
+    "chains": [
+      "11155111",
+      "5042002"
+    ],
+    "migrations": [
+      {
+        "id": 1,
+        "created_at": "1786491189013"
+      },
+      {
+        "id": 2,
+        "created_at": "1787065532041"
+      },
+      {
+        "id": 3,
+        "created_at": "1787088000000"
+      },
+      {
+        "id": 4,
+        "created_at": "1787681682487"
+      },
+      {
+        "id": 5,
+        "created_at": "1787753774189"
+      },
+      {
+        "id": 6,
+        "created_at": "1787754015795"
+      },
+      {
+        "id": 7,
+        "created_at": "1788514771576"
+      },
+      {
+        "id": 8,
+        "created_at": "1788557299572"
+      },
+      {
+        "id": 9,
+        "created_at": "1788772800000"
+      }
+    ]
+  },
+  "isolatedTarget": true,
+  "pendingFlowsAtSnapshot": 0,
+  "coreEvidenceUnchanged": true,
+  "before": {
+    "names": {
+      "rows": 10,
+      "fingerprint": "48125bf90cd3921874baac4c000e9660"
+    },
+    "chain_events": {
+      "rows": 35,
+      "fingerprint": "96dcc056a23359a8dc6ad4768c8074e1"
+    },
+    "deposits": {
+      "rows": 5,
+      "fingerprint": "40133c40f2291e44c0bab8620c343a88"
+    },
+    "flows": {
+      "rows": 10,
+      "fingerprint": "3e0285236df23308ec9e83bd92c4aa70"
+    },
+    "flow_transitions": {
+      "rows": 52,
+      "fingerprint": "1e83168aabc51a00f0fb71d72490f987"
+    },
+    "transaction_intents": {
+      "rows": 10,
+      "fingerprint": "6a3395e2406d5c9cc7dad6ff8cb84798"
+    },
+    "balance_snapshots": {
+      "rows": 40,
+      "fingerprint": "9e56551aa533ba866a94cac86396cfd4"
+    },
+    "balance_scan_requests": {
+      "rows": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "goldsky.watched_addresses": {
+      "rows": 10,
+      "fingerprint": "32d13359d6820dd84a35ab5946f06fa1"
+    }
+  },
+  "after": {
+    "names": {
+      "rows": 10,
+      "fingerprint": "48125bf90cd3921874baac4c000e9660"
+    },
+    "chain_events": {
+      "rows": 35,
+      "fingerprint": "96dcc056a23359a8dc6ad4768c8074e1"
+    },
+    "deposits": {
+      "rows": 5,
+      "fingerprint": "40133c40f2291e44c0bab8620c343a88"
+    },
+    "flows": {
+      "rows": 10,
+      "fingerprint": "3e0285236df23308ec9e83bd92c4aa70"
+    },
+    "flow_transitions": {
+      "rows": 52,
+      "fingerprint": "1e83168aabc51a00f0fb71d72490f987"
+    },
+    "transaction_intents": {
+      "rows": 10,
+      "fingerprint": "6a3395e2406d5c9cc7dad6ff8cb84798"
+    },
+    "balance_snapshots": {
+      "rows": 40,
+      "fingerprint": "9e56551aa533ba866a94cac86396cfd4"
+    },
+    "balance_scan_requests": {
+      "rows": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "goldsky.watched_addresses": {
+      "rows": 10,
+      "fingerprint": "32d13359d6820dd84a35ab5946f06fa1"
+    }
+  },
+  "nativeIdentityPreflight": true,
+  "identityKinds": [
+    {
+      "transfer_kind": "native",
+      "rows": 5
+    }
+  ],
+  "backfill": {
+    "deposits": 5,
+    "flows": 8,
+    "deposit_jobs": 5,
+    "flow_jobs": 8
+  },
+  "triggers": [
+    {
+      "tgname": "integration_canonicality",
+      "rows": 1
+    },
+    {
+      "tgname": "integration_evidence",
+      "rows": 2
+    },
+    {
+      "tgname": "integration_revoke",
+      "rows": 2
+    }
+  ],
+  "migrationSha256": "406c26e3a0c82245a66417d3148ed8cab7b6bc7c61d03948344f99de6946d0c0"
+}

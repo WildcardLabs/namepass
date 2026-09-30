@@ -218,6 +218,23 @@ with database-creation privileges and run `npm run test:server`. Tests create an
 databases. `npm run check:docs` checks public Markdown, skill and LLM indexes; `check:api` checks
 OpenAPI and generated types. No outgoing webhook or MCP setup is needed.
 
+Rehearse a migration against a separate database endpoint with
+`NAMEPASS_SOURCE_DATABASE_URL` (read-only source access) and `DATABASE_URL_UNPOOLED`
+(isolated target migration role). Run
+`node --import tsx scripts/integrations/rehearse.ts <receipt-path>` once on a fresh clone.
+The command checks address derivations, source chain IDs, existing evidence fingerprints,
+native identity and backfill counts. It migrates only the isolated target. Do not use a live
+database as the target.
+
+The temporary wallet page runs separately from the application renderer:
+`npx vite --config tools/vite.config.ts`. Open
+`http://127.0.0.1:5174/tools/integration-canary.html` in the browser with Rainbow installed.
+Set the API origin to the validated deployment. The user connects and signs the deposit.
+The page verifies the derived address, quote, token, amount and testnet before requesting a
+transfer. It stores the source hash locally, polls status and reads name history. Export the
+evidence after completion. If the wallet result is uncertain, recover the existing hash from
+wallet history before another payment. This page is not part of the application build.
+
 ## Mainnet release requirements
 
 Do not change `ACTIVE_ENVIRONMENT` or `MAINNET_LAUNCH_APPROVED` until every item in this section

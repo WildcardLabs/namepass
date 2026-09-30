@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Namepass · Integration canary</title>
+    <style>
+      :root {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        color: #23342c;
+        background: #f5f7f6;
+        font-size: 14px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+      main {
+        max-width: 960px;
+        margin: 40px auto;
+        padding: 0 24px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 36px;
+      }
+      header img {
+        width: 104px;
+        height: auto;
+      }
+      .badge {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #527a63;
+        background: #e7f0e9;
+        padding: 6px 10px;
+        border-radius: 20px;
+      }
+      h1 {
+        font-size: 28px;
+        margin: 0 0 10px;
+        letter-spacing: -0.8px;
+      }
+      h2 {
+        font-size: 17px;
+        margin: 0 0 20px;
+      }
+      p {
+        line-height: 1.65;
+        color: #65736c;
+        margin: 8px 0 24px;
+      }
+      .panel {
+        padding: 24px;
+        border: 1px solid #dce5df;
+        background: white;
+        border-radius: 10px;
+        margin: 20px 0;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        font-size: 12px;
+        color: #52665a;
+      }
+      input,
+      select,
+      button {
+        font: inherit;
+        border-radius: 6px;
+        min-height: 38px;
+      }
+      input,
+      select {
+        border: 1px solid #d5dfd9;
+        background: #fff;
+        padding: 8px 11px;
+        width: 100%;
+        color: #263c2d;
+      }
+      button {
+        border: 1px solid #d5dfd9;
+        padding: 8px 14px;
+        background: #fff;
+        color: #2f5b40;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      button.primary {
+        background: #31794f;
+        color: white;
+        border-color: #31794f;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 20px;
+      }
+      code {
+        font:
+          12px/1.6 ui-monospace,
+          monospace;
+        overflow-wrap: anywhere;
+      }
+      pre {
+        padding: 16px;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        background: #f6f8f7;
+        border: 1px solid #e6ece8;
+        border-radius: 6px;
+        font:
+          12px/1.7 ui-monospace,
+          monospace;
+        max-height: 360px;
+        overflow: auto;
+      }
+      #notice {
+        padding: 12px 16px;
+        border-radius: 6px;
+        background: #edf4ee;
+        line-height: 1.6;
+        margin: 18px 0;
+        overflow-wrap: anywhere;
+      }
+      #notice[data-error="true"] {
+        background: #fff0e9;
+        color: #873f28;
+      }
+      .facts {
+        display: grid;
+        gap: 12px;
+        margin: 20px 0;
+      }
+      .fact {
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        gap: 12px;
+      }
+      .fact span {
+        font-size: 12px;
+        color: #718377;
+      }
+      .fact strong {
+        font-weight: 500;
+        overflow-wrap: anywhere;
+      }
+      .run {
+        border-top: 1px solid #e4eae6;
+        padding-top: 18px;
+        margin-top: 18px;
+      }
+      .run-heading {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+      }
+      .run a {
+        color: #31794f;
+      }
+      .muted {
+        font-size: 12px;
+        color: #708176;
+      }
+      details {
+        margin-top: 16px;
+      }
+      summary {
+        cursor: pointer;
+        color: #506d5b;
+      }
+      a {
+        color: #31794f;
+      }
+      footer {
+        margin: 28px 0;
+        color: #809087;
+        font-size: 12px;
+      }
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible {
+        outline: 2px solid #5d9272;
+        outline-offset: 3px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      @media (max-width: 640px) {
+        main {
+          margin: 24px auto;
+          padding: 0 16px;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .panel {
+          padding: 18px;
+        }
+        .fact {
+          grid-template-columns: 1fr;
+          gap: 3px;
+        }
+        .run-heading {
+          align-items: start;
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="/namepass-logo.png" alt="Namepass" /><span class="badge"
+          >Testnet canary</span
+        >
+      </header>
+      <h1>Test the public integration</h1>
+      <p>
+        Get an address and quote, fund through Rainbow, then track the source
+        transaction to a finalized renewal.
+      </p>
+      <div id="notice" role="status">Preparing API availability check…</div>
+      <section class="panel">
+        <h2>1. Prepare a deposit</h2>
+        <div class="grid">
+          <label
+            >API origin<input
+              id="origin"
+              type="url"
+              value="https://beta.namepass.com"
+              autocomplete="off" /></label
+          ><label
+            >ENS name<input
+              id="name"
+              value="steve.eth"
+              autocomplete="off" /></label
+          ><label>Source network<select id="chain"></select></label
+          ><label
+            >Amount (USDC)<input
+              id="amount"
+              value="1"
+              inputmode="decimal"
+              autocomplete="off" /></label
+          ><label id="mode-label" hidden
+            >Arc funding method<select id="mode">
+              <option value="native">Native USDC</option>
+              <option value="erc20">ERC-20 USDC</option>
+            </select></label
+          >
+        </div>
+        <div class="actions">
+          <button id="prepare" class="primary">Get address & quote</button>
+        </div>
+        <div id="prepared" hidden>
+          <div class="facts">
+            <div class="fact">
+              <span>Renewal target</span><strong id="target"></strong>
+            </div>
+            <div class="fact">
+              <span>Deposit address</span><code id="deposit"></code>
+            </div>
+            <div class="fact">
+              <span>Deposit subname</span><strong id="alias"></strong>
+            </div>
+            <div class="fact">
+              <span>Estimated time</span><strong id="duration"></strong>
+            </div>
+            <div class="fact">
+              <span>Quote expiry</span><strong id="expiry"></strong>
+            </div>
+          </div>
+          <details>
+            <summary>API responses</summary>
+            <pre id="responses"></pre>
+          </details>
+        </div>
+      </section>
+      <section class="panel">
+        <h2>2. Fund with your wallet</h2>
+        <div class="grid">
+          <label>Browser wallet<select id="wallet"></select></label
+          ><label
+            >Connected account<code id="account">Not connected</code></label
+          >
+        </div>
+        <div class="actions">
+          <button id="connect">Connect wallet</button
+          ><button id="send" class="primary" disabled>
+            Review 1 USDC deposit in wallet
+          </button>
+        </div>
+        <p class="muted" style="margin-bottom: 0; margin-top: 16px">
+          Confirm the transfer in your wallet. This page submits only the
+          deposit; Namepass processes the renewal.
+        </p>
+      </section>
+      <section class="panel">
+        <h2>3. Track renewals</h2>
+        <div class="grid">
+          <label
+            >Source chain ID<input
+              id="resume-chain"
+              value="11155111"
+              inputmode="numeric" /></label
+          ><label
+            >Source transaction hash<input
+              id="resume-hash"
+              placeholder="0x…"
+              autocomplete="off"
+          /></label>
+        </div>
+        <div class="actions">
+          <button id="resume">Track existing transaction</button
+          ><button id="export">Export evidence</button>
+        </div>
+        <div id="runs"></div>
+      </section>
+      <footer>
+        Temporary local operator page · Public API requests only · Testnet
+        transfers only
+      </footer>
+    </main>
+    <script type="module" src="/tools/integration-canary.ts"></script>
+  </body>
+</html>
