@@ -205,13 +205,15 @@ test("documentation opens directly and supports navigation without price or chai
   await render();
   await act(async () => { await import("./components/Docs"); });
   await vi.waitFor(() => expect(container.querySelector("#three-steps")).not.toBeNull());
-  expect(container.querySelector('.docs-example code')?.textContent).toContain("https://beta.namepass.com/api/v1/address");
+  expect(container.querySelector('.docs-example code')?.textContent).toContain("https://namepass.com/api/v1/address");
+  expect(container.querySelector('.docs-availability')?.textContent).toContain("The public API launches with mainnet.");
   const copiedRequest = vi.fn().mockResolvedValue(undefined);
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: copiedRequest } });
   await click("Copy request");
-  expect(copiedRequest).toHaveBeenLastCalledWith(expect.stringContaining("https://beta.namepass.com/api/v1/address"));
+  expect(copiedRequest).toHaveBeenLastCalledWith(expect.stringContaining("https://namepass.com/api/v1/address"));
   await click("Copy page");
   expect(copiedRequest).toHaveBeenLastCalledWith(expect.stringContaining("# Introduction"));
+  expect(copiedRequest).toHaveBeenLastCalledWith(expect.stringContaining("The public API launches with mainnet."));
   const settlement = container.querySelector<HTMLAnchorElement>('a[href="/docs/status"]');
   expect(settlement).not.toBeNull();
   await act(async () => settlement!.click());
@@ -223,7 +225,7 @@ test("documentation opens directly and supports navigation without price or chai
   expect(container.querySelector("#three-steps")).not.toBeNull();
   const quickstart = container.querySelector<HTMLAnchorElement>('a[href="/docs/quickstart"]');
   await act(async () => quickstart!.click());
-  expect(container.querySelector('.docs-prose pre')?.textContent).toContain("https://beta.namepass.com/api/v1/address");
+  expect(container.querySelector('.docs-prose pre')?.textContent).toContain("https://namepass.com/api/v1/address");
   expect(container.querySelector('.docs-prose')?.textContent).not.toContain(window.location.origin);
   await act(async () => window.dispatchEvent(new Event("focus")));
   expect(loadOracleRates).not.toHaveBeenCalled();

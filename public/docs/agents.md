@@ -1,5 +1,7 @@
 # AI agents
 
+> The public API launches with mainnet. It is not available yet.
+
 Provide the [integration skill](/docs/skills) to your agent for Namepass API instructions.
 
 ## Example prompt
@@ -7,7 +9,7 @@ Provide the [integration skill](/docs/skills) to your agent for Namepass API ins
 ```text
 Renew [name] with [amount] USDC on [chain] using Namepass.
 Follow the integration skill:
-https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md
+https://namepass.com/docs/skills/namepass-integration/SKILL.md
 ```
 
 ## Resources

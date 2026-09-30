@@ -1,5 +1,7 @@
 # Get a deposit address
 
+> The public API launches with mainnet. It is not available yet.
+
 `POST /api/v1/address`
 
 Activate deposit monitoring for an ENS name and return its deposit address, subname and supported funding chains.

@@ -1,11 +1,13 @@
 # Get an address
 
+> The public API launches with mainnet. It is not available yet.
+
 Retrieve the deposit address and supported funding networks for an ENS name.
 
 ## Request
 
 ```bash
-curl -X POST 'https://beta.namepass.com/api/v1/address' \
+curl -X POST 'https://namepass.com/api/v1/address' \
   -H 'Content-Type: application/json' \
   -d '{"name":"example.eth"}'
 ```

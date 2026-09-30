@@ -1,5 +1,7 @@
 # Poll a transaction
 
+> The public API launches with mainnet. It is not available yet.
+
 `GET /api/v1/status/{chainId}`
 
 Retrieve renewal status for a USDC deposit transaction. The transaction is complete when every indexed deposit has a verified, finalized renewal.

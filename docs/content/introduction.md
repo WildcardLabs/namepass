@@ -6,6 +6,6 @@ Namepass converts USDC deposits into ENS renewals. Each name has a deposit addre
 2. **Send USDC** to the address on a supported network.
 3. **Track the renewal** using the transaction hash and source chain ID.
 
-## Current networks
+## Mainnet launch
 
-Namepass currently supports testnets. The [address response](/docs/addresses) lists available chains, USDC contracts and minimum deposit amounts.
+The public API will launch at `https://namepass.com` with mainnet. Development examples use testnet chain IDs. The [address response](/docs/addresses) will list supported networks, USDC contracts and minimum deposit amounts.

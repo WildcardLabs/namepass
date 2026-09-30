@@ -64,13 +64,6 @@
       "when": 1788772800000,
       "tag": "0008_absorbed_deposit_flows",
       "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1790596800000,
-      "tag": "0009_public_status",
-      "breakpoints": true
     }
   ]
 }

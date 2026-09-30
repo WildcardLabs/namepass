@@ -1,12 +1,14 @@
 # Integration skill
 
+> The public API launches with mainnet. It is not available yet.
+
 The integration skill provides API instructions for address retrieval, funding, quotes, status polling and renewal history.
 
 ## Install in a project
 
 ```bash
 mkdir -p .agents/skills/namepass-integration
-curl -fsSL 'https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md' \
+curl -fsSL 'https://namepass.com/docs/skills/namepass-integration/SKILL.md' \
   -o .agents/skills/namepass-integration/SKILL.md
 ```
 

@@ -81,7 +81,6 @@ schemas.QuoteResponse = object({
 	bridgeFee: amount,
 	roundingRemainder: amount,
 	pricingBlock: amount,
-	expiresAt: { type: "string", format: "date-time" },
 	estimate: { type: "boolean", const: true },
 });
 const optionalAmount = { ...amount, type: ["string", "null"] };
@@ -134,12 +133,12 @@ const errors = {
 const spec = {
 	openapi: "3.1.0",
 	info: {
-		title: "Namepass public API",
+		title: "Namepass public API (unreleased)",
 		version: "2026-09-30",
 		description:
-			"Deposit addresses, renewal estimates, transaction status and ENS renewal history.",
+			"Planned mainnet API for deposit addresses, renewal estimates, transaction status and ENS renewal history. The API is not available yet.",
 	},
-	servers: [{ url: "https://beta.namepass.com/api/v1" }],
+	servers: [{ url: "https://namepass.com/api/v1" }],
 	security: [],
 	paths: {
 		"/address": {
@@ -219,7 +218,7 @@ spec.paths["/quote"] = {
 		operationId: "post_quote",
 		summary: "Estimate a renewal",
 		description:
-			"Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Quotes expire after 60 seconds and assume one processing flow with no existing balance at the deposit address.",
+			"Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Estimates assume one processing flow with no existing balance at the deposit address.",
 		requestBody: {
 			required: true,
 			content: {

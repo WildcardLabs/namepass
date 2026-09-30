@@ -50,6 +50,7 @@ import {
 import {
   docs,
   docsVersion,
+  docsAvailability,
   docsOrigin,
   headingId,
   searchDocs,
@@ -474,10 +475,10 @@ export default function Docs() {
     (m) => ({ title: m[1].replace(/`/g, ""), id: headingId(m[1]) }),
   );
   const prompt = page
-    ? `Help me integrate Namepass.\nRead ${docsOrigin}/docs/${page.slug}.md and the integration skill:\n${docsOrigin}/docs/skills/namepass-integration/SKILL.md\n\nMy question: `
+    ? `Help me integrate Namepass.\n${docsAvailability}\nRead ${docsOrigin}/docs/${page.slug}.md and the integration skill:\n${docsOrigin}/docs/skills/namepass-integration/SKILL.md\n\nMy question: `
     : "";
   const pageMarkdown = page
-    ? `# ${page.title}\n\n${page.method ? `\`${page.method} /api/v1${page.path}\`\n\n` : ""}${publishedText(page.markdown)}`
+    ? `# ${page.title}\n\n> ${docsAvailability}\n\n${page.method ? `\`${page.method} /api/v1${page.path}\`\n\n` : ""}${publishedText(page.markdown)}`
     : "";
   const navigate = (next: string, hash = "") => {
     window.history.pushState(
@@ -695,7 +696,7 @@ export default function Docs() {
             >
               <Github size={18} />
             </a>
-            <a href="https://beta.namepass.com" className="docs-app-link">
+            <a href="https://namepass.com" className="docs-app-link">
               Open app
               <ArrowUpRight size={13} />
             </a>
@@ -739,7 +740,7 @@ export default function Docs() {
           </div>
           <div className="docs-sidebar-meta">
             <span className="testnet-dot" />
-            Testnet integration<span>v1</span>
+            API preview<span>v1</span>
           </div>
         </aside>
         <div className="docs-reading-layout">
@@ -754,6 +755,7 @@ export default function Docs() {
                   <ChevronRight size={12} />
                   <span>{page.group}</span>
                 </div>
+                <p className="docs-availability" role="note">{docsAvailability}</p>
                 <div className="docs-page-header">
                   <div>
                     <h1>

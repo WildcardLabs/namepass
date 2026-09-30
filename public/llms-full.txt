@@ -1,10 +1,14 @@
 # Namepass integration documentation
 
-API version 2026-09-30. Supported networks: testnets.
+The public API launches with mainnet. It is not available yet.
+
+API version 2026-09-30. Public release: mainnet launch. Development examples use testnets.
 
 # Introduction
 
-Source: https://beta.namepass.com/docs/introduction
+> The public API launches with mainnet. It is not available yet.
+
+Source: https://namepass.com/docs/introduction
 
 Namepass converts USDC deposits into ENS renewals. Each name has a deposit address shared across supported networks.
 
@@ -14,20 +18,22 @@ Namepass converts USDC deposits into ENS renewals. Each name has a deposit addre
 2. **Send USDC** to the address on a supported network.
 3. **Track the renewal** using the transaction hash and source chain ID.
 
-## Current networks
+## Mainnet launch
 
-Namepass currently supports testnets. The [address response](/docs/addresses) lists available chains, USDC contracts and minimum deposit amounts.
+The public API will launch at `https://namepass.com` with mainnet. Development examples use testnet chain IDs. The [address response](/docs/addresses) will list supported networks, USDC contracts and minimum deposit amounts.
 
 ---
 
 # Quickstart
 
-Source: https://beta.namepass.com/docs/quickstart
+> The public API launches with mainnet. It is not available yet.
+
+Source: https://namepass.com/docs/quickstart
 
 ## 1. Get a deposit address
 
 ```bash
-curl -X POST 'https://beta.namepass.com/api/v1/address' \
+curl -X POST 'https://namepass.com/api/v1/address' \
   -H 'Content-Type: application/json' \
   -d '{"name":"example.eth"}'
 ```
@@ -73,14 +79,16 @@ Use [name history](/docs/history) to retrieve past renewals and the recorded exp
 
 # Get an address
 
-Source: https://beta.namepass.com/docs/addresses
+> The public API launches with mainnet. It is not available yet.
+
+Source: https://namepass.com/docs/addresses
 
 Retrieve the deposit address and supported funding networks for an ENS name.
 
 ## Request
 
 ```bash
-curl -X POST 'https://beta.namepass.com/api/v1/address' \
+curl -X POST 'https://namepass.com/api/v1/address' \
   -H 'Content-Type: application/json' \
   -d '{"name":"example.eth"}'
 ```
@@ -107,14 +115,16 @@ Transfer USDC to `depositAddress` on a returned chain. Use the subname only when
 
 # Estimate renewal time
 
-Source: https://beta.namepass.com/docs/quotes
+> The public API launches with mainnet. It is not available yet.
+
+Source: https://namepass.com/docs/quotes
 
 Estimate the renewal duration and fees for a USDC deposit.
 
 ## Request a quote
 
 ```bash
-curl -X POST 'https://beta.namepass.com/api/v1/quote' \
+curl -X POST 'https://namepass.com/api/v1/quote' \
   -H 'Content-Type: application/json' \
   -d '{"name":"example.eth","chainId":"84532","amount":"1000000"}'
 ```
@@ -131,13 +141,12 @@ Use a chain ID from the [address response](/docs/addresses). Send `amount` as an
 | `bridgeFee` | Bridge fee. Currently zero for supported routes. |
 | `roundingRemainder` | USDC remaining after duration rounding, retained by the renewal gateway. |
 | `pricingBlock` | Block number used to calculate the estimate. |
-| `expiresAt` | Quote expiry, 60 seconds after calculation. |
 
 All USDC values are integer strings in six-decimal token units.
 
 ## Estimate limits
 
-A quote assumes one processing flow and no existing balance at the deposit address. Deposits may be combined, and prices may change before settlement. Use [transaction status](/docs/status) for the final renewal result.
+A quote assumes one processing flow and no existing balance at the deposit address. Deposits may be combined. The renewal uses the pricing and fees in effect when funds are processed. Use [transaction status](/docs/status) for the final renewal result.
 
 ## Errors
 
@@ -149,14 +158,16 @@ A quote assumes one processing flow and no existing balance at the deposit addre
 
 # Poll status
 
-Source: https://beta.namepass.com/docs/status
+> The public API launches with mainnet. It is not available yet.
+
+Source: https://namepass.com/docs/status
 
 Track a USDC deposit using its transaction hash and source chain ID.
 
 ## Request
 
 ```bash
-curl 'https://beta.namepass.com/api/v1/status/84532?transactionHash={hash}'
+curl 'https://namepass.com/api/v1/status/84532?transactionHash={hash}'
 ```
 
 Replace `{hash}` with the transaction hash returned by the wallet. Use the source chain ID from the [address response](/docs/addresses).
@@ -195,14 +206,16 @@ Poll every five seconds, or after the delay specified by `Retry-After`. Resume p
 
 # Name history
 
-Source: https://beta.namepass.com/docs/history
+> The public API launches with mainnet. It is not available yet.
+
+Source: https://namepass.com/docs/history
 
 Retrieve renewal history and the recorded expiry for an ENS name.
 
 ## Read a name's history
 
 ```bash
-curl 'https://beta.namepass.com/api/v1/names/example.eth/renewals?limit=20'
+curl 'https://namepass.com/api/v1/names/example.eth/renewals?limit=20'
 ```
 
 ## Response
@@ -216,7 +229,7 @@ Each item includes a flow ID, source chain, renewal transaction, duration added,
 Results are ordered newest first. Pass `nextCursor` as the `cursor` parameter to retrieve the next page for the same name. The default page size is 20; `limit` accepts values from 1 to 100. `nextCursor: null` marks the last page. Refresh the first page for new or late-indexed renewals.
 
 ```javascript
-const url = new URL("https://beta.namepass.com/api/v1/names/example.eth/renewals");
+const url = new URL("https://namepass.com/api/v1/names/example.eth/renewals");
 url.searchParams.set("limit", "20");
 if (nextCursor) url.searchParams.set("cursor", nextCursor);
 const history = await (await fetch(url)).json();
@@ -234,7 +247,9 @@ History is public and includes renewals funded by any sender for the requested n
 
 # AI agents
 
-Source: https://beta.namepass.com/docs/agents
+> The public API launches with mainnet. It is not available yet.
+
+Source: https://namepass.com/docs/agents
 
 Provide the [integration skill](/docs/skills) to your agent for Namepass API instructions.
 
@@ -243,7 +258,7 @@ Provide the [integration skill](/docs/skills) to your agent for Namepass API ins
 ```text
 Renew [name] with [amount] USDC on [chain] using Namepass.
 Follow the integration skill:
-https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md
+https://namepass.com/docs/skills/namepass-integration/SKILL.md
 ```
 
 ## Resources
@@ -257,7 +272,9 @@ https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md
 
 # Integration skill
 
-Source: https://beta.namepass.com/docs/skills
+> The public API launches with mainnet. It is not available yet.
+
+Source: https://namepass.com/docs/skills
 
 The integration skill provides API instructions for address retrieval, funding, quotes, status polling and renewal history.
 
@@ -265,7 +282,7 @@ The integration skill provides API instructions for address retrieval, funding, 
 
 ```bash
 mkdir -p .agents/skills/namepass-integration
-curl -fsSL 'https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md' \
+curl -fsSL 'https://namepass.com/docs/skills/namepass-integration/SKILL.md' \
   -o .agents/skills/namepass-integration/SKILL.md
 ```
 
@@ -275,9 +292,11 @@ For agents without project skill support, use the [skill URL](/docs/skills/namep
 
 # API reference
 
-Source: https://beta.namepass.com/docs/reference
+> The public API launches with mainnet. It is not available yet.
 
-Base URL: `https://beta.namepass.com/api/v1`
+Source: https://namepass.com/docs/reference
+
+Base URL: `https://namepass.com/api/v1`
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -300,7 +319,9 @@ Download the [OpenAPI specification](/openapi.json) for request schemas, respons
 
 # Get a deposit address
 
-Source: https://beta.namepass.com/docs/reference/post_address
+> The public API launches with mainnet. It is not available yet.
+
+Source: https://namepass.com/docs/reference/post_address
 
 `POST /api/v1/address`
 
@@ -346,7 +367,9 @@ Activate deposit monitoring for an ENS name and return its deposit address, subn
 
 # Poll a transaction
 
-Source: https://beta.namepass.com/docs/reference/get_status
+> The public API launches with mainnet. It is not available yet.
+
+Source: https://namepass.com/docs/reference/get_status
 
 `GET /api/v1/status/{chainId}`
 
@@ -386,11 +409,13 @@ Retrieve renewal status for a USDC deposit transaction. The transaction is compl
 
 # Estimate a renewal
 
-Source: https://beta.namepass.com/docs/reference/post_quote
+> The public API launches with mainnet. It is not available yet.
+
+Source: https://namepass.com/docs/reference/post_quote
 
 `POST /api/v1/quote`
 
-Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Quotes expire after 60 seconds and assume one processing flow with no existing balance at the deposit address.
+Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Estimates assume one processing flow with no existing balance at the deposit address.
 
 ## Request body
 
@@ -431,7 +456,6 @@ Estimate renewal duration and fees for an ENS name, funding chain and USDC amoun
 | `bridgeFee` | string | Yes | Exact integer encoded as a decimal string. |
 | `roundingRemainder` | string | Yes | Exact integer encoded as a decimal string. |
 | `pricingBlock` | string | Yes | Exact integer encoded as a decimal string. |
-| `expiresAt` | string | Yes | Format: date-time. |
 | `estimate` | boolean | Yes |  |
 
 ## Full contract
@@ -442,7 +466,9 @@ Estimate renewal duration and fees for an ENS name, funding chain and USDC amoun
 
 # List a name's renewals
 
-Source: https://beta.namepass.com/docs/reference/get_name_renewals
+> The public API launches with mainnet. It is not available yet.
+
+Source: https://namepass.com/docs/reference/get_name_renewals
 
 `GET /api/v1/names/{name}/renewals`
 

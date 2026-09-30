@@ -1,6 +1,8 @@
 # API reference
 
-Base URL: `https://beta.namepass.com/api/v1`
+> The public API launches with mainnet. It is not available yet.
+
+Base URL: `https://namepass.com/api/v1`
 
 | Endpoint | Purpose |
 | --- | --- |

@@ -72,34 +72,16 @@ export function receiptHelper(logs: readonly ReceiptLog[], label: string): Addre
 	return matching[0];
 }
 
-export async function readReceiptEnsEvidence(logs: readonly (ReceiptLog & { logIndex?: number })[], label: string, blockNumber: bigint) {
+export async function readReceiptEnsExpiry(logs: readonly ReceiptLog[], label: string, blockNumber: bigint): Promise<Date> {
 	const helper = receiptHelper(logs, label);
 	const rpcUrl = process.env[HUB_CHAIN.rpcEnv];
 	if (!rpcUrl) throw new Error(`${HUB_CHAIN.rpcEnv} is not configured.`);
-	const client = createPublicClient({ transport: http(rpcUrl, { timeout: 8000, retryCount: 0 }) });
+	const client = createPublicClient({ transport: http(rpcUrl) });
 	if (await client.getChainId() !== HUB_CHAIN.chainId) throw new Error("The receipt RPC serves the wrong chain.");
 	const [registrar, renewerV1, referrer] = await Promise.all([
 		client.readContract({ address: helper, abi: METADATA, functionName: "ethRegistrar", blockNumber }),
 		client.readContract({ address: helper, abi: METADATA, functionName: "ethRenewerV1", blockNumber }),
 		client.readContract({ address: helper, abi: METADATA, functionName: "referrer", blockNumber }),
 	]);
-	const expiry = parseEnsRenewalExpiry(logs, { label, registrar, renewerV1, referrer });
-	const matching = logs.flatMap(log => {
-		if (![getAddress(registrar), getAddress(renewerV1)].includes(getAddress(log.address))) return [];
-		try {
-			return [{ log, args: decodeEventLog({
-				abi: NAME_RENEWED, ...log, topics: log.topics as [Hex, ...Hex[]], strict: true,
-			}).args }];
-		} catch { return []; }
-	});
-	const selected = matching[0]; // parseEnsRenewalExpiry requires exactly one.
-	return {
-		expiry, helper, address: selected.log.address, logIndex: selected.log.logIndex ?? null,
-		tokenId: selected.args.tokenId.toString(), durationSeconds: selected.args.duration.toString(),
-		amountApplied: selected.args.amount.toString(), paymentToken: selected.args.paymentToken, referrer,
-	};
-}
-
-export async function readReceiptEnsExpiry(logs: readonly ReceiptLog[], label: string, blockNumber: bigint): Promise<Date> {
-	return (await readReceiptEnsEvidence(logs, label, blockNumber)).expiry;
+	return parseEnsRenewalExpiry(logs, { label, registrar, renewerV1, referrer });
 }
