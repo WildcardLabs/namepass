@@ -79,7 +79,8 @@ The preview returned an address, quotes on all four testnets and name-scoped his
 evidence worker verified all eight historical settled flows. A 31-request address burst
 returned 30 input errors and one application `429`, with CORS and `Retry-After: 60`.
 These checks used Vercel preview protection bypass; they do not establish anonymous beta
-availability. Source-transaction completion/recovery checks and fresh signed canaries remain
+availability. A previously unindexed Sepolia deposit was recovered and now polls as
+`complete`, with its finalized renewal transaction and expiry. Fresh signed canaries remain
 release gates. Beta has not been migrated or enabled. See the
 [hosted preflight receipt](api/validation/2026-09-30-hosted-preflight.json).
 

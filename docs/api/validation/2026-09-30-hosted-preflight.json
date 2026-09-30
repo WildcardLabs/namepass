@@ -319,16 +319,114 @@
   "settlementBackfill": {
     "settledFlows": 8,
     "finalizedSettlements": 8,
-    "sourceCoverage": "Pending; receipt finalization does not prove deposit consumption."
+    "sourceCoverage": "Sepolia source coverage passed the verified drain; polling returns complete. Historical Arc coverage is still reconciling."
   },
   "providers": {
     "sepolia": "https://rpc.sepolia.ethpandaops.io",
     "arc": "https://rpc.drpc.testnet.arc.io"
   },
   "remaining": [
-    "Canonical receipt replay fix must be deployed and checked.",
-    "Source transaction polling must reach complete.",
     "Fresh user-signed direct and CCTP funding canaries.",
     "Anonymous availability after approved beta release."
-  ]
+  ],
+  "finalVerification": {
+    "recordedAt": "2026-09-30T15:33:00.273285+00:00",
+    "deployment": "https://namepass-v2-creb1068y-wildcard-labs.vercel.app",
+    "commit": "ff86b9d",
+    "sourcePolling": {
+      "label": "source_poll",
+      "status": 200,
+      "seconds": 4.011,
+      "headers": {
+        "access-control-allow-headers": "Content-Type",
+        "access-control-allow-methods": "GET, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "Retry-After",
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8"
+      },
+      "response": {
+        "chainId": "11155111",
+        "transactionHash": "0x6ff18bbea3f1b627ff54812de2c43f307f4dc4b2332cefdd103dd9393e164b85",
+        "status": "complete",
+        "deposits": [
+          {
+            "name": "steve.eth",
+            "depositAddress": "0x5b7516768ed0b04e212041265bb1f11af71841d7",
+            "logIndex": 123,
+            "amount": "1000000",
+            "status": "complete",
+            "reason": null,
+            "renewals": [
+              {
+                "expiry": "2029-05-22T05:46:36+00:00",
+                "chainId": "11155111",
+                "secondsAdded": "3547790",
+                "transactionHash": "0x6c7b413b55db956bd52b65242ffcba7ec15cbb770ae1f29c67930ea143a65268"
+              }
+            ]
+          }
+        ]
+      },
+      "curlExit": 0
+    },
+    "scopedHistory": {
+      "label": "replay_build_history",
+      "status": 200,
+      "seconds": 2.78,
+      "headers": {
+        "access-control-allow-headers": "Content-Type",
+        "access-control-allow-methods": "GET, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "Retry-After",
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8"
+      },
+      "response": {
+        "name": "steve.eth",
+        "currentExpiry": "2029-08-12T08:46:16.000Z",
+        "expiryUpdatedAt": "2026-09-30T14:57:31.706Z",
+        "items": [
+          {
+            "flowId": "48d9cf71-7966-4e4d-a055-99ad1f2a5956",
+            "sourceChainId": "5042002",
+            "chainId": "11155111",
+            "transactionHash": "0x51a897a78e9d8825022a6784c1d424c2fbdd97e5c26ef1372ea5c8d635199ddf",
+            "secondsAdded": "3547790",
+            "amountApplied": "900000",
+            "renewalFee": "100000",
+            "expiry": "2029-08-12T08:46:16.000Z",
+            "status": "complete",
+            "renewedAt": "2026-09-21T23:32:24.000Z"
+          },
+          {
+            "flowId": "14cb7228-00ea-4e9d-a98c-823a27f125f8",
+            "sourceChainId": "5042002",
+            "chainId": "11155111",
+            "transactionHash": "0x47fb93e99172e174c5b3da44cf5daf1d3f2a26a2260d15cc1be110b142ad843a",
+            "secondsAdded": "3547790",
+            "amountApplied": "900000",
+            "renewalFee": "100000",
+            "expiry": "2029-07-02T07:16:26.000Z",
+            "status": "complete",
+            "renewedAt": "2026-09-21T23:31:00.000Z"
+          },
+          {
+            "flowId": "6849f6d1-00f3-428b-9147-8bbd43099e1e",
+            "sourceChainId": "11155111",
+            "chainId": "11155111",
+            "transactionHash": "0x6c7b413b55db956bd52b65242ffcba7ec15cbb770ae1f29c67930ea143a65268",
+            "secondsAdded": "3547790",
+            "amountApplied": "900000",
+            "renewalFee": "100000",
+            "expiry": "2029-05-22T05:46:36.000Z",
+            "status": "complete",
+            "renewedAt": "2026-09-21T23:28:00.000Z"
+          }
+        ],
+        "nextCursor": null
+      },
+      "curlExit": 0
+    }
+  }
 }

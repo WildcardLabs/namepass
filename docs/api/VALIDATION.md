@@ -74,5 +74,9 @@ does not establish anonymous beta availability or replace fresh funding canaries
 The rehearsal also exposed an external direct renewal with no source link. Evidence recovery
 now binds its exact canonical factory log within the verified renewal receipt. Receipt replay
 preserves that source; unrelated source transactions remain conflicts. The PostgreSQL regression
-covers source recovery and replay alongside finality and invalidation. Complete polling by
-source transaction, hosted propagation/recovery and fresh signed canaries remain release checks.
+covers source recovery and replay alongside finality and invalidation. On commit `ff86b9d`,
+the previously unindexed Sepolia deposit progressed from `404` through `processing` to
+`complete`. The response includes the finalized renewal transaction and expiry; all three
+renewals in its name history also report `complete`. Recovery started the migration-queued
+evidence jobs without an initial dispatcher run. Fresh signed canaries and anonymous beta
+availability remain release checks. Historical Arc coverage is still reconciling.
