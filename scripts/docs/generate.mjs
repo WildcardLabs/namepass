@@ -68,7 +68,7 @@ for (const [path, methods] of Object.entries(spec.paths)) {
     const markdown = [
       `${operation.description ?? operation.summary}\n`,
       `## Endpoint\n\n\`${method.toUpperCase()} /api/v1${path}\`\n`,
-      `## Authentication\n\nUse a backend-only bearer key. See [Authentication & conventions](/docs/contract).\n`,
+      `## Authentication\n\nNo API key or authorization header is required.\n`,
       ...(parameters.length
         ? [
             `## Parameters\n\n| Name | Location | Required | Description |\n| --- | --- | --- | --- |\n${parameters.map((p) => `| \`${p.name}\` | ${p.in} | ${p.required ? "Yes" : "No"} | ${(p.description ?? "").replaceAll("|", "\\|").replaceAll("\n", " ")} |`).join("\n")}\n`,
@@ -90,25 +90,13 @@ for (const [path, methods] of Object.entries(spec.paths)) {
       ...(fields(successSchema)
         ? [`## Response fields\n\n${fields(successSchema)}`]
         : []),
-      `## Full contract\n\n[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use \`get_api_operation\` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.\n`,
+      `## Full contract\n\n[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields.\n`,
     ].join("\n");
     pages.push({
       slug,
       title: operation.summary,
       description: `${method.toUpperCase()} /api/v1${path}`,
-      group: path.startsWith("/webhook-endpoints")
-        ? "Webhook destinations"
-        : path.startsWith("/webhook-deliveries")
-          ? "Webhook deliveries"
-          : /^\/(sync|events)(\/|$)/.test(path)
-            ? "Sync & events"
-            : /^\/(deposits|flows|settlements)(\/|$)/.test(path)
-              ? "Settlement & recovery"
-              : /^\/(quotes|transfers)(\/|$)/.test(path)
-                ? "Funding & transfers"
-                : /^\/(names|activations|watches)(\/|$)/.test(path)
-                  ? "Names & addresses"
-                  : "Configuration",
+      group: "Endpoints",
       tab: "api",
       source: "scripts/integrations/openapi.mjs",
       method: method.toUpperCase(),
@@ -125,7 +113,7 @@ if (duplicates.length) throw new Error("Duplicate documentation slugs");
 const outputs = new Map();
 outputs.set(
   "shared/docs/catalog.generated.json",
-  JSON.stringify({ version: "2026-09-28", origin, pages, skill }, null, 2) +
+  JSON.stringify({ version: spec.info.version, origin, pages, skill }, null, 2) +
     "\n",
 );
 for (const p of pages)
@@ -136,11 +124,11 @@ for (const p of pages)
 outputs.set("public/docs/skills/namepass-integration/SKILL.md", skill);
 outputs.set(
   "public/llms.txt",
-  `# Namepass developer documentation\n\n> Integrate USDC funding for ENS renewals with activated deposit addresses, private transfer references and verified settlement tracking. API version 2026-09-28. Testnet availability is controlled by the operator; docs availability is not a mainnet launch.\n\n## Guides and API operations\n\n${pages.map((p) => `- [${p.title}](${origin}/docs/${p.slug}.md): ${p.description}`).join("\n")}\n\n## Agent resources\n\n- [Full documentation](${origin}/llms-full.txt)\n- [OpenAPI 3.1](${origin}/openapi.json)\n- [Integration skill](${origin}/docs/skills/namepass-integration/SKILL.md)\n- Docs MCP (Streamable HTTP): ${origin}/api/docs/mcp\n`,
+  `# Namepass developer documentation\n\n> Integrate USDC funding for ENS renewals with get-address, send-USDC and transaction polling. No API keys. API version ${spec.info.version}. Testnet availability is controlled by the operator; docs availability is not a mainnet launch.\n\n## Guides and API operations\n\n${pages.map((p) => `- [${p.title}](${origin}/docs/${p.slug}.md): ${p.description}`).join("\n")}\n\n## Agent resources\n\n- [Full documentation](${origin}/llms-full.txt)\n- [OpenAPI 3.1](${origin}/openapi.json)\n- [Integration skill](${origin}/docs/skills/namepass-integration/SKILL.md)\n`,
 );
 outputs.set(
   "public/llms-full.txt",
-  `# Namepass integration documentation\n\nAPI version 2026-09-28. Testnet access requires operator configuration.\n\n${pages.map((p) => `# ${p.title}\n\nSource: ${origin}/docs/${p.slug}\n\n${p.markdown.replaceAll("{{DOCS_ORIGIN}}", origin)}`).join("\n---\n\n")}`,
+  `# Namepass integration documentation\n\nAPI version ${spec.info.version}. Testnet access requires operator configuration.\n\n${pages.map((p) => `# ${p.title}\n\nSource: ${origin}/docs/${p.slug}\n\n${p.markdown.replaceAll("{{DOCS_ORIGIN}}", origin)}`).join("\n---\n\n")}`,
 );
 for (const [path, body] of outputs) {
   if (check) {

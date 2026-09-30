@@ -1,65 +1,21 @@
-# Build with your agent
+# Use an agent
 
-Use your coding agent to implement the integration in the language, framework and database your app already uses. Give it current documentation and the settlement rules before asking it to write code.
+An agent such as Bankr uses the same flow as an app: get an address, send USDC, then poll the transaction. No Namepass MCP server or API key is needed.
 
-## Connect the documentation
-
-The public [docs MCP server](/docs/mcp) gives your agent three tools: search documentation, read a complete page and inspect an API operation. It requires no API key and has no access to partner data or payment execution.
-
-```json
-{
-  "mcpServers": {
-    "namepass-docs": {
-      "type": "http",
-      "url": "https://beta.namepass.com/api/docs/mcp"
-    }
-  }
-}
-```
-
-Use your client's remote HTTP MCP configuration. The [MCP guide](/docs/mcp) includes client-specific setup and tool details.
-
-## Install the integration skill
-
-The [Namepass integration skill](/docs/skills) teaches your agent the API workflow, ledger rules and evidence boundaries. It is a standard `SKILL.md` file that you can inspect before installation.
-
-```bash
-mkdir -p .agents/skills/namepass-integration
-curl -fsSL 'https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md' \
-  -o .agents/skills/namepass-integration/SKILL.md
-```
-
-If your client uses a different skill directory, save the same file there. Keep the skill in your project when you want the whole team to share the integration guidance.
-
-## Give it a concrete task
+## Give it the task
 
 ```text
-Use the Namepass integration skill and docs MCP to add ENS renewal
-funding to our app. Inspect our payment and ledger code first.
-
-Build these pieces using our existing stack:
-- Backend-only scoped API authentication and stable idempotency keys.
-- ENS name activation and display of the full returned deposit address.
-- Registration of an already-sent USDC transaction with a private reference.
-- A raw-body webhook receiver that verifies signatures and persists events
-  before acknowledging them.
-- A snapshot bootstrap and event poller that commits resource updates and
-  the returned cursor in one database transaction.
-
-Use the generated OpenAPI contract. Keep amounts and versions exact.
-Only show completion after consumption is proven and all candidate
-settlements are finalized. Handle correction events and expired cursors.
-Use a test deployment; do not broadcast a payment or deploy to production.
+Fund the ENS renewal for [name] with [amount] USDC on [chain].
+Read https://beta.namepass.com/docs/quickstart.md and the integration skill at
+https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md.
+Get the address from Namepass. Use the returned chain and USDC token.
+Send with my existing wallet after checking my authorization.
+Save the transaction hash and chain ID, then poll until complete.
+Do not send a second payment because polling is pending.
 ```
 
-## Use Markdown without MCP
+Your wallet or agent manages its own wallet access and payment approvals. Namepass only needs the ENS name, then the source transaction hash and chain ID.
 
-Each page has **Copy page** and **View as Markdown** actions. The [documentation index](/llms.txt) lists every guide and API operation. The [full documentation](/llms-full.txt) is useful when your tool can ingest a larger context. Prefer individual pages when the question is narrow.
+## Read the contract
 
-The [OpenAPI contract](/openapi.json) defines request and response schemas. Markdown explains behavior; OpenAPI defines the wire contract. Both are generated from the same checked sources used by this site.
-
-## Review the result
-
-Check that the agent preserves your existing payment authorization and custody model. The docs MCP does not verify live transfers or supply credentials. Your operator provides the deployment and scopes; your payment system controls broadcasting.
-
-Review signature verification, duplicate events, out-of-order versions, replay after an outage and canonicality corrections. The [runnable examples](https://github.com/wildcardlabs/namepass/tree/codex/integration-api-plan/examples/integration) are reference implementations, not a replacement for your app's ledger design.
+Use [Markdown](/docs/quickstart.md), [OpenAPI](/openapi.json) or the [integration skill](/docs/skills). The [documentation index](/llms.txt) lists these resources as plain text.

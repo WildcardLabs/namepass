@@ -81,53 +81,59 @@ remain permissionless. Service health dashboards require GitHub authentication a
 health RPC polling. They do not replace provider alerts. Recovery and retention jobs are documented in
 [RUNBOOK.md](RUNBOOK.md); metric definitions are in [MONITORING.md](MONITORING.md).
 
-## Partner integrations
+## Public integration
 
-`routes/api/v1/` uses scoped server credentials, database quotas and encrypted idempotent
-responses. Activation and receipt registration create durable jobs. Name and activity GETs
-read stored projections; they do not call an RPC or start payment workflows. Partner references,
-keys and webhook destinations are private. Watches subscribe to public name activity and do not
-claim ownership of that name or its pooled wallet.
+The integration has four unauthenticated endpoints: `POST /api/v1/address`, `POST /api/v1/quote`,
+`GET /api/v1/status/{chainId}?transactionHash={hash}` and `GET /api/v1/names/{name}/renewals`. Apps, wallets, scripts and agents use
+one flow: get the address, send USDC with their own wallet, then poll. There are no integration
+accounts, API keys, transaction registration, event feeds, outgoing webhooks or MCP server.
+Goldsky's authenticated ingestion webhook remains an internal provider boundary.
 
-Migration `0009` adds the SQL journal and integration tables, described by
-`server/integrations/schema.ts`. Source triggers capture allowlisted public revisions in the same
-transaction as each change. The publisher locks one publication row and assigns positions only
-to committed outbox rows. An allocated outbox sequence is never a replay checkpoint. Event,
-resource version, audience and webhook delivery commit together. Source writers do not acquire
-the publication lock.
+Address activation reuses `activateName`: ENS reads, deterministic address derivation, the
+Goldsky watch table and initial balance scans. It returns the full address, subname, alias
+verification flag and current funding chains with token addresses and minimum amounts.
+Status polling reads stored evidence in one query. It makes no chain RPC and starts no payment.
+The lookup uses an indexed source chain ID and transaction hash and returns every matching
+Namepass deposit. No indexed deposit returns `404` with `Retry-After: 5` and queues one receipt
+discovery job per transaction. Repeated polls do not reset its lease or 30-minute discovery window.
+The worker matches supported transfers to activated names and ingests the same canonical identity
+as Goldsky, closing watchlist propagation gaps. It also supports native Arc transactions.
 
-`POST /sync` captures a published position and the caller's watches in a repeatable-read
-transaction. Its immutable snapshot lasts 24 hours. The matching event cursor follows subsequent
-publications. Replay lasts 90 days; retention preserves a baseline for each resource and every
-version required by a live snapshot. Canonical deposits, flows and settlements are not pruned by
-the legacy raw-payload retention job.
+The public statuses are `pending`, `processing`, `complete` and `failed`. Completion requires
+canonical receipt evidence, proven consumption through a covered full-wallet drain, and final
+settlement for every candidate processing flow. CCTP verification binds the source message and
+attested nonce. The gateway renewal must agree with the exact ENS receipt's duration and charge.
+Hub finality is required. Pooled deposits reference shared renewal totals; no per-sender time
+allocation is invented. Source corrections revoke dependent completion in the same transaction.
 
-Execution, deposit consumption and settlement finality are separate facts. Receipt verification
-binds chain, transaction, log index, wallet, token, amount and canonical block. CCTP settlement
-also binds the exact source-message index and attested nonce. The selected gateway renewal must
-agree with the ENS receipt's duration and charge. Hub finality is required for completion.
-Pooled deposits keep all possible processing slices through a proven full drain; no per-sender
-renewal-time allocation is invented. Evidence corrections revoke dependent completion in the
-same transaction. Missing provider evidence remains unresolved.
+Migration `0009_public_status.sql` adds receipt, coverage, consumption, settlement and job tables
+in `server/integrations/schema.ts`. Native transaction identity remains distinct from ERC-20 log
+identity. One bounded evidence Workflow pump repairs and verifies receipts. Durable leases fence
+concurrent work and retain source changes that arrive during a job. Recovery cron repairs missed
+starts. Provider errors leave evidence unverified.
 
-Publication, evidence repair and webhook delivery run as separate bounded Workflow pumps.
-Durable job and delivery leases fence concurrent attempts. Recovery cron repairs missed starts.
-Webhooks use Standard Webhooks signatures, immutable bodies, destination verification, secret
-rotation and a 72-hour retry window. DNS is checked and pinned for each request; redirects and
-private destinations are blocked. Event replay remains the recovery authority.
+The public guide is `/docs`. `docs/api/openapi.json` defines the four endpoints. Run
+`npm run generate:api` and `npm run check:api` for the generated contract and TypeScript types.
+The runnable general-purpose example is in `examples/integration/`.
 
-The public guide is `/docs`. The machine-readable contract is `docs/api/openapi.json`; run
-`npm run generate:api` after changing its builder, and `npm run check:api` to verify both generated
-artifacts. Runnable bank, receiver and reconciliation examples are in `examples/integration/`.
+Quotes normalize the name and read the pointer-selected helper's actual `quote` method at one
+hub block. The frontend mirrors this verified helper algorithm. The allowance is read from the
+gateway and subtracted first. Source route reads use one source block. The quote refuses disabled
+burns, nonzero minimum Circle fees, unsupported helper code and amounts above the live burn cap.
+The current [Circle contract](https://github.com/circlefin/evm-cctp-contracts/blob/master/src/v2/TokenMessengerV2.sol)
+exposes `getMinFeeAmount`. This matters because automatic processing authorizes zero bridge fees.
+Quotes expire after 60 seconds, assume one flow and exclude pre-existing wallet funds. There is
+no shared mutable pricing cache or fallback rate.
 
+Name history is a stored, name-filtered keyset query over canonical renewal events and their
+flows. It includes recorded expiry/freshness and verification status. An opaque cursor orders
+by event time and identity and never changes the name predicate. This is a public query scope,
+not private user authorization. No all-platform history endpoint is exposed.
 
-### Public documentation and agent tools
+## Documentation and agent skill
 
-The standalone `/docs` application and `/api/docs/mcp` use the generated catalog in `shared/docs/`.
-The catalog combines Markdown guides, API operation pages and the integration skill. Run
-`npm run generate:docs` after changing those inputs; CI verifies freshness with `check:docs`.
-Static Markdown and LLM indexes are served from `public/`. The public MCP route uses the official
-SDK with stateless Streamable HTTP, bounded JSON requests and no SSE session. Its tools search
-and read documentation and return operation schemas, including transitive references. Resources
-expose the same guides, skill and OpenAPI contract. It has no database, partner, wallet or chain
-access and does not depend on the authenticated API feature flag.
+`docs/content/` and OpenAPI generate the standalone `/docs` catalog in `shared/docs/`, plain
+Markdown, `llms.txt`, `llms-full.txt` and the downloadable integration skill. Run
+`npm run generate:docs` after editing inputs; CI checks freshness with `npm run check:docs`.
+An existing wallet or coding agent uses the same two HTTP calls. The short skill supplies the
+send-and-poll sequence; it needs no Namepass-specific MCP connection.

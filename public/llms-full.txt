@@ -1,59 +1,37 @@
 # Namepass integration documentation
 
-API version 2026-09-28. Testnet access requires operator configuration.
+API version 2026-09-30. Testnet access requires operator configuration.
 
 # Introduction
 
 Source: https://beta.namepass.com/docs/introduction
 
-Namepass turns USDC funding into ENS renewal time. Give your users one deposit address for their name, then follow the funds through to a verified renewal.
+Namepass turns USDC into ENS renewal time. Any app, wallet, script or agent can use it.
 
-## Start with your coding agent
+## Three steps
 
-Connect the [docs MCP server](/docs/mcp) and install the [integration skill](/docs/skills). Your agent can search the documentation, inspect the API contract and implement a workflow that fits your application.
+1. **Get the address.** Call `POST /api/v1/address` with an ENS name.
+2. **Send USDC.** Transfer supported USDC to the returned `depositAddress` using your wallet.
+3. **Poll the result.** Call `GET /api/v1/status/{chainId}?transactionHash=...` until `status` is `complete`.
+
+No Namepass API key or account is required. You do not register the transaction or run a relayer. Namepass detects the deposit and handles the renewal.
+
+## Start building
+
+Follow the [quickstart](/docs/quickstart), or give your agent the [integration skill](/docs/skills). Use a [quote](/docs/quotes) to preview the renewal time and [name history](/docs/history) to show past renewals. The [API reference](/docs/reference) describes all four endpoints.
 
 ```text
-Help me add Namepass ENS renewal funding to this application.
-Read the Namepass docs at https://beta.namepass.com/llms.txt and the OpenAPI
-contract at https://beta.namepass.com/openapi.json. Use the integration skill
-at https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md.
-
-Inspect my existing backend, USDC payment flow and database first.
-Implement activation, a private transfer reference, verified webhooks,
-and snapshot-plus-cursor reconciliation. Keep credentials on the server.
-Distinguish a verified deposit from a finalized settlement; never
-allocate invented renewal time to a pooled deposit. Do not send funds.
-Ask me for the deployment URL and scoped API key when they are needed.
+Use Namepass to fund ENS renewals.
+Read https://beta.namepass.com/docs/quickstart.md and
+https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md.
+Get the deposit address for the requested ENS name, send supported
+USDC with my existing wallet, and poll by transaction hash and chain ID.
+Ask for my approval before sending funds unless I already authorized it.
 ```
 
-Prefer to work directly? Follow the [quickstart](/docs/quickstart), then explore the [API reference](/docs/reference).
+## Current networks
 
-## Your app. Their name. One address.
-
-A neobank can add **Fund ENS renewal** next to an existing USDC payment flow. A wallet can help users keep their names active. Your app handles the payment; Namepass handles renewal execution and exposes the evidence you need to reconcile it.
-
-1. **Activate a name.** Retrieve its universal deposit address and ENS alias.
-2. **Report the payment.** Attach the transaction hash to your private transfer reference.
-3. **Follow the result.** Read ongoing activity, consume signed events and confirm finalized settlement.
-
-The same name has the same deposit address on the supported chains in a deployment. Supported tokens, networks and alias verification come from the authenticated configuration endpoint.
-
-## Settlement you can explain
-
-A successful USDC transaction proves a deposit. It does not yet prove a renewal. Namepass keeps deposit verification, wallet consumption and ENS settlement separate so your app can show an accurate status at every stage.
-
-Multiple deposits can fund the same renewal. Completion requires evidence of consumption and finalized settlement for every candidate flow. Read [Understand settlement](/docs/settlement) before mapping these states to your customer ledger.
-
-## Choose your next step
-
-- [Connect a neobank or wallet](/docs/quickstart): activate a name and report an existing payment.
-- [Build a reliable ledger](/docs/sync): bootstrap history and capture changes to ongoing flows.
-- [Receive signed notifications](/docs/webhooks): verify, persist and replay events.
-- [Give your agent context](/docs/agents): use Markdown, MCP and the integration skill together.
-
-## Current availability
-
-The integration contract is **2026-09-28** and targets the configured testnet deployment. Documentation availability does not imply that API access or mainnet funding is enabled. Obtain deployment details and a scoped key from your Namepass operator. See [Availability & support](/docs/release).
+The current deployment uses testnets. The address response lists supported chains, USDC contracts and minimum amounts. Use those values. Mainnet funding is not enabled.
 
 ---
 
@@ -61,370 +39,196 @@ The integration contract is **2026-09-28** and targets the configured testnet de
 
 Source: https://beta.namepass.com/docs/quickstart
 
-## A bank integration in five steps
+The flow is like CCTP: submit the source transaction, then poll by its hash and source chain. With Namepass, you send USDC to a deposit address and Namepass performs the bridge and renewal.
 
-1. Obtain a scoped server-side API key from your Namepass operator.
-2. Activate the ENS name and wait for initialization to finish.
-3. Send supported USDC to the returned address using your existing payment system.
-4. Register the transaction hash and your private transfer reference.
-5. Consume webhooks or the event feed. Mark the customer transfer complete only after consumption is proven and all candidate renewals are finalized.
+## 1. Get a deposit address
 
 ```bash
-# Keep the key on your server. Read GET /config first.
-export NAMEPASS_API="https://your-deployment.example/api/v1"
-curl "$NAMEPASS_API/names/activate" \
-  -H "Authorization: Bearer $NAMEPASS_API_KEY" \
+curl -X POST 'https://beta.namepass.com/api/v1/address' \
   -H 'Content-Type: application/json' \
-  -H 'Idempotency-Key: customer-42-activate-alice' \
-  -d '{"name":"alice.eth"}'
+  -d '{"name":"example.eth"}'
 ```
 
-An initialization response is `202` with `operationId`, `nameId`, the full `depositAddress` and the alias. Poll `GET /activations/{id}` or follow `activation.updated`. Publication is asynchronous; a newly returned ID can briefly be unavailable in the read projection. Retry with backoff.
+The response contains `depositAddress`, `subname` and supported `chains`. The name is activated automatically. Use the full address for payments. Use the subname only when `subnameVerified` is true.
+
+Before sending, you can [request a quote](/docs/quotes) to preview how much renewal time your amount buys.
+
+## 2. Send USDC
+
+Choose a chain from `chains`. Send its `tokenAddress` USDC to `depositAddress` using your existing wallet or agent. Use an amount at least as large as `minimumAmount`. Amounts are six-decimal USDC integers: `1000000` means one USDC.
+
+Save the transaction hash and the chain ID. Nothing needs to be registered with Namepass. A USDC transfer is the source transaction; Namepass handles any CCTP burn, claim and ENS renewal.
+
+## 3. Poll until complete
+
+```javascript
+async function waitForRenewal(baseUrl, chainId, transactionHash, signal) {
+  const url = `${baseUrl}/api/v1/status/${chainId}?transactionHash=${transactionHash}`;
+  for (;;) {
+    signal?.throwIfAborted();
+    const response = await fetch(url, { signal });
+    if (response.ok) {
+      const result = await response.json();
+      if (result.status === "complete") return result;
+      if (result.status === "failed") throw new Error("The source transaction was invalidated. Inspect it before retrying.");
+    } else if (![404, 429, 503].includes(response.status)) {
+      throw new Error(`Namepass returned ${response.status}`);
+    }
+    const seconds = Number(response.headers.get("Retry-After") ?? 5);
+    await new Promise(resolve => setTimeout(resolve, Number.isFinite(seconds) ? Math.max(5, seconds) * 1000 : 5000));
+  }
+}
+```
+
+Poll about every five seconds and honor `Retry-After`. A `404` means the deposit is not indexed yet; retry the same URL. Stop or cancel polling when your app no longer needs it.
+
+`complete` means Namepass verified the source funds were processed and the renewal was finalized. Read the returned `deposits[].renewals` for renewal transaction hashes and seconds added.
+
+Use [name history](/docs/history) to show past renewals and the recorded expiry in your app.
 
 ---
 
-# Authentication & conventions
-
-Source: https://beta.namepass.com/docs/contract
-
-## API conventions
-
-- Keep API keys on your backend. Scopes are `read`, `names:write`, `transfers:write`, `flows:retry` and `webhooks:manage`.
-- All creation and action writes require `Idempotency-Key`, except read-only quotes and snapshot creation. Reuse the exact body. Different bodies with the same key return `409`.
-- Amounts, chain IDs, block numbers and resource versions use decimal strings. Resource versions may skip numbers. JSON bodies are limited to 8 KiB.
-- Default limits are 10 reads/second (burst 20), 60 writes/minute and 10 activation, refresh or quote requests/minute. Honor `Retry-After` on `429`.
-- Pages default to 50 items and allow at most 100. Cursors are opaque and bound to your partner, deployment and query.
-- Errors contain `error.code`, `error.message` and `requestId`. Include the request ID when asking the operator for help.
-- Read projections and notifications are asynchronous. Do not interpret temporary absence immediately after a write as rejection.
-
----
-
-# Deposit addresses
+# Get an address
 
 Source: https://beta.namepass.com/docs/addresses
 
-## Activation and deposit addresses
+Call `POST /api/v1/address` with `{"name":"example.eth"}`. No authorization header is needed.
 
-The same ENS label derives the same deposit address on the supported chains in this deployment. Always use the chain and token addresses from `GET /config`. A watch is a subscription to public name activity; it does not establish ownership of the ENS name or a deposit.
+## What you get
 
-## ENS alias verification
+- `name`: the normalized ENS name.
+- `depositAddress`: the full payment address, shared across the supported chains.
+- `subname`: the corresponding `namepass.eth` subname.
+- `subnameVerified`: whether this deployment has verified subname resolution.
+- `chains`: supported chain IDs, USDC token addresses and minimum funding amounts.
 
-The alias has the form `alice.namepass.eth`. Its resolution chain is Ethereum mainnet, even for the current testnet payment deployment. Only use alias resolution when `config.alias.verified` is true and the resolved address matches the returned full deposit address. Activation can return an address before history repair finishes.
+Use the returned values instead of hardcoding addresses or networks. The call activates monitoring for the name. Calling it again returns the same deposit address.
 
-## Stored state and history
+## Send the payment
 
-`GET /names/{name}` reads stored state without making RPC calls or starting renewals. Its balances are block-tagged snapshots, not spendable balance promises. Native Arc discovery has a separate bounded activation range in the coverage fields; later native transfers are discovered by the live indexer or exact transaction registration. `historyCoverage` gives explicit per-chain block ranges. A balance snapshot does not recover historical senders. Use `POST /names/{name}/refresh` to request a new scan.
+Use your existing wallet to transfer the supported USDC token. Namepass does not hold your wallet keys. Keep the transaction hash and source chain ID, then [poll the status](/docs/status).
 
-## Supported funding modes
-
-ERC-20 USDC transfers are supported on every configured chain. Arc additionally supports top-level native USDC transfers: native value uses 18 decimals and must convert exactly to six-decimal USDC. Internal native transfers are outside this funding contract.
+A name that cannot currently be renewed returns `422`. Unavailable ENS reads return `503`; retry without sending funds.
 
 ---
 
-# Funding estimates
+# Estimate renewal time
 
 Source: https://beta.namepass.com/docs/quotes
 
-## Quote before funding
+Call `POST /api/v1/quote` to see what an amount of USDC buys before sending it.
 
-`POST /quotes` accepts a name, chain ID and amount in micro-USDC. It reads the selected ENS helper and its quote at one verified hub block. Quotes expire after 60 seconds. They are estimates for one renewal flow with standard CCTP, unchanged pricing and no existing wallet balance.
-
-```json
-{"name":"alice.eth","chainId":"84532","amount":"10000000"}
-```
-
-## Exact amounts and assumptions
-
-Keep arithmetic in integers. Ten USDC is `"10000000"`. Fees are charged per renewal flow; pooled deposits share the result. A quote is not a payment instruction, reservation, or settlement guarantee.
-
----
-
-# Track a transfer
-
-Source: https://beta.namepass.com/docs/transfers
-
-## Give each bank transfer a durable identity
+## Request a quote
 
 ```bash
-curl "$NAMEPASS_API/transfers" \
-  -H "Authorization: Bearer $NAMEPASS_API_KEY" \
+curl -X POST 'https://beta.namepass.com/api/v1/quote' \
   -H 'Content-Type: application/json' \
-  -H 'Idempotency-Key: bank-transfer-1001' \
-  -d '{
-    "name":"alice.eth",
-    "chainId":"84532",
-    "txHash":"0x…64 hexadecimal characters…",
-    "transferKind":"erc20",
-    "reference":"bank-transfer-1001"
-  }'
+  -d '{"name":"example.eth","chainId":"84532","amount":"1000000"}'
 ```
 
-Keep the returned `transferId`. The reference is private to your integration and remains unique beyond the seven-day idempotency window. A report is accepted before mining or indexing. Namepass verifies chain identity, successful receipt, recipient, token, value and the canonical block.
+Use a funding chain from the [address response](/docs/addresses). Amounts use six-decimal USDC integer strings: `1000000` is one USDC.
 
-## Select a log or replace a transaction
+## What it tells you
 
-If one receipt contains several matching transfers, the result becomes `selection_required`. Submit the chosen `logIndex` to `POST /transfers/{id}/transactions`. Use that same endpoint for replacement hashes. One bank transfer must not silently become several mined payments. Native Arc uses `transferKind: "native"` without a log index.
+`secondsAdded` is the estimated renewal time. `amountApplied` goes toward ENS renewal, `renewalFee` is the allowance for one processing flow, and `bridgeFee` is zero for the current standard CCTP route. `roundingRemainder` is the amount left after rounding; it is retained by the renewal gateway.
 
-## Map the transfer state
+The API reads the active helper at `pricingBlock`, using the same pricing algorithm as the frontend. `expiresAt` is 60 seconds after the quote. Send an amount at least as large as the returned chain's `minimumAmount`.
 
-Transfer statuses are `reported`, `selection_required`, `verified`, `rejected`, `orphaned` and `completed`. Verified means the deposit receipt is valid. Completed means the conservative consumption rule below has passed. A missing receipt stays pending; it is not a failed payment.
+## Estimate limits
 
----
+A quote assumes one processing flow and no existing wallet balance. Deposits can accumulate together, pricing can change, and the final receipt can differ. Use [transaction status](/docs/status) for the actual result.
 
-# Understand settlement
-
-Source: https://beta.namepass.com/docs/settlement
-
-## Know what completed means
-
-| Fact | What it proves |
-| --- | --- |
-| Deposit verified | The exact transfer occurred in a successful canonical receipt. |
-| Consumption consumed | A verified full drain and complete processing coverage prove the funds left the source wallet. |
-| Flow settled | The selected Namepass renewal receipt has been verified. |
-| Settlement observed | The gateway and ENS receipt prove the renewal and its exact amounts. |
-| Settlement finalized | The hub block is canonical and at or below the finalized head. |
-| Transfer completed | Consumption is proven and every candidate settlement is finalized. |
-
-## Pooled deposits
-
-For example, deposits of 3 and 7 USDC can fund one 10 USDC renewal. Both deposits reference the same flow totals. Neither receives an invented share of renewal time. If a wallet is processed in slices, every subsequent flow that could have consumed the deposit remains a candidate until a full drain is verified. Completion waits for all those renewals.
-
-## Read amounts separately
-
-Read `amountProcessed`, `bridgeFee`, `amountReceivedOnHub`, `executorAllowance`, `amountApplied`, `roundingResidue` and `originWalletRemainder` separately. The gateway retains rounding residue. It is not a refundable source-wallet balance. Per-deposit allocations remain unknown for pooled funds.
-
-## Finality and corrections
-
-Source finality, Circle attestation and hub finality are different facts. Reorgs produce new resource versions and can invalidate settlement evidence. Persist revisions and correction events; do not infer finality from the legacy deposit observation status or elapsed time.
+An amount above the source chain's live Circle burn limit returns `422` with `error.details.maximumAmount`. Larger deposits need multiple flows and allowances, so a single-flow quote would overstate their renewal time. A name that cannot renew or an amount below the minimum also returns `422`. Disabled burns, a nonzero Circle minimum fee, or unavailable or unverified pricing return `503`; the API does not invent a fallback price.
 
 ---
 
-# Sync & replay
+# Poll status
 
-Source: https://beta.namepass.com/docs/sync
+Source: https://beta.namepass.com/docs/status
 
-## Bootstrap once. Resume by cursor.
+Call `GET /api/v1/status/{chainId}?transactionHash={hash}` after sending USDC. No authorization header or transfer registration is needed.
 
-A timestamp is useful for an initial history query. It is unsafe as your ongoing checkpoint: a transfer created yesterday can settle today, and independent database transactions can commit out of order.
+## Statuses
 
-## Create a checkpoint
+| Status | Meaning | What to do |
+| --- | --- | --- |
+| `pending` | The deposit is indexed and verification is pending. | Poll again. |
+| `processing` | The deposit is verified and is awaiting processing or renewal confirmation. | Poll again. |
+| `complete` | The funds were processed and the renewal is finalized. | Show completion. |
+| `failed` | The source deposit was invalidated, such as by a chain reorganization. | Inspect the transaction before taking further action. |
 
-1. Create the desired watches, then call `POST /sync`.
-2. Save its snapshot ID and `eventsCursor`.
-3. Page `GET /sync/{id}` until `hasMore` is false. Replace your local resources using their IDs and versions.
-4. Poll `GET /events?cursor=…` from that saved event cursor.
-5. Commit each batch and its returned `nextCursor` together in your database.
+A `404` means no Namepass deposit has been indexed for this transaction yet. Retry the same URL. A `429` or `503` is temporary; honor `Retry-After`. Invalid chain IDs or malformed transaction hashes return `400`.
 
-## A consistent view
+Deposits below the returned `minimumAmount` wait for enough USDC to accumulate at the address. A pending status alone does not mean another payment is needed.
 
-The snapshot freezes state at one published position and lasts 24 hours. Later commits appear after the saved event cursor, including transactions that started earlier. Resource lists also freeze a position while paging. Do not change filters mid-page. Adding a new watch requires another snapshot for that scope.
+## The result
 
-## Retention and history
+The response includes `chainId`, `transactionHash`, `status` and `deposits`. A transaction can contain several deposits, so each entry has its own name, amount, log index and status. The top-level status is `complete` only when all entries are complete.
 
-Events are retained for 90 days. `GET /events?from=2026-09-28T00:00:00Z` uses inclusive publication time. Switch to the returned cursor after the first page. A `410` means you must create a fresh snapshot. Canonical resource history remains subject to the deployment’s evidence coverage.
+Completed entries include `renewals` with their transaction hashes, seconds added and resulting expiry. Renewal totals can include other deposits into the same name's address; they are not a per-deposit allocation.
 
----
+## Polling
 
-# Receive webhooks
-
-Source: https://beta.namepass.com/docs/webhooks
-
-## Signed notifications, with replay
-
-Create an endpoint with `POST /webhook-endpoints`. Store the one-time `signingSecret`, then call `POST /webhook-endpoints/{id}/verify`. The endpoint becomes active after your server accepts its signed `endpoint.verification` event. Empty `eventTypes` subscribes to all eligible events.
-
-## Verify the raw body
-
-Verify the Standard Webhooks headers `webhook-id`, `webhook-timestamp` and `webhook-signature` against the exact raw body before parsing JSON. The signed value is `id.timestamp.body`, authenticated with HMAC-SHA256 and the base64-decoded secret after `whsec_`. Accept timestamps within five minutes and compare signatures in constant time.
-
-## Persist and deduplicate
-
-Persist the event and deduplication ID before returning `2xx`; process it asynchronously. Delivery is at least once and may arrive out of order. Upsert only newer resource versions. The replay feed is the recovery authority. During secret rotation, deliveries carry both signatures for 24 hours.
-
-## Retries and timeouts
-
-Attempts time out after 20 seconds. Network failures, `408`, `429` and `5xx` retry with delays of 10 seconds, 1 minute, 5 minutes, 30 minutes, 2 hours and then 6 hours, within 72 hours. Other `4xx` and redirects pause the delivery. Public HTTPS on port 443 is required; private destinations, redirects and DNS rebinding are blocked.
-
-## Manage delivery
-
-Inspect `/webhook-deliveries`, test an endpoint, rotate its secret, or replay an original event. Editing an endpoint pauses pending deliveries from its previous configuration. Replay is explicit after the destination is verified. Test and verification events must never be treated as customer settlements.
+Poll about every five seconds. Respect the `Retry-After` header. Pending progress does not require another payment. Resume later using the same chain ID and transaction hash; you do not need a session or cursor.
 
 ---
 
-# Recover a flow
+# Name history
 
-Source: https://beta.namepass.com/docs/recovery
+Source: https://beta.namepass.com/docs/history
 
-## Recover without sending twice
+Call `GET /api/v1/names/{name}/renewals` to show renewal history for one ENS name. No platform-wide history endpoint is provided.
 
-A held flow means funds can still be at the source wallet. `unclaimed` means a source burn needs its existing Circle message completed. A failed or cancelled execution does not prove a refund. Follow the reason code and evidence before taking action.
+## Read a name's history
 
-## Resume the same flow
+```bash
+curl 'https://beta.namepass.com/api/v1/names/example.eth/renewals?limit=20'
+```
 
-`POST /flows/{id}/retry` revalidates and resumes that same safe flow. It does not ask the bank to send another payment. Unsupported recovery returns a conflict and needs operator reconciliation. If a flow was absorbed or merged, its lookup remains available with `supersededBy`.
+The response contains `name`, `currentExpiry`, `expiryUpdatedAt`, `items` and `nextCursor`. Expiry is the stored ENS state; `expiryUpdatedAt` tells you when that state was read. Getting the deposit address refreshes it.
 
-## Restore missing activity
+Each item identifies a renewal flow and its source chain, hub transaction, time added, ENS amount, renewal fee, expiry and renewal timestamp. `complete` means its renewal was verified and finalized. `processing` means verification is pending. Unknown evidence remains `null`; it is not a zero value.
 
-For receiver outages, resume from the last committed event cursor. For missed indexing, report the exact transaction hash. For older transactions, archive receipt availability determines recovery coverage. Keep the transfer unresolved when evidence is incomplete.
+## Load more
 
----
+Pass `nextCursor` as the `cursor` query parameter for the same name. Encode it with `URLSearchParams`. The default limit is 20 and the maximum is 100. A null cursor means no more entries are available. Newest renewals appear first; refresh the first page to see new or late-indexed renewals.
 
-# Availability & support
+```javascript
+const url = new URL("https://beta.namepass.com/api/v1/names/example.eth/renewals");
+url.searchParams.set("limit", "20");
+if (nextCursor) url.searchParams.set("cursor", nextCursor);
+const history = await (await fetch(url)).json();
+```
 
-Source: https://beta.namepass.com/docs/release
+## Scope
 
-## Release and support
-
-This version targets the configured testnet deployment. API access is enabled by the operator after migration, configuration, archive/finality provider checks and signed canary verification. The docs being available does not imply that mainnet payments or API access are enabled.
-
-## Contract versioning
-
-Version `2026-09-28` introduces partner scopes, durable transfer references, exact settlement evidence, consistent snapshots, replay, signed webhooks and recovery controls. Additive fields may appear without changing the version; clients should ignore unknown response fields. Breaking changes require a new contract version.
-
-## Get support
-
-Contact your Namepass operator with the request ID, deployment ID, transfer ID and transaction hash. Do not send API keys, signing secrets or signed transaction bytes.
+History is filtered by ENS name, so an app requests the name its user is viewing. It includes public renewals of that name by any funder. An ENS name is the subject of the query, not a private ownership boundary. A `404` means the name has not been activated; get its deposit address first.
 
 ---
 
-# Build with your agent
+# Use an agent
 
 Source: https://beta.namepass.com/docs/agents
 
-Use your coding agent to implement the integration in the language, framework and database your app already uses. Give it current documentation and the settlement rules before asking it to write code.
+An agent such as Bankr uses the same flow as an app: get an address, send USDC, then poll the transaction. No Namepass MCP server or API key is needed.
 
-## Connect the documentation
-
-The public [docs MCP server](/docs/mcp) gives your agent three tools: search documentation, read a complete page and inspect an API operation. It requires no API key and has no access to partner data or payment execution.
-
-```json
-{
-  "mcpServers": {
-    "namepass-docs": {
-      "type": "http",
-      "url": "https://beta.namepass.com/api/docs/mcp"
-    }
-  }
-}
-```
-
-Use your client's remote HTTP MCP configuration. The [MCP guide](/docs/mcp) includes client-specific setup and tool details.
-
-## Install the integration skill
-
-The [Namepass integration skill](/docs/skills) teaches your agent the API workflow, ledger rules and evidence boundaries. It is a standard `SKILL.md` file that you can inspect before installation.
-
-```bash
-mkdir -p .agents/skills/namepass-integration
-curl -fsSL 'https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md' \
-  -o .agents/skills/namepass-integration/SKILL.md
-```
-
-If your client uses a different skill directory, save the same file there. Keep the skill in your project when you want the whole team to share the integration guidance.
-
-## Give it a concrete task
+## Give it the task
 
 ```text
-Use the Namepass integration skill and docs MCP to add ENS renewal
-funding to our app. Inspect our payment and ledger code first.
-
-Build these pieces using our existing stack:
-- Backend-only scoped API authentication and stable idempotency keys.
-- ENS name activation and display of the full returned deposit address.
-- Registration of an already-sent USDC transaction with a private reference.
-- A raw-body webhook receiver that verifies signatures and persists events
-  before acknowledging them.
-- A snapshot bootstrap and event poller that commits resource updates and
-  the returned cursor in one database transaction.
-
-Use the generated OpenAPI contract. Keep amounts and versions exact.
-Only show completion after consumption is proven and all candidate
-settlements are finalized. Handle correction events and expired cursors.
-Use a test deployment; do not broadcast a payment or deploy to production.
+Fund the ENS renewal for [name] with [amount] USDC on [chain].
+Read https://beta.namepass.com/docs/quickstart.md and the integration skill at
+https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md.
+Get the address from Namepass. Use the returned chain and USDC token.
+Send with my existing wallet after checking my authorization.
+Save the transaction hash and chain ID, then poll until complete.
+Do not send a second payment because polling is pending.
 ```
 
-## Use Markdown without MCP
+Your wallet or agent manages its own wallet access and payment approvals. Namepass only needs the ENS name, then the source transaction hash and chain ID.
 
-Each page has **Copy page** and **View as Markdown** actions. The [documentation index](/llms.txt) lists every guide and API operation. The [full documentation](/llms-full.txt) is useful when your tool can ingest a larger context. Prefer individual pages when the question is narrow.
+## Read the contract
 
-The [OpenAPI contract](/openapi.json) defines request and response schemas. Markdown explains behavior; OpenAPI defines the wire contract. Both are generated from the same checked sources used by this site.
-
-## Review the result
-
-Check that the agent preserves your existing payment authorization and custody model. The docs MCP does not verify live transfers or supply credentials. Your operator provides the deployment and scopes; your payment system controls broadcasting.
-
-Review signature verification, duplicate events, out-of-order versions, replay after an outage and canonicality corrections. The [runnable examples](https://github.com/wildcardlabs/namepass/tree/codex/integration-api-plan/examples/integration) are reference implementations, not a replacement for your app's ledger design.
-
----
-
-# Docs MCP server
-
-Source: https://beta.namepass.com/docs/mcp
-
-Connect your editor or agent to the Namepass documentation through Model Context Protocol. This server provides public documentation and API schemas over stateless Streamable HTTP.
-
-## Server URL
-
-```text
-https://beta.namepass.com/api/docs/mcp
-```
-
-No Namepass API key is required. The server reads a versioned, bundled documentation catalog. It never reads your account, starts a renewal, registers a transfer, or calls a chain RPC.
-
-## Client setup
-
-In Cursor, add a remote server to your project's `.cursor/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "namepass-docs": {
-      "url": "https://beta.namepass.com/api/docs/mcp"
-    }
-  }
-}
-```
-
-In VS Code with MCP support, use `.vscode/mcp.json`:
-
-```json
-{
-  "servers": {
-    "namepass-docs": {
-      "type": "http",
-      "url": "https://beta.namepass.com/api/docs/mcp"
-    }
-  }
-}
-```
-
-See the [Cursor MCP documentation](https://prod.cursor.com/help/customization/mcp) and [VS Code MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration) for client settings.
-
-For other clients, select remote HTTP transport and enter the server URL. Review your client's trust prompt before enabling it. No bearer credential belongs in this configuration.
-
-## Available tools
-
-| Tool | Use it for |
-| --- | --- |
-| `search_docs` | Find guides and API operations by a phrase or keyword. Returns ranked excerpts and page URLs. |
-| `read_doc` | Retrieve one complete Markdown page by its slug. |
-| `get_api_operation` | Read the exact method, path, parameters, request schema and response schemas for an operation. |
-
-The server also exposes documentation pages, the integration skill and OpenAPI as resources. The `integrate_namepass` prompt assembles an implementation brief for your agent.
-
-## Example questions
-
-- “How should our neobank decide a transfer is completed?”
-- “Find the activation request and its required scopes.”
-- “How do we recover a webhook outage without missing ongoing flows?”
-- “Read the schema for reporting a transaction with a private reference.”
-
-## Scope and version
-
-The MCP server shares the website's generated catalog and OpenAPI contract. It provides API version **2026-09-28** context. It is a documentation server; authenticated integration actions remain in `/api/v1`.
-
-The transport accepts bounded JSON requests. There are no long-lived sessions or required SSE subscriptions. If your client cannot connect, confirm that it supports Streamable HTTP and can reach the URL. Test locally with the same URL on your development origin.
+Use [Markdown](/docs/quickstart.md), [OpenAPI](/openapi.json) or the [integration skill](/docs/skills). The [documentation index](/llms.txt) lists these resources as plain text.
 
 ---
 
@@ -432,9 +236,9 @@ The transport accepts bounded JSON requests. There are no long-lived sessions or
 
 Source: https://beta.namepass.com/docs/skills
 
-The `namepass-integration` skill gives coding agents focused guidance for activation, transfer registration and settlement reconciliation. It works alongside the docs MCP server and generated OpenAPI contract.
+[Download the skill](/docs/skills/namepass-integration/SKILL.md) or give its URL to your agent.
 
-## Install in your project
+## Install in a project
 
 ```bash
 mkdir -p .agents/skills/namepass-integration
@@ -442,122 +246,40 @@ curl -fsSL 'https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md'
   -o .agents/skills/namepass-integration/SKILL.md
 ```
 
-Use your client's skill directory if it differs. [Read the skill](/docs/skills/namepass-integration/SKILL.md) before saving it. The download is a plain Markdown file; it does not execute a script or install a package.
-
-## What it teaches
-
-- Inspect the app's existing payment flow and ledger before proposing changes.
-- Read deployment configuration and use backend-only scoped credentials.
-- Preserve exact amounts, stable references and idempotency.
-- Distinguish deposits, pooled consumption, observed settlement and finality.
-- Verify raw-body webhook signatures, deduplicate events and apply only newer versions.
-- Commit snapshot and cursor reconciliation atomically; recover a `410` by bootstrapping again.
-- Use correction events and evidence coverage instead of elapsed time to infer completion.
-
-## Invoke it
-
-```text
-Use the namepass-integration skill to add ENS renewal funding to our
-existing USDC payment flow. Connect the docs MCP, inspect our backend
-and propose the ledger mapping before implementing it.
-```
-
-Clients with automatic skill discovery can load it when a Namepass integration task applies. You can also name it directly in your prompt.
-
-## Keep context current
-
-The skill points your agent to [the documentation index](/llms.txt), [settlement rules](/docs/settlement), [sync guide](/docs/sync), and [OpenAPI](/openapi.json). Read these current sources for field names and behavior instead of retaining a copied schema in the skill.
-
-The skill grants no payment or production deployment authorization. Your existing application permissions and the user's instructions still control those actions.
+If your agent does not load project skills, ask it to read the file directly. The skill describes the same three steps as the quickstart and adds payment authorization, polling and duplicate-payment rules.
 
 ---
 
-# API overview
+# API reference
 
 Source: https://beta.namepass.com/docs/reference
 
-## API reference
+The public API has four endpoints:
 
-The downloadable OpenAPI file is the machine-readable contract. Its generated TypeScript types and runnable server examples are in the repository under `src/lib/integration-api.generated.ts` and `examples/integration`.
-
-Download [the OpenAPI reference](/openapi.json) to inspect every operation.
-
----
-
-# Discover the active deployment and supported funding modes
-
-Source: https://beta.namepass.com/docs/reference/get_config
-
-Required scope: `read`.
-
-## Endpoint
-
-`GET /api/v1/config`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Responses
-
-| Status | Description |
+| Endpoint | Purpose |
 | --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
+| `POST /api/v1/address` | Get a name's deposit address and supported networks. |
+| `POST /api/v1/quote` | Estimate renewal time from a USDC amount. |
+| `GET /api/v1/status/{chainId}?transactionHash={hash}` | Track a deposit through renewal. |
+| `GET /api/v1/names/{name}/renewals` | Read a name's past renewals and recorded expiry. |
 
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `apiVersion` | string | Yes |  |
-| `environment` | string | Yes |  |
-| `deploymentId` | string | Yes |  |
-| `enabled` | boolean | Yes |  |
-| `eventTypes` | array | Yes |  |
-| `eventRetentionDays` | integer | Yes |  |
-| `snapshotLifetimeSeconds` | integer | Yes |  |
-| `maxPageSize` | integer | Yes |  |
-| `alias` | object | Yes |  |
-| `chains` | array | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
+All work without an API key. Browser requests are supported through CORS. Download [OpenAPI](/openapi.json) for exact schemas.
 
 ---
 
-# Activate a name and create the caller’s watch
+# Get a deposit address
 
-Source: https://beta.namepass.com/docs/reference/post_names_activate
+Source: https://beta.namepass.com/docs/reference/post_address
 
-Required scope: `names:write`.
+Activate an ENS name and return its payment address, subname and supported chains. No API key or authorization header is required.
 
 ## Endpoint
 
-`POST /api/v1/names/activate`
+`POST /api/v1/address`
 
 ## Authentication
 
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `Idempotency-Key` | header | Yes | Reuse the same key and exact body on retries. Cached for seven days. |
+No API key or authorization header is required.
 
 ## Request body
 
@@ -584,466 +306,95 @@ Use a backend-only bearer key. See [Authentication & conventions](/docs/contract
 
 | Status | Description |
 | --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
+| `200` | Address activated and ready for funding. |
+| `400` | Invalid name, chain ID, transaction hash or request. |
+| `422` | Name cannot currently renew, amount is below the minimum, or amount exceeds the single-flow quote limit. |
+| `500` | Server error. |
+| `503` | Temporarily unavailable. Retry after the indicated delay. |
 
 ## Response fields
 
 | Field | Type | Required | Details |
 | --- | --- | --- | --- |
-| `operationId` | string or null | Yes | Format: uuid. |
-| `nameId` | string | Yes | Format: uuid. |
 | `name` | string | Yes |  |
 | `depositAddress` | string | Yes |  |
-| `alias` | string | Yes |  |
-| `deploymentId` | string | Yes |  |
-| `status` | string | Yes | Values: `ready`, `initializing`. |
-| `snapshotRequired` | boolean | Yes |  |
+| `subname` | string | Yes |  |
+| `subnameVerified` | boolean | Yes |  |
+| `chains` | array | Yes |  |
 
 ## Full contract
 
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
+[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields.
 
 ---
 
-# Read a durable operation
+# Poll a transaction
 
-Source: https://beta.namepass.com/docs/reference/get_activations__id_
+Source: https://beta.namepass.com/docs/reference/get_status
 
-Required scope: `read`.
+Poll an already-sent USDC transaction using its source chain ID and hash. No API key, registration or session is required. Complete means every indexed deposit in this transaction has a verified, finalized renewal.
 
 ## Endpoint
 
-`GET /api/v1/activations/{id}`
+`GET /api/v1/status/{chainId}`
 
 ## Authentication
 
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
+No API key or authorization header is required.
 
 ## Parameters
 
 | Name | Location | Required | Description |
 | --- | --- | --- | --- |
-| `id` | path | Yes |  |
+| `chainId` | path | Yes | Source blockchain chain ID, from the address response. This is a chain ID, not a CCTP domain. |
+| `transactionHash` | query | Yes | The USDC deposit transaction hash returned by your wallet. |
 
 ## Responses
 
 | Status | Description |
 | --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
+| `200` | Current progress. Poll pending or processing; stop at complete. |
+| `400` | Invalid name, chain ID, transaction hash or request. |
+| `404` | Deposit not indexed yet. Retry the same URL. |
+| `500` | Server error. |
+| `503` | Temporarily unavailable. Retry after the indicated delay. |
 
 ## Response fields
 
 | Field | Type | Required | Details |
 | --- | --- | --- | --- |
-| `id` | string | Yes |  |
-| `version` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `resourceType` | string | Yes |  |
-| `environment` | string | Yes | Values: `testnet`, `mainnet`. |
-| `deploymentId` | string | Yes |  |
-| `kind` | string | Yes |  |
-| `nameId` | string or null | Yes | Format: uuid. |
-| `status` | string | Yes | Values: `pending`, `running`, `succeeded`, `failed`, `selection_required`. |
-| `result` | object or null | Yes |  |
-| `reasonCode` | string or null | Yes |  |
-| `createdAt` | string | Yes | Format: date-time. |
+| `chainId` | string | Yes | Exact integer encoded as a decimal string. |
+| `transactionHash` | string | Yes |  |
+| `status` | string | Yes | Values: `pending`, `processing`, `complete`, `failed`. |
+| `deposits` | array | Yes |  |
 
 ## Full contract
 
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
+[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields.
 
 ---
 
-# Read stored name, alias verification, balance snapshots and history coverage
+# Estimate a renewal
 
-Source: https://beta.namepass.com/docs/reference/get_names__name_
+Source: https://beta.namepass.com/docs/reference/post_quote
 
-Required scope: `read`.
-
-## Endpoint
-
-`GET /api/v1/names/{name}`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `name` | path | Yes |  |
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `id` | string | Yes |  |
-| `version` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `resourceType` | string | Yes |  |
-| `environment` | string | Yes | Values: `testnet`, `mainnet`. |
-| `deploymentId` | string | Yes |  |
-| `label` | string | Yes |  |
-| `name` | string | Yes |  |
-| `depositAddress` | string | Yes |  |
-| `activatedAt` | string | Yes | Format: date-time. |
-| `currentExpiry` | string or null | Yes |  |
-| `renewableBy` | string or null | Yes |  |
-| `ensSyncedAt` | string | Yes | Format: date-time. |
-| `unscannedChainIds` | array | Yes |  |
-| `lifetimeReceived` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `lifetimeApplied` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `timeDeliveredSeconds` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `renewalCount` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `alias` | object | Yes |  |
-| `historyCoverage` | array | Yes |  |
-| `balances` | array | Yes |  |
-| `fundingStatus` | string | Yes | Values: `ready`, `initializing`. |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Refresh ENS and chain coverage asynchronously
-
-Source: https://beta.namepass.com/docs/reference/post_names__name__refresh
-
-Required scope: `names:write`.
+Estimate how much renewal time an amount of USDC buys for one name and funding chain. Reads the active helper at one block, using the same pricing algorithm as the frontend. The estimate expires after 60 seconds and assumes one processing flow without an existing wallet balance.
 
 ## Endpoint
 
-`POST /api/v1/names/{name}/refresh`
+`POST /api/v1/quote`
 
 ## Authentication
 
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `name` | path | Yes |  |
-| `Idempotency-Key` | header | Yes | Reuse the same key and exact body on retries. Cached for seven days. |
-
-## Request body
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-
-
-```json
-{
-  "type": "object",
-  "properties": {},
-  "required": [],
-  "additionalProperties": false
-}
-```
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `operationId` | string or null | Yes | Format: uuid. |
-| `nameId` | string | Yes | Format: uuid. |
-| `name` | string | Yes |  |
-| `depositAddress` | string | Yes |  |
-| `alias` | string | Yes |  |
-| `deploymentId` | string | Yes |  |
-| `status` | string | Yes | Values: `ready`, `initializing`. |
-| `snapshotRequired` | boolean | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# List the caller’s enabled name watches
-
-Source: https://beta.namepass.com/docs/reference/get_watches
-
-Required scope: `read`.
-
-## Endpoint
-
-`GET /api/v1/watches`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `limit` | query | No |  |
-| `cursor` | query | No |  |
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `items` | array | Yes |  |
-| `hasMore` | boolean | Yes |  |
-| `nextCursor` | string or null | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Watch an activated name; bootstrap with /sync
-
-Source: https://beta.namepass.com/docs/reference/put_watches__name_
-
-Required scope: `names:write`.
-
-## Endpoint
-
-`PUT /api/v1/watches/{name}`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `name` | path | Yes |  |
-| `Idempotency-Key` | header | Yes | Reuse the same key and exact body on retries. Cached for seven days. |
-
-## Request body
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-
-
-```json
-{
-  "type": "object",
-  "properties": {},
-  "required": [],
-  "additionalProperties": false
-}
-```
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `nameId` | string | Yes | Format: uuid. |
-| `enabled` | boolean | Yes |  |
-| `snapshotRequired` | boolean | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Stop new notifications for a name
-
-Source: https://beta.namepass.com/docs/reference/delete_watches__name_
-
-Required scope: `names:write`.
-
-## Endpoint
-
-`DELETE /api/v1/watches/{name}`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `name` | path | Yes |  |
-| `Idempotency-Key` | header | Yes | Reuse the same key and exact body on retries. Cached for seven days. |
-
-## Request body
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-
-
-```json
-{
-  "type": "object",
-  "properties": {},
-  "required": [],
-  "additionalProperties": false
-}
-```
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `nameId` | string | Yes | Format: uuid. |
-| `enabled` | boolean | Yes |  |
-| `snapshotRequired` | boolean | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Quote an exact input amount at a verified hub block
-
-Source: https://beta.namepass.com/docs/reference/post_quotes
-
-Required scope: `read`.
-
-## Endpoint
-
-`POST /api/v1/quotes`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
+No API key or authorization header is required.
 
 ## Request body
 
 | Field | Type | Required | Details |
 | --- | --- | --- | --- |
 | `name` | string | Yes |  |
-| `chainId` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `amount` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
+| `chainId` | string | Yes | Exact integer encoded as a decimal string. |
+| `amount` | string | Yes | Exact integer encoded as a decimal string. |
 
 ```json
 {
@@ -1055,12 +406,12 @@ Use a backend-only bearer key. See [Authentication & conventions](/docs/contract
     "chainId": {
       "type": "string",
       "pattern": "^(0|[1-9][0-9]*)$",
-      "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
+      "description": "Exact integer encoded as a decimal string."
     },
     "amount": {
       "type": "string",
       "pattern": "^(0|[1-9][0-9]*)$",
-      "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
+      "description": "Exact integer encoded as a decimal string."
     }
   },
   "required": [
@@ -1076,1817 +427,76 @@ Use a backend-only bearer key. See [Authentication & conventions](/docs/contract
 
 | Status | Description |
 | --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
+| `200` | Estimated renewal time and fee breakdown. |
+| `400` | Invalid name, chain ID, transaction hash or request. |
+| `422` | Name cannot currently renew, amount is below the minimum, or amount exceeds the single-flow quote limit. |
+| `500` | Server error. |
+| `503` | Temporarily unavailable. Retry after the indicated delay. |
 
 ## Response fields
 
 | Field | Type | Required | Details |
 | --- | --- | --- | --- |
 | `name` | string | Yes |  |
-| `chainId` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `deploymentId` | string | Yes |  |
-| `amount` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `executorAllowance` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `bridgeFee` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `amountApplied` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `roundingResidue` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `durationSeconds` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `helperAddress` | string | Yes |  |
-| `blockNumber` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `blockHash` | string | Yes |  |
+| `chainId` | string | Yes | Exact integer encoded as a decimal string. |
+| `amount` | string | Yes | Exact integer encoded as a decimal string. |
+| `secondsAdded` | string | Yes | Exact integer encoded as a decimal string. |
+| `amountApplied` | string | Yes | Exact integer encoded as a decimal string. |
+| `renewalFee` | string | Yes | Exact integer encoded as a decimal string. |
+| `bridgeFee` | string | Yes | Exact integer encoded as a decimal string. |
+| `roundingRemainder` | string | Yes | Exact integer encoded as a decimal string. |
+| `pricingBlock` | string | Yes | Exact integer encoded as a decimal string. |
 | `expiresAt` | string | Yes | Format: date-time. |
 | `estimate` | boolean | Yes |  |
-| `assumptions` | array | Yes |  |
 
 ## Full contract
 
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
+[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields.
 
 ---
 
-# Register a transaction attempt with a private stable reference
+# List a name's renewals
 
-Source: https://beta.namepass.com/docs/reference/post_transfers
+Source: https://beta.namepass.com/docs/reference/get_name_renewals
 
-Required scope: `transfers:write`.
+Past renewal flows for the requested ENS name, with its recorded expiry. Returns canonical renewals newest first. Complete indicates verified hub finality; processing means verification is pending. This is public name-scoped data and does not prove caller ownership.
 
 ## Endpoint
 
-`POST /api/v1/transfers`
+`GET /api/v1/names/{name}/renewals`
 
 ## Authentication
 
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
+No API key or authorization header is required.
 
 ## Parameters
 
 | Name | Location | Required | Description |
 | --- | --- | --- | --- |
-| `Idempotency-Key` | header | Yes | Reuse the same key and exact body on retries. Cached for seven days. |
+| `name` | path | Yes | ENS name, such as example.eth. |
+| `limit` | query | No | Items per page; defaults to 20. |
+| `cursor` | query | No | nextCursor from the previous page. Keep the same name. |
 
-## Request body
+## Responses
+
+| Status | Description |
+| --- | --- |
+| `200` | Name expiry and renewal history. |
+| `400` | Invalid name, chain ID, transaction hash or request. |
+| `404` | This name has not been activated. Get its deposit address first. |
+| `500` | Server error. |
+| `503` | Temporarily unavailable. Retry after the indicated delay. |
+
+## Response fields
 
 | Field | Type | Required | Details |
 | --- | --- | --- | --- |
 | `name` | string | Yes |  |
-| `chainId` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `txHash` | string | Yes |  |
-| `reference` | string | Yes |  |
-| `transferKind` | string | No | Values: `erc20`, `native`. Default: `"erc20"`. |
-| `logIndex` | integer or null | No |  |
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "name": {
-      "type": "string"
-    },
-    "chainId": {
-      "type": "string",
-      "pattern": "^(0|[1-9][0-9]*)$",
-      "description": "Exact non-negative integer encoded as a decimal string. The field name specifies its unit."
-    },
-    "txHash": {
-      "type": "string",
-      "pattern": "^0x[0-9a-f]{64}$"
-    },
-    "reference": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 255
-    },
-    "transferKind": {
-      "type": "string",
-      "enum": [
-        "erc20",
-        "native"
-      ],
-      "default": "erc20"
-    },
-    "logIndex": {
-      "type": [
-        "integer",
-        "null"
-      ],
-      "minimum": 0
-    }
-  },
-  "required": [
-    "name",
-    "chainId",
-    "txHash",
-    "reference"
-  ],
-  "additionalProperties": false
-}
-```
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `transferId` | string | Yes | Format: uuid. |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# List complete transfers at a fixed publication position
-
-Source: https://beta.namepass.com/docs/reference/get_transfers
-
-Required scope: `read`.
-
-## Endpoint
-
-`GET /api/v1/transfers`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `limit` | query | No |  |
-| `cursor` | query | No |  |
-| `name` | query | No |  |
-| `chainId` | query | No |  |
-| `status` | query | No |  |
-| `txHash` | query | No |  |
-| `reference` | query | No |  |
-| `createdFrom` | query | No |  |
-| `updatedFrom` | query | No |  |
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
+| `currentExpiry` | string or null | Yes | Format: date-time. |
+| `expiryUpdatedAt` | string or null | Yes | Format: date-time. |
 | `items` | array | Yes |  |
-| `asOf` | string | Yes | Format: date-time. |
-| `hasMore` | boolean | Yes |  |
 | `nextCursor` | string or null | Yes |  |
 
 ## Full contract
 
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Add a replacement hash or choose a receipt log
-
-Source: https://beta.namepass.com/docs/reference/post_transfers__id__transactions
-
-Required scope: `transfers:write`.
-
-## Endpoint
-
-`POST /api/v1/transfers/{id}/transactions`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `id` | path | Yes |  |
-| `Idempotency-Key` | header | Yes | Reuse the same key and exact body on retries. Cached for seven days. |
-
-## Request body
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `txHash` | string | Yes |  |
-| `logIndex` | integer or null | No |  |
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "txHash": {
-      "type": "string",
-      "pattern": "^0x[0-9a-f]{64}$"
-    },
-    "logIndex": {
-      "type": [
-        "integer",
-        "null"
-      ],
-      "minimum": 0
-    }
-  },
-  "required": [
-    "txHash"
-  ],
-  "additionalProperties": false
-}
-```
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `transferId` | string | Yes | Format: uuid. |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Read one transfer
-
-Source: https://beta.namepass.com/docs/reference/get_transfers__id_
-
-Required scope: `read`.
-
-## Endpoint
-
-`GET /api/v1/transfers/{id}`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `id` | path | Yes |  |
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `id` | string | Yes |  |
-| `version` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `resourceType` | string | Yes |  |
-| `environment` | string | Yes | Values: `testnet`, `mainnet`. |
-| `deploymentId` | string | Yes |  |
-| `nameId` | string | Yes | Format: uuid. |
-| `reference` | string | Yes |  |
-| `chainId` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `transferKind` | string | Yes | Values: `erc20`, `native`. |
-| `attempts` | array | Yes |  |
-| `verification` | object | Yes |  |
-| `depositId` | string or null | Yes |  |
-| `status` | string | Yes | Values: `reported`, `selection_required`, `verified`, `rejected`, `orphaned`, `completed`. |
-| `reasonCode` | string or null | Yes |  |
-| `createdAt` | string | Yes | Format: date-time. |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# List complete deposits at a fixed publication position
-
-Source: https://beta.namepass.com/docs/reference/get_deposits
-
-Required scope: `read`.
-
-## Endpoint
-
-`GET /api/v1/deposits`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `limit` | query | No |  |
-| `cursor` | query | No |  |
-| `name` | query | No |  |
-| `chainId` | query | No |  |
-| `status` | query | No |  |
-| `txHash` | query | No |  |
-| `reference` | query | No |  |
-| `createdFrom` | query | No |  |
-| `updatedFrom` | query | No |  |
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `items` | array | Yes |  |
-| `asOf` | string | Yes | Format: date-time. |
-| `hasMore` | boolean | Yes |  |
-| `nextCursor` | string or null | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Read one deposit
-
-Source: https://beta.namepass.com/docs/reference/get_deposits__id_
-
-Required scope: `read`.
-
-## Endpoint
-
-`GET /api/v1/deposits/{id}`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `id` | path | Yes |  |
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `id` | string | Yes |  |
-| `version` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `resourceType` | string | Yes |  |
-| `environment` | string | Yes | Values: `testnet`, `mainnet`. |
-| `deploymentId` | string | Yes |  |
-| `nameId` | string | Yes | Format: uuid. |
-| `chainId` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `tokenAddress` | string | Yes |  |
-| `senderAddress` | string | Yes |  |
-| `amount` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `txHash` | string | Yes |  |
-| `transferKind` | string | Yes | Values: `erc20`, `native`. |
-| `logIndex` | integer or null | Yes |  |
-| `blockNumber` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `blockTime` | string | Yes | Format: date-time. |
-| `observationStatus` | string | Yes |  |
-| `requestedId` | string | Yes |  |
-| `verification` | union | Yes |  |
-| `consumption` | union | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# List complete flows at a fixed publication position
-
-Source: https://beta.namepass.com/docs/reference/get_flows
-
-Required scope: `read`.
-
-## Endpoint
-
-`GET /api/v1/flows`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `limit` | query | No |  |
-| `cursor` | query | No |  |
-| `name` | query | No |  |
-| `chainId` | query | No |  |
-| `status` | query | No |  |
-| `txHash` | query | No |  |
-| `reference` | query | No |  |
-| `createdFrom` | query | No |  |
-| `updatedFrom` | query | No |  |
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `items` | array | Yes |  |
-| `asOf` | string | Yes | Format: date-time. |
-| `hasMore` | boolean | Yes |  |
-| `nextCursor` | string or null | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Read one flow
-
-Source: https://beta.namepass.com/docs/reference/get_flows__id_
-
-Required scope: `read`.
-
-## Endpoint
-
-`GET /api/v1/flows/{id}`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `id` | path | Yes |  |
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `id` | string | Yes |  |
-| `version` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `resourceType` | string | Yes |  |
-| `environment` | string | Yes | Values: `testnet`, `mainnet`. |
-| `deploymentId` | string | Yes |  |
-| `nameId` | string | Yes | Format: uuid. |
-| `originChainId` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `executionStatus` | string | Yes |  |
-| `status` | string | Yes |  |
-| `trigger` | string | Yes |  |
-| `holdReason` | string or null | Yes |  |
-| `amountDetected` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `amountProcessed` | string or null | Yes |  |
-| `originWalletRemainder` | string or null | Yes |  |
-| `executorAllowance` | string or null | Yes |  |
-| `amountApplied` | string or null | Yes |  |
-| `durationSeconds` | string or null | Yes |  |
-| `expiryAfter` | string or null | Yes |  |
-| `depositId` | string or null | Yes |  |
-| `originEventId` | string or null | Yes |  |
-| `renewalEventId` | string or null | Yes |  |
-| `originTxHash` | string or null | Yes |  |
-| `cctpNonce` | string or null | Yes |  |
-| `reasonCode` | string or null | Yes |  |
-| `nextActionAt` | string or null | Yes |  |
-| `createdAt` | string | Yes | Format: date-time. |
-| `settledAt` | string or null | Yes |  |
-| `supersededBy` | string or null | Yes |  |
-| `settlement` | union | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# List complete settlements at a fixed publication position
-
-Source: https://beta.namepass.com/docs/reference/get_settlements
-
-Required scope: `read`.
-
-## Endpoint
-
-`GET /api/v1/settlements`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `limit` | query | No |  |
-| `cursor` | query | No |  |
-| `name` | query | No |  |
-| `chainId` | query | No |  |
-| `status` | query | No |  |
-| `txHash` | query | No |  |
-| `reference` | query | No |  |
-| `createdFrom` | query | No |  |
-| `updatedFrom` | query | No |  |
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `items` | array | Yes |  |
-| `asOf` | string | Yes | Format: date-time. |
-| `hasMore` | boolean | Yes |  |
-| `nextCursor` | string or null | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Read one settlement
-
-Source: https://beta.namepass.com/docs/reference/get_settlements__id_
-
-Required scope: `read`.
-
-## Endpoint
-
-`GET /api/v1/settlements/{id}`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `id` | path | Yes |  |
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `id` | string | Yes |  |
-| `version` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `resourceType` | string | Yes |  |
-| `environment` | string | Yes | Values: `testnet`, `mainnet`. |
-| `deploymentId` | string | Yes |  |
-| `flowId` | string | Yes | Format: uuid. |
-| `nameId` | string | Yes | Format: uuid. |
-| `status` | string | Yes | Values: `observed`, `finalized`, `invalidated`. |
-| `evidence` | object | Yes |  |
-| `amounts` | object | Yes |  |
-| `durationSeconds` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `expiryAfter` | string or null | Yes |  |
-| `observedAt` | string | Yes | Format: date-time. |
-| `finalizedAt` | string or null | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Revalidate and resume the same flow
-
-Source: https://beta.namepass.com/docs/reference/post_flows__id__retry
-
-Required scope: `flows:retry`.
-
-## Endpoint
-
-`POST /api/v1/flows/{id}/retry`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `id` | path | Yes |  |
-| `Idempotency-Key` | header | Yes | Reuse the same key and exact body on retries. Cached for seven days. |
-
-## Request body
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-
-
-```json
-{
-  "type": "object",
-  "properties": {},
-  "required": [],
-  "additionalProperties": false
-}
-```
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `flowId` | string | Yes | Format: uuid. |
-| `operationId` | string | No | Format: uuid. |
-| `status` | string | No |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Create a consistent snapshot and matching event cursor
-
-Source: https://beta.namepass.com/docs/reference/post_sync
-
-Required scope: `read`.
-
-## Endpoint
-
-`POST /api/v1/sync`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Request body
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-
-
-```json
-{
-  "type": "object",
-  "properties": {},
-  "required": [],
-  "additionalProperties": false
-}
-```
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `id` | string | Yes | Format: uuid. |
-| `expiresAt` | string | Yes | Format: date-time. |
-| `eventsCursor` | string | Yes |  |
-| `nextCursor` | string | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Page an immutable snapshot for up to 24 hours
-
-Source: https://beta.namepass.com/docs/reference/get_sync__id_
-
-Required scope: `read`.
-
-## Endpoint
-
-`GET /api/v1/sync/{id}`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `id` | path | Yes |  |
-| `limit` | query | No |  |
-| `cursor` | query | No |  |
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `items` | array | Yes |  |
-| `hasMore` | boolean | Yes |  |
-| `nextCursor` | string or null | Yes |  |
-| `eventsCursor` | string | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Replay events; persist nextCursor only after durable processing
-
-Source: https://beta.namepass.com/docs/reference/get_events
-
-Required scope: `read`.
-
-## Endpoint
-
-`GET /api/v1/events`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `limit` | query | No |  |
-| `cursor` | query | No |  |
-| `from` | query | No | Inclusive publication timestamp for one-time bootstrap. Use cursor for every subsequent request. |
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `items` | array | Yes |  |
-| `hasMore` | boolean | Yes |  |
-| `nextCursor` | string | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Read an event available to this partner
-
-Source: https://beta.namepass.com/docs/reference/get_events__id_
-
-Required scope: `read`.
-
-## Endpoint
-
-`GET /api/v1/events/{id}`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `id` | path | Yes |  |
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `id` | string | Yes | Format: uuid. |
-| `type` | string | Yes |  |
-| `apiVersion` | string | Yes |  |
-| `environment` | string | Yes |  |
-| `deploymentId` | string | Yes |  |
-| `resourceType` | string | Yes |  |
-| `resourceId` | string | Yes |  |
-| `resourceVersion` | string | Yes | Exact non-negative integer encoded as a decimal string. The field name specifies its unit. |
-| `recordedAt` | string | Yes | Format: date-time. |
-| `publishedAt` | string | Yes | Format: date-time. |
-| `data` | object | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# List webhook destinations
-
-Source: https://beta.namepass.com/docs/reference/get_webhook_endpoints
-
-Required scope: `webhooks:manage`.
-
-## Endpoint
-
-`GET /api/v1/webhook-endpoints`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `items` | array | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Register an unverified HTTPS webhook destination
-
-Source: https://beta.namepass.com/docs/reference/post_webhook_endpoints
-
-Required scope: `webhooks:manage`.
-
-## Endpoint
-
-`POST /api/v1/webhook-endpoints`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `Idempotency-Key` | header | Yes | Reuse the same key and exact body on retries. Cached for seven days. |
-
-## Request body
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `url` | string | Yes | Format: uri. |
-| `eventTypes` | array | No |  |
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "url": {
-      "type": "string",
-      "format": "uri"
-    },
-    "eventTypes": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    }
-  },
-  "required": [
-    "url"
-  ],
-  "additionalProperties": false
-}
-```
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `id` | string | Yes | Format: uuid. |
-| `url` | string | Yes | Format: uri. |
-| `status` | string | Yes | Values: `unverified`, `active`, `disabled`. |
-| `configurationVersion` | integer | Yes |  |
-| `eventTypes` | array | Yes |  |
-| `signingSecret` | string | No |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Read a webhook destination
-
-Source: https://beta.namepass.com/docs/reference/get_webhook_endpoints__id_
-
-Required scope: `webhooks:manage`.
-
-## Endpoint
-
-`GET /api/v1/webhook-endpoints/{id}`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `id` | path | Yes |  |
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `id` | string | Yes | Format: uuid. |
-| `url` | string | Yes | Format: uri. |
-| `status` | string | Yes | Values: `unverified`, `active`, `disabled`. |
-| `configurationVersion` | integer | Yes |  |
-| `eventTypes` | array | Yes |  |
-| `signingSecret` | string | No |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Edit destination or subscription; pending deliveries pause
-
-Source: https://beta.namepass.com/docs/reference/patch_webhook_endpoints__id_
-
-Required scope: `webhooks:manage`.
-
-## Endpoint
-
-`PATCH /api/v1/webhook-endpoints/{id}`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `id` | path | Yes |  |
-| `Idempotency-Key` | header | Yes | Reuse the same key and exact body on retries. Cached for seven days. |
-
-## Request body
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `url` | string | No | Format: uri. |
-| `eventTypes` | array | No |  |
-| `enabled` | boolean | No |  |
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "url": {
-      "type": "string",
-      "format": "uri"
-    },
-    "eventTypes": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "enabled": {
-      "type": "boolean"
-    }
-  },
-  "required": [],
-  "additionalProperties": false
-}
-```
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `id` | string | Yes | Format: uuid. |
-| `url` | string | Yes | Format: uri. |
-| `status` | string | Yes | Values: `unverified`, `active`, `disabled`. |
-| `configurationVersion` | integer | Yes |  |
-| `eventTypes` | array | Yes |  |
-| `signingSecret` | string | No |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Disable a destination
-
-Source: https://beta.namepass.com/docs/reference/delete_webhook_endpoints__id_
-
-Required scope: `webhooks:manage`.
-
-## Endpoint
-
-`DELETE /api/v1/webhook-endpoints/{id}`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `id` | path | Yes |  |
-| `Idempotency-Key` | header | Yes | Reuse the same key and exact body on retries. Cached for seven days. |
-
-## Request body
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-
-
-```json
-{
-  "type": "object",
-  "properties": {},
-  "required": [],
-  "additionalProperties": false
-}
-```
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `id` | string | Yes | Format: uuid. |
-| `url` | string | Yes | Format: uri. |
-| `status` | string | Yes | Values: `unverified`, `active`, `disabled`. |
-| `configurationVersion` | integer | Yes |  |
-| `eventTypes` | array | Yes |  |
-| `signingSecret` | string | No |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Send a signed synthetic test event
-
-Source: https://beta.namepass.com/docs/reference/post_webhook_endpoints__id__test
-
-Required scope: `webhooks:manage`.
-
-## Endpoint
-
-`POST /api/v1/webhook-endpoints/{id}/test`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `id` | path | Yes |  |
-| `Idempotency-Key` | header | Yes | Reuse the same key and exact body on retries. Cached for seven days. |
-
-## Request body
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-
-
-```json
-{
-  "type": "object",
-  "properties": {},
-  "required": [],
-  "additionalProperties": false
-}
-```
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `deliveryId` | string | Yes | Format: uuid. |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Activate a destination after it accepts a signed verification event
-
-Source: https://beta.namepass.com/docs/reference/post_webhook_endpoints__id__verify
-
-Required scope: `webhooks:manage`.
-
-## Endpoint
-
-`POST /api/v1/webhook-endpoints/{id}/verify`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `id` | path | Yes |  |
-| `Idempotency-Key` | header | Yes | Reuse the same key and exact body on retries. Cached for seven days. |
-
-## Request body
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-
-
-```json
-{
-  "type": "object",
-  "properties": {},
-  "required": [],
-  "additionalProperties": false
-}
-```
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `deliveryId` | string | Yes | Format: uuid. |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Rotate signing secret with a 24-hour overlap
-
-Source: https://beta.namepass.com/docs/reference/post_webhook_endpoints__id__rotate_secret
-
-Required scope: `webhooks:manage`.
-
-## Endpoint
-
-`POST /api/v1/webhook-endpoints/{id}/rotate-secret`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `id` | path | Yes |  |
-| `Idempotency-Key` | header | Yes | Reuse the same key and exact body on retries. Cached for seven days. |
-
-## Request body
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-
-
-```json
-{
-  "type": "object",
-  "properties": {},
-  "required": [],
-  "additionalProperties": false
-}
-```
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `id` | string | Yes | Format: uuid. |
-| `signingSecret` | string | Yes |  |
-| `previousSecretExpiresAt` | string | Yes | Format: date-time. |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# List delivery outcomes
-
-Source: https://beta.namepass.com/docs/reference/get_webhook_deliveries
-
-Required scope: `webhooks:manage`.
-
-## Endpoint
-
-`GET /api/v1/webhook-deliveries`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `limit` | query | No |  |
-| `cursor` | query | No |  |
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `items` | array | Yes |  |
-| `hasMore` | boolean | Yes |  |
-| `nextCursor` | string or null | Yes |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Read a delivery and its recent attempts
-
-Source: https://beta.namepass.com/docs/reference/get_webhook_deliveries__id_
-
-Required scope: `webhooks:manage`.
-
-## Endpoint
-
-`GET /api/v1/webhook-deliveries/{id}`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `id` | path | Yes |  |
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `id` | string | Yes | Format: uuid. |
-| `endpointId` | string | Yes | Format: uuid. |
-| `eventId` | string | Yes | Format: uuid. |
-| `status` | string | Yes | Values: `pending`, `running`, `succeeded`, `paused`, `exhausted`. |
-| `attempts` | integer | Yes |  |
-| `nextAttemptAt` | string | Yes | Format: date-time. |
-| `reasonCode` | string or null | Yes |  |
-| `createdAt` | string | Yes | Format: date-time. |
-| `attemptHistory` | array | No |  |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
-
----
-
-# Replay the immutable original event
-
-Source: https://beta.namepass.com/docs/reference/post_webhook_deliveries__id__replay
-
-Required scope: `webhooks:manage`.
-
-## Endpoint
-
-`POST /api/v1/webhook-deliveries/{id}/replay`
-
-## Authentication
-
-Use a backend-only bearer key. See [Authentication & conventions](/docs/contract).
-
-## Parameters
-
-| Name | Location | Required | Description |
-| --- | --- | --- | --- |
-| `id` | path | Yes |  |
-| `Idempotency-Key` | header | Yes | Reuse the same key and exact body on retries. Cached for seven days. |
-
-## Request body
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-
-
-```json
-{
-  "type": "object",
-  "properties": {},
-  "required": [],
-  "additionalProperties": false
-}
-```
-
-## Responses
-
-| Status | Description |
-| --- | --- |
-| `200` | Success. |
-| `201` | Success. |
-| `202` | Durably accepted; continue with the returned resource ID. |
-| `400` | Structured error. |
-| `401` | Structured error. |
-| `403` | Structured error. |
-| `404` | Structured error. |
-| `409` | Structured error. |
-| `410` | Cursor expired; create a new snapshot. |
-| `413` | Structured error. |
-| `415` | Structured error. |
-| `422` | Structured error. |
-| `429` | Rate limited. Honor Retry-After. |
-| `500` | Structured error. |
-| `503` | Structured error. |
-
-## Response fields
-
-| Field | Type | Required | Details |
-| --- | --- | --- | --- |
-| `deliveryId` | string | Yes | Format: uuid. |
-
-## Full contract
-
-[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields. Use `get_api_operation` in the [docs MCP](/docs/mcp) to retrieve the operation with its schema definitions.
+[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields.

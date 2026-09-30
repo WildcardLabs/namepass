@@ -1,17 +1,11 @@
 /** Keep Node/database dependencies behind the durable step boundary. */
-export async function integrationStep(
-	token: string,
-	role: "publication" | "evidence" | "delivery",
-): Promise<boolean> {
+export async function integrationStep(token: string): Promise<boolean> {
 	"use step";
 	const worker = await import("../server/integrations/worker");
-	return worker.integrationStep(token, role);
+	return worker.integrationStep(token);
 }
-export async function finishIntegrationPump(
-	token: string,
-	role: "publication" | "evidence" | "delivery",
-): Promise<void> {
+export async function finishIntegrationPump(token: string): Promise<void> {
 	"use step";
 	const worker = await import("../server/integrations/worker");
-	await worker.finishIntegrationPump(token, role);
+	await worker.finishIntegrationPump(token);
 }

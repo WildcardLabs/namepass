@@ -191,18 +191,18 @@ function Journey() {
         {[
           {
             icon: Wallet,
-            label: "Your application",
-            detail: "Send supported USDC",
+            label: "Get the address",
+            detail: "Call the public API",
           },
           {
             icon: Code2,
-            label: "One deposit address",
-            detail: "Universal across chains",
+            label: "Send USDC",
+            detail: "Use your existing wallet",
           },
           {
             icon: ShieldCheck,
-            label: "Verified ENS renewal",
-            detail: "Evidence you can reconcile",
+            label: "Poll until renewed",
+            detail: "Transaction hash + chain ID",
           },
         ].map(({ icon: Icon, label, detail }, i) => (
           <div className="journey-step" key={label}>
@@ -218,9 +218,9 @@ function Journey() {
       <div className="journey-footer">
         <span>
           <Clock3 size={13} />
-          Follow every stage
+          Two API calls
         </span>
-        <span>Deposit → consumption → finalized settlement</span>
+        <span>Get address → send → poll</span>
       </div>
     </div>
   );
@@ -242,7 +242,7 @@ export default function Docs() {
   );
   const origin = window.location.origin;
   const prompt = page
-    ? `Help me implement Namepass in my application. Read ${origin}/docs/${page.slug}.md and ${origin}/openapi.json first. Use the Namepass integration skill at ${origin}/docs/skills/namepass-integration/SKILL.md and docs MCP at ${origin}/api/docs/mcp. Inspect my existing payment and ledger code. Keep API keys on the backend, use exact amounts, and distinguish verified deposits from finalized settlements. Do not broadcast funds.\n\nMy question: `
+    ? `Help me integrate Namepass. Read ${origin}/docs/quickstart.md and the skill at ${origin}/docs/skills/namepass-integration/SKILL.md. Get a deposit address, send supported USDC with the existing wallet, and poll using transaction hash and chain ID. Use the quote endpoint when a price estimate is needed, and name history for past renewals. No Namepass API key is needed. Confirm payment authorization before broadcasting funds.\n\nMy question: `
     : "";
   const navigate = (next: string, hash = "") => {
     window.history.pushState(
@@ -399,7 +399,7 @@ export default function Docs() {
             >
               <Github size={18} />
             </a>
-            <a href="/" className="docs-app-link">
+            <a href="https://beta.namepass.eth" className="docs-app-link">
               Open app
               <ArrowUpRight size={13} />
             </a>
@@ -438,7 +438,7 @@ export default function Docs() {
                 </span>
                 <div>
                   <strong>Built for your agent</strong>
-                  <p>Skills, MCP & Markdown</p>
+                  <p>Simple wallet & agent integration</p>
                 </div>
                 <ChevronRight size={14} />
               </>,
@@ -462,7 +462,7 @@ export default function Docs() {
                   <div>
                     <h1>
                       {slug === "introduction"
-                        ? "Build renewals into your app."
+                        ? "Get an address. Send. Poll."
                         : page.title}
                     </h1>
                     <p>{page.description}</p>
@@ -510,20 +510,6 @@ export default function Docs() {
                           <span>Take this page into your workflow</span>
                         </div>
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onSelect={() =>
-                          void copy(
-                            `${origin}/api/docs/mcp`,
-                            "MCP server URL copied",
-                          )
-                        }
-                      >
-                        <Plug size={16} />
-                        <div>
-                          <strong>Copy MCP server URL</strong>
-                          <span>Connect documentation tools</span>
-                        </div>
-                      </DropdownMenuItem>
                       <DropdownMenuItem asChild>
                         <a
                           href="/docs/skills/namepass-integration/SKILL.md"
@@ -557,7 +543,7 @@ export default function Docs() {
                   </div>
                 )}
                 {slug === "introduction" && <Journey />}
-                {["agents", "mcp", "skills"].includes(slug) && (
+                {["agents", "skills"].includes(slug) && (
                   <div className="docs-agent-callout">
                     <Sparkles size={20} />
                     <div>
@@ -702,14 +688,6 @@ export default function Docs() {
                 </a>
               ))}
               <div className="docs-toc-tools">
-                {link(
-                  "/docs/mcp",
-                  <>
-                    <Plug size={14} />
-                    Connect docs MCP
-                    <ArrowUpRight size={12} />
-                  </>,
-                )}
                 <a href="/llms.txt" target="_blank" rel="noreferrer">
                   <FileText size={14} />
                   Documentation index
@@ -731,11 +709,11 @@ export default function Docs() {
           <CommandInput
             value={query}
             onValueChange={setQuery}
-            placeholder="Search guides, endpoints, settlement..."
+            placeholder="Search address, status, endpoints..."
           />
           <CommandList>
             <CommandEmpty>
-              No pages found. Try “settlement”, “webhook” or “activation”.
+              No pages found. Try “address”, “poll” or “status”.
             </CommandEmpty>
             {matches.map(({ page: p, excerpt }) => (
               <CommandItem
@@ -817,8 +795,6 @@ export default function Docs() {
           </div>
           <div className="agent-dialog-footer">
             <Plug size={14} />
-            {link("/docs/mcp", "Connect MCP")}
-            <span>·</span>
             {link("/docs/skills", "Install the skill")}
           </div>
         </DialogContent>

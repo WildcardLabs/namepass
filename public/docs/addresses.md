@@ -1,17 +1,19 @@
-# Deposit addresses
+# Get an address
 
-## Activation and deposit addresses
+Call `POST /api/v1/address` with `{"name":"example.eth"}`. No authorization header is needed.
 
-The same ENS label derives the same deposit address on the supported chains in this deployment. Always use the chain and token addresses from `GET /config`. A watch is a subscription to public name activity; it does not establish ownership of the ENS name or a deposit.
+## What you get
 
-## ENS alias verification
+- `name`: the normalized ENS name.
+- `depositAddress`: the full payment address, shared across the supported chains.
+- `subname`: the corresponding `namepass.eth` subname.
+- `subnameVerified`: whether this deployment has verified subname resolution.
+- `chains`: supported chain IDs, USDC token addresses and minimum funding amounts.
 
-The alias has the form `alice.namepass.eth`. Its resolution chain is Ethereum mainnet, even for the current testnet payment deployment. Only use alias resolution when `config.alias.verified` is true and the resolved address matches the returned full deposit address. Activation can return an address before history repair finishes.
+Use the returned values instead of hardcoding addresses or networks. The call activates monitoring for the name. Calling it again returns the same deposit address.
 
-## Stored state and history
+## Send the payment
 
-`GET /names/{name}` reads stored state without making RPC calls or starting renewals. Its balances are block-tagged snapshots, not spendable balance promises. Native Arc discovery has a separate bounded activation range in the coverage fields; later native transfers are discovered by the live indexer or exact transaction registration. `historyCoverage` gives explicit per-chain block ranges. A balance snapshot does not recover historical senders. Use `POST /names/{name}/refresh` to request a new scan.
+Use your existing wallet to transfer the supported USDC token. Namepass does not hold your wallet keys. Keep the transaction hash and source chain ID, then [poll the status](/docs/status).
 
-## Supported funding modes
-
-ERC-20 USDC transfers are supported on every configured chain. Arc additionally supports top-level native USDC transfers: native value uses 18 decimals and must convert exactly to six-decimal USDC. Internal native transfers are outside this funding contract.
+A name that cannot currently be renewed returns `422`. Unavailable ENS reads return `503`; retry without sending funds.

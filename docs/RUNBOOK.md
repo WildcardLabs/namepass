@@ -174,64 +174,49 @@ curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://<stable-domain>/api/cr
 
 ## Integration API operations
 
-Apply migration `0009_integration_journal.sql` before deploying its writers. Rehearse it on a
-copy of the current schema and representative data. It is additive and enqueues receipt
-verification for existing evidence. Its preflight rejects ambiguous historical native/ERC-20
-representations; reconcile those exact receipts before retrying the migration. Do not delete
-history to get past the check. The deployment's factory and environment must match the database.
+Apply `0009_public_status.sql` before deploying its writers. Rehearse it on representative data.
+Its native/ERC-20 identity preflight rejects ambiguous historical deposits. Reconcile those exact
+receipts before retrying; do not delete history to pass the check. The factory and environment
+must match the database. This unreleased migration has no partner or key tables.
 
-Configure these server-only values through the hosting provider:
+`NAMEPASS_INTEGRATIONS_ENABLED=1` enables the public endpoints and evidence worker after the
+release gates pass. It is an operator release switch, not caller authentication. The API needs
+no new secrets. Existing database, RPC, Circle Iris, cron and Workflow configuration remains
+required. Set `NAMEPASS_ALIAS_VERIFIED_DEPLOYMENT` to
+`<environment>:<hub-chain-id>:<lowercase-factory-address>` only after recording matching resolver
+and parent evidence. Until then, callers fund the returned full address.
 
-| Variable | Purpose |
-| --- | --- |
-| `NAMEPASS_INTEGRATIONS_ENABLED` | Set to `1` only after the release gates pass; otherwise API commands and integration workers remain disabled. |
-| `INTEGRATION_KEY_PEPPER` | Independent random secret of at least 32 characters for environment-bound API-key digests. |
-| `INTEGRATION_CURSOR_SECRET` | Independent random secret of at least 32 characters for deployment-bound cursors. |
-| `INTEGRATION_ENCRYPTION_KEY` | Base64 encoding of 32 random bytes for webhook secrets and idempotent responses. |
-| `NAMEPASS_ALIAS_VERIFIED_DEPLOYMENT` | Exact `/config` deployment ID, only after recording mainnet resolver/parent evidence and matching derived addresses. Omit until verified. |
+Quote RPCs must serve the reviewed helper runtime and live Circle route limits/minimum fees.
+The quote is one flow: amounts above the source burn cap return `422`; disabled burns or a
+nonzero minimum fee return `503`. Quotes do not create work, reserve a price or sign transactions.
+Name history reads stored canonical renewal flows and recorded expiry with name-bound pagination.
 
-The existing database, chain RPC, Circle Iris, cron, Workflow and monitoring OAuth configuration
-also remains required. Archive receipts and a working hub `finalized` block tag are required to
-prove historical completion. Never reuse production credentials in previews. Keep encryption-key
-backups: replacing it without re-encrypting stored secrets breaks deliveries and idempotent replay.
-Changing the pepper revokes all existing partner credentials. Changing the cursor secret requires
-partners to bootstrap again. These are coordinated operator changes.
+One evidence pump verifies receipts, processing coverage and hub finality. Missed starts have a
+90-second dispatch lease; running pumps renew for ten minutes. Evidence jobs have five-minute
+leases. Source updates preserve another wake. Do not clear a live lease to force a retry; inspect
+its Workflow run first. Recovery cron wakes due work. An uncertain broadcast uses the existing
+payment-intent recovery path. For an unindexed source transaction, one discovery job retries for at most 30 minutes.
+Repeated polls do not reset it. Its `discovery_expired` code needs operator investigation if
+Goldsky has not indexed a valid deposit. Invalid or unsupported transactions remain `404`.
+Callers keep polling the same source transaction; they do not send
+another payment to retry processing.
 
-Use **Monitoring → Integrations** with the existing GitHub operator login to create a partner,
-issue scoped keys, revoke keys, suspend access and retry eligible jobs. A key is displayed once.
-Record its recipient and scope in private operational records. Use the partner API to verify,
-test, rotate and replay webhook destinations. Raw signing secrets and API keys must not appear in
-logs or tickets. Operator mutations are same-origin requests and leave an audit record.
+A missing receipt does not prove removal. For an indexer deletion, both receipt absence and
+absence from the canonical block establish removal. Valid reminted receipt evidence takes
+priority. Repair uses bounded block ranges and a durable receipt cursor. Native discovery covers
+a separate recent activation range. Never claim full native history from an ERC-20 log scan.
+Archive receipts and the hub `finalized` block tag are required to prove historical completion.
 
-The recovery cron wakes three independent pumps. A missed start has a 90-second dispatch lease;
-a running pump renews its lease for ten minutes. Evidence jobs have five-minute leases, and
-webhook attempts have 60-second leases. A source change during a job preserves another wake.
-Do not clear a live lease to force a retry. Inspect its Workflow run first. An uncertain broadcast
-belongs to the existing payment-intent recovery path, never a second bank payment.
+During an outage, inspect pending `integration_jobs`, their oldest `next_at`, `error_code` and
+lease/run identity, plus observed settlements awaiting finality. Normalized evidence is retained;
+raw-payload retention does not remove it. Disabling the release flag stops API/worker work and
+preserves records. Hosted abuse limits belong at the platform/WAF boundary and must not require
+caller accounts or API keys. Test anonymous address activation and five-second polling there.
 
-A failed receipt lookup is not proof of a removed deposit. For an indexer deletion, receipt absence
-and absence from the canonical block establish removal; a valid reminted receipt takes priority.
-History repair uses bounded block ranges and a durable receipt cursor. ERC-20/protocol ranges
-advance only after every discovered receipt commits. Arc native discovery has a separate recent
-activation range. Older or missed native transfers require the exact transaction hash or live
-indexer evidence; never claim complete native history from a token-log scan.
-
-After an outage, verify publication lag, pending jobs and paused/exhausted deliveries. Partners
-resume `/events` from their last committed cursor; `410` requires a new `/sync` snapshot. Replaying
-a delivery preserves its event ID and body. A destination edit pauses old queued work and requires
-explicit replay. Requests already sent can still reach the previous destination. Disabling the
-feature flag stops new API/worker work but preserves all durable records for resumption.
-
-Integration retention runs in bounded batches on the minute recovery cron and the daily retention
-cron. It removes expired snapshots/idempotency responses, bounds replay to 90 days, prunes
-superseded versions while preserving baselines, and clears expired rotation secrets. It never
-removes normalized payment evidence. Monitor backlog so its bounded batches can keep up.
-
-For local verification, use a disposable PostgreSQL server on loopback with a database-creation
-role, then set `TEST_DATABASE_URL` and run `npm run test:server`. The suite creates and drops its
-own databases. `scripts/integrations/capacity.ts` uses the same fixture, defaults to 15 minutes,
-and writes `/tmp/namepass-integration-capacity.json`. It measures stored reads/publication only;
-HTTP, RPC, Workflow scheduling and external webhook latency require hosted validation.
+For local verification, set `TEST_DATABASE_URL` to a disposable loopback PostgreSQL service
+with database-creation privileges and run `npm run test:server`. Tests create and drop their own
+databases. `npm run check:docs` checks public Markdown, skill and LLM indexes; `check:api` checks
+OpenAPI and generated types. No outgoing webhook or MCP setup is needed.
 
 ## Mainnet release requirements
 
@@ -269,14 +254,3 @@ Store the evidence in the release PR or its linked private operator record. Do n
 the repository. Re-run `node scripts/check-chains.mjs` after the reviewed change. That check must
 change with the launch gate so it verifies the audited deployment set instead of the current
 testnet-only state.
-
-
-## Documentation MCP
-
-`/api/docs/mcp` is a public, stateless Streamable HTTP documentation server. It requires no
-partner key and has no account or chain access. Verify it with
-`node --import tsx --test server/docs/mcp.test.ts`, which connects the official SDK client to a
-disposable HTTP listener and checks retrieval, schemas, resources, prompts and input limits.
-Use a Streamable HTTP client for hosted checks; a browser GET is not a handshake.
-`npm run check:docs` verifies Markdown, skill and LLM-index freshness. Documentation access does
-not enable the integration API or bypass its deployment gates.

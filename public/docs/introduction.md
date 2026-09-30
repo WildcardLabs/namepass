@@ -1,50 +1,28 @@
 # Introduction
 
-Namepass turns USDC funding into ENS renewal time. Give your users one deposit address for their name, then follow the funds through to a verified renewal.
+Namepass turns USDC into ENS renewal time. Any app, wallet, script or agent can use it.
 
-## Start with your coding agent
+## Three steps
 
-Connect the [docs MCP server](/docs/mcp) and install the [integration skill](/docs/skills). Your agent can search the documentation, inspect the API contract and implement a workflow that fits your application.
+1. **Get the address.** Call `POST /api/v1/address` with an ENS name.
+2. **Send USDC.** Transfer supported USDC to the returned `depositAddress` using your wallet.
+3. **Poll the result.** Call `GET /api/v1/status/{chainId}?transactionHash=...` until `status` is `complete`.
+
+No Namepass API key or account is required. You do not register the transaction or run a relayer. Namepass detects the deposit and handles the renewal.
+
+## Start building
+
+Follow the [quickstart](/docs/quickstart), or give your agent the [integration skill](/docs/skills). Use a [quote](/docs/quotes) to preview the renewal time and [name history](/docs/history) to show past renewals. The [API reference](/docs/reference) describes all four endpoints.
 
 ```text
-Help me add Namepass ENS renewal funding to this application.
-Read the Namepass docs at https://beta.namepass.com/llms.txt and the OpenAPI
-contract at https://beta.namepass.com/openapi.json. Use the integration skill
-at https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md.
-
-Inspect my existing backend, USDC payment flow and database first.
-Implement activation, a private transfer reference, verified webhooks,
-and snapshot-plus-cursor reconciliation. Keep credentials on the server.
-Distinguish a verified deposit from a finalized settlement; never
-allocate invented renewal time to a pooled deposit. Do not send funds.
-Ask me for the deployment URL and scoped API key when they are needed.
+Use Namepass to fund ENS renewals.
+Read https://beta.namepass.com/docs/quickstart.md and
+https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md.
+Get the deposit address for the requested ENS name, send supported
+USDC with my existing wallet, and poll by transaction hash and chain ID.
+Ask for my approval before sending funds unless I already authorized it.
 ```
 
-Prefer to work directly? Follow the [quickstart](/docs/quickstart), then explore the [API reference](/docs/reference).
+## Current networks
 
-## Your app. Their name. One address.
-
-A neobank can add **Fund ENS renewal** next to an existing USDC payment flow. A wallet can help users keep their names active. Your app handles the payment; Namepass handles renewal execution and exposes the evidence you need to reconcile it.
-
-1. **Activate a name.** Retrieve its universal deposit address and ENS alias.
-2. **Report the payment.** Attach the transaction hash to your private transfer reference.
-3. **Follow the result.** Read ongoing activity, consume signed events and confirm finalized settlement.
-
-The same name has the same deposit address on the supported chains in a deployment. Supported tokens, networks and alias verification come from the authenticated configuration endpoint.
-
-## Settlement you can explain
-
-A successful USDC transaction proves a deposit. It does not yet prove a renewal. Namepass keeps deposit verification, wallet consumption and ENS settlement separate so your app can show an accurate status at every stage.
-
-Multiple deposits can fund the same renewal. Completion requires evidence of consumption and finalized settlement for every candidate flow. Read [Understand settlement](/docs/settlement) before mapping these states to your customer ledger.
-
-## Choose your next step
-
-- [Connect a neobank or wallet](/docs/quickstart): activate a name and report an existing payment.
-- [Build a reliable ledger](/docs/sync): bootstrap history and capture changes to ongoing flows.
-- [Receive signed notifications](/docs/webhooks): verify, persist and replay events.
-- [Give your agent context](/docs/agents): use Markdown, MCP and the integration skill together.
-
-## Current availability
-
-The integration contract is **2026-09-28** and targets the configured testnet deployment. Documentation availability does not imply that API access or mainnet funding is enabled. Obtain deployment details and a scoped key from your Namepass operator. See [Availability & support](/docs/release).
+The current deployment uses testnets. The address response lists supported chains, USDC contracts and minimum amounts. Use those values. Mainnet funding is not enabled.

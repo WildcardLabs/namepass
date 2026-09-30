@@ -1,7 +1,12 @@
-# API overview
+# API reference
 
-## API reference
+The public API has four endpoints:
 
-The downloadable OpenAPI file is the machine-readable contract. Its generated TypeScript types and runnable server examples are in the repository under `src/lib/integration-api.generated.ts` and `examples/integration`.
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/v1/address` | Get a name's deposit address and supported networks. |
+| `POST /api/v1/quote` | Estimate renewal time from a USDC amount. |
+| `GET /api/v1/status/{chainId}?transactionHash={hash}` | Track a deposit through renewal. |
+| `GET /api/v1/names/{name}/renewals` | Read a name's past renewals and recorded expiry. |
 
-Download [the OpenAPI reference](/openapi.json) to inspect every operation.
+All work without an API key. Browser requests are supported through CORS. Download [OpenAPI](/openapi.json) for exact schemas.

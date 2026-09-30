@@ -1,85 +1,153 @@
-import { toFunctionSelector, parseAbi, type Address } from "viem";
+import { parseAbi, toFunctionSelector, type Address } from "viem";
 import { HUB_CHAIN } from "../../src/lib/chains";
 import { discoverHelper } from "../../src/lib/helperDiscovery";
 import { assertEnsV2Adapter } from "../../src/lib/helperAdapter";
-import { evidenceClient } from "./rpc";
-import { ApiError } from "../http";
+import { normalizedLabel } from "../names";
+import { ApiError, json, readObject, requiredString } from "../http";
 import { minimumTriggerAmount } from "../config";
-import { DEPLOYMENT_ID } from "./config";
-import type { Context } from "./http";
-import * as validate from "./validation";
+import { evidenceClient } from "./rpc";
+import { chain, unsigned } from "./validation";
 
-/** All contract reads share one block; no module-level mutable pricing cache. */
-export async function quote(context: Context) {
-	validate.fields(context.body, ["name", "chainId", "amount"]);
-	const name = validate.name(context.body.name),
-		chain = validate.chain(context.body.chainId),
-		amount = BigInt(validate.unsigned(context.body.amount, "amount", true));
-	const client = await evidenceClient(HUB_CHAIN),
-		block = await client.getBlock();
-	const helper = await discoverHelper(async (calls) =>
-		Promise.all(
-			calls.map(async (call) => {
-				const data = toFunctionSelector(call.signature);
-				const result = await client.call({
-					to: call.to as Address,
-					data,
-					blockNumber: block.number,
-				});
-				if (!result.data) throw new Error("Missing helper response.");
-				return result.data.slice(2);
-			}),
-		),
-	);
-	assertEnsV2Adapter(
-		await client.getCode({
-			address: helper as Address,
-			blockNumber: block.number,
-		}),
-	);
-	const allowance = await client.readContract({
-		address: HUB_CHAIN.gatewayAddress as Address,
-		abi: parseAbi(["function GAS_ALLOWANCE() view returns(uint256)"]),
-		functionName: "GAS_ALLOWANCE",
-		blockNumber: block.number,
-	});
-	if (amount < minimumTriggerAmount(chain.chainId) || amount <= allowance)
+/** Read the same helper algorithm mirrored by the frontend, at one exact block. */
+export async function quoteResponse(request: Request) {
+	const body = await readObject(request, ["name", "chainId", "amount"]);
+	const name = normalizedLabel(requiredString(body, "name", 512));
+	const source = chain(body.chainId);
+	const amount = BigInt(unsigned(body.amount, "amount", true));
+	if (amount < minimumTriggerAmount(source.chainId))
 		throw new ApiError(
 			422,
 			"amount_below_minimum",
 			"The amount is below the current renewal minimum.",
 		);
-	const [duration, needed] = await client.readContract({
-		address: helper as Address,
-		abi: parseAbi([
-			"function quote(string label,uint256 budget) view returns(uint64 duration,uint256 amountNeeded)",
-		]),
-		functionName: "quote",
-		args: [name, amount - allowance],
-		blockNumber: block.number,
-	});
-	return {
-		body: {
+	try {
+		// One quote is one processing flow. Above Circle's cap, each slice incurs its own allowance.
+		if (source.chainId !== HUB_CHAIN.chainId) {
+			const client = await evidenceClient(source),
+				blockNumber = await client.getBlockNumber();
+			const minter = await client.readContract({
+				address: source.tokenMessengerAddress as Address,
+				abi: parseAbi(["function localMinter() view returns(address)"]),
+				functionName: "localMinter",
+				blockNumber,
+			});
+			const fee = await client.readContract({
+				address: source.tokenMessengerAddress as Address,
+				abi: parseAbi([
+					"function getMinFeeAmount(uint256 amount) view returns(uint256)",
+				]),
+				functionName: "getMinFeeAmount",
+				args: [amount],
+				blockNumber,
+			});
+			if (fee !== 0n)
+				throw new ApiError(
+					503,
+					"standard_route_unavailable",
+					"This route currently requires a Circle fee that automatic processing does not authorize.",
+				);
+
+			const maximum = await client.readContract({
+				address: minter,
+				abi: parseAbi([
+					"function burnLimitsPerMessage(address) view returns(uint256)",
+				]),
+				functionName: "burnLimitsPerMessage",
+				args: [source.usdcAddress as Address],
+				blockNumber,
+			});
+			if (maximum === 0n)
+				throw new ApiError(
+					503,
+					"burns_unavailable",
+					"This funding route is temporarily unavailable.",
+				);
+			if (amount > maximum)
+				throw new ApiError(
+					422,
+					"amount_above_quote_limit",
+					"The amount requires multiple processing flows. Quote an amount within the route limit.",
+					{ maximumAmount: maximum.toString() },
+				);
+		}
+		const client = await evidenceClient(HUB_CHAIN),
+			block = await client.getBlock();
+		const helper = await discoverHelper(async (calls) =>
+			Promise.all(
+				calls.map(async (call) => {
+					const result = await client.call({
+						to: call.to as Address,
+						data: toFunctionSelector(call.signature),
+						blockNumber: block.number,
+					});
+					if (!result.data) throw new Error("Missing helper response.");
+					return result.data.slice(2);
+				}),
+			),
+		);
+		assertEnsV2Adapter(
+			await client.getCode({
+				address: helper as Address,
+				blockNumber: block.number,
+			}),
+		);
+		const allowance = await client.readContract({
+			address: HUB_CHAIN.gatewayAddress as Address,
+			abi: parseAbi(["function GAS_ALLOWANCE() view returns(uint256)"]),
+			functionName: "GAS_ALLOWANCE",
+			blockNumber: block.number,
+		});
+		if (amount <= allowance)
+			throw new ApiError(
+				422,
+				"amount_below_minimum",
+				"The amount does not cover the renewal allowance.",
+			);
+		const renewer = await client.readContract({
+			address: helper as Address,
+			abi: parseAbi([
+				"function renewableBy(string label) view returns(address)",
+			]),
+			functionName: "renewableBy",
+			args: [name],
+			blockNumber: block.number,
+		});
+		if (/^0x0+$/.test(renewer))
+			throw new ApiError(
+				422,
+				"name_not_renewable",
+				"This name cannot currently be renewed.",
+			);
+		const [seconds, needed] = await client.readContract({
+			address: helper as Address,
+			abi: parseAbi([
+				"function quote(string label,uint256 budget) view returns(uint64 duration,uint256 amountNeeded)",
+			]),
+			functionName: "quote",
+			args: [name, amount - allowance],
+			blockNumber: block.number,
+		});
+		if (seconds === 0n || needed > amount - allowance)
+			throw new Error("Invalid helper quote.");
+		return json({
 			name: `${name}.eth`,
-			chainId: String(chain.chainId),
-			deploymentId: DEPLOYMENT_ID,
+			chainId: String(source.chainId),
 			amount: amount.toString(),
-			executorAllowance: allowance.toString(),
-			bridgeFee: "0",
+			secondsAdded: seconds.toString(),
 			amountApplied: needed.toString(),
-			roundingResidue: (amount - allowance - needed).toString(),
-			durationSeconds: duration.toString(),
-			helperAddress: helper,
-			blockNumber: block.number.toString(),
-			blockHash: block.hash,
+			renewalFee: allowance.toString(),
+			bridgeFee: "0",
+			roundingRemainder: (amount - allowance - needed).toString(),
+			pricingBlock: block.number.toString(),
 			expiresAt: new Date(Date.now() + 60000).toISOString(),
 			estimate: true,
-			assumptions: [
-				"standard_cctp",
-				"single_flow",
-				"unchanged_pricing",
-				"no_existing_wallet_balance",
-			],
-		},
-	};
+		});
+	} catch (error) {
+		if (error instanceof ApiError) throw error;
+		throw new ApiError(
+			503,
+			"pricing_unavailable",
+			"Verified pricing is temporarily unavailable. Try again shortly.",
+		);
+	}
 }

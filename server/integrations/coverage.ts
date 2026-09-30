@@ -229,6 +229,32 @@ export async function repairCoverage(nameId: string, chainId: string) {
 	if (BigInt(batch.to_block) < tip) throw new Error("coverage_incomplete");
 }
 
+/** Recover a source deposit without asking the caller to register a transfer or choose a log. */
+export async function discoverTransaction(chainId: string, hash: string) {
+	const { chain, receipt } = await canonicalReceipt(Number(chainId), hash);
+	const recipients = new Set<string>();
+	if (chain.key === "arc" && receipt.to)
+		recipients.add(receipt.to.toLowerCase());
+	for (const log of receipt.logs) {
+		if (log.address.toLowerCase() !== chain.usdcAddress.toLowerCase()) continue;
+		try {
+			const { args } = decodeEventLog({
+				abi: TRANSFER_ABI,
+				...log,
+				strict: true,
+			});
+			if (args.value > 0n) recipients.add(args.to.toLowerCase());
+		} catch {
+			/* Other token events are not deposits. */
+		}
+	}
+	if (!recipients.size) return;
+	const names = await query<{ id: string }>(
+		sql`select id from names where deposit_address=any(${sql.param([...recipients])}::text[])`,
+	);
+	for (const name of names) await repairTransaction(name.id, chainId, hash);
+}
+
 export async function repairTransaction(
 	nameId: string,
 	chainId: string,

@@ -3,12 +3,6 @@ import { decodeEventLog, toHex, type Hex, type TransactionReceipt } from "viem";
 import { chainById, HUB_CHAIN } from "../../src/lib/chains";
 import { database } from "../db/client";
 import { evidenceClient } from "./rpc";
-import {
-	ingestGoldskyEvent,
-	postgresGoldskyStore,
-	startGoldskyFlow,
-	type GoldskyEvent,
-} from "../goldsky";
 import { pollIris } from "../../workflows/iris";
 import { ApiError } from "../http";
 import { readReceiptEnsEvidence } from "../ens-renewal";
@@ -94,159 +88,6 @@ export async function storeEvidence(
     log_index=excluded.log_index,receipt=excluded.receipt,canonical=true,verified_at=now()`);
 	});
 }
-type AttemptVerification = {
-	status: "verified" | "pending" | "rejected" | "selection_required";
-	depositId?: string;
-	reasonCode?: string;
-	candidates?: unknown;
-};
-export async function verifyTransfer(id: string) {
-	const [row] = await query<{
-		name_id: string;
-		chain_id: string;
-		transfer_kind: string;
-		attempts: Array<{ txHash: string; logIndex: number | null }>;
-		verification: Record<string, AttemptVerification>;
-		verification_cursor: number;
-		deposit_address: string;
-	}>(sql`
-    select t.*,n.deposit_address from integration_transfers t join names n on n.id=t.name_id where t.id=${id}`);
-	if (!row) return;
-	const attempt = row.attempts[row.verification_cursor % row.attempts.length];
-	const key = (a: { txHash: string; logIndex: number | null }) =>
-		`${a.txHash}:${a.logIndex ?? "any"}`;
-	let state: AttemptVerification;
-	try {
-		const { chain, client, receipt, block } = await canonicalReceipt(
-			Number(row.chain_id),
-			attempt.txHash,
-		);
-		const transaction = await client.getTransaction({
-			hash: attempt.txHash as Hex,
-		});
-		const candidate = selectTransfer(
-			receiptTransfers(chain, row.deposit_address, receipt, transaction),
-			row.transfer_kind,
-			attempt.logIndex,
-		);
-		const event: GoldskyEvent = {
-			payload: {},
-			facts: {},
-			eventId: candidate.id,
-			eventFamily: "deposit",
-			eventType: "Transfer",
-			chainId: chain.chainId,
-			blockNumber: receipt.blockNumber.toString(),
-			blockTime: new Date(Number(block.timestamp) * 1000),
-			txHash: attempt.txHash,
-			logIndex: candidate.logIndex ?? -1,
-			gsOp: "c",
-			transferKind: candidate.kind,
-			tokenAddress: chain.usdcAddress.toLowerCase(),
-			senderAddress: candidate.sender,
-			recipientAddress: row.deposit_address,
-			amount: candidate.amount,
-		};
-		const flowId = await ingestGoldskyEvent(
-			postgresGoldskyStore,
-			event,
-			undefined,
-			true,
-		);
-		await storeEvidence(
-			event.eventId,
-			chain.chainId,
-			receipt,
-			candidate.logIndex,
-			candidate.kind,
-		);
-		await database()
-			.execute(sql`insert into integration_identity_aliases(alias,canonical_id,kind) values(${candidate.id},${event.eventId},'deposit')
-        on conflict(alias) do update set canonical_id=excluded.canonical_id`);
-		await database()
-			.execute(sql`insert into integration_coverage(name_id,chain_id,from_block,status) values(${row.name_id},${row.chain_id},${event.blockNumber},'pending')
-        on conflict(name_id,chain_id) do update set from_block=least(integration_coverage.from_block,excluded.from_block),
-        through_block=case when excluded.from_block<integration_coverage.from_block then null else integration_coverage.through_block end,
-        status='pending',updated_at=now()`);
-		await enqueue(
-			database(),
-			`coverage:${row.name_id}:${row.chain_id}`,
-			"coverage",
-			{ nameId: row.name_id, chainId: row.chain_id },
-		);
-		await enqueue(
-			database(),
-			`consumption:${row.name_id}:${row.chain_id}`,
-			"consumption",
-			{ nameId: row.name_id, chainId: row.chain_id },
-		);
-		if (flowId) {
-			try {
-				await startGoldskyFlow(flowId);
-			} catch {
-				/* The payment recovery queue owns a missed workflow wake. */
-			}
-		}
-		state = { status: "verified", depositId: event.eventId };
-	} catch (error) {
-		state =
-			error instanceof ApiError &&
-			["selection_required", "ambiguous_native_evidence"].includes(error.code)
-				? {
-						status: "selection_required",
-						reasonCode: error.code,
-						candidates: error.details?.candidates,
-					}
-				: error instanceof ApiError && error.status === 422
-					? { status: "rejected", reasonCode: error.code }
-					: { status: "pending", reasonCode: "receipt_pending" };
-	}
-	const verification = { ...row.verification, [key(attempt)]: state };
-	// A cached attempt is not proof after a reorg invalidates its receipt.
-	for (const saved of Object.values(verification))
-		if (saved.status === "verified" && saved.depositId) {
-			const [proof] = await query<{ canonical: boolean }>(
-				sql`select canonical from integration_evidence where id=${saved.depositId}`,
-			);
-			if (!proof?.canonical) {
-				saved.status = "pending";
-				saved.reasonCode = "receipt_pending";
-			}
-		}
-	const states = row.attempts.map(
-		(a) => verification[key(a)] ?? { status: "pending" as const },
-	);
-	const matches = [
-		...new Set(
-			states.flatMap((s) =>
-				s.status === "verified" && s.depositId ? [s.depositId] : [],
-			),
-		),
-	];
-	const ambiguous = states.find((s) => s.status === "selection_required");
-	const pending = states.some((s) => s.status === "pending");
-	const status =
-		matches.length > 1 || ambiguous
-			? "selection_required"
-			: matches.length
-				? "verified"
-				: pending
-					? "reported"
-					: "rejected";
-	const reason =
-		matches.length > 1
-			? "multiple_mined_attempts"
-			: (ambiguous?.reasonCode ??
-				(status === "rejected"
-					? states.find((s) => s.reasonCode)?.reasonCode
-					: null));
-	await database()
-		.execute(sql`update integration_transfers set verification=${jsonValue(verification)},verification_cursor=verification_cursor+1,
-    deposit_id=${matches.length === 1 && !ambiguous ? matches[0] : null},status=case when status='completed' and ${status}='verified' then 'completed' else ${status} end,
-    error_code=${reason ?? null},updated_at=now() where id=${id} and attempts=${jsonValue(row.attempts)}`);
-	if (pending) throw new Error("receipt_pending");
-}
-
 export async function verifyDeposit(id: string) {
 	const [deposit] = await query<{
 		name_id: string;
@@ -737,8 +578,6 @@ export async function recomputeConsumption(nameId: string, chainId: string) {
 				await tx.execute(sql`insert into integration_consumptions(id,name_id,status,linkage,flow_ids,reason)
       values(${deposit.event_id},${nameId},${result.status},${result.linkage},${sql.param(result.flowIds)}::uuid[],${result.reason})
       on conflict(id) do update set status=excluded.status,linkage=excluded.linkage,flow_ids=excluded.flow_ids,reason=excluded.reason,updated_at=now()`);
-				await tx.execute(sql`update integration_transfers set status=${!deposit.canonical ? "orphaned" : result.status === "completed" ? "completed" : "verified"},updated_at=now()
-      where deposit_id=${deposit.event_id} and status not in ('selection_required','rejected') and status<>${!deposit.canonical ? "orphaned" : result.status === "completed" ? "completed" : "verified"}`);
 			}
 		},
 		{ isolationLevel: "serializable" },

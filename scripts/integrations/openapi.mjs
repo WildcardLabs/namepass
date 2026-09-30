@@ -1,819 +1,282 @@
-import { writeFile, readFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 const text = { type: "string" },
-	nullable = { type: ["string", "null"] },
-	boolean = { type: "boolean" },
-	integer = { type: "integer" },
+	hash = { type: "string", pattern: "^0x[0-9a-fA-F]{64}$" },
+	address = { type: "string", pattern: "^0x[0-9a-fA-F]{40}$" },
 	amount = {
 		type: "string",
 		pattern: "^(0|[1-9][0-9]*)$",
-		description:
-			"Exact non-negative integer encoded as a decimal string. The field name specifies its unit.",
-	};
-const uuid = { type: "string", format: "uuid" },
-	date = { type: "string", format: "date-time" },
-	hash = { type: "string", pattern: "^0x[0-9a-f]{64}$" },
-	address = { type: "string", pattern: "^0x[0-9a-fA-F]{40}$" };
-const ref = (name) => ({ $ref: `#/components/schemas/${name}` });
-const nullableRef = (name) => ({ anyOf: [ref(name), { type: "null" }] });
-const arr = (items) => ({ type: "array", items });
-const obj = (
-	properties,
-	required = Object.keys(properties),
-	extra = false,
-) => ({ type: "object", properties, required, additionalProperties: extra });
-const any = { type: "object", additionalProperties: true };
-const base = {
-	id: text,
-	version: amount,
-	resourceType: text,
-	environment: { type: "string", enum: ["testnet", "mainnet"] },
-	deploymentId: text,
-};
-const resource = (p) =>
-	obj({ ...base, ...p }, [...Object.keys(base), ...Object.keys(p)], true);
-const schemas = {
-	Error: obj({
-		error: obj({ code: text, message: text, details: any }, [
-			"code",
-			"message",
-		]),
-		requestId: text,
-	}),
-	Resource: resource({}),
-	Name: resource({
-		label: text,
-		name: text,
-		depositAddress: address,
-		activatedAt: date,
-		currentExpiry: nullable,
-		renewableBy: nullable,
-		ensSyncedAt: date,
-		unscannedChainIds: arr(amount),
-		lifetimeReceived: amount,
-		lifetimeApplied: amount,
-		timeDeliveredSeconds: amount,
-		renewalCount: amount,
-	}),
-	Deposit: resource({
-		nameId: uuid,
-		chainId: amount,
-		tokenAddress: address,
-		senderAddress: address,
-		amount,
-		txHash: hash,
-		transferKind: { type: "string", enum: ["erc20", "native"] },
-		logIndex: { type: ["integer", "null"] },
-		blockNumber: amount,
-		blockTime: date,
-		observationStatus: text,
-	}),
-	Flow: resource({
-		nameId: uuid,
-		originChainId: amount,
-		executionStatus: text,
-		status: text,
-		trigger: text,
-		holdReason: nullable,
-		amountDetected: amount,
-		amountProcessed: nullable,
-		originWalletRemainder: nullable,
-		executorAllowance: nullable,
-		amountApplied: nullable,
-		durationSeconds: nullable,
-		expiryAfter: nullable,
-		depositId: nullable,
-		originEventId: nullable,
-		renewalEventId: nullable,
-		originTxHash: nullable,
-		cctpNonce: nullable,
-		reasonCode: nullable,
-		nextActionAt: nullable,
-		createdAt: date,
-		settledAt: nullable,
-	}),
-	Amounts: obj({
-		amountProcessed: amount,
-		bridgeFee: amount,
-		amountReceivedOnHub: amount,
-		executorAllowance: amount,
-		amountApplied: amount,
-		roundingResidue: amount,
-		originWalletRemainder: amount,
-	}),
-	Evidence: obj(
-		{
-			chainId: amount,
-			txHash: hash,
-			blockNumber: amount,
-			blockHash: hash,
-			transactionIndex: integer,
-			logIndex: { type: ["integer", "null"] },
-		},
-		undefined,
-		true,
-	),
-	Settlement: resource({
-		flowId: uuid,
-		nameId: uuid,
-		status: { type: "string", enum: ["observed", "finalized", "invalidated"] },
-		evidence: obj({ hub: ref("Evidence"), source: ref("Evidence"), ens: any }),
-		amounts: ref("Amounts"),
-		durationSeconds: amount,
-		expiryAfter: nullable,
-		observedAt: date,
-		finalizedAt: nullable,
-	}),
-	Attempt: obj(
-		{ txHash: hash, logIndex: { type: ["integer", "null"], minimum: 0 } },
-		["txHash"],
-	),
-	Transfer: resource({
-		nameId: uuid,
-		reference: text,
-		chainId: amount,
-		transferKind: { type: "string", enum: ["erc20", "native"] },
-		attempts: arr(ref("Attempt")),
-		verification: any,
-		depositId: nullable,
-		status: {
-			type: "string",
-			enum: [
-				"reported",
-				"selection_required",
-				"verified",
-				"rejected",
-				"orphaned",
-				"completed",
-			],
-		},
-		reasonCode: nullable,
-		createdAt: date,
-	}),
-	Activation: resource({
-		kind: text,
-		nameId: { type: ["string", "null"], format: "uuid" },
-		status: {
-			type: "string",
-			enum: ["pending", "running", "succeeded", "failed", "selection_required"],
-		},
-		result: { type: ["object", "null"], additionalProperties: true },
-		reasonCode: nullable,
-		createdAt: date,
-	}),
-	ActivationResult: obj({
-		operationId: { type: ["string", "null"], format: "uuid" },
-		nameId: uuid,
-		name: text,
-		depositAddress: address,
-		alias: text,
-		deploymentId: text,
-		status: { type: "string", enum: ["ready", "initializing"] },
-		snapshotRequired: boolean,
-	}),
-	Watch: obj({ name: text, nameId: uuid, createdAt: date }),
-	WatchResult: obj({
-		nameId: uuid,
-		enabled: boolean,
-		snapshotRequired: boolean,
-	}),
-	Endpoint: obj(
-		{
-			id: uuid,
-			url: { type: "string", format: "uri" },
-			status: { type: "string", enum: ["unverified", "active", "disabled"] },
-			configurationVersion: integer,
-			eventTypes: arr(text),
-			signingSecret: text,
-		},
-		["id", "url", "status", "configurationVersion", "eventTypes"],
-	),
-	Delivery: obj(
-		{
-			id: uuid,
-			endpointId: uuid,
-			eventId: uuid,
-			status: {
-				type: "string",
-				enum: ["pending", "running", "succeeded", "paused", "exhausted"],
-			},
-			attempts: integer,
-			nextAttemptAt: date,
-			reasonCode: nullable,
-			createdAt: date,
-			attemptHistory: arr(
-				obj({
-					attemptedAt: date,
-					httpStatus: { type: ["integer", "null"] },
-					durationMs: integer,
-					reasonCode: nullable,
-				}),
-			),
-		},
-		[
-			"id",
-			"endpointId",
-			"eventId",
-			"status",
-			"attempts",
-			"nextAttemptAt",
-			"reasonCode",
-			"createdAt",
-		],
-	),
-	Event: obj({
-		id: uuid,
-		type: text,
-		apiVersion: text,
-		environment: text,
-		deploymentId: text,
-		resourceType: text,
-		resourceId: text,
-		resourceVersion: amount,
-		recordedAt: date,
-		publishedAt: date,
-		data: any,
-	}),
-	Snapshot: obj({
-		id: uuid,
-		expiresAt: date,
-		eventsCursor: text,
-		nextCursor: text,
-	}),
-	SnapshotPage: obj({
-		items: arr(ref("Resource")),
-		hasMore: boolean,
-		nextCursor: nullable,
-		eventsCursor: text,
-	}),
-	EventPage: obj({
-		items: arr(ref("Event")),
-		hasMore: boolean,
-		nextCursor: text,
-	}),
-	Quote: obj({
-		name: text,
-		chainId: amount,
-		deploymentId: text,
-		amount,
-		executorAllowance: amount,
-		bridgeFee: amount,
-		amountApplied: amount,
-		roundingResidue: amount,
-		durationSeconds: amount,
-		helperAddress: address,
-		blockNumber: amount,
-		blockHash: hash,
-		expiresAt: date,
-		estimate: { const: true, type: "boolean" },
-		assumptions: arr(text),
-	}),
-	Config: obj({
-		apiVersion: text,
-		environment: text,
-		deploymentId: text,
-		enabled: boolean,
-		eventTypes: arr(text),
-		eventRetentionDays: integer,
-		snapshotLifetimeSeconds: integer,
-		maxPageSize: integer,
-		alias: obj({ suffix: text, resolutionChainId: amount, verified: boolean }),
-		chains: arr(
-			obj({
-				chainId: amount,
-				name: text,
-				factoryAddress: address,
-				token: obj({ address, symbol: text, decimals: integer }),
-				fundingModes: arr({ type: "string", enum: ["erc20", "native"] }),
-				nativeDecimals: { type: ["integer", "null"] },
-				minimumTriggerAmount: amount,
-				hubChainId: amount,
-			}),
-		),
-	}),
-};
-schemas.Consumption = resource({
-	status: {
+		description: "Exact integer encoded as a decimal string.",
+	},
+	status = {
 		type: "string",
-		enum: ["pending", "unresolved", "consumed", "completed"],
+		enum: ["pending", "processing", "complete", "failed"],
 	},
-	linkage: { enum: ["pooled", "unresolved"], type: "string" },
-	flowIds: arr(uuid),
-	reasonCode: nullable,
-});
-schemas.CoverageFields = obj({
-	chainId: amount,
-	fromBlock: amount,
-	throughBlock: nullable,
-	throughBlockHash: nullable,
-	nativeFromBlock: nullable,
-	nativeThroughBlock: nullable,
-	nativeTargetBlock: nullable,
-	status: text,
-	checkedAt: date,
-});
-schemas.BalanceFields = obj({
-	chainId: amount,
-	snapshotAmount: amount,
-	snapshotBlock: nullable,
-	checkedAt: date,
-});
-schemas.DepositVerification = obj({
-	...schemas.Evidence.properties,
-	canonical: boolean,
-	verifiedAt: date,
-});
-schemas.NameDetail = obj(
-	{
-		...schemas.Name.properties,
-		alias: obj({
-			name: text,
-			suffix: text,
-			resolutionChainId: amount,
-			verified: boolean,
-		}),
-		historyCoverage: arr(ref("CoverageFields")),
-		balances: arr(ref("BalanceFields")),
-		fundingStatus: { type: "string", enum: ["ready", "initializing"] },
-	},
-	undefined,
-	true,
-);
-schemas.DepositDetail = obj(
-	{
-		...schemas.Deposit.properties,
-		requestedId: text,
-		verification: nullableRef("DepositVerification"),
-		consumption: nullableRef("Consumption"),
-	},
-	undefined,
-	true,
-);
-schemas.FlowDetail = obj(
-	{
-		...schemas.Flow.properties,
-		supersededBy: nullable,
-		settlement: nullableRef("Settlement"),
-	},
-	undefined,
-	true,
-);
-schemas.AttemptVerification = obj(
-	{
-		status: {
-			type: "string",
-			enum: ["verified", "pending", "rejected", "selection_required"],
-		},
-		depositId: text,
-		reasonCode: text,
-		candidates: arr(
-			obj(
-				{
-					id: text,
-					kind: { type: "string", enum: ["native", "erc20"] },
-					logIndex: { type: ["integer", "null"] },
-					amount,
-					sender: address,
-					aliasLogIndex: integer,
-				},
-				["id", "kind", "logIndex", "amount", "sender"],
-			),
-		),
-	},
-	["status"],
-);
-schemas.Transfer.properties.verification = {
+	nullable = { type: ["string", "null"] };
+const ref = (name) => ({ $ref: `#/components/schemas/${name}` });
+const array = (items) => ({ type: "array", items });
+const object = (properties) => ({
 	type: "object",
-	additionalProperties: ref("AttemptVerification"),
-};
-for (const [schema, kind] of Object.entries({
-	Name: "name",
-	NameDetail: "name",
-	Deposit: "deposit",
-	DepositDetail: "deposit",
-	Flow: "flow",
-	FlowDetail: "flow",
-	Settlement: "settlement",
-	Transfer: "transfer",
-	Activation: "activation",
-	Consumption: "consumption",
-}))
-	schemas[schema].properties.resourceType = { const: kind, type: "string" };
-for (const name of ["Deposit", "Flow", "Settlement", "Transfer"])
-	schemas[name + "Page"] = obj({
-		items: arr(ref(name)),
-		asOf: date,
-		hasMore: boolean,
-		nextCursor: nullable,
-	});
-schemas.WatchPage = obj({
-	items: arr(ref("Watch")),
-	hasMore: boolean,
-	nextCursor: nullable,
+	properties,
+	required: Object.keys(properties),
+	additionalProperties: false,
 });
-schemas.DeliveryPage = obj({
-	items: arr(ref("Delivery")),
-	hasMore: boolean,
-	nextCursor: nullable,
-});
-const page = [
-	{
-		name: "limit",
-		in: "query",
-		schema: { type: "integer", minimum: 1, maximum: 100, default: 50 },
+const schemas = {
+	Error: {
+		type: "object",
+		properties: {
+			error: object({ code: text, message: text }),
+			requestId: text,
+		},
+		required: ["error", "requestId"],
+		additionalProperties: false,
 	},
-	{ name: "cursor", in: "query", schema: text },
-];
-const filters = [
-	"name",
-	"chainId",
-	"status",
-	"txHash",
-	"reference",
-	"createdFrom",
-	"updatedFrom",
-].map((name) => ({ name, in: "query", schema: text }));
-const paths = {};
-function route(
-	path,
-	method,
-	summary,
-	response,
-	scope = "read",
-	body = null,
-	idem = false,
-	params = [],
-) {
-	const parameters = [
-		...Array.from(path.matchAll(/\{([^}]+)\}/g), (m) => ({
-			name: m[1],
-			in: "path",
-			required: true,
-			schema: text,
-		})),
-		...params,
-	];
-	if (idem)
-		parameters.push({
-			name: "Idempotency-Key",
-			in: "header",
-			required: true,
-			schema: {
-				type: "string",
-				minLength: 1,
-				maxLength: 128,
-				pattern: "^[A-Za-z0-9_.:-]+$",
-			},
-			description:
-				"Reuse the same key and exact body on retries. Cached for seven days.",
-		});
-	const responses = {};
-	for (const code of ["200", "201", "202"])
-		responses[code] = {
-			description:
-				code === "202"
-					? "Durably accepted; continue with the returned resource ID."
-					: "Success.",
-			content: {
-				"application/json": {
-					schema: typeof response === "string" ? ref(response) : response,
-				},
-			},
-		};
-	for (const code of [
-		"400",
-		"401",
-		"403",
-		"404",
-		"409",
-		"410",
-		"413",
-		"415",
-		"422",
-		"429",
-		"500",
-		"503",
-	])
-		responses[code] = {
-			description:
-				code === "410"
-					? "Cursor expired; create a new snapshot."
-					: code === "429"
-						? "Rate limited. Honor Retry-After."
-						: "Structured error.",
-			content: { "application/json": { schema: ref("Error") } },
-		};
-	paths[path] ??= {};
-	paths[path][method] = {
-		operationId: method + path.replace(/[^a-zA-Z]/g, "_"),
-		summary,
-		description: `Required scope: \`${scope}\`.`,
-		security: [{ bearerAuth: [] }],
-		parameters,
-		responses,
-		...(body
-			? {
-					requestBody: {
-						required: true,
-						content: { "application/json": { schema: body } },
-					},
-				}
-			: {}),
-	};
-}
-route(
-	"/config",
-	"get",
-	"Discover the active deployment and supported funding modes",
-	"Config",
-);
-route(
-	"/names/activate",
-	"post",
-	"Activate a name and create the caller’s watch",
-	"ActivationResult",
-	"names:write",
-	obj({ name: text }),
-	true,
-);
-route("/activations/{id}", "get", "Read a durable operation", "Activation");
-route(
-	"/names/{name}",
-	"get",
-	"Read stored name, alias verification, balance snapshots and history coverage",
-	"NameDetail",
-);
-route(
-	"/names/{name}/refresh",
-	"post",
-	"Refresh ENS and chain coverage asynchronously",
-	"ActivationResult",
-	"names:write",
-	obj({}),
-	true,
-);
-route(
-	"/watches",
-	"get",
-	"List the caller’s enabled name watches",
-	"WatchPage",
-	"read",
-	null,
-	false,
-	page,
-);
-for (const method of ["put", "delete"])
-	route(
-		"/watches/{name}",
-		method,
-		method === "put"
-			? "Watch an activated name; bootstrap with /sync"
-			: "Stop new notifications for a name",
-		"WatchResult",
-		"names:write",
-		obj({}),
-		true,
-	);
-route(
-	"/quotes",
-	"post",
-	"Quote an exact input amount at a verified hub block",
-	"Quote",
-	"read",
-	obj({ name: text, chainId: amount, amount }),
-);
-route(
-	"/transfers",
-	"post",
-	"Register a transaction attempt with a private stable reference",
-	obj({ transferId: uuid }),
-	"transfers:write",
-	obj(
-		{
-			name: text,
-			chainId: amount,
-			txHash: hash,
-			reference: { ...text, minLength: 1, maxLength: 255 },
-			transferKind: {
-				type: "string",
-				enum: ["erc20", "native"],
-				default: "erc20",
-			},
-			logIndex: { type: ["integer", "null"], minimum: 0 },
+	FundingChain: object({
+		chainId: amount,
+		name: text,
+		tokenAddress: address,
+		minimumAmount: {
+			...amount,
+			description: "Minimum funding amount in six-decimal USDC units.",
 		},
-		["name", "chainId", "txHash", "reference"],
+	}),
+	AddressResponse: object({
+		name: text,
+		depositAddress: address,
+		subname: text,
+		subnameVerified: { type: "boolean" },
+		chains: array(ref("FundingChain")),
+	}),
+	Renewal: object({
+		chainId: amount,
+		transactionHash: hash,
+		secondsAdded: amount,
+		expiry: { type: ["string", "null"], format: "date-time" },
+	}),
+	DepositStatus: object({
+		name: text,
+		depositAddress: address,
+		logIndex: { type: ["integer", "null"] },
+		amount: {
+			...amount,
+			description: "Deposited USDC, in six-decimal token units.",
+		},
+		status,
+		reason: nullable,
+		renewals: array(ref("Renewal")),
+	}),
+	StatusResponse: object({
+		chainId: amount,
+		transactionHash: hash,
+		status,
+		deposits: array(ref("DepositStatus")),
+	}),
+};
+schemas.QuoteResponse = object({
+	name: text,
+	chainId: amount,
+	amount,
+	secondsAdded: amount,
+	amountApplied: amount,
+	renewalFee: amount,
+	bridgeFee: amount,
+	roundingRemainder: amount,
+	pricingBlock: amount,
+	expiresAt: { type: "string", format: "date-time" },
+	estimate: { type: "boolean", const: true },
+});
+const optionalAmount = { ...amount, type: ["string", "null"] };
+schemas.HistoryItem = object({
+	flowId: { type: "string", format: "uuid" },
+	sourceChainId: amount,
+	chainId: amount,
+	transactionHash: hash,
+	secondsAdded: optionalAmount,
+	amountApplied: optionalAmount,
+	renewalFee: optionalAmount,
+	expiry: { type: ["string", "null"], format: "date-time" },
+	status: { type: "string", enum: ["processing", "complete"] },
+	renewedAt: { type: "string", format: "date-time" },
+});
+schemas.HistoryResponse = object({
+	name: text,
+	currentExpiry: { type: ["string", "null"], format: "date-time" },
+	expiryUpdatedAt: { type: ["string", "null"], format: "date-time" },
+	items: array(ref("HistoryItem")),
+	nextCursor: nullable,
+});
+// Error details are optional and identify invalid input fields.
+schemas.Error.properties.error.properties.details = {
+	type: "object",
+	additionalProperties: true,
+};
+const response = (description, schema) => ({
+	description,
+	content: { "application/json": { schema: ref(schema) } },
+	headers: {
+		"Retry-After": {
+			description:
+				"Seconds to wait before polling again when pending or temporarily unavailable.",
+			schema: { type: "string" },
+		},
+	},
+});
+const errors = {
+	400: response(
+		"Invalid name, chain ID, transaction hash or request.",
+		"Error",
 	),
-	true,
-);
-route(
-	"/transfers/{id}/transactions",
-	"post",
-	"Add a replacement hash or choose a receipt log",
-	obj({ transferId: uuid }),
-	"transfers:write",
-	ref("Attempt"),
-	true,
-);
-for (const [plural, resource] of [
-	["transfers", "Transfer"],
-	["deposits", "Deposit"],
-	["flows", "Flow"],
-	["settlements", "Settlement"],
-]) {
-	route(
-		"/" + plural,
-		"get",
-		"List complete " + plural + " at a fixed publication position",
-		resource + "Page",
-		"read",
-		null,
-		false,
-		[...page, ...filters],
-	);
-	route(
-		"/" + plural + "/{id}",
-		"get",
-		"Read one " + resource.toLowerCase(),
-		["Deposit", "Flow"].includes(resource) ? resource + "Detail" : resource,
-	);
-}
-route(
-	"/flows/{id}/retry",
-	"post",
-	"Revalidate and resume the same flow",
-	obj({ flowId: uuid, operationId: uuid, status: text }, ["flowId"]),
-	"flows:retry",
-	obj({}),
-	true,
-);
-route(
-	"/sync",
-	"post",
-	"Create a consistent snapshot and matching event cursor",
-	"Snapshot",
-	"read",
-	obj({}),
-);
-route(
-	"/sync/{id}",
-	"get",
-	"Page an immutable snapshot for up to 24 hours",
-	"SnapshotPage",
-	"read",
-	null,
-	false,
-	page,
-);
-route(
-	"/events",
-	"get",
-	"Replay events; persist nextCursor only after durable processing",
-	"EventPage",
-	"read",
-	null,
-	false,
-	[
-		...page,
-		{
-			name: "from",
-			in: "query",
-			schema: date,
-			description:
-				"Inclusive publication timestamp for one-time bootstrap. Use cursor for every subsequent request.",
-		},
-	],
-);
-route(
-	"/events/{id}",
-	"get",
-	"Read an event available to this partner",
-	"Event",
-);
-route(
-	"/webhook-endpoints",
-	"get",
-	"List webhook destinations",
-	obj({ items: arr(ref("Endpoint")) }),
-	"webhooks:manage",
-);
-route(
-	"/webhook-endpoints",
-	"post",
-	"Register an unverified HTTPS webhook destination",
-	"Endpoint",
-	"webhooks:manage",
-	obj({ url: { type: "string", format: "uri" }, eventTypes: arr(text) }, [
-		"url",
-	]),
-	true,
-);
-route(
-	"/webhook-endpoints/{id}",
-	"get",
-	"Read a webhook destination",
-	"Endpoint",
-	"webhooks:manage",
-);
-route(
-	"/webhook-endpoints/{id}",
-	"patch",
-	"Edit destination or subscription; pending deliveries pause",
-	"Endpoint",
-	"webhooks:manage",
-	obj(
-		{
-			url: { type: "string", format: "uri" },
-			eventTypes: arr(text),
-			enabled: boolean,
-		},
-		[],
+	503: response(
+		"Temporarily unavailable. Retry after the indicated delay.",
+		"Error",
 	),
-	true,
-);
-route(
-	"/webhook-endpoints/{id}",
-	"delete",
-	"Disable a destination",
-	"Endpoint",
-	"webhooks:manage",
-	obj({}),
-	true,
-);
-for (const action of ["test", "verify"])
-	route(
-		"/webhook-endpoints/{id}/" + action,
-		"post",
-		action === "verify"
-			? "Activate a destination after it accepts a signed verification event"
-			: "Send a signed synthetic test event",
-		obj({ deliveryId: uuid }),
-		"webhooks:manage",
-		obj({}),
-		true,
-	);
-route(
-	"/webhook-endpoints/{id}/rotate-secret",
-	"post",
-	"Rotate signing secret with a 24-hour overlap",
-	obj({ id: uuid, signingSecret: text, previousSecretExpiresAt: date }),
-	"webhooks:manage",
-	obj({}),
-	true,
-);
-route(
-	"/webhook-deliveries",
-	"get",
-	"List delivery outcomes",
-	"DeliveryPage",
-	"webhooks:manage",
-	null,
-	false,
-	page,
-);
-route(
-	"/webhook-deliveries/{id}",
-	"get",
-	"Read a delivery and its recent attempts",
-	"Delivery",
-	"webhooks:manage",
-);
-route(
-	"/webhook-deliveries/{id}/replay",
-	"post",
-	"Replay the immutable original event",
-	obj({ deliveryId: uuid }),
-	"webhooks:manage",
-	obj({}),
-	true,
-);
+	500: response("Server error.", "Error"),
+};
 const spec = {
 	openapi: "3.1.0",
 	info: {
-		title: "Namepass Integration API",
-		version: "2026-09-28",
+		title: "Namepass public API",
+		version: "2026-09-30",
 		description:
-			"USDC-funded ENS renewals. Testnet deployment. API enablement is controlled by the release gate. All monetary amounts are decimal integer strings. A flow execution status alone is not proof that a customer transfer completed; use verified consumption and finalized settlements.",
+			"Get a deposit address, estimate renewal time, send USDC and poll by transaction hash and source chain ID. Read renewal history for one name. No API keys.",
 	},
-	servers: [{ url: "/api/v1", description: "Current Namepass deployment" }],
-	paths,
-	components: {
-		securitySchemes: {
-			bearerAuth: {
-				type: "http",
-				scheme: "bearer",
-				description: "Server-side partner key with explicit scopes.",
+	servers: [{ url: "https://beta.namepass.com/api/v1" }],
+	security: [],
+	paths: {
+		"/address": {
+			post: {
+				operationId: "post_address",
+				summary: "Get a deposit address",
+				description:
+					"Activate an ENS name and return its payment address, subname and supported chains. No API key or authorization header is required.",
+				requestBody: {
+					required: true,
+					content: {
+						"application/json": {
+							schema: object({ name: text }),
+							example: { name: "example.eth" },
+						},
+					},
+				},
+				responses: {
+					200: response(
+						"Address activated and ready for funding.",
+						"AddressResponse",
+					),
+					...errors,
+				},
 			},
 		},
-		schemas,
+		"/status/{chainId}": {
+			get: {
+				operationId: "get_status",
+				summary: "Poll a transaction",
+				description:
+					"Poll an already-sent USDC transaction using its source chain ID and hash. No API key, registration or session is required. Complete means every indexed deposit in this transaction has a verified, finalized renewal.",
+				parameters: [
+					{
+						name: "chainId",
+						in: "path",
+						required: true,
+						description:
+							"Source blockchain chain ID, from the address response. This is a chain ID, not a CCTP domain.",
+						schema: amount,
+					},
+					{
+						name: "transactionHash",
+						in: "query",
+						required: true,
+						description:
+							"The USDC deposit transaction hash returned by your wallet.",
+						schema: hash,
+					},
+				],
+				responses: {
+					200: response(
+						"Current progress. Poll pending or processing; stop at complete.",
+						"StatusResponse",
+					),
+					404: response(
+						"Deposit not indexed yet. Retry the same URL.",
+						"Error",
+					),
+					...errors,
+				},
+			},
+		},
+	},
+	components: { schemas },
+};
+const validationError = response(
+	"Name cannot currently renew, amount is below the minimum, or amount exceeds the single-flow quote limit.",
+	"Error",
+);
+spec.paths["/address"].post.responses[422] = validationError;
+spec.paths["/quote"] = {
+	post: {
+		operationId: "post_quote",
+		summary: "Estimate a renewal",
+		description:
+			"Estimate how much renewal time an amount of USDC buys for one name and funding chain. Reads the active helper at one block, using the same pricing algorithm as the frontend. The estimate expires after 60 seconds and assumes one processing flow without an existing wallet balance.",
+		requestBody: {
+			required: true,
+			content: {
+				"application/json": {
+					schema: object({ name: text, chainId: amount, amount }),
+					example: { name: "example.eth", chainId: "84532", amount: "1000000" },
+				},
+			},
+		},
+		responses: {
+			200: response(
+				"Estimated renewal time and fee breakdown.",
+				"QuoteResponse",
+			),
+			422: validationError,
+			...errors,
+		},
 	},
 };
-const content = JSON.stringify(spec, null, 2) + "\n";
-const outputs = ["docs/api/openapi.json", "public/openapi.json"];
-for (const output of outputs) {
+spec.paths["/names/{name}/renewals"] = {
+	get: {
+		operationId: "get_name_renewals",
+		summary: "List a name's renewals",
+		description:
+			"Past renewal flows for the requested ENS name, with its recorded expiry. Returns canonical renewals newest first. Complete indicates verified hub finality; processing means verification is pending. This is public name-scoped data and does not prove caller ownership.",
+		parameters: [
+			{
+				name: "name",
+				in: "path",
+				required: true,
+				description: "ENS name, such as example.eth.",
+				schema: text,
+			},
+			{
+				name: "limit",
+				in: "query",
+				description: "Items per page; defaults to 20.",
+				schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+			},
+			{
+				name: "cursor",
+				in: "query",
+				description: "nextCursor from the previous page. Keep the same name.",
+				schema: text,
+			},
+		],
+		responses: {
+			200: response("Name expiry and renewal history.", "HistoryResponse"),
+			404: response(
+				"This name has not been activated. Get its deposit address first.",
+				"Error",
+			),
+			...errors,
+		},
+	},
+};
+const result = JSON.stringify(spec, null, 2) + "\n";
+for (const file of ["docs/api/openapi.json", "public/openapi.json"]) {
 	if (process.argv.includes("--check")) {
-		if ((await readFile(output, "utf8")) !== content)
-			throw new Error(output + " is stale.");
-	} else {
-		await mkdir(output.slice(0, output.lastIndexOf("/")), { recursive: true });
-		await writeFile(output, content);
-	}
+		if ((await readFile(file, "utf8")) !== result)
+			throw new Error(`Stale API contract: ${file}`);
+	} else await writeFile(file, result);
 }

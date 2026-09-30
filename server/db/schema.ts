@@ -99,7 +99,6 @@ export const transactionKind = pgEnum("transaction_kind", [
 export const names = pgTable(
 	"names",
 	{
-		integrationRevision: bigint("integration_revision", { mode: "bigint" }).notNull().default(0n),
 		id: uuid("id").defaultRandom().primaryKey(),
 		normalizedLabel: varchar("normalized_label", { length: 255 }).notNull(),
 		displayName: text("display_name").notNull(),
@@ -144,7 +143,6 @@ export const watchedAddresses = goldsky.table("watched_addresses", {
 export const balanceSnapshots = pgTable(
 	"balance_snapshots",
 	{
-		integrationRevision: bigint("integration_revision", { mode: "bigint" }).notNull().default(0n),
 		nameId: uuid("name_id")
 			.notNull()
 			.references(() => names.id),
@@ -219,7 +217,6 @@ export const chainEvents = pgTable(
 export const deposits = pgTable(
 	"deposits",
 	{
-		integrationRevision: bigint("integration_revision", { mode: "bigint" }).notNull().default(0n),
 		eventId: text("event_id")
 			.primaryKey()
 			.references(() => chainEvents.eventId),
@@ -241,13 +238,13 @@ export const deposits = pgTable(
 	(table) => [
 		index("deposits_name_time_idx").on(table.nameId, table.blockTime),
 		index("deposits_chain_time_idx").on(table.chainId, table.blockTime),
+		index("deposits_chain_tx_idx").on(table.chainId, table.txHash),
 	],
 );
 
 export const flows = pgTable(
 	"flows",
 	{
-		integrationRevision: bigint("integration_revision", { mode: "bigint" }).notNull().default(0n),
 		id: uuid("id").defaultRandom().primaryKey(),
 		nameId: uuid("name_id")
 			.notNull()
@@ -358,7 +355,6 @@ export const relayerNonces = pgTable(
 export const transactionIntents = pgTable(
 	"transaction_intents",
 	{
-		integrationRevision: bigint("integration_revision", { mode: "bigint" }).notNull().default(0n),
 		id: uuid("id").defaultRandom().primaryKey(),
 		flowId: uuid("flow_id")
 			.notNull()
