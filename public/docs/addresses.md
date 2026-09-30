@@ -1,5 +1,7 @@
 # Get an address
 
+> The public integration API is not available. These pages describe the planned API.
+
 Retrieve the deposit address and supported funding networks for an ENS name.
 
 ## Request

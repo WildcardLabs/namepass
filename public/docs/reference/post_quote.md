@@ -1,5 +1,7 @@
 # Estimate a renewal
 
+> The public integration API is not available. These pages describe the planned API.
+
 `POST /api/v1/quote`
 
 Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Quotes expire after 60 seconds and assume one processing flow with no existing balance at the deposit address.

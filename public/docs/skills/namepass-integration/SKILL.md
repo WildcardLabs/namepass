@@ -5,6 +5,8 @@ description: Integrate USDC-funded ENS renewals with Namepass using deposit addr
 
 # Namepass
 
+**Availability:** The public integration API is not available. This skill describes the planned API. Do not call these endpoints or send funds through this integration until its release is confirmed.
+
 Base URL: `https://beta.namepass.com`. Read [the quickstart](https://beta.namepass.com/docs/quickstart.md) for request examples.
 
 1. Call `POST /api/v1/address` with `{"name":"example.eth"}` for the requested name.

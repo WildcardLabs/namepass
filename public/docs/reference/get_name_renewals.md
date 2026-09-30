@@ -1,5 +1,7 @@
 # List a name's renewals
 
+> The public integration API is not available. These pages describe the planned API.
+
 `GET /api/v1/names/{name}/renewals`
 
 Retrieve public renewal history and the recorded expiry for an ENS name. Renewals are ordered newest first. Complete indicates a verified, finalized renewal; processing indicates pending verification.

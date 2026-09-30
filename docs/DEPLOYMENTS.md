@@ -54,25 +54,53 @@ No audited mainnet protocol release is recorded. Ethereum, Base, Arbitrum, and A
 the initial mainnet release; none has a recorded Namepass mainnet deployment. Requirements are in
 [RUNBOOK.md](RUNBOOK.md#mainnet-release-requirements).
 
-## Integration release gate — 2026-09-30
+## Beta recovery — 2026-09-30
 
-The public API is not recorded as deployed. Migration `0009_public_status.sql`, the four `/api/v1`
-endpoints and evidence Workflow are separate from the September 22 contract canaries. Keep
-`NAMEPASS_INTEGRATIONS_ENABLED` disabled until the release has evidence for:
+`beta.namepass.com` was restored with Vercel Instant Rollback to production deployment
+`dpl_AW7ffYsDGvEzSuE2AvsxyMLg48Jy`, commit
+`e5b0704e3967bf30a12fa10b5950f8cc057083d3` (September 28, 18:26 London).
+The live activity endpoint returned HTTP 200 after rollback. No beta database migration or
+credential change was made. Vercel production domain auto-assignment is paused by the rollback.
+Do not resume it until the reviewed recovery deployment is ready.
 
-- Migration/backfill rehearsal on representative data, native identity preflight and disabling
-  the feature without losing payment evidence.
-- Anonymous address activation, block-pinned quotes, name history, transaction polling, platform
-  abuse limits and hosted latency.
-- Archive receipt and hub-finality provider support, plus a missed-start recovery drill.
-- Signed direct and CCTP funding canaries that reach `complete` through the public polling route.
-- Resolver/parent evidence and address equality before enabling the alias verification flag.
+PR #116 deployed shared ORM fields `chain_events.evidence_kind` and `deposits.transfer_kind`
+while beta had only migrations `0000`–`0008`. Explorer reads and Goldsky writes depended on
+these fields even with the integration feature disabled. PostgreSQL rejected the explorer query
+with error `42703` (`chain_events.evidence_kind` does not exist).
 
-There are no partner credentials, outgoing webhooks or MCP release steps. Existing Goldsky
-provider webhook configuration remains required for ingestion. Hosted changes, merge and wallet
-signing retain their approval boundaries. Mainnet funding remains disabled. Local checks are
-recorded in [integration validation](api/VALIDATION.md); operations are in
-[the runbook](RUNBOOK.md#integration-api-operations).
+The recovery change restores the pre-integration backend and removes migration `0009`, the
+unreleased `/api/v1` routes and their evidence worker. It preserves the documentation design,
+marks the API contract as unreleased, and tests real explorer queries and Goldsky writes against
+the deployed `0008` schema. The recovery change is not yet the live deployment.
+
+## Integration release gate
+
+The public integration API is not available. Integration development is retained on
+`codex/integration-rollout` and draft [PR #117](https://github.com/wildcardlabs/namepass/pull/117).
+Documentation and OpenAPI describe the planned contract; they are not evidence of availability.
+
+Before resuming the API rollout, require:
+
+- Core explorer, name history and Goldsky ingestion checks on the currently deployed schema,
+  with the integration disabled. A feature flag must not add schema dependencies to core paths.
+- An isolated hosted environment with separate database, RPC and relayer configuration. Its
+  writers must not target beta. Schema changes need a reviewed migration and rollback plan.
+- Address activation, quotes, source-transaction polling and name history on the hosted preview,
+  including anonymous limits and measured latency.
+- A fresh direct renewal and CCTP renewal that reach `complete`, with indexed evidence and
+  receipt-confirmed ENS expiry. Historical receipt replay does not establish fresh flow readiness.
+
+The original 1 USDC Sepolia deposit
+`0x2d0353ea98ae0debd85bd7854fb2f7daef03d4479c07d516c5cad90e1b594958`
+was ingested and renewed after rollback. Beta's explorer and name history agree on flow
+`ee8dc126-d340-4afb-a2ae-447c306f44ea`, 0.90 USDC applied and 3,547,790 seconds added.
+The successful canonical renewal receipt is
+`0xd74aefa074c58a218117dd77730b3f75b0915edc8ee1738e46db3f3d7cb35409`,
+block `11815826`. Its exact ENS receipt records expiry `2029-09-22T10:16:06.000Z`.
+The hub finalized block had not reached that receipt at verification time. This confirms beta
+renewal recovery, not completion through the unreleased public integration API. Do not request
+a duplicate deposit. See the [recovery verification](deployments/2026-09-30-beta-recovery.json).
+Mainnet funding remains disabled.
 
 ## Historical evidence
 

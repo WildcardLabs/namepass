@@ -1,5 +1,7 @@
 # Estimate renewal time
 
+> The public integration API is not available. These pages describe the planned API.
+
 Estimate the renewal duration and fees for a USDC deposit.
 
 ## Request a quote

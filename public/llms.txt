@@ -1,6 +1,8 @@
 # Namepass developer documentation
 
-> API documentation for USDC-funded ENS renewals. API version 2026-09-30. Supported networks: testnets.
+> The public integration API is not available. These pages describe the planned API.
+
+API documentation for USDC-funded ENS renewals. API version 2026-09-30. Supported networks: testnets.
 
 ## Guides and API operations
 

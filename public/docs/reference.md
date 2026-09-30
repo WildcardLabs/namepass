@@ -1,5 +1,7 @@
 # API reference
 
+> The public integration API is not available. These pages describe the planned API.
+
 Base URL: `https://beta.namepass.com/api/v1`
 
 | Endpoint | Purpose |

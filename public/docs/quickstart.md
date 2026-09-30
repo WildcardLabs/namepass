@@ -1,5 +1,7 @@
 # Quickstart
 
+> The public integration API is not available. These pages describe the planned API.
+
 ## 1. Get a deposit address
 
 ```bash

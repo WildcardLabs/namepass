@@ -1,34 +1,16 @@
 # Public API validation
 
-The integration contract has four unauthenticated endpoints: address activation, quotes, polling by
-source chain ID and transaction hash, and name history. Local tests use a disposable loopback PostgreSQL service
-and apply every committed migration. They verify repeated activation through an RPC fixture,
-Goldsky watch registration, anonymous polling, CORS, invalid input, indexing retries, multi-log
-transactions, chain-specific lookup, coverage, finality and immediate completion revocation.
+The public integration API is unreleased. Its previous validation and implementation are
+retained in draft [PR #117](https://github.com/wildcardlabs/namepass/pull/117).
+Migration-applied fixtures did not test compatibility with beta's deployed `0008` schema.
 
-The exact ENS receipt test rejects mismatched accounting, keeps observed renewals incomplete
-until hub finality, and invalidates evidence after a canonicality correction. The consumption
-regression requires every candidate processing slice and never allocates per-deposit duration.
-API results are checked against OpenAPI. History tests cover normalized name filtering,
-equal-timestamp keyset pagination, cursor scope, missing names and reorg corrections. Quote tests
-check verified helper selection, block pinning, allowance subtraction, live burn caps, current
-Circle minimum fees, concurrent requests and unavailable pricing. Frontend coverage checks direct docs navigation and
-browser back without pricing or chain reads. Documentation generation checks internal links and
-Markdown/skill freshness.
+The recovery regression in `server/production-schema.test.ts` creates a disposable PostgreSQL
+database with only migrations `0000`–`0008`. It checks explorer pagination, canonical renewal
+filtering, name history, authenticated Goldsky ingestion, replay without duplicate rows, and
+visibility of the queued deposit flow. It uses the real database store and route handlers.
+Workflow dispatch is replaced; the test does not broadcast a transaction or prove live settlement.
 
-The local run passed 149 server tests, 60 frontend tests, 26 transaction tests and the Workflow
-runtime test. Foundry passed 83 contract tests; two existing fork tests were skipped because no
-fork RPC was configured. The application build, server types, OpenAPI/generated types, 13-page
-documentation catalog, skill validation, chain registry, Goldsky generation and helper fingerprint
-checks passed.
-
-Run the application build, server types, frontend/server/transaction/Workflow suites, API/docs
-checks, registry, Goldsky and helper-fingerprint checks required by CI. No outgoing webhook or
-MCP test suite applies. The [September 29 capacity receipt](validation/2026-09-29-capacity.json)
-is historical evidence for the removed partner journal design; it does not establish throughput
-for the current public endpoints.
-
-Hosted availability, platform abuse limits, indexer propagation/recovery, archive/finality support
-and a signed public-flow funding canary remain release checks in
-[DEPLOYMENTS.md](../DEPLOYMENTS.md#integration-release-gate--2026-09-30). Local verification
-cannot establish a deployed mainnet service.
+Run it with a loopback `TEST_DATABASE_URL`, then run the required CI suite. Public Markdown,
+agent resources and OpenAPI remain available as the planned contract and explicitly report
+that the integration API is not available. Hosted release evidence remains required by
+[DEPLOYMENTS.md](../DEPLOYMENTS.md#integration-release-gate).

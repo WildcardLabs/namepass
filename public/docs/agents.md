@@ -1,5 +1,7 @@
 # AI agents
 
+> The public integration API is not available. These pages describe the planned API.
+
 Provide the [integration skill](/docs/skills) to your agent for Namepass API instructions.
 
 ## Example prompt

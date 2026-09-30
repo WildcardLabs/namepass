@@ -50,6 +50,7 @@ import {
 import {
   docs,
   docsVersion,
+  docsAvailability,
   docsOrigin,
   headingId,
   searchDocs,
@@ -754,6 +755,7 @@ export default function Docs() {
                   <ChevronRight size={12} />
                   <span>{page.group}</span>
                 </div>
+                <p className="docs-availability" role="note">{docsAvailability}</p>
                 <div className="docs-page-header">
                   <div>
                     <h1>

@@ -1,5 +1,7 @@
 # Get a deposit address
 
+> The public integration API is not available. These pages describe the planned API.
+
 `POST /api/v1/address`
 
 Activate deposit monitoring for an ENS name and return its deposit address, subname and supported funding chains.

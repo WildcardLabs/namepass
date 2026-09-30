@@ -81,59 +81,26 @@ remain permissionless. Service health dashboards require GitHub authentication a
 health RPC polling. They do not replace provider alerts. Recovery and retention jobs are documented in
 [RUNBOOK.md](RUNBOOK.md); metric definitions are in [MONITORING.md](MONITORING.md).
 
-## Public integration
+## Planned public integration
 
-The integration has four unauthenticated endpoints: `POST /api/v1/address`, `POST /api/v1/quote`,
-`GET /api/v1/status/{chainId}?transactionHash={hash}` and `GET /api/v1/names/{name}/renewals`. Apps, wallets, scripts and agents use
-one flow: get the address, send USDC with their own wallet, then poll. There are no integration
-accounts, API keys, transaction registration, event feeds, outgoing webhooks or MCP server.
+The public integration API is unreleased. Its implementation is retained in draft PR #117.
+The recovery backend does not include its routes, evidence worker or migration. See
+[deployment status](DEPLOYMENTS.md#integration-release-gate) before using the contract.
+
+The planned contract has four unauthenticated endpoints: address activation, renewal estimates,
+source-transaction status, and name-scoped renewal history. Apps, wallets, scripts and agents
+get an address, send USDC through their wallet, and poll by source chain and transaction hash.
 Goldsky's authenticated ingestion webhook remains an internal provider boundary.
 
-Address activation reuses `activateName`: ENS reads, deterministic address derivation, the
-Goldsky watch table and initial balance scans. It returns the full address, subname, alias
-verification flag and current funding chains with token addresses and minimum amounts.
-Status polling reads stored evidence in one query. It makes no chain RPC and starts no payment.
-The lookup uses an indexed source chain ID and transaction hash and returns every matching
-Namepass deposit. No indexed deposit returns `404` with `Retry-After: 5` and queues one receipt
-discovery job per transaction. Repeated polls do not reset its lease or 30-minute discovery window.
-The worker matches supported transfers to activated names and ingests the same canonical identity
-as Goldsky, closing watchlist propagation gaps. It also supports native Arc transactions.
-
-The public statuses are `pending`, `processing`, `complete` and `failed`. Completion requires
-canonical receipt evidence, proven consumption through a covered full-wallet drain, and final
-settlement for every candidate processing flow. CCTP verification binds the source message and
-attested nonce. The gateway renewal must agree with the exact ENS receipt's duration and charge.
-Hub finality is required. Pooled deposits reference shared renewal totals; no per-sender time
-allocation is invented. Source corrections revoke dependent completion in the same transaction.
-
-Migration `0009_public_status.sql` adds receipt, coverage, consumption, settlement and job tables
-in `server/integrations/schema.ts`. Native transaction identity remains distinct from ERC-20 log
-identity. One bounded evidence Workflow pump repairs and verifies receipts. Durable leases fence
-concurrent work and retain source changes that arrive during a job. Recovery cron repairs missed
-starts. Provider errors leave evidence unverified.
-
-The public guide is `/docs`. `docs/api/openapi.json` defines the four endpoints. Run
-`npm run generate:api` and `npm run check:api` for the generated contract and TypeScript types.
-The runnable general-purpose example is in `examples/integration/`.
-
-Quotes normalize the name and read the pointer-selected helper's actual `quote` method at one
-hub block. The frontend mirrors this verified helper algorithm. The allowance is read from the
-gateway and subtracted first. Source route reads use one source block. The quote refuses disabled
-burns, nonzero minimum Circle fees, unsupported helper code and amounts above the live burn cap.
-The current [Circle contract](https://github.com/circlefin/evm-cctp-contracts/blob/master/src/v2/TokenMessengerV2.sol)
-exposes `getMinFeeAmount`. This matters because automatic processing authorizes zero bridge fees.
-Quotes expire after 60 seconds, assume one flow and exclude pre-existing wallet funds. There is
-no shared mutable pricing cache or fallback rate.
-
-Name history is a stored, name-filtered keyset query over canonical renewal events and their
-flows. It includes recorded expiry/freshness and verification status. An opaque cursor orders
-by event time and identity and never changes the name predicate. This is a public query scope,
-not private user authorization. No all-platform history endpoint is exposed.
+`docs/api/openapi.json` and `examples/integration/` describe this planned contract.
+Run `npm run generate:api` and `npm run check:api` for the generated specification and types.
+Core reads and Goldsky ingestion must continue to work against the deployed database schema
+with the integration disabled. Verify this independently of migrated integration fixtures.
 
 ## Documentation and agent skill
 
 `docs/content/` and OpenAPI generate the standalone `/docs` catalog in `shared/docs/`, plain
 Markdown, `llms.txt`, `llms-full.txt` and the downloadable integration skill. Run
 `npm run generate:docs` after editing inputs; CI checks freshness with `npm run check:docs`.
-An existing wallet or coding agent uses the same two HTTP calls. The short skill supplies the
-send-and-poll sequence; it needs no Namepass-specific MCP connection.
+The skill describes the planned send-and-poll sequence for agents. The docs UI, Markdown,
+LLM indexes, OpenAPI title and skill explicitly report that the public API is unavailable.

@@ -1,5 +1,7 @@
 # Name history
 
+> The public integration API is not available. These pages describe the planned API.
+
 Retrieve renewal history and the recorded expiry for an ENS name.
 
 ## Read a name's history

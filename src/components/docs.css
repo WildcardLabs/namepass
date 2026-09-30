@@ -1590,3 +1590,14 @@
     scroll-behavior: auto !important;
   }
 }
+
+.docs-availability {
+  margin: 20px 0 24px;
+  padding: 12px 16px;
+  border: 1px solid var(--docs-border, #e4e7e5);
+  border-radius: 8px;
+  background: var(--docs-surface, #f7f9f8);
+  color: var(--docs-muted, #526159);
+  font-size: 13px;
+  line-height: 1.6;
+}

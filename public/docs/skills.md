@@ -1,5 +1,7 @@
 # Integration skill
 
+> The public integration API is not available. These pages describe the planned API.
+
 The integration skill provides API instructions for address retrieval, funding, quotes, status polling and renewal history.
 
 ## Install in a project

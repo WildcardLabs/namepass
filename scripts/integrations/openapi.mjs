@@ -134,7 +134,7 @@ const errors = {
 const spec = {
 	openapi: "3.1.0",
 	info: {
-		title: "Namepass public API",
+		title: "Namepass public API (unreleased)",
 		version: "2026-09-30",
 		description:
 			"Deposit addresses, renewal estimates, transaction status and ENS renewal history.",

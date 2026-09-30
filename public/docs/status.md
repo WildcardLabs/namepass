@@ -1,5 +1,7 @@
 # Poll status
 
+> The public integration API is not available. These pages describe the planned API.
+
 Track a USDC deposit using its transaction hash and source chain ID.
 
 ## Request

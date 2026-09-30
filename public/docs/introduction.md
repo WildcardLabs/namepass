@@ -1,5 +1,7 @@
 # Introduction
 
+> The public integration API is not available. These pages describe the planned API.
+
 Namepass converts USDC deposits into ENS renewals. Each name has a deposit address shared across supported networks.
 
 ## Three steps

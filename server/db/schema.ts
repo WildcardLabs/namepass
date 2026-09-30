@@ -184,7 +184,6 @@ export const chainEvents = pgTable(
 		eventId: text("event_id").primaryKey(),
 		eventFamily: eventFamily("event_family").notNull(),
 		eventType: text("event_type").notNull(),
-		evidenceKind: text("evidence_kind").default("log").notNull(),
 		chainId: amount("chain_id").notNull(),
 		txHash: varchar("tx_hash", { length: 66 }).notNull(),
 		logIndex: integer("log_index").notNull(),
@@ -204,7 +203,6 @@ export const chainEvents = pgTable(
 			table.txHash,
 			table.logIndex,
 			table.eventType,
-			table.evidenceKind,
 		),
 		index("chain_events_canonical_time_idx").on(
 			table.canonical,
@@ -225,7 +223,6 @@ export const deposits = pgTable(
 			.references(() => names.id),
 		chainId: amount("chain_id").notNull(),
 		tokenAddress: varchar("token_address", { length: 42 }).notNull(),
-		transferKind: text("transfer_kind").default("erc20").notNull(),
 		senderAddress: varchar("sender_address", { length: 42 }),
 		amount: amount("amount").notNull(),
 		txHash: varchar("tx_hash", { length: 66 }).notNull(),
@@ -238,7 +235,6 @@ export const deposits = pgTable(
 	(table) => [
 		index("deposits_name_time_idx").on(table.nameId, table.blockTime),
 		index("deposits_chain_time_idx").on(table.chainId, table.blockTime),
-		index("deposits_chain_tx_idx").on(table.chainId, table.txHash),
 	],
 );
 

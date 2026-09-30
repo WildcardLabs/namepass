@@ -1,5 +1,7 @@
 # Get an address, send USDC, poll
 
+> The public integration API is not available. This example describes the planned API.
+
 Node.js 22 or later. No package installation or Namepass API key is required.
 Use a deployment where the public API is enabled.
 

@@ -14,6 +14,7 @@ export type DocPage = {
 };
 export const docs = catalog.pages as DocPage[];
 export const docsVersion = catalog.version;
+export const docsAvailability = catalog.availability;
 export const docsOrigin = catalog.origin;
 export const integrationSkill = catalog.skill;
 export const docUrl = (page: DocPage) => `${docsOrigin}/docs/${page.slug}`;

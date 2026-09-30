@@ -1,5 +1,7 @@
 # Poll a transaction
 
+> The public integration API is not available. These pages describe the planned API.
+
 `GET /api/v1/status/{chainId}`
 
 Retrieve renewal status for a USDC deposit transaction. The transaction is complete when every indexed deposit has a verified, finalized renewal.
