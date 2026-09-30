@@ -38,6 +38,11 @@ const button = (id: string) => $<HTMLButtonElement>(id);
 const wallets = new Map<string, Wallet>();
 const polling = new Map<string, AbortController>();
 const storage = "namepass-public-integration-canaries-v1";
+const originStorage = "namepass-canary-api-origin";
+input("origin").value = localStorage.getItem(originStorage) ?? input("origin").value;
+input("origin").addEventListener("input", () => {
+  localStorage.setItem(originStorage, input("origin").value);
+});
 let entries: Entry[] = [];
 try {
   const saved = JSON.parse(localStorage.getItem(storage) ?? "[]");
@@ -234,14 +239,10 @@ button("prepare").onclick = async () => {
       chainId = select("chain").value,
       amount = usdcUnits(input("amount").value);
     notice("Retrieving the deposit address and quote…");
-    const address = await api<FundingAddress>(base, "/api/v1/address", {
-      name,
-    });
-    const quote = await api<FundingQuote>(base, "/api/v1/quote", {
-      name,
-      chainId,
-      amount,
-    });
+    const [address, quote] = await Promise.all([
+      api<FundingAddress>(base, "/api/v1/address", { name }),
+      api<FundingQuote>(base, "/api/v1/quote", { name, chainId, amount }),
+    ]);
     if (quote.chainId !== chainId || quote.amount !== amount)
       throw new Error(
         "The quote does not match the requested network and amount.",
