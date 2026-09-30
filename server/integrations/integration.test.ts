@@ -1024,6 +1024,16 @@ test(
 						assert.equal(settlement.status, "finalized");
 						assert.equal(settlement.duration_seconds, "100");
 						await pool.query(
+							"update flows set origin_event_id=null,origin_evidence_tx_hash=null,trigger='external' where id=$1",
+							[flow],
+							);
+						await verifyFlow(flow);
+						assert.equal(
+							(await pool.query("select origin_event_id from flows where id=$1", [flow])).rows[0].origin_event_id,
+							"exact-source",
+							"Historical external renewals recover only their exact receipt source.",
+						);
+						await pool.query(
 							"update chain_events set canonical=false where event_id='exact-renewal'",
 						);
 						assert.equal(

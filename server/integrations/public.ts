@@ -19,7 +19,7 @@ import { chain, hash, invalid } from "./validation";
 export function publicApi(method: "POST" | "GET", run: Route) {
 	const route = handler(method, async (request) => {
 		requireEnabled();
-		if (process.env.VERCEL === "1") {
+		if (process.env.VERCEL === "1" || process.env.NAMEPASS_RATE_LIMIT_PREFIX) {
 			const path = new URL(request.url).pathname;
 			const category =
 				method === "GET"

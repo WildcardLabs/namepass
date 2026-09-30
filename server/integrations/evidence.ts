@@ -297,6 +297,40 @@ export async function verifyFlow(id: string) {
 				})(),
 		);
 		if (!end) throw new Error("origin_processing_pending");
+		const segment = receipt.logs.filter(
+			(l) => l.logIndex > previous && l.logIndex <= end.logIndex,
+		);
+		const parsed = parseEthereumRenewalReceipt(segment, expected);
+		if (!flow.origin_event_id) {
+			// Older externally observed direct renewals can predate source linkage.
+			// Bind only the exact factory log in this verified renewal segment.
+			const [linked] = await query<{ origin_event_id: string }>(sql`
+        update flows f set origin_event_id=c.event_id,origin_evidence_tx_hash=c.tx_hash,
+          origin_evidence_block_number=c.block_number,updated_at=now()
+        from chain_events c where f.id=${id} and f.name_id=${flow.name_id}
+          and f.origin_chain_id=${String(HUB_CHAIN.chainId)} and f.trigger='external' and f.status='settled'
+          and (f.origin_evidence_tx_hash is null or f.origin_evidence_tx_hash=${receipt.transactionHash.toLowerCase()})
+          and f.origin_tx_intent_id is null and f.claim_tx_intent_id is null
+          and f.origin_event_id is null and f.renewal_event_id=${flow.renewal_event_id}
+          and c.canonical and c.event_family='namepass' and c.event_type='DepositProcessed'
+          and c.chain_id=${String(HUB_CHAIN.chainId)} and c.tx_hash=${receipt.transactionHash.toLowerCase()}
+          and c.block_number=${receipt.blockNumber.toString()} and c.log_index=${end.logIndex}
+        returning f.origin_event_id`);
+			if (linked) flow.origin_event_id = linked.origin_event_id;
+			else {
+				await enqueue(
+					database(),
+					`protocol:${HUB_CHAIN.chainId}:${event.tx_hash}:${flow.name_id}`,
+					"protocol",
+					{
+						nameId: flow.name_id,
+						chainId: String(HUB_CHAIN.chainId),
+						txHash: event.tx_hash,
+					},
+				);
+				throw new Error("origin_identity_pending");
+			}
+		}
 		const [origin] = await query<{
 			tx_hash: string;
 			log_index: number;
@@ -312,10 +346,6 @@ export async function verifyFlow(id: string) {
 			origin.chain_id !== String(HUB_CHAIN.chainId)
 		)
 			throw new Error("origin_identity_pending");
-		const segment = receipt.logs.filter(
-			(l) => l.logIndex > previous && l.logIndex <= end.logIndex,
-		);
-		const parsed = parseEthereumRenewalReceipt(segment, expected);
 		processed = BigInt(parsed.amountProcessed);
 		remainder = BigInt(parsed.remainingAmount);
 		source = identity(HUB_CHAIN.chainId, receipt, end.logIndex);

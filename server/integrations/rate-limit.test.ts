@@ -42,6 +42,9 @@ test("hosted API enforces SDK limits before work and preserves CORS, JSON and re
 			body: method === "POST" ? "{}" : undefined,
 		});
 	try {
+		// An explicit counter configuration must enforce limits even when the
+		// runtime does not expose Vercel's platform marker.
+		delete process.env.VERCEL;
 		for (const [route, path, method] of [
 			[addressRoute, "/api/v1/address", "POST"],
 			[quoteRoute, "/api/v1/quote", "POST"],
