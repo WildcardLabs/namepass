@@ -72,10 +72,11 @@ body {
 	}
 }
 
-/* Neutralize the warm cast; white highlights blend into the canvas color. */
-.hero-video {
-	filter: saturate(0.75);
-	mix-blend-mode: multiply;
+/* The separate Three.js document is decorative and must not block hero input. */
+.hero-animation {
+	border: 0;
+	background: var(--color-surface-canvas);
+	pointer-events: none;
 }
 
 /* Public controls share a visible keyboard focus treatment. Monitoring owns

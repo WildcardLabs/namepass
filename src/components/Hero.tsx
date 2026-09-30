@@ -8,13 +8,13 @@ interface Props {
 	onLeaderboard: () => void;
 	/**
 	 * Whether ENS's rates have been read yet. Only the renewal ticker needs
-	 * them — the rest of the hero is copy over video and must never wait on a
+	 * them — the rest of the hero is copy over its animation and must never wait on a
 	 * network call, since it's the whole of the first paint.
 	 */
 	priced: boolean;
 }
 
-/** Home's hero content, rendered inside PageShell's video card, below Navbar. */
+/** Home's hero content, rendered inside PageShell's animated card, below Navbar. */
 export default function Hero({ onExplore, onLeaderboard, priced }: Props) {
 	return (
 		<>

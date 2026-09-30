@@ -1,0 +1,1733 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Namepass animated background</title>
+<style>
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #f1f3f4;
+}
+
+canvas {
+  position: fixed;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+</style>
+</head>
+<body>
+<script src="./three.min.js"></script>
+
+<script>
+(() => {
+
+  /* ==========================================================
+     NAMEPASS — LIQUID SPACETIME
+     ========================================================== */
+
+  const BG = new THREE.Color("#f1f3f4");
+
+  const scene = new THREE.Scene();
+
+  scene.background = BG;
+
+  scene.fog = new THREE.Fog(
+    BG,
+    60,
+    175
+  );
+
+
+  /* ==========================================================
+     CAMERA
+     ========================================================== */
+
+  const camera =
+    new THREE.PerspectiveCamera(
+      48,
+      innerWidth / innerHeight,
+      0.1,
+      260
+    );
+
+  camera.position.set(
+    0,
+    5.1,
+    16
+  );
+
+
+  /* ==========================================================
+     RENDERER
+     ========================================================== */
+
+  const renderer =
+    new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: "high-performance"
+    });
+
+  renderer.setSize(
+    innerWidth,
+    innerHeight
+  );
+
+  renderer.setPixelRatio(
+    Math.min(
+      devicePixelRatio,
+      1.8
+    )
+  );
+
+  renderer.outputColorSpace =
+    THREE.SRGBColorSpace;
+
+  document.body.appendChild(
+    renderer.domElement
+  );
+
+
+  /* ==========================================================
+     FLOOR
+     ========================================================== */
+
+  const geometry =
+    new THREE.PlaneGeometry(
+      80,
+      230,
+      220,
+      480
+    );
+
+  geometry.rotateX(
+    -Math.PI / 2
+  );
+
+
+  const material =
+    new THREE.ShaderMaterial({
+
+      fog: true,
+
+      uniforms: {
+
+        uTime: {
+          value: 0
+        },
+
+        uTravel: {
+          value: 0
+        },
+
+        uBackground: {
+          value:
+            new THREE.Color(
+              "#f1f3f4"
+            )
+        },
+
+        uShadow: {
+          value:
+            new THREE.Color(
+              "#d5dcde"
+            )
+        },
+
+        uMid: {
+          value:
+            new THREE.Color(
+              "#e5e9ea"
+            )
+        },
+
+        uHighlight: {
+          value:
+            new THREE.Color(
+              "#ffffff"
+            )
+        },
+
+        uHairline: {
+          value:
+            new THREE.Color(
+              "#cfd5d7"
+            )
+        },
+
+        uGreen: {
+          value:
+            new THREE.Color(
+              "#007c23"
+            )
+        },
+
+        ...THREE.UniformsLib.fog
+      },
+
+
+      vertexShader: `
+
+        uniform float uTime;
+        uniform float uTravel;
+
+        varying vec3 vWorld;
+        varying float vHeight;
+        varying float vLocalZ;
+
+        #include <fog_pars_vertex>
+
+
+        float surface(
+          vec2 p
+        ) {
+
+          float z =
+            p.y +
+            uTravel;
+
+
+          /*
+             --------------------------------------------------
+             LARGE OCEAN SWELLS
+             --------------------------------------------------
+          */
+
+          float swellA =
+            sin(
+              z * 0.070 +
+              p.x * 0.072
+            ) * 0.95;
+
+
+          float swellB =
+            sin(
+              z * 0.116 -
+              p.x * 0.048 +
+              1.7
+            ) * 0.52;
+
+
+          /*
+             Cross-wave gives the surface
+             a fluid interference pattern.
+          */
+
+          float swellC =
+            sin(
+              z * 0.043 +
+              sin(
+                p.x * 0.13
+              ) * 1.7
+            ) * 0.58;
+
+
+          /*
+             --------------------------------------------------
+             SPACETIME DISTORTION
+             --------------------------------------------------
+          */
+
+          float radialDistance =
+            length(
+              vec2(
+                p.x * 0.12,
+                z * 0.031
+              )
+            );
+
+
+          float gravityWave =
+            sin(
+              radialDistance * 4.0
+            ) * 0.46;
+
+
+          /*
+             Long rolling motion.
+          */
+
+          float longWave =
+            sin(
+              z * 0.019
+            ) * 0.64;
+
+
+          /*
+             Subtle asymmetry.
+          */
+
+          float whisper =
+            sin(
+              z * 0.24 +
+              p.x * 0.16
+            ) * 0.12;
+
+
+          /*
+             Landscape lifts gently
+             at the far sides.
+          */
+
+          float edge =
+            abs(p.x) / 40.0;
+
+
+          float valley =
+            edge *
+            edge *
+            3.1;
+
+
+          return
+
+            -1.85 +
+
+            valley +
+
+            swellA +
+
+            swellB +
+
+            swellC +
+
+            gravityWave +
+
+            longWave +
+
+            whisper;
+        }
+
+
+        void main() {
+
+          vec3 p =
+            position;
+
+
+          p.y =
+            surface(
+              vec2(
+                p.x,
+                p.z
+              )
+            );
+
+
+          vHeight =
+            p.y;
+
+
+          vLocalZ =
+            p.z;
+
+
+          vec4 worldPosition =
+            modelMatrix *
+            vec4(
+              p,
+              1.0
+            );
+
+
+          vWorld =
+            worldPosition.xyz;
+
+
+          vec4 mvPosition =
+            viewMatrix *
+            worldPosition;
+
+
+          gl_Position =
+            projectionMatrix *
+            mvPosition;
+
+
+          #include <fog_vertex>
+        }
+      `,
+
+
+      fragmentShader: `
+
+        uniform float uTime;
+
+        uniform vec3 uBackground;
+        uniform vec3 uShadow;
+        uniform vec3 uMid;
+        uniform vec3 uHighlight;
+        uniform vec3 uHairline;
+        uniform vec3 uGreen;
+
+        varying vec3 vWorld;
+        varying float vHeight;
+        varying float vLocalZ;
+
+        #include <fog_pars_fragment>
+
+
+        float lineField(
+          float value,
+          float spacing
+        ) {
+
+          float coordinate =
+            value /
+            spacing;
+
+
+          float d =
+            abs(
+              fract(
+                coordinate -
+                0.5
+              ) -
+              0.5
+            );
+
+
+          float aa =
+            fwidth(
+              coordinate
+            );
+
+
+          return
+
+            1.0 -
+
+            smoothstep(
+              0.004,
+              0.004 +
+              aa * 0.95,
+              d
+            );
+        }
+
+
+        float gaussian(
+          float value,
+          float width
+        ) {
+
+          return
+            exp(
+              -value *
+              value *
+              width
+            );
+        }
+
+
+        void main() {
+
+          /*
+             --------------------------------------------------
+             TRUE SURFACE NORMAL
+
+             This is the key change.
+
+             Instead of pretending the surface is flat,
+             calculate the actual displaced surface direction.
+             --------------------------------------------------
+          */
+
+          vec3 dx =
+            dFdx(
+              vWorld
+            );
+
+
+          vec3 dy =
+            dFdy(
+              vWorld
+            );
+
+
+          vec3 normal =
+            normalize(
+              cross(
+                dx,
+                dy
+              )
+            );
+
+
+          if (
+            normal.y <
+            0.0
+          ) {
+
+            normal =
+              -normal;
+          }
+
+
+          /*
+             --------------------------------------------------
+             LIGHTING
+             --------------------------------------------------
+          */
+
+          vec3 lightDirection =
+            normalize(
+              vec3(
+                -0.35,
+                0.88,
+                0.38
+              )
+            );
+
+
+          float diffuse =
+            clamp(
+              dot(
+                normal,
+                lightDirection
+              ),
+              0.0,
+              1.0
+            );
+
+
+          /*
+             Grazing reflection,
+             similar to light catching water.
+          */
+
+          vec3 viewDirection =
+            normalize(
+              cameraPosition -
+              vWorld
+            );
+
+
+          float fresnel =
+
+            pow(
+
+              1.0 -
+
+              max(
+                0.0,
+                dot(
+                  normal,
+                  viewDirection
+                )
+              ),
+
+              3.0
+            );
+
+
+          /*
+             Crests receive extra light.
+          */
+
+          float crest =
+
+            smoothstep(
+              0.25,
+              1.9,
+              vHeight
+            );
+
+
+          /*
+             Valleys get slightly cooler/darker.
+          */
+
+          float trough =
+
+            1.0 -
+
+            smoothstep(
+              -1.8,
+              0.3,
+              vHeight
+            );
+
+
+          /*
+             --------------------------------------------------
+             BASE LIQUID COLOR
+             --------------------------------------------------
+          */
+
+          vec3 color =
+            uBackground;
+
+
+          color =
+            mix(
+              color,
+              uMid,
+              trough * 0.38
+            );
+
+
+          color =
+            mix(
+              color,
+              uShadow,
+              trough * 0.22
+            );
+
+
+          /*
+             Actual slope shading.
+          */
+
+          float shade =
+            1.0 -
+            diffuse;
+
+
+          color =
+            mix(
+              color,
+              uShadow,
+              shade * 0.22
+            );
+
+
+          /*
+             White pearlescent crests.
+          */
+
+          color =
+            mix(
+              color,
+              uHighlight,
+              diffuse *
+              0.22
+            );
+
+
+          color =
+            mix(
+              color,
+              uHighlight,
+              crest *
+              0.13
+            );
+
+
+          color =
+            mix(
+              color,
+              uHighlight,
+              fresnel *
+              0.32
+            );
+
+
+          /*
+             --------------------------------------------------
+             DISTANCE
+             --------------------------------------------------
+          */
+
+          float distanceToCamera =
+            length(
+              cameraPosition -
+              vWorld
+            );
+
+
+          float detailFade =
+
+            1.0 -
+
+            smoothstep(
+              28.0,
+              110.0,
+              distanceToCamera
+            );
+
+
+          /*
+             --------------------------------------------------
+             WHISPER-THIN SPACETIME MESH
+
+             No thick grid.
+             No major/minor lines.
+             --------------------------------------------------
+          */
+
+          float bendX =
+
+            vWorld.x +
+
+            sin(
+              vWorld.z * 0.047
+            ) * 0.22;
+
+
+          float bendZ =
+
+            vWorld.z +
+
+            sin(
+              vWorld.x * 0.095
+            ) * 0.18;
+
+
+          float lineX =
+            lineField(
+              bendX,
+              2.35
+            );
+
+
+          float lineZ =
+            lineField(
+              bendZ,
+              2.35
+            );
+
+
+          float mesh =
+            max(
+              lineX,
+              lineZ
+            );
+
+
+          /*
+             Extremely restrained.
+          */
+
+          color =
+            mix(
+              color,
+              uHairline,
+              mesh *
+              detailFade *
+              0.12
+            );
+
+
+          /*
+             --------------------------------------------------
+             SURFACE CONTOUR WHISPERS
+
+             Follow the wave height.
+             --------------------------------------------------
+          */
+
+          float contourCoordinate =
+            vHeight *
+            0.52;
+
+
+          float contourDistance =
+            abs(
+              fract(
+                contourCoordinate
+              ) -
+              0.5
+            );
+
+
+          float contour =
+
+            1.0 -
+
+            smoothstep(
+              0.493,
+              0.5,
+              contourDistance
+            );
+
+
+          color =
+            mix(
+              color,
+              uHairline,
+              contour *
+              detailFade *
+              0.055
+            );
+
+
+          /*
+             --------------------------------------------------
+             GREEN CURRENT
+
+             Very subtle.
+
+             It snakes with the water rather than
+             looking like a straight rail.
+             --------------------------------------------------
+          */
+
+          float currentCentre =
+
+            sin(
+              vWorld.z * 0.035
+            ) * 2.4 +
+
+            sin(
+              vWorld.z * 0.013 +
+              1.5
+            ) * 1.1;
+
+
+          float currentDistance =
+
+            vWorld.x -
+
+            currentCentre;
+
+
+          float current =
+
+            gaussian(
+              currentDistance,
+              18.0
+            );
+
+
+          /*
+             Broken moving pulse.
+          */
+
+          float packet =
+
+            max(
+              0.0,
+
+              sin(
+                vWorld.z * 0.095 -
+                uTime * 0.95
+              )
+            );
+
+
+          packet *= packet;
+          packet *= packet;
+          packet *= packet;
+
+
+          current *=
+
+            0.05 +
+
+            packet *
+            0.14;
+
+
+          color =
+            mix(
+              color,
+              uGreen,
+              current *
+              detailFade *
+              0.24
+            );
+
+
+          /*
+             --------------------------------------------------
+             FINAL SOFTENING
+
+             Push distant world back toward website background.
+             --------------------------------------------------
+          */
+
+          float horizonFade =
+            smoothstep(
+              70.0,
+              140.0,
+              distanceToCamera
+            );
+
+
+          color =
+            mix(
+              color,
+              uBackground,
+              horizonFade *
+              0.58
+            );
+
+
+          gl_FragColor =
+            vec4(
+              color,
+              1.0
+            );
+
+
+          #include <fog_fragment>
+        }
+      `
+    });
+
+
+  const floor =
+    new THREE.Mesh(
+      geometry,
+      material
+    );
+
+
+  floor.position.z =
+    -88;
+
+
+  scene.add(
+    floor
+  );
+
+
+  /* ==========================================================
+     SOFT DISTANT SCULPTURE
+
+     Not a circle, not a logo.
+
+     Layers of translucent fabric twisting around one another.
+     ========================================================== */
+
+  const sculpture =
+    new THREE.Group();
+
+
+  sculpture.position.set(
+    0,
+    5.7,
+    -91
+  );
+
+
+  scene.add(
+    sculpture
+  );
+
+
+  const sculptureMaterials =
+    [];
+
+
+  function createVeil(
+    phase,
+    scale,
+    opacity
+  ) {
+
+    const rows = 100;
+    const cols = 22;
+
+    const positions = [];
+    const uvs = [];
+    const indices = [];
+
+
+    for (
+      let yIndex = 0;
+      yIndex <= rows;
+      yIndex++
+    ) {
+
+      const u =
+        yIndex /
+        rows;
+
+
+      const y =
+        (
+          u -
+          0.5
+        ) * 13;
+
+
+      /*
+         Hourglass-like pinch,
+         but not an explicit logo.
+      */
+
+      const openness =
+
+        0.45 +
+
+        Math.pow(
+          Math.abs(
+            u -
+            0.5
+          ) * 2,
+          1.35
+        ) * 3.2;
+
+
+      const twist =
+
+        phase +
+
+        y * 0.13 +
+
+        Math.sin(
+          u *
+          Math.PI
+        ) * 0.8;
+
+
+      for (
+        let xIndex = 0;
+        xIndex <= cols;
+        xIndex++
+      ) {
+
+        const v =
+          xIndex /
+          cols;
+
+
+        const across =
+          (
+            v -
+            0.5
+          ) * 2;
+
+
+        const width =
+          1.25;
+
+
+        const x =
+          Math.cos(
+            twist
+          ) *
+          openness +
+
+          across *
+          width *
+          -Math.sin(
+            twist
+          );
+
+
+        const z =
+          Math.sin(
+            twist
+          ) *
+          openness +
+
+          across *
+          width *
+          Math.cos(
+            twist
+          );
+
+
+        positions.push(
+          x,
+          y,
+          z
+        );
+
+
+        uvs.push(
+          v,
+          u
+        );
+      }
+    }
+
+
+    const stride =
+      cols + 1;
+
+
+    for (
+      let y = 0;
+      y < rows;
+      y++
+    ) {
+
+      for (
+        let x = 0;
+        x < cols;
+        x++
+      ) {
+
+        const a =
+          y *
+          stride +
+          x;
+
+        const b =
+          a + 1;
+
+        const c =
+          a +
+          stride;
+
+        const d =
+          c + 1;
+
+
+        indices.push(
+          a,
+          c,
+          b
+        );
+
+
+        indices.push(
+          b,
+          c,
+          d
+        );
+      }
+    }
+
+
+    const veilGeometry =
+      new THREE.BufferGeometry();
+
+
+    veilGeometry.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(
+        positions,
+        3
+      )
+    );
+
+
+    veilGeometry.setAttribute(
+      "uv",
+      new THREE.Float32BufferAttribute(
+        uvs,
+        2
+      )
+    );
+
+
+    veilGeometry.setIndex(
+      indices
+    );
+
+
+    veilGeometry.computeVertexNormals();
+
+
+    const veilMaterial =
+      new THREE.ShaderMaterial({
+
+        uniforms: {
+
+          uTime: {
+            value: 0
+          },
+
+          uPhase: {
+            value: phase
+          },
+
+          uOpacity: {
+            value: opacity
+          }
+        },
+
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+
+
+        vertexShader: `
+
+          uniform float uTime;
+          uniform float uPhase;
+
+          varying vec3 vNormal;
+          varying vec3 vWorld;
+          varying vec2 vUv;
+
+
+          void main() {
+
+            vec3 p =
+              position;
+
+
+            p.x +=
+
+              sin(
+                p.y * 0.55 +
+                uTime * 0.17 +
+                uPhase
+              ) *
+
+              0.12;
+
+
+            p.z +=
+
+              sin(
+                p.y * 0.39 -
+                uTime * 0.21 +
+                uPhase
+              ) *
+
+              0.15;
+
+
+            vec4 wp =
+              modelMatrix *
+              vec4(
+                p,
+                1.0
+              );
+
+
+            vWorld =
+              wp.xyz;
+
+
+            vNormal =
+              normalize(
+                normalMatrix *
+                normal
+              );
+
+
+            vUv =
+              uv;
+
+
+            gl_Position =
+              projectionMatrix *
+              viewMatrix *
+              wp;
+          }
+        `,
+
+
+        fragmentShader: `
+
+          uniform float uTime;
+          uniform float uPhase;
+          uniform float uOpacity;
+
+          varying vec3 vNormal;
+          varying vec3 vWorld;
+          varying vec2 vUv;
+
+
+          void main() {
+
+            vec3 viewDirection =
+              normalize(
+                cameraPosition -
+                vWorld
+              );
+
+
+            float fresnel =
+
+              pow(
+
+                1.0 -
+
+                abs(
+                  dot(
+                    normalize(vNormal),
+                    viewDirection
+                  )
+                ),
+
+                2.8
+              );
+
+
+            vec3 white =
+              vec3(
+                0.96,
+                0.97,
+                0.965
+              );
+
+
+            vec3 grey =
+              vec3(
+                0.69,
+                0.73,
+                0.72
+              );
+
+
+            vec3 green =
+              vec3(
+                0.0,
+                0.486,
+                0.137
+              );
+
+
+            /*
+               Fine flowing fibres.
+            */
+
+            float fibre =
+
+              sin(
+                vUv.y * 37.0 +
+                vUv.x * 7.0 -
+                uTime * 0.20 +
+                uPhase
+              );
+
+
+            fibre =
+
+              smoothstep(
+                0.91,
+                1.0,
+                fibre
+              );
+
+
+            /*
+               One tiny wandering green vein.
+            */
+
+            float veinPosition =
+
+              0.5 +
+
+              sin(
+                vUv.y * 7.5 +
+                uPhase
+              ) *
+
+              0.10;
+
+
+            float vein =
+
+              exp(
+
+                -pow(
+
+                  (
+                    vUv.x -
+                    veinPosition
+                  ) *
+
+                  23.0,
+
+                  2.0
+                )
+              );
+
+
+            float signal =
+
+              max(
+
+                0.0,
+
+                sin(
+                  vUv.y * 15.0 -
+                  uTime * 0.35 +
+                  uPhase
+                )
+              );
+
+
+            signal =
+              pow(
+                signal,
+                10.0
+              );
+
+
+            vein *=
+
+              0.08 +
+
+              signal *
+              0.36;
+
+
+            vec3 color =
+
+              mix(
+                white,
+                grey,
+                fresnel *
+                0.16
+              );
+
+
+            color =
+
+              mix(
+                color,
+                green,
+                vein *
+                0.10
+              );
+
+
+            float edge =
+
+              pow(
+
+                max(
+
+                  0.0,
+
+                  sin(
+                    vUv.x *
+                    3.14159265
+                  )
+                ),
+
+                0.55
+              );
+
+
+            float ends =
+
+              pow(
+
+                max(
+
+                  0.0,
+
+                  sin(
+                    vUv.y *
+                    3.14159265
+                  )
+                ),
+
+                0.22
+              );
+
+
+            float alpha =
+
+              (
+                0.015 +
+
+                fresnel *
+                0.13 +
+
+                fibre *
+                0.008
+              )
+
+              *
+
+              edge *
+
+              ends *
+
+              uOpacity;
+
+
+            gl_FragColor =
+              vec4(
+                color,
+                alpha
+              );
+          }
+        `
+      });
+
+
+    const veil =
+      new THREE.Mesh(
+        veilGeometry,
+        veilMaterial
+      );
+
+
+    veil.scale.setScalar(
+      scale
+    );
+
+
+    veil.userData.material =
+      veilMaterial;
+
+
+    sculptureMaterials.push(
+      veilMaterial
+    );
+
+
+    sculpture.add(
+      veil
+    );
+  }
+
+
+  createVeil(
+    0.0,
+    1.00,
+    1.0
+  );
+
+
+  createVeil(
+    Math.PI * 0.65,
+    0.93,
+    0.78
+  );
+
+
+  createVeil(
+    Math.PI * 1.28,
+    1.08,
+    0.58
+  );
+
+
+  /* ==========================================================
+     MOUSE
+     ========================================================== */
+
+  const pointer = {
+    x: 0,
+    y: 0
+  };
+
+
+  const target = {
+    x: 0,
+    y: 0
+  };
+
+
+  addEventListener(
+    "message",
+    event => {
+      if (event.source !== parent) return;
+      const data = event.data;
+      if (!data || data.type !== "namepass:pointer") return;
+      if (typeof data.x !== "number" || typeof data.y !== "number") return;
+
+      target.x = Math.max(-1, Math.min(1, data.x));
+      target.y = Math.max(-1, Math.min(1, data.y));
+    }
+  );
+
+
+  addEventListener(
+    "pointermove",
+
+    event => {
+
+      target.x =
+
+        (
+          event.clientX /
+          innerWidth
+        ) * 2 - 1;
+
+
+      target.y =
+
+        (
+          event.clientY /
+          innerHeight
+        ) * 2 - 1;
+    },
+
+    {
+      passive: true
+    }
+  );
+
+
+  /* ==========================================================
+     ANIMATION
+     ========================================================== */
+
+  const clock =
+    new THREE.Clock();
+
+
+  let travel =
+    0;
+
+
+  function animate() {
+
+    requestAnimationFrame(
+      animate
+    );
+
+
+    const dt =
+      Math.min(
+        clock.getDelta(),
+        0.04
+      );
+
+
+    const time =
+      clock.elapsedTime;
+
+
+    /*
+       Slower than before.
+       Feels like travelling over water,
+       rather than a racing-game floor.
+    */
+
+    travel +=
+      dt * 3.15;
+
+
+    material
+      .uniforms
+      .uTime
+      .value =
+        time;
+
+
+    material
+      .uniforms
+      .uTravel
+      .value =
+        travel;
+
+
+    /*
+       Camera follows mouse gently.
+    */
+
+    pointer.x +=
+
+      (
+        target.x -
+        pointer.x
+      ) * 0.025;
+
+
+    pointer.y +=
+
+      (
+        target.y -
+        pointer.y
+      ) * 0.025;
+
+
+    camera.position.x =
+      pointer.x *
+      0.55;
+
+
+    camera.position.y =
+
+      5.1 -
+
+      pointer.y *
+      0.20;
+
+
+    camera.lookAt(
+
+      pointer.x *
+      0.45,
+
+      0.40 -
+
+      pointer.y *
+      0.13,
+
+      -48
+    );
+
+
+    /*
+       Sculpture almost imperceptibly rotates.
+    */
+
+    sculpture.rotation.y =
+
+      Math.sin(
+        time * 0.085
+      ) * 0.10;
+
+
+    sculpture.position.y =
+
+      5.7 +
+
+      Math.sin(
+        time * 0.18
+      ) * 0.08;
+
+
+    sculptureMaterials.forEach(
+      shader => {
+
+        shader
+          .uniforms
+          .uTime
+          .value =
+            time;
+      }
+    );
+
+
+    renderer.render(
+      scene,
+      camera
+    );
+  }
+
+
+  animate();
+
+
+  /* ==========================================================
+     RESIZE
+     ========================================================== */
+
+  addEventListener(
+    "resize",
+
+    () => {
+
+      camera.aspect =
+        innerWidth /
+        innerHeight;
+
+
+      camera.updateProjectionMatrix();
+
+
+      renderer.setSize(
+        innerWidth,
+        innerHeight
+      );
+
+
+      renderer.setPixelRatio(
+        Math.min(
+          devicePixelRatio,
+          1.8
+        )
+      );
+    }
+  );
+
+})();
+</script>
+</body>
+</html>
