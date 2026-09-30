@@ -81,7 +81,6 @@ schemas.QuoteResponse = object({
 	bridgeFee: amount,
 	roundingRemainder: amount,
 	pricingBlock: amount,
-	expiresAt: { type: "string", format: "date-time" },
 	estimate: { type: "boolean", const: true },
 });
 const optionalAmount = { ...amount, type: ["string", "null"] };
@@ -219,7 +218,7 @@ spec.paths["/quote"] = {
 		operationId: "post_quote",
 		summary: "Estimate a renewal",
 		description:
-			"Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Quotes expire after 60 seconds and assume one processing flow with no existing balance at the deposit address.",
+			"Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Estimates assume one processing flow with no existing balance at the deposit address.",
 		requestBody: {
 			required: true,
 			content: {

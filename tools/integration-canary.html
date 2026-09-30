@@ -134,7 +134,7 @@
         max-height: 360px;
         overflow: auto;
       }
-      #notice {
+      #notice, #wallet-notice {
         padding: 12px 16px;
         border-radius: 6px;
         background: #edf4ee;
@@ -142,7 +142,7 @@
         margin: 18px 0;
         overflow-wrap: anywhere;
       }
-      #notice[data-error="true"] {
+      #notice[data-error="true"], #wallet-notice[data-error="true"] {
         background: #fff0e9;
         color: #873f28;
       }
@@ -248,7 +248,7 @@
             >API origin<input
               id="origin"
               type="url"
-              value="https://beta.namepass.com"
+              value="http://127.0.0.1:5175"
               autocomplete="off" /></label
           ><label
             >ENS name<input
@@ -287,7 +287,7 @@
               <span>Estimated time</span><strong id="duration"></strong>
             </div>
             <div class="fact">
-              <span>Quote expiry</span><strong id="expiry"></strong>
+              <span>Environment</span><strong>Isolated testnet staging</strong>
             </div>
           </div>
           <details>
@@ -310,6 +310,7 @@
             Review 1 USDC deposit in wallet
           </button>
         </div>
+        <div id="wallet-notice" role="status" aria-live="polite"></div>
         <p class="muted" style="margin-bottom: 0; margin-top: 16px">
           Confirm the transfer in your wallet. This page submits only the
           deposit; Namepass processes the renewal.

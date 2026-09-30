@@ -161,7 +161,6 @@ export async function quoteResponse(request: Request) {
 			bridgeFee: "0",
 			roundingRemainder: (amount - allowance - needed).toString(),
 			pricingBlock: block.number.toString(),
-			expiresAt: new Date(Date.now() + 60000).toISOString(),
 			estimate: true,
 		});
 	} catch (error) {

@@ -39,7 +39,9 @@ const wallets = new Map<string, Wallet>();
 const polling = new Map<string, AbortController>();
 const storage = "namepass-public-integration-canaries-v1";
 const originStorage = "namepass-canary-api-origin";
-input("origin").value = localStorage.getItem(originStorage) ?? input("origin").value;
+const savedOrigin = localStorage.getItem(originStorage);
+input("origin").value = savedOrigin && savedOrigin !== "https://beta.namepass.com"
+  ? savedOrigin : input("origin").value;
 input("origin").addEventListener("input", () => {
   localStorage.setItem(originStorage, input("origin").value);
 });
@@ -65,6 +67,8 @@ let busy = false;
 function notice(message: string, error = false) {
   $("notice").textContent = message;
   $("notice").dataset.error = String(error);
+  $("wallet-notice").textContent = message;
+  $("wallet-notice").dataset.error = String(error);
 }
 function save() {
   localStorage.setItem(storage, JSON.stringify(entries));
@@ -255,7 +259,6 @@ button("prepare").onclick = async () => {
       `${address.subname}${address.subnameVerified ? "" : " (not verified; fund the full address)"}`;
     $("duration").textContent =
       `${quote.secondsAdded} seconds · ${(Number(quote.secondsAdded) / 86400).toFixed(2)} days (estimate)`;
-    $("expiry").textContent = new Date(quote.expiresAt).toLocaleTimeString();
     $("responses").textContent = JSON.stringify({ address, quote }, null, 2);
     $("prepared").hidden = false;
     notice(
@@ -273,14 +276,13 @@ button("send").onclick = async () => {
   busy = true;
   updateButtons();
   const prepared = preparation,
-    wallet = connected;
+    wallet = connected,
+    mode = fundingMode();
   let entry: Entry | undefined;
   try {
-    const tx = fundingTransaction(
-      prepared.address,
-      prepared.quote,
-      fundingMode(),
-    );
+    const tx = fundingTransaction(prepared.address, prepared.quote, mode);
+    button("send").textContent = "Opening wallet…";
+    notice("Checking your connected wallet and source network…");
     const accounts = (await wallet.provider.request({
       method: "eth_accounts",
     })) as string[];
@@ -307,14 +309,14 @@ button("send").onclick = async () => {
       throw new Error(
         "The wallet account changed during the network switch. Reconnect it.",
       );
-    fundingTransaction(prepared.address, prepared.quote, fundingMode());
+    fundingTransaction(prepared.address, prepared.quote, mode);
     entry = {
       id: crypto.randomUUID(),
       base: prepared.base,
       name: prepared.name,
       chainId: prepared.chainId,
       amount: prepared.amount,
-      mode: fundingMode(),
+      mode,
       phase: "awaiting_wallet",
       address: prepared.address,
       quote: prepared.quote,
@@ -356,6 +358,7 @@ button("send").onclick = async () => {
     notice(message(error), true);
   } finally {
     busy = false;
+    button("send").textContent = `Review ${input("amount").value || "…"} USDC deposit in wallet`;
     updateButtons();
   }
 };

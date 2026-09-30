@@ -259,7 +259,7 @@
       "post": {
         "operationId": "post_quote",
         "summary": "Estimate a renewal",
-        "description": "Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Quotes expire after 60 seconds and assume one processing flow with no existing balance at the deposit address.",
+        "description": "Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Estimates assume one processing flow with no existing balance at the deposit address.",
         "requestBody": {
           "required": true,
           "content": {
@@ -785,10 +785,6 @@
             "pattern": "^(0|[1-9][0-9]*)$",
             "description": "Exact integer encoded as a decimal string."
           },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          },
           "estimate": {
             "type": "boolean",
             "const": true
@@ -804,7 +800,6 @@
           "bridgeFee",
           "roundingRemainder",
           "pricingBlock",
-          "expiresAt",
           "estimate"
         ],
         "additionalProperties": false

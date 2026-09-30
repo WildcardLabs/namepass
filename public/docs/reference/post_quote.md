@@ -2,7 +2,7 @@
 
 `POST /api/v1/quote`
 
-Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Quotes expire after 60 seconds and assume one processing flow with no existing balance at the deposit address.
+Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Estimates assume one processing flow with no existing balance at the deposit address.
 
 ## Request body
 
@@ -43,7 +43,6 @@ Estimate renewal duration and fees for an ENS name, funding chain and USDC amoun
 | `bridgeFee` | string | Yes | Exact integer encoded as a decimal string. |
 | `roundingRemainder` | string | Yes | Exact integer encoded as a decimal string. |
 | `pricingBlock` | string | Yes | Exact integer encoded as a decimal string. |
-| `expiresAt` | string | Yes | Format: date-time. |
 | `estimate` | boolean | Yes |  |
 
 ## Full contract

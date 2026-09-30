@@ -8,7 +8,7 @@ performs bridging, claiming and ENS renewal internally.
 | Call | Result |
 | --- | --- |
 | `POST /api/v1/address` with `{ "name": "example.eth" }` | Full deposit address, subname, alias verification flag and supported funding chains |
-| `POST /api/v1/quote` with name, chain ID and USDC amount | Estimated seconds, applied amount, fees, pricing block and expiry |
+| `POST /api/v1/quote` with name, chain ID and USDC amount | Estimated seconds, applied amount, fees and pricing block |
 | Send USDC with the caller's wallet | Source transaction hash and EVM chain ID |
 | `GET /api/v1/status/{chainId}?transactionHash={hash}` | `pending`, `processing`, `complete` or `failed`, with deposits and verified renewal results |
 | `GET /api/v1/names/{name}/renewals` | Name-filtered past renewals, recorded expiry and pagination |
@@ -25,7 +25,7 @@ renewal results; the service does not invent per-deposit duration allocations. C
 completion. A transaction with several deposits returns them together; callers need no log selector.
 
 Quotes use the same helper algorithm as the frontend, after fees. They verify live contract code
-and source route limits. A quote expires after 60 seconds and assumes one flow without existing
+and source route limits. An estimate assumes one flow without existing
 wallet funds. Name history is filtered by normalized ENS name and never exposes a global feed.
 Name scope is a public on-chain query, not proof of caller ownership.
 

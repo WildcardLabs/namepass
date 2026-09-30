@@ -20,7 +20,6 @@ export function fundingTransaction(
   address: FundingAddress,
   quote: FundingQuote,
   mode: FundingMode,
-  now = Date.now(),
 ) {
   const chain = chainById(Number(quote.chainId));
   if (!chain || chain.environment !== "testnet" || chain.status !== "active")
@@ -47,11 +46,6 @@ export function fundingTransaction(
     BigInt(quote.secondsAdded) <= 0n
   )
     throw new Error("The amount does not cover a renewal.");
-  if (
-    !Number.isFinite(Date.parse(quote.expiresAt)) ||
-    Date.parse(quote.expiresAt) <= now
-  )
-    throw new Error("The quote expired. Request a new quote before funding.");
   const chainId = `0x${chain.chainId.toString(16)}`;
   if (mode === "native") {
     if (chain.key !== "arc")

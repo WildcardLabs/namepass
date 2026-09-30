@@ -137,7 +137,6 @@ test(
 				body: JSON.stringify({ name: "Example.eth", chainId, amount }),
 			});
 		try {
-			const before = Date.now();
 			const response = await quoteRoute.fetch(request());
 			assert.equal(response.status, 200);
 			const result = await response.json();
@@ -159,10 +158,7 @@ test(
 			assert.equal(result.roundingRemainder, "10000");
 			assert.equal(result.estimate, true);
 			assert.equal(result.pricingBlock, "20");
-			assert.ok(
-				Date.parse(result.expiresAt) >= before + 60000 &&
-					Date.parse(result.expiresAt) <= Date.now() + 60000,
-			);
+			assert.equal("expiresAt" in result, false);
 			assert.equal(response.headers.get("access-control-allow-origin"), "*");
 			assert.equal(
 				response.headers.get("access-control-expose-headers"),

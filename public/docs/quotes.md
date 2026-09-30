@@ -22,13 +22,12 @@ Use a chain ID from the [address response](/docs/addresses). Send `amount` as an
 | `bridgeFee` | Bridge fee. Currently zero for supported routes. |
 | `roundingRemainder` | USDC remaining after duration rounding, retained by the renewal gateway. |
 | `pricingBlock` | Block number used to calculate the estimate. |
-| `expiresAt` | Quote expiry, 60 seconds after calculation. |
 
 All USDC values are integer strings in six-decimal token units.
 
 ## Estimate limits
 
-A quote assumes one processing flow and no existing balance at the deposit address. Deposits may be combined, and prices may change before settlement. Use [transaction status](/docs/status) for the final renewal result.
+A quote assumes one processing flow and no existing balance at the deposit address. Deposits may be combined. The renewal uses the pricing and fees in effect when funds are processed. Use [transaction status](/docs/status) for the final renewal result.
 
 ## Errors
 
