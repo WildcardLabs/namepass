@@ -172,6 +172,52 @@ loaded. Do not paste it into chat or a repository file:
 curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://<stable-domain>/api/cron/recover
 ```
 
+## Integration API operations
+
+Apply `0009_public_status.sql` before deploying its writers. Rehearse it on representative data.
+Its native/ERC-20 identity preflight rejects ambiguous historical deposits. Reconcile those exact
+receipts before retrying; do not delete history to pass the check. The factory and environment
+must match the database. This unreleased migration has no partner or key tables.
+
+`NAMEPASS_INTEGRATIONS_ENABLED=1` enables the public endpoints and evidence worker after the
+release gates pass. It is an operator release switch, not caller authentication. The API needs
+no new secrets. Existing database, RPC, Circle Iris, cron and Workflow configuration remains
+required. Set `NAMEPASS_ALIAS_VERIFIED_DEPLOYMENT` to
+`<environment>:<hub-chain-id>:<lowercase-factory-address>` only after recording matching resolver
+and parent evidence. Until then, callers fund the returned full address.
+
+Quote RPCs must serve the reviewed helper runtime and live Circle route limits/minimum fees.
+The quote is one flow: amounts above the source burn cap return `422`; disabled burns or a
+nonzero minimum fee return `503`. Quotes do not create work, reserve a price or sign transactions.
+Name history reads stored canonical renewal flows and recorded expiry with name-bound pagination.
+
+One evidence pump verifies receipts, processing coverage and hub finality. Missed starts have a
+90-second dispatch lease; running pumps renew for ten minutes. Evidence jobs have five-minute
+leases. Source updates preserve another wake. Do not clear a live lease to force a retry; inspect
+its Workflow run first. Recovery cron wakes due work. An uncertain broadcast uses the existing
+payment-intent recovery path. For an unindexed source transaction, one discovery job retries for at most 30 minutes.
+Repeated polls do not reset it. Its `discovery_expired` code needs operator investigation if
+Goldsky has not indexed a valid deposit. Invalid or unsupported transactions remain `404`.
+Callers keep polling the same source transaction; they do not send
+another payment to retry processing.
+
+A missing receipt does not prove removal. For an indexer deletion, both receipt absence and
+absence from the canonical block establish removal. Valid reminted receipt evidence takes
+priority. Repair uses bounded block ranges and a durable receipt cursor. Native discovery covers
+a separate recent activation range. Never claim full native history from an ERC-20 log scan.
+Archive receipts and the hub `finalized` block tag are required to prove historical completion.
+
+During an outage, inspect pending `integration_jobs`, their oldest `next_at`, `error_code` and
+lease/run identity, plus observed settlements awaiting finality. Normalized evidence is retained;
+raw-payload retention does not remove it. Disabling the release flag stops API/worker work and
+preserves records. Hosted abuse limits belong at the platform/WAF boundary and must not require
+caller accounts or API keys. Test anonymous address activation and five-second polling there.
+
+For local verification, set `TEST_DATABASE_URL` to a disposable loopback PostgreSQL service
+with database-creation privileges and run `npm run test:server`. Tests create and drop their own
+databases. `npm run check:docs` checks public Markdown, skill and LLM indexes; `check:api` checks
+OpenAPI and generated types. No outgoing webhook or MCP setup is needed.
+
 ## Mainnet release requirements
 
 Do not change `ACTIVE_ENVIRONMENT` or `MAINNET_LAUNCH_APPROVED` until every item in this section

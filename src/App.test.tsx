@@ -196,3 +196,37 @@ test("an older refresh cannot overwrite a newer validated result", async () => {
 	expect(container.querySelector('[role="alert"]')).toBeNull();
 	expect(setRates).toHaveBeenLastCalledWith({ ...rates, readAt: 3 });
 });
+
+test("documentation opens directly and supports navigation without price or chain reads", async () => {
+  window.history.replaceState({}, "", "/docs");
+  const network = vi.fn();
+  vi.stubGlobal("fetch", network);
+  vi.stubGlobal("scrollTo", vi.fn());
+  await render();
+  await act(async () => { await import("./components/Docs"); });
+  await vi.waitFor(() => expect(container.querySelector("#three-steps")).not.toBeNull());
+  expect(container.querySelector('.docs-example code')?.textContent).toContain("https://beta.namepass.com/api/v1/address");
+  const copiedRequest = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: copiedRequest } });
+  await click("Copy request");
+  expect(copiedRequest).toHaveBeenLastCalledWith(expect.stringContaining("https://beta.namepass.com/api/v1/address"));
+  await click("Copy page");
+  expect(copiedRequest).toHaveBeenLastCalledWith(expect.stringContaining("# Introduction"));
+  const settlement = container.querySelector<HTMLAnchorElement>('a[href="/docs/status"]');
+  expect(settlement).not.toBeNull();
+  await act(async () => settlement!.click());
+  expect(window.location.pathname).toBe("/docs/status");
+  expect(container.querySelector("h1")?.textContent).toBe("Poll status");
+  expect(container.querySelector("table")?.textContent).toContain("processing");
+  const popstate = nextPopState();
+  await act(async () => { window.history.back(); await popstate; });
+  expect(container.querySelector("#three-steps")).not.toBeNull();
+  const quickstart = container.querySelector<HTMLAnchorElement>('a[href="/docs/quickstart"]');
+  await act(async () => quickstart!.click());
+  expect(container.querySelector('.docs-prose pre')?.textContent).toContain("https://beta.namepass.com/api/v1/address");
+  expect(container.querySelector('.docs-prose')?.textContent).not.toContain(window.location.origin);
+  await act(async () => window.dispatchEvent(new Event("focus")));
+  expect(loadOracleRates).not.toHaveBeenCalled();
+  expect(assertGasAllowance).not.toHaveBeenCalled();
+  expect(network).not.toHaveBeenCalled();
+});

@@ -104,6 +104,7 @@ export interface GoldskyEvent {
 	txHash: string;
 	logIndex: number;
 	gsOp: GoldskyOperation;
+	transferKind?: "native" | "erc20";
 	tokenAddress?: string;
 	senderAddress?: string;
 	recipientAddress?: string;
@@ -330,6 +331,9 @@ export function parseGoldskyEvent(object: Record<string, unknown>): GoldskyEvent
 		gsOp: gsOp === "i" ? "c" : gsOp,
 	};
 	if (!parsed.eventId.startsWith(`${chainId}:`)) invalid("event_id");
+	if (eventFamily === "deposit") {
+		parsed.transferKind = parsed.eventId.startsWith(`${chainId}:native:`) ? "native" : "erc20";
+	}
 
 	if (key === "deposit:Transfer") {
 		parsed.tokenAddress = patternField(object, "token_address", ADDRESS);
@@ -530,8 +534,14 @@ export function goldskyHandler(
 				});
 			}
 		}
+		if (process.env.NAMEPASS_INTEGRATIONS_ENABLED === "1" && event.eventFamily === "deposit") {
+			await (await import("./integrations/coverage")).normalizeIndexedDeposit(event);
+		}
 		const flowId = await ingestGoldskyEvent(store, event, observedBalance, balanceReadFailed);
 		if (flowId) await startFlow(flowId);
+		if (process.env.NAMEPASS_INTEGRATIONS_ENABLED === "1") {
+			try { await (await import("./integrations/wake")).wakeIntegrations(); } catch { /* Cron repairs the durable wake. */ }
+		}
 		return json({ accepted: true });
 	});
 }
@@ -541,6 +551,17 @@ export const postgresGoldskyStore: GoldskyStore = {
 		database().transaction(async (tx) =>
 			work({
 				async upsertEvent(event) {
+					if (event.eventFamily === "deposit" || event.eventFamily === "namepass" || event.eventFamily === "ens") {
+						const native = event.transferKind === "native";
+						await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`event-identity:${event.chainId}:${event.txHash}:${event.eventType}:${native ? "native" : event.logIndex}`},0))`);
+						const existing = await tx.select({ eventId: chainEvents.eventId }).from(chainEvents).where(and(
+							eq(chainEvents.chainId, String(event.chainId)), eq(chainEvents.txHash, event.txHash),
+							eq(chainEvents.eventFamily, event.eventFamily), eq(chainEvents.eventType, event.eventType), eq(chainEvents.evidenceKind, native ? "native" : "log"),
+							native ? undefined : eq(chainEvents.logIndex, event.logIndex),
+						));
+						if (existing.length > 1) throw new Error("A transfer has conflicting canonical identities.");
+						if (existing[0]) event.eventId = existing[0].eventId;
+					}
 					const now = new Date();
 					await tx
 						.insert(chainEvents)
@@ -551,6 +572,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 							chainId: String(event.chainId),
 							txHash: event.txHash,
 							logIndex: event.logIndex,
+							evidenceKind: event.transferKind === "native" ? "native" : "log",
 							blockNumber: event.blockNumber,
 							blockTime: event.blockTime,
 							gsOp: event.gsOp,
@@ -564,6 +586,9 @@ export const postgresGoldskyStore: GoldskyStore = {
 							target: chainEvents.eventId,
 							set: {
 								gsOp: event.gsOp,
+								blockNumber: event.blockNumber,
+								blockTime: event.blockTime,
+								logIndex: event.logIndex,
 								canonical: event.gsOp === "c",
 								facts: event.facts,
 								payload: event.payload,
@@ -592,6 +617,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 							nameId,
 							chainId: String(event.chainId),
 							tokenAddress: event.tokenAddress,
+							transferKind: event.transferKind ?? "erc20",
 							senderAddress: event.senderAddress,
 							amount: event.amount,
 							txHash: event.txHash,
@@ -603,7 +629,11 @@ export const postgresGoldskyStore: GoldskyStore = {
 						})
 						.onConflictDoUpdate({
 							target: deposits.eventId,
-							set: { status: event.gsOp === "c" ? "detected" : "orphaned" },
+							set: {
+								status: event.gsOp === "c" ? "detected" : "orphaned", logIndex: event.logIndex,
+								blockNumber: event.blockNumber, blockTime: event.blockTime, amount: event.amount,
+								senderAddress: event.senderAddress, transferKind: event.transferKind ?? "erc20",
+							},
 						});
 				},
 				async reconcileOriginBurn(event) {

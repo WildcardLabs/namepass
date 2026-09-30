@@ -54,6 +54,26 @@ No audited mainnet protocol release is recorded. Ethereum, Base, Arbitrum, and A
 the initial mainnet release; none has a recorded Namepass mainnet deployment. Requirements are in
 [RUNBOOK.md](RUNBOOK.md#mainnet-release-requirements).
 
+## Integration release gate — 2026-09-30
+
+The public API is not recorded as deployed. Migration `0009_public_status.sql`, the four `/api/v1`
+endpoints and evidence Workflow are separate from the September 22 contract canaries. Keep
+`NAMEPASS_INTEGRATIONS_ENABLED` disabled until the release has evidence for:
+
+- Migration/backfill rehearsal on representative data, native identity preflight and disabling
+  the feature without losing payment evidence.
+- Anonymous address activation, block-pinned quotes, name history, transaction polling, platform
+  abuse limits and hosted latency.
+- Archive receipt and hub-finality provider support, plus a missed-start recovery drill.
+- Signed direct and CCTP funding canaries that reach `complete` through the public polling route.
+- Resolver/parent evidence and address equality before enabling the alias verification flag.
+
+There are no partner credentials, outgoing webhooks or MCP release steps. Existing Goldsky
+provider webhook configuration remains required for ingestion. Hosted changes, merge and wallet
+signing retain their approval boundaries. Mainnet funding remains disabled. Local checks are
+recorded in [integration validation](api/VALIDATION.md); operations are in
+[the runbook](RUNBOOK.md#integration-api-operations).
+
 ## Historical evidence
 
 The [September 18 manifest](deployments/2026-09-18/manifest.json) and accompanying receipts are

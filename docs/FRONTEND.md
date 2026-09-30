@@ -38,14 +38,26 @@ After a source-chain burn, an unclaimed payment is not a spendable source-wallet
 
 ## Interface conventions
 
-Homepage navigation uses `Rates` for the pricing simulator. The temporary `Docs` link
-targets the developer CTA at `#docs`; its `Read the docs` button stays disabled
-until documentation is available. The desktop menu is centered between the brand and
+`/docs` is a standalone, lazy documentation application with its own header, responsive navigation,
+typography and canvas in `src/components/docs.css`. The landing page has a resource directory and
+copyable API examples. Guides use a persistent sidebar and table of contents. The four endpoint
+pages come from OpenAPI. Search, page navigation and focus
+changes do not read pricing, account or chain state.
+
+`docs/content/` owns guide Markdown and navigation. `npm run generate:docs` produces the shared
+catalog, public Markdown, downloadable skill, `llms.txt` and `llms-full.txt`. `npm run check:docs`
+checks freshness and links. Page actions copy Markdown, open plain text and prepare context for
+an existing agent. Examples, copied prompts and Markdown use the published `docsOrigin` from the
+generated catalog (`https://beta.namepass.com`), including in local previews. In-page navigation
+uses relative paths. The skill uses the public HTTP flow.
+
+The footer, navigation and integration call-to-action open `/docs`. Homepage navigation
+uses `Rates` for the pricing simulator. The desktop menu is centered between the brand and
 `Get Started`. On mobile, it stays visible in a centered row. The footer lists Explorer,
 Rates, Supported networks, Docs, and the legal pages.
 Public activity labels identify the testnet deployment.
 
-Pages share `PageShell` and `Navbar`. Reuse existing visual primitives, tooltips and chain labels.
+Main-site pages share `PageShell` and `Navbar`. Reuse existing visual primitives, tooltips and chain labels.
 On public pages, filled cards and controls have no visible perimeter border. Use borders for
 unfilled controls and internal dividers, and keep keyboard focus indicators visible.
 Public page backgrounds use the cool gray `surface-canvas`, including the hero corner cutouts.

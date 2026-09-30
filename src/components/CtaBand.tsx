@@ -47,7 +47,7 @@ function loadScript(src: string): Promise<void> {
  * mesh in the brand green — with the integration copy left and docs action right. If the CDN
  * scripts do not load, the solid dark-green panel behind them stands in.
  */
-export default function CtaBand() {
+export default function CtaBand({onDocs}: {onDocs: () => void}) {
 	const bandRef = useRef<HTMLDivElement>(null);
 	const reduced = useReducedMotion();
 
@@ -133,7 +133,7 @@ export default function CtaBand() {
 						className="flex flex-col items-start gap-3 shrink-0"
 					>
 						<button
-							disabled
+							onClick={onDocs}
 							className="inline-flex items-center gap-2 rounded-[10px] bg-white text-ink-primary px-5 py-3 text-[15px] disabled:cursor-not-allowed"
 						>
 							Read the docs

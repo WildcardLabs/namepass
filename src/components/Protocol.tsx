@@ -31,7 +31,7 @@ export default function Protocol() {
 					</div>
 					<motion.a
 						whileTap={{ scale: 0.98 }}
-						href="https://github.com/WildcardLabs/namepass"
+						href="https://github.com/wildcardlabs/namepass"
 						target="_blank"
 						rel="noopener noreferrer"
 						className="group shrink-0 self-start sm:self-auto inline-flex items-center gap-2 rounded-[10px] bg-white px-5 py-2.5 text-[14px] text-ink-action shadow-[0_3px_10px_rgba(28,58,41,0.08)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"

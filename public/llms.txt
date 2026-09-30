@@ -1,0 +1,25 @@
+# Namepass developer documentation
+
+> API documentation for USDC-funded ENS renewals. API version 2026-09-30. Supported networks: testnets.
+
+## Guides and API operations
+
+- [Introduction](https://beta.namepass.com/docs/introduction.md): Renew any ENS name from any supported network. One deposit address, automatic renewal.
+- [Quickstart](https://beta.namepass.com/docs/quickstart.md): Get a deposit address, fund a renewal and track its status.
+- [Get an address](https://beta.namepass.com/docs/addresses.md): Activate an ENS name and retrieve its deposit address.
+- [Estimate renewal time](https://beta.namepass.com/docs/quotes.md): Calculate the estimated renewal duration and fees for a deposit.
+- [Poll status](https://beta.namepass.com/docs/status.md): Track a deposit through to renewal using its transaction hash and chain ID.
+- [Name history](https://beta.namepass.com/docs/history.md): Retrieve renewal history and the recorded expiry for an ENS name.
+- [AI agents](https://beta.namepass.com/docs/agents.md): Skills and documentation for AI agents.
+- [Integration skill](https://beta.namepass.com/docs/skills.md): Install API instructions for your agent.
+- [API reference](https://beta.namepass.com/docs/reference.md): Endpoints, request schemas and response fields.
+- [Get a deposit address](https://beta.namepass.com/docs/reference/post_address.md): POST /api/v1/address
+- [Poll a transaction](https://beta.namepass.com/docs/reference/get_status.md): GET /api/v1/status/{chainId}
+- [Estimate a renewal](https://beta.namepass.com/docs/reference/post_quote.md): POST /api/v1/quote
+- [List a name's renewals](https://beta.namepass.com/docs/reference/get_name_renewals.md): GET /api/v1/names/{name}/renewals
+
+## Agent resources
+
+- [Full documentation](https://beta.namepass.com/llms-full.txt)
+- [OpenAPI 3.1](https://beta.namepass.com/openapi.json)
+- [Integration skill](https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md)

@@ -1,0 +1,481 @@
+# Namepass integration documentation
+
+API version 2026-09-30. Supported networks: testnets.
+
+# Introduction
+
+Source: https://beta.namepass.com/docs/introduction
+
+Namepass converts USDC deposits into ENS renewals. Each name has a deposit address shared across supported networks.
+
+## Three steps
+
+1. **Get a deposit address** for an ENS name.
+2. **Send USDC** to the address on a supported network.
+3. **Track the renewal** using the transaction hash and source chain ID.
+
+## Current networks
+
+Namepass currently supports testnets. The [address response](/docs/addresses) lists available chains, USDC contracts and minimum deposit amounts.
+
+---
+
+# Quickstart
+
+Source: https://beta.namepass.com/docs/quickstart
+
+## 1. Get a deposit address
+
+```bash
+curl -X POST 'https://beta.namepass.com/api/v1/address' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"example.eth"}'
+```
+
+The response contains `depositAddress`, `subname` and supported `chains`. This request activates deposit monitoring for the name. Send payments to `depositAddress`; the subname is safe to use when `subnameVerified` is `true`.
+
+To estimate renewal time before funding, [request a quote](/docs/quotes).
+
+## 2. Send USDC
+
+Choose a chain from `chains` and transfer USDC from its `tokenAddress` contract to `depositAddress`. Use an amount at least equal to `minimumAmount`. USDC amounts use six decimal places: `1000000` represents 1 USDC.
+
+Save the transfer's transaction hash and source chain ID for status requests.
+
+## 3. Poll until complete
+
+```javascript
+async function waitForRenewal(baseUrl, chainId, transactionHash, signal) {
+  const url = `${baseUrl}/api/v1/status/${chainId}?transactionHash=${transactionHash}`;
+  for (;;) {
+    signal?.throwIfAborted();
+    const response = await fetch(url, { signal });
+    if (response.ok) {
+      const result = await response.json();
+      if (result.status === "complete") return result;
+      if (result.status === "failed") throw new Error("The source transaction was invalidated. Inspect it before retrying.");
+    } else if (![404, 429, 503].includes(response.status)) {
+      throw new Error(`Namepass returned ${response.status}`);
+    }
+    const seconds = Number(response.headers.get("Retry-After") ?? 5);
+    await new Promise(resolve => setTimeout(resolve, Number.isFinite(seconds) ? Math.max(5, seconds) * 1000 : 5000));
+  }
+}
+```
+
+Poll every five seconds, or after the delay specified by `Retry-After`. A `404` means no matching deposit has been indexed; retry the same URL. Cancel polling when the user leaves the flow.
+
+When `status` is `complete`, the renewal is verified and finalized. `deposits[].renewals` contains the renewal transaction hashes, duration added and resulting expiry. See [status responses](/docs/status) for other states and retry behavior.
+
+Use [name history](/docs/history) to retrieve past renewals and the recorded expiry.
+
+---
+
+# Get an address
+
+Source: https://beta.namepass.com/docs/addresses
+
+Retrieve the deposit address and supported funding networks for an ENS name.
+
+## Request
+
+```bash
+curl -X POST 'https://beta.namepass.com/api/v1/address' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"example.eth"}'
+```
+
+## Response
+
+- `name`: the normalized ENS name.
+- `depositAddress`: the payment address, shared across supported chains.
+- `subname`: the corresponding `namepass.eth` subname.
+- `subnameVerified`: whether the subname resolves to the deposit address on this deployment.
+- `chains`: supported chain IDs, USDC token addresses and minimum funding amounts.
+
+The request activates deposit monitoring. Repeated requests for the same name return the same address. Use the returned chain configuration for funding.
+
+## Send the payment
+
+Transfer USDC to `depositAddress` on a returned chain. Use the subname only when `subnameVerified` is `true`. Save the transaction hash and source chain ID to [track the renewal](/docs/status).
+
+## Errors
+
+`422` indicates that the name cannot currently be renewed. `503` indicates that ENS data is unavailable; retry the address request before funding.
+
+---
+
+# Estimate renewal time
+
+Source: https://beta.namepass.com/docs/quotes
+
+Estimate the renewal duration and fees for a USDC deposit.
+
+## Request a quote
+
+```bash
+curl -X POST 'https://beta.namepass.com/api/v1/quote' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"example.eth","chainId":"84532","amount":"1000000"}'
+```
+
+Use a chain ID from the [address response](/docs/addresses). Send `amount` as an integer string in USDC's smallest unit: `1000000` represents 1 USDC.
+
+## Response
+
+| Field | Description |
+| --- | --- |
+| `secondsAdded` | Estimated renewal duration in seconds. |
+| `amountApplied` | USDC applied to the ENS renewal. |
+| `renewalFee` | Processing allowance for one renewal flow. |
+| `bridgeFee` | Bridge fee. Currently zero for supported routes. |
+| `roundingRemainder` | USDC remaining after duration rounding, retained by the renewal gateway. |
+| `pricingBlock` | Block number used to calculate the estimate. |
+| `expiresAt` | Quote expiry, 60 seconds after calculation. |
+
+All USDC values are integer strings in six-decimal token units.
+
+## Estimate limits
+
+A quote assumes one processing flow and no existing balance at the deposit address. Deposits may be combined, and prices may change before settlement. Use [transaction status](/docs/status) for the final renewal result.
+
+## Errors
+
+`422` indicates an unrenewable name, an amount below the minimum, or an amount above the source chain's single-flow limit. For amounts above the limit, `error.details.maximumAmount` gives the maximum quote amount. Larger deposits require multiple processing flows.
+
+`503` indicates unavailable pricing or an unsupported bridge fee configuration. Retry the quote request before funding.
+
+---
+
+# Poll status
+
+Source: https://beta.namepass.com/docs/status
+
+Track a USDC deposit using its transaction hash and source chain ID.
+
+## Request
+
+```bash
+curl 'https://beta.namepass.com/api/v1/status/84532?transactionHash={hash}'
+```
+
+Replace `{hash}` with the transaction hash returned by the wallet. Use the source chain ID from the [address response](/docs/addresses).
+
+## Statuses
+
+| Status | Meaning | What to do |
+| --- | --- | --- |
+| `pending` | The deposit is indexed and verification is pending. | Poll again. |
+| `processing` | The deposit is verified and is awaiting processing or renewal confirmation. | Poll again. |
+| `complete` | The funds were processed and the renewal is finalized. | Show completion. |
+| `failed` | The source deposit was invalidated, such as by a chain reorganization. | Inspect the transaction before taking further action. |
+
+Deposits below `minimumAmount` remain pending until the address has enough USDC to process a renewal.
+
+## Response
+
+The response includes `chainId`, `transactionHash`, `status` and `deposits`. Each deposit has a name, amount, log index and status. The transaction status is `complete` when all indexed deposits are complete.
+
+Completed entries include `renewals` with transaction hashes, duration added and resulting expiry. A renewal can include multiple deposits; its duration is the total renewal duration, not an allocation to an individual deposit.
+
+## Polling
+
+Poll every five seconds, or after the delay specified by `Retry-After`. Resume polling with the same chain ID and transaction hash. Do not repeat a transfer to resolve a pending status.
+
+## Errors
+
+| HTTP status | Meaning | Action |
+| --- | --- | --- |
+| `400` | Invalid chain ID or transaction hash. | Correct the request. |
+| `404` | No matching deposit has been indexed. | Retry the same URL. |
+| `429` | Request rate limit reached. | Wait for `Retry-After`. |
+| `503` | Service temporarily unavailable. | Wait for `Retry-After`. |
+
+---
+
+# Name history
+
+Source: https://beta.namepass.com/docs/history
+
+Retrieve renewal history and the recorded expiry for an ENS name.
+
+## Read a name's history
+
+```bash
+curl 'https://beta.namepass.com/api/v1/names/example.eth/renewals?limit=20'
+```
+
+## Response
+
+The response contains `name`, `currentExpiry`, `expiryUpdatedAt`, `items` and `nextCursor`. `currentExpiry` is the last recorded ENS expiry; `expiryUpdatedAt` is its read timestamp. An [address request](/docs/addresses) refreshes this state.
+
+Each item includes a flow ID, source chain, renewal transaction, duration added, amount applied, fee, expiry and renewal timestamp. Its status is `complete` after verification and finality, or `processing` while verification is pending. Unavailable fields are `null`.
+
+## Pagination
+
+Results are ordered newest first. Pass `nextCursor` as the `cursor` parameter to retrieve the next page for the same name. The default page size is 20; `limit` accepts values from 1 to 100. `nextCursor: null` marks the last page. Refresh the first page for new or late-indexed renewals.
+
+```javascript
+const url = new URL("https://beta.namepass.com/api/v1/names/example.eth/renewals");
+url.searchParams.set("limit", "20");
+if (nextCursor) url.searchParams.set("cursor", nextCursor);
+const history = await (await fetch(url)).json();
+```
+
+## Scope
+
+History is public and includes renewals funded by any sender for the requested name.
+
+## Errors
+
+`404` indicates that the name has not been activated. [Retrieve its deposit address](/docs/addresses) before requesting history.
+
+---
+
+# AI agents
+
+Source: https://beta.namepass.com/docs/agents
+
+Provide the [integration skill](/docs/skills) to your agent for Namepass API instructions.
+
+## Example prompt
+
+```text
+Renew [name] with [amount] USDC on [chain] using Namepass.
+Follow the integration skill:
+https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md
+```
+
+## Resources
+
+- [Quickstart as Markdown](/docs/quickstart.md)
+- [OpenAPI specification](/openapi.json)
+- [Documentation index](/llms.txt)
+- [Full documentation](/llms-full.txt)
+
+---
+
+# Integration skill
+
+Source: https://beta.namepass.com/docs/skills
+
+The integration skill provides API instructions for address retrieval, funding, quotes, status polling and renewal history.
+
+## Install in a project
+
+```bash
+mkdir -p .agents/skills/namepass-integration
+curl -fsSL 'https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md' \
+  -o .agents/skills/namepass-integration/SKILL.md
+```
+
+For agents without project skill support, use the [skill URL](/docs/skills/namepass-integration/SKILL.md) directly.
+
+---
+
+# API reference
+
+Source: https://beta.namepass.com/docs/reference
+
+Base URL: `https://beta.namepass.com/api/v1`
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/v1/address` | Get a name's deposit address and supported networks. |
+| `POST /api/v1/quote` | Estimate renewal time from a USDC amount. |
+| `GET /api/v1/status/{chainId}?transactionHash={hash}` | Track a deposit through renewal. |
+| `GET /api/v1/names/{name}/renewals` | Read a name's past renewals and recorded expiry. |
+
+## Authentication
+
+All endpoints are public. Authentication is not required.
+
+## Requests and responses
+
+Request and response bodies use JSON. Browser requests are supported through CORS. USDC amounts are integer strings in six-decimal token units; `1000000` represents 1 USDC.
+
+Download the [OpenAPI specification](/openapi.json) for request schemas, response fields and error codes.
+
+---
+
+# Get a deposit address
+
+Source: https://beta.namepass.com/docs/reference/post_address
+
+`POST /api/v1/address`
+
+Activate deposit monitoring for an ENS name and return its deposit address, subname and supported funding chains.
+
+## Request body
+
+| Field | Type | Required | Details |
+| --- | --- | --- | --- |
+| `name` | string | Yes |  |
+
+```json
+{
+  "name": "example.eth"
+}
+```
+
+## Responses
+
+| Status | Description |
+| --- | --- |
+| `200` | Address activated and ready for funding. |
+| `400` | Invalid name, chain ID, transaction hash or request. |
+| `422` | The ENS name cannot currently be renewed. |
+| `500` | Server error. |
+| `503` | Temporarily unavailable. Retry after the indicated delay. |
+
+## Response fields
+
+| Field | Type | Required | Details |
+| --- | --- | --- | --- |
+| `name` | string | Yes |  |
+| `depositAddress` | string | Yes |  |
+| `subname` | string | Yes |  |
+| `subnameVerified` | boolean | Yes |  |
+| `chains` | array | Yes |  |
+
+## Full contract
+
+[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields.
+
+---
+
+# Poll a transaction
+
+Source: https://beta.namepass.com/docs/reference/get_status
+
+`GET /api/v1/status/{chainId}`
+
+Retrieve renewal status for a USDC deposit transaction. The transaction is complete when every indexed deposit has a verified, finalized renewal.
+
+## Parameters
+
+| Name | Location | Required | Description |
+| --- | --- | --- | --- |
+| `chainId` | path | Yes | Source EVM chain ID from the address response. |
+| `transactionHash` | query | Yes | The USDC deposit transaction hash returned by your wallet. |
+
+## Responses
+
+| Status | Description |
+| --- | --- |
+| `200` | Current progress. Poll pending or processing; stop at complete. |
+| `400` | Invalid name, chain ID, transaction hash or request. |
+| `404` | No matching deposit has been indexed. Retry the same URL. |
+| `500` | Server error. |
+| `503` | Temporarily unavailable. Retry after the indicated delay. |
+
+## Response fields
+
+| Field | Type | Required | Details |
+| --- | --- | --- | --- |
+| `chainId` | string | Yes | Exact integer encoded as a decimal string. |
+| `transactionHash` | string | Yes |  |
+| `status` | string | Yes | Values: `pending`, `processing`, `complete`, `failed`. |
+| `deposits` | array | Yes |  |
+
+## Full contract
+
+[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields.
+
+---
+
+# Estimate a renewal
+
+Source: https://beta.namepass.com/docs/reference/post_quote
+
+`POST /api/v1/quote`
+
+Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Quotes expire after 60 seconds and assume one processing flow with no existing balance at the deposit address.
+
+## Request body
+
+| Field | Type | Required | Details |
+| --- | --- | --- | --- |
+| `name` | string | Yes |  |
+| `chainId` | string | Yes | Exact integer encoded as a decimal string. |
+| `amount` | string | Yes | Exact integer encoded as a decimal string. |
+
+```json
+{
+  "name": "example.eth",
+  "chainId": "84532",
+  "amount": "1000000"
+}
+```
+
+## Responses
+
+| Status | Description |
+| --- | --- |
+| `200` | Estimated renewal time and fee breakdown. |
+| `400` | Invalid name, chain ID, transaction hash or request. |
+| `422` | Name cannot currently renew, amount is below the minimum, or amount exceeds the single-flow quote limit. |
+| `500` | Server error. |
+| `503` | Temporarily unavailable. Retry after the indicated delay. |
+
+## Response fields
+
+| Field | Type | Required | Details |
+| --- | --- | --- | --- |
+| `name` | string | Yes |  |
+| `chainId` | string | Yes | Exact integer encoded as a decimal string. |
+| `amount` | string | Yes | Exact integer encoded as a decimal string. |
+| `secondsAdded` | string | Yes | Exact integer encoded as a decimal string. |
+| `amountApplied` | string | Yes | Exact integer encoded as a decimal string. |
+| `renewalFee` | string | Yes | Exact integer encoded as a decimal string. |
+| `bridgeFee` | string | Yes | Exact integer encoded as a decimal string. |
+| `roundingRemainder` | string | Yes | Exact integer encoded as a decimal string. |
+| `pricingBlock` | string | Yes | Exact integer encoded as a decimal string. |
+| `expiresAt` | string | Yes | Format: date-time. |
+| `estimate` | boolean | Yes |  |
+
+## Full contract
+
+[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields.
+
+---
+
+# List a name's renewals
+
+Source: https://beta.namepass.com/docs/reference/get_name_renewals
+
+`GET /api/v1/names/{name}/renewals`
+
+Retrieve public renewal history and the recorded expiry for an ENS name. Renewals are ordered newest first. Complete indicates a verified, finalized renewal; processing indicates pending verification.
+
+## Parameters
+
+| Name | Location | Required | Description |
+| --- | --- | --- | --- |
+| `name` | path | Yes | ENS name, such as example.eth. |
+| `limit` | query | No | Items per page; defaults to 20. |
+| `cursor` | query | No | nextCursor from the previous page. Keep the same name. |
+
+## Responses
+
+| Status | Description |
+| --- | --- |
+| `200` | Name expiry and renewal history. |
+| `400` | Invalid name, chain ID, transaction hash or request. |
+| `404` | This name has not been activated. Get its deposit address first. |
+| `500` | Server error. |
+| `503` | Temporarily unavailable. Retry after the indicated delay. |
+
+## Response fields
+
+| Field | Type | Required | Details |
+| --- | --- | --- | --- |
+| `name` | string | Yes |  |
+| `currentExpiry` | string or null | Yes | Format: date-time. |
+| `expiryUpdatedAt` | string or null | Yes | Format: date-time. |
+| `items` | array | Yes |  |
+| `nextCursor` | string or null | Yes |  |
+
+## Full contract
+
+[Download OpenAPI](/openapi.json) for referenced schemas and complete response fields.

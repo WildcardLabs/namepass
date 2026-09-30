@@ -18,10 +18,11 @@ import { loadOracleRates } from "./lib/oracle";
 import { assertGasAllowance } from "./lib/fees";
 import { setRates } from "./lib/pricing";
 
+const Docs = lazy(() => import("./components/Docs"));
 const Monitoring = lazy(() => import("./components/Monitoring"));
 const VIDEO_URL = `${import.meta.env.BASE_URL}assets/namepass-bg.mp4`;
 
-type Page = "monitoring" | "home" | "leaderboard" | "supported" | "terms" | "privacy";
+type Page = "docs" | "monitoring" | "home" | "leaderboard" | "supported" | "terms" | "privacy";
 
 const BASE = import.meta.env.BASE_URL;
 const NAME_HISTORY_KEY = "__namepassName";
@@ -36,6 +37,7 @@ function pathToPage(pathname: string): Page {
 	const rel = pathname.startsWith(BASE)
 		? pathname.slice(BASE.length)
 		: pathname.replace(/^\//, "");
+	if (rel.startsWith("docs")) return "docs";
 	if (rel.startsWith("monitoring")) return "monitoring";
 	if (rel.startsWith("leaderboard")) return "leaderboard";
 	if (rel.startsWith("supported")) return "supported";
@@ -101,9 +103,9 @@ function ActiveApp() {
 			});
 	}, []);
 
-	useEffect(() => { if (page !== "monitoring") loadPricing(); }, [loadPricing, selected, page]);
+	useEffect(() => { if (page !== "monitoring" && page !== "docs") loadPricing(); }, [loadPricing, selected, page]);
 	useEffect(() => {
-		const refresh = () => { if (document.visibilityState === "visible" && page !== "monitoring") loadPricing(); };
+		const refresh = () => { if (document.visibilityState === "visible" && page !== "monitoring" && page !== "docs") loadPricing(); };
 		window.addEventListener("focus", refresh);
 		return () => { window.removeEventListener("focus", refresh); pricingRequest.current++; };
 	}, [loadPricing, page]);
@@ -164,7 +166,7 @@ function ActiveApp() {
 
 	const goHome = useCallback(() => navigate("home"), [navigate]);
 	const goProtocol = useCallback(() => goToSection("protocol"), [goToSection]);
-	const goDocs = useCallback(() => goToSection("docs"), [goToSection]);
+	const goDocs = useCallback(() => navigate("docs"), [navigate]);
 	const goSimulate = useCallback(() => goToSection("simulator"), [goToSection]);
 	const goLeaderboard = useCallback(() => navigate("leaderboard"), [navigate]);
 	const goSupported = useCallback(() => navigate("supported"), [navigate]);
@@ -202,6 +204,7 @@ function ActiveApp() {
 		onSimulate: goSimulate,
 		onSearch: focusSearch,
 		onHome: goHome,
+		onDocs: () => navigate("docs"),
 	};
 
 	if (page === "monitoring") {
@@ -210,6 +213,10 @@ function ActiveApp() {
 				<Monitoring onBack={goHome} />
 			</Suspense>
 		);
+	}
+
+	if (page === "docs") {
+		return <Suspense fallback={<div className="min-h-screen bg-white p-12 text-sm text-gray-500">Loading documentation…</div>}><Docs /></Suspense>;
 	}
 
 	return (
@@ -258,7 +265,7 @@ function ActiveApp() {
 							onRetry={loadPricing}
 						/>
 
-						<CtaBand />
+						<CtaBand onDocs={() => navigate("docs")} />
 					</>
 				)}
 

@@ -1,0 +1,65 @@
+[
+  {
+    "slug": "introduction",
+    "title": "Introduction",
+    "description": "Renew any ENS name from any supported network. One deposit address, automatic renewal.",
+    "group": "Get started",
+    "tab": "guides"
+  },
+  {
+    "slug": "quickstart",
+    "title": "Quickstart",
+    "description": "Get a deposit address, fund a renewal and track its status.",
+    "group": "Get started",
+    "tab": "guides"
+  },
+  {
+    "slug": "addresses",
+    "title": "Get an address",
+    "description": "Activate an ENS name and retrieve its deposit address.",
+    "group": "Integration",
+    "tab": "guides"
+  },
+  {
+    "slug": "quotes",
+    "title": "Estimate renewal time",
+    "description": "Calculate the estimated renewal duration and fees for a deposit.",
+    "group": "Integration",
+    "tab": "guides"
+  },
+  {
+    "slug": "status",
+    "title": "Poll status",
+    "description": "Track a deposit through to renewal using its transaction hash and chain ID.",
+    "group": "Integration",
+    "tab": "guides"
+  },
+  {
+    "slug": "history",
+    "title": "Name history",
+    "description": "Retrieve renewal history and the recorded expiry for an ENS name.",
+    "group": "Integration",
+    "tab": "guides"
+  },
+  {
+    "slug": "agents",
+    "title": "AI agents",
+    "description": "Skills and documentation for AI agents.",
+    "group": "Agents",
+    "tab": "agents"
+  },
+  {
+    "slug": "skills",
+    "title": "Integration skill",
+    "description": "Install API instructions for your agent.",
+    "group": "Agents",
+    "tab": "agents"
+  },
+  {
+    "slug": "reference",
+    "title": "API reference",
+    "description": "Endpoints, request schemas and response fields.",
+    "group": "API",
+    "tab": "api"
+  }
+]
