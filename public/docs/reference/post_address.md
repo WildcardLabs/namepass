@@ -1,14 +1,8 @@
 # Get a deposit address
 
-Activate an ENS name and return its payment address, subname and supported chains. No API key or authorization header is required.
-
-## Endpoint
-
 `POST /api/v1/address`
 
-## Authentication
-
-No API key or authorization header is required.
+Activate deposit monitoring for an ENS name and return its deposit address, subname and supported funding chains.
 
 ## Request body
 
@@ -18,16 +12,7 @@ No API key or authorization header is required.
 
 ```json
 {
-  "type": "object",
-  "properties": {
-    "name": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "name"
-  ],
-  "additionalProperties": false
+  "name": "example.eth"
 }
 ```
 
@@ -37,7 +22,7 @@ No API key or authorization header is required.
 | --- | --- |
 | `200` | Address activated and ready for funding. |
 | `400` | Invalid name, chain ID, transaction hash or request. |
-| `422` | Name cannot currently renew, amount is below the minimum, or amount exceeds the single-flow quote limit. |
+| `422` | The ENS name cannot currently be renewed. |
 | `500` | Server error. |
 | `503` | Temporarily unavailable. Retry after the indicated delay. |
 

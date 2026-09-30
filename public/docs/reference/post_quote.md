@@ -1,14 +1,8 @@
 # Estimate a renewal
 
-Estimate how much renewal time an amount of USDC buys for one name and funding chain. Reads the active helper at one block, using the same pricing algorithm as the frontend. The estimate expires after 60 seconds and assumes one processing flow without an existing wallet balance.
-
-## Endpoint
-
 `POST /api/v1/quote`
 
-## Authentication
-
-No API key or authorization header is required.
+Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Quotes expire after 60 seconds and assume one processing flow with no existing balance at the deposit address.
 
 ## Request body
 
@@ -20,28 +14,9 @@ No API key or authorization header is required.
 
 ```json
 {
-  "type": "object",
-  "properties": {
-    "name": {
-      "type": "string"
-    },
-    "chainId": {
-      "type": "string",
-      "pattern": "^(0|[1-9][0-9]*)$",
-      "description": "Exact integer encoded as a decimal string."
-    },
-    "amount": {
-      "type": "string",
-      "pattern": "^(0|[1-9][0-9]*)$",
-      "description": "Exact integer encoded as a decimal string."
-    }
-  },
-  "required": [
-    "name",
-    "chainId",
-    "amount"
-  ],
-  "additionalProperties": false
+  "name": "example.eth",
+  "chainId": "84532",
+  "amount": "1000000"
 }
 ```
 

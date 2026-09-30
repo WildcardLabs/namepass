@@ -1,18 +1,18 @@
 ---
 name: namepass-integration
-description: Fund an ENS renewal with Namepass from an app, wallet or agent using get-address, send-USDC and transaction polling.
+description: Integrate USDC-funded ENS renewals with Namepass using deposit addresses, quotes, transaction status and name history.
 ---
 
 # Namepass
 
-Use the configured Namepass origin. Read `<origin>/docs/quickstart.md` when needed. No Namepass API key is required.
+Base URL: `https://beta.namepass.com`. Read [the quickstart](https://beta.namepass.com/docs/quickstart.md) for request examples.
 
-1. Call `POST <origin>/api/v1/address` with `{"name":"example.eth"}` for the requested name.
+1. Call `POST /api/v1/address` with `{"name":"example.eth"}` for the requested name.
 2. Use its `depositAddress`, supported chain, `tokenAddress` and `minimumAmount`. Send USDC using the existing wallet or agent. Get approval before sending unless already authorized. Use the full address; use `subname` only when `subnameVerified` is true.
-3. Save the transaction hash and chain ID. Poll `GET <origin>/api/v1/status/{chainId}?transactionHash={hash}` about every five seconds. Honor `Retry-After`. Retry 404, 429 and 503. Stop when `status` is `complete`; inspect `failed` before taking further action.
+3. Save the transaction hash and source chain ID. Poll `GET /api/v1/status/{chainId}?transactionHash={hash}` every five seconds or after `Retry-After`. Retry 404, 429 and 503. Stop at `complete`; inspect `failed` before taking further action.
 
-When a user wants a price estimate, call `POST <origin>/api/v1/quote` with `name`, `chainId` and a six-decimal integer-string `amount`. It returns `secondsAdded`, fees and a 60-second expiry; it assumes one flow and no existing balance. For past renewals or recorded expiry, call `GET <origin>/api/v1/names/{name}/renewals`, using `nextCursor` to load more for that name.
+For estimates, call `POST /api/v1/quote` with `name`, `chainId` and an integer-string `amount` in six-decimal USDC units. Quotes expire after 60 seconds and assume one processing flow with no existing deposit balance. For history and recorded expiry, call `GET /api/v1/names/{name}/renewals`; pass `nextCursor` as `cursor` for subsequent pages.
 
-A pending result does not require another payment. Resume using the same hash and chain ID. `complete` confirms the renewal is finalized. Read `deposits[].renewals` for renewal receipts. Their totals may include other deposits, so do not invent a per-deposit allocation.
+Resume pending transactions with the same hash and chain ID; do not repeat the payment. Read `deposits[].renewals` for finalized receipts. Their duration can include multiple deposits and is not a per-deposit allocation.
 
 USDC token amounts use six decimals and integer arithmetic. Use the networks returned by the address API; the current deployment is testnet. Never expose wallet keys or broadcast funds without authorization.

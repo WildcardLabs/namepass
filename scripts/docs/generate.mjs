@@ -67,8 +67,6 @@ for (const [path, methods] of Object.entries(spec.paths)) {
     const successSchema = success?.[1].content?.["application/json"]?.schema;
     const markdown = [
       `${operation.description ?? operation.summary}\n`,
-      `## Endpoint\n\n\`${method.toUpperCase()} /api/v1${path}\`\n`,
-      `## Authentication\n\nNo API key or authorization header is required.\n`,
       ...(parameters.length
         ? [
             `## Parameters\n\n| Name | Location | Required | Description |\n| --- | --- | --- | --- |\n${parameters.map((p) => `| \`${p.name}\` | ${p.in} | ${p.required ? "Yes" : "No"} | ${(p.description ?? "").replaceAll("|", "\\|").replaceAll("\n", " ")} |`).join("\n")}\n`,
@@ -76,7 +74,7 @@ for (const [path, methods] of Object.entries(spec.paths)) {
         : []),
       ...(body
         ? [
-            `## Request body\n\n${fields(body)}\n\`\`\`json\n${JSON.stringify(resolve(body), null, 2)}\n\`\`\`\n`,
+            `## Request body\n\n${fields(body)}\n\`\`\`json\n${JSON.stringify(operation.requestBody.content["application/json"].example, null, 2)}\n\`\`\`\n`,
           ]
         : []),
       `## Responses\n\n| Status | Description |\n| --- | --- |\n${Object.entries(
@@ -113,22 +111,25 @@ if (duplicates.length) throw new Error("Duplicate documentation slugs");
 const outputs = new Map();
 outputs.set(
   "shared/docs/catalog.generated.json",
-  JSON.stringify({ version: spec.info.version, origin, pages, skill }, null, 2) +
-    "\n",
+  JSON.stringify(
+    { version: spec.info.version, origin, pages, skill },
+    null,
+    2,
+  ) + "\n",
 );
 for (const p of pages)
   outputs.set(
     `public/docs/${p.slug}.md`,
-    `# ${p.title}\n\n${p.markdown.replaceAll("{{DOCS_ORIGIN}}", origin)}`,
+    `# ${p.title}\n\n${p.method ? `\`${p.method} /api/v1${p.path}\`\n\n` : ""}${p.markdown.replaceAll("{{DOCS_ORIGIN}}", origin)}`,
   );
 outputs.set("public/docs/skills/namepass-integration/SKILL.md", skill);
 outputs.set(
   "public/llms.txt",
-  `# Namepass developer documentation\n\n> Integrate USDC funding for ENS renewals with get-address, send-USDC and transaction polling. No API keys. API version ${spec.info.version}. Testnet availability is controlled by the operator; docs availability is not a mainnet launch.\n\n## Guides and API operations\n\n${pages.map((p) => `- [${p.title}](${origin}/docs/${p.slug}.md): ${p.description}`).join("\n")}\n\n## Agent resources\n\n- [Full documentation](${origin}/llms-full.txt)\n- [OpenAPI 3.1](${origin}/openapi.json)\n- [Integration skill](${origin}/docs/skills/namepass-integration/SKILL.md)\n`,
+  `# Namepass developer documentation\n\n> API documentation for USDC-funded ENS renewals. API version ${spec.info.version}. Supported networks: testnets.\n\n## Guides and API operations\n\n${pages.map((p) => `- [${p.title}](${origin}/docs/${p.slug}.md): ${p.description}`).join("\n")}\n\n## Agent resources\n\n- [Full documentation](${origin}/llms-full.txt)\n- [OpenAPI 3.1](${origin}/openapi.json)\n- [Integration skill](${origin}/docs/skills/namepass-integration/SKILL.md)\n`,
 );
 outputs.set(
   "public/llms-full.txt",
-  `# Namepass integration documentation\n\nAPI version ${spec.info.version}. Testnet access requires operator configuration.\n\n${pages.map((p) => `# ${p.title}\n\nSource: ${origin}/docs/${p.slug}\n\n${p.markdown.replaceAll("{{DOCS_ORIGIN}}", origin)}`).join("\n---\n\n")}`,
+  `# Namepass integration documentation\n\nAPI version ${spec.info.version}. Supported networks: testnets.\n\n${pages.map((p) => `# ${p.title}\n\nSource: ${origin}/docs/${p.slug}\n\n${p.method ? `\`${p.method} /api/v1${p.path}\`\n\n` : ""}${p.markdown.replaceAll("{{DOCS_ORIGIN}}", origin)}`).join("\n---\n\n")}`,
 );
 for (const [path, body] of outputs) {
   if (check) {

@@ -3,7 +3,7 @@
   "info": {
     "title": "Namepass public API",
     "version": "2026-09-30",
-    "description": "Get a deposit address, estimate renewal time, send USDC and poll by transaction hash and source chain ID. Read renewal history for one name. No API keys."
+    "description": "Deposit addresses, renewal estimates, transaction status and ENS renewal history."
   },
   "servers": [
     {
@@ -16,7 +16,7 @@
       "post": {
         "operationId": "post_address",
         "summary": "Get a deposit address",
-        "description": "Activate an ENS name and return its payment address, subname and supported chains. No API key or authorization header is required.",
+        "description": "Activate deposit monitoring for an ENS name and return its deposit address, subname and supported funding chains.",
         "requestBody": {
           "required": true,
           "content": {
@@ -77,7 +77,7 @@
             }
           },
           "422": {
-            "description": "Name cannot currently renew, amount is below the minimum, or amount exceeds the single-flow quote limit.",
+            "description": "The ENS name cannot currently be renewed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -137,13 +137,13 @@
       "get": {
         "operationId": "get_status",
         "summary": "Poll a transaction",
-        "description": "Poll an already-sent USDC transaction using its source chain ID and hash. No API key, registration or session is required. Complete means every indexed deposit in this transaction has a verified, finalized renewal.",
+        "description": "Retrieve renewal status for a USDC deposit transaction. The transaction is complete when every indexed deposit has a verified, finalized renewal.",
         "parameters": [
           {
             "name": "chainId",
             "in": "path",
             "required": true,
-            "description": "Source blockchain chain ID, from the address response. This is a chain ID, not a CCTP domain.",
+            "description": "Source EVM chain ID from the address response.",
             "schema": {
               "type": "string",
               "pattern": "^(0|[1-9][0-9]*)$",
@@ -199,7 +199,7 @@
             }
           },
           "404": {
-            "description": "Deposit not indexed yet. Retry the same URL.",
+            "description": "No matching deposit has been indexed. Retry the same URL.",
             "content": {
               "application/json": {
                 "schema": {
@@ -259,7 +259,7 @@
       "post": {
         "operationId": "post_quote",
         "summary": "Estimate a renewal",
-        "description": "Estimate how much renewal time an amount of USDC buys for one name and funding chain. Reads the active helper at one block, using the same pricing algorithm as the frontend. The estimate expires after 60 seconds and assumes one processing flow without an existing wallet balance.",
+        "description": "Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Quotes expire after 60 seconds and assume one processing flow with no existing balance at the deposit address.",
         "requestBody": {
           "required": true,
           "content": {
@@ -394,7 +394,7 @@
       "get": {
         "operationId": "get_name_renewals",
         "summary": "List a name's renewals",
-        "description": "Past renewal flows for the requested ENS name, with its recorded expiry. Returns canonical renewals newest first. Complete indicates verified hub finality; processing means verification is pending. This is public name-scoped data and does not prove caller ownership.",
+        "description": "Retrieve public renewal history and the recorded expiry for an ENS name. Renewals are ordered newest first. Complete indicates a verified, finalized renewal; processing indicates pending verification.",
         "parameters": [
           {
             "name": "name",

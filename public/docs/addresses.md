@@ -1,19 +1,29 @@
 # Get an address
 
-Call `POST /api/v1/address` with `{"name":"example.eth"}`. No authorization header is needed.
+Retrieve the deposit address and supported funding networks for an ENS name.
 
-## What you get
+## Request
+
+```bash
+curl -X POST 'https://beta.namepass.com/api/v1/address' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"example.eth"}'
+```
+
+## Response
 
 - `name`: the normalized ENS name.
-- `depositAddress`: the full payment address, shared across the supported chains.
+- `depositAddress`: the payment address, shared across supported chains.
 - `subname`: the corresponding `namepass.eth` subname.
-- `subnameVerified`: whether this deployment has verified subname resolution.
+- `subnameVerified`: whether the subname resolves to the deposit address on this deployment.
 - `chains`: supported chain IDs, USDC token addresses and minimum funding amounts.
 
-Use the returned values instead of hardcoding addresses or networks. The call activates monitoring for the name. Calling it again returns the same deposit address.
+The request activates deposit monitoring. Repeated requests for the same name return the same address. Use the returned chain configuration for funding.
 
 ## Send the payment
 
-Use your existing wallet to transfer the supported USDC token. Namepass does not hold your wallet keys. Keep the transaction hash and source chain ID, then [poll the status](/docs/status).
+Transfer USDC to `depositAddress` on a returned chain. Use the subname only when `subnameVerified` is `true`. Save the transaction hash and source chain ID to [track the renewal](/docs/status).
 
-A name that cannot currently be renewed returns `422`. Unavailable ENS reads return `503`; retry without sending funds.
+## Errors
+
+`422` indicates that the name cannot currently be renewed. `503` indicates that ENS data is unavailable; retry the address request before funding.

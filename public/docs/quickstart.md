@@ -1,7 +1,5 @@
 # Quickstart
 
-The flow is like CCTP: submit the source transaction, then poll by its hash and source chain. With Namepass, you send USDC to a deposit address and Namepass performs the bridge and renewal.
-
 ## 1. Get a deposit address
 
 ```bash
@@ -10,15 +8,15 @@ curl -X POST 'https://beta.namepass.com/api/v1/address' \
   -d '{"name":"example.eth"}'
 ```
 
-The response contains `depositAddress`, `subname` and supported `chains`. The name is activated automatically. Use the full address for payments. Use the subname only when `subnameVerified` is true.
+The response contains `depositAddress`, `subname` and supported `chains`. This request activates deposit monitoring for the name. Send payments to `depositAddress`; the subname is safe to use when `subnameVerified` is `true`.
 
-Before sending, you can [request a quote](/docs/quotes) to preview how much renewal time your amount buys.
+To estimate renewal time before funding, [request a quote](/docs/quotes).
 
 ## 2. Send USDC
 
-Choose a chain from `chains`. Send its `tokenAddress` USDC to `depositAddress` using your existing wallet or agent. Use an amount at least as large as `minimumAmount`. Amounts are six-decimal USDC integers: `1000000` means one USDC.
+Choose a chain from `chains` and transfer USDC from its `tokenAddress` contract to `depositAddress`. Use an amount at least equal to `minimumAmount`. USDC amounts use six decimal places: `1000000` represents 1 USDC.
 
-Save the transaction hash and the chain ID. Nothing needs to be registered with Namepass. A USDC transfer is the source transaction; Namepass handles any CCTP burn, claim and ENS renewal.
+Save the transfer's transaction hash and source chain ID for status requests.
 
 ## 3. Poll until complete
 
@@ -41,8 +39,8 @@ async function waitForRenewal(baseUrl, chainId, transactionHash, signal) {
 }
 ```
 
-Poll about every five seconds and honor `Retry-After`. A `404` means the deposit is not indexed yet; retry the same URL. Stop or cancel polling when your app no longer needs it.
+Poll every five seconds, or after the delay specified by `Retry-After`. A `404` means no matching deposit has been indexed; retry the same URL. Cancel polling when the user leaves the flow.
 
-`complete` means Namepass verified the source funds were processed and the renewal was finalized. Read the returned `deposits[].renewals` for renewal transaction hashes and seconds added.
+When `status` is `complete`, the renewal is verified and finalized. `deposits[].renewals` contains the renewal transaction hashes, duration added and resulting expiry. See [status responses](/docs/status) for other states and retry behavior.
 
-Use [name history](/docs/history) to show past renewals and the recorded expiry in your app.
+Use [name history](/docs/history) to retrieve past renewals and the recorded expiry.

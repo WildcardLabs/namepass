@@ -1,18 +1,18 @@
 # Namepass developer documentation
 
-> Integrate USDC funding for ENS renewals with get-address, send-USDC and transaction polling. No API keys. API version 2026-09-30. Testnet availability is controlled by the operator; docs availability is not a mainnet launch.
+> API documentation for USDC-funded ENS renewals. API version 2026-09-30. Supported networks: testnets.
 
 ## Guides and API operations
 
-- [Introduction](https://beta.namepass.com/docs/introduction.md): Get an address. Send USDC. Poll until renewed.
-- [Quickstart](https://beta.namepass.com/docs/quickstart.md): Integrate Namepass with two HTTP calls and your existing wallet.
+- [Introduction](https://beta.namepass.com/docs/introduction.md): Integrate USDC payments for ENS renewals.
+- [Quickstart](https://beta.namepass.com/docs/quickstart.md): Get a deposit address, fund a renewal and track its status.
 - [Get an address](https://beta.namepass.com/docs/addresses.md): Activate an ENS name and retrieve its deposit address.
-- [Estimate renewal time](https://beta.namepass.com/docs/quotes.md): See what an amount of USDC buys using the active on-chain price.
+- [Estimate renewal time](https://beta.namepass.com/docs/quotes.md): Calculate the estimated renewal duration and fees for a deposit.
 - [Poll status](https://beta.namepass.com/docs/status.md): Track a deposit through to renewal using its transaction hash and chain ID.
-- [Name history](https://beta.namepass.com/docs/history.md): Read past renewal flows and recorded expiry for a specific ENS name.
-- [Use an agent](https://beta.namepass.com/docs/agents.md): Let your existing wallet or coding agent use the same simple HTTP flow.
-- [Integration skill](https://beta.namepass.com/docs/skills.md): A short get-address, send, poll workflow for agents.
-- [API reference](https://beta.namepass.com/docs/reference.md): Four public endpoints. No Namepass API keys.
+- [Name history](https://beta.namepass.com/docs/history.md): Retrieve renewal history and the recorded expiry for an ENS name.
+- [Use an agent](https://beta.namepass.com/docs/agents.md): Integrate ENS renewal funding with a wallet or coding agent.
+- [Integration skill](https://beta.namepass.com/docs/skills.md): Install API instructions for your agent.
+- [API reference](https://beta.namepass.com/docs/reference.md): Endpoints, request schemas and response fields.
 - [Get a deposit address](https://beta.namepass.com/docs/reference/post_address.md): POST /api/v1/address
 - [Poll a transaction](https://beta.namepass.com/docs/reference/get_status.md): GET /api/v1/status/{chainId}
 - [Estimate a renewal](https://beta.namepass.com/docs/reference/post_quote.md): POST /api/v1/quote

@@ -23,11 +23,8 @@ import {
   Menu,
   Plug,
   Search,
-  ShieldCheck,
   Sparkles,
   Terminal,
-  Wallet,
-  Clock3,
   List,
 } from "lucide-react";
 import {
@@ -53,6 +50,7 @@ import {
 import {
   docs,
   docsVersion,
+  docsOrigin,
   headingId,
   searchDocs,
 } from "../../shared/docs/catalog";
@@ -88,8 +86,8 @@ function plain(children: ReactNode): string {
     )
     .join("");
 }
-function localText(text: string) {
-  return text.split("{{DOCS_ORIGIN}}").join(window.location.origin);
+function publishedText(text: string) {
+  return text.split("{{DOCS_ORIGIN}}").join(docsOrigin);
 }
 function CopyButton({
   value,
@@ -177,52 +175,167 @@ function CodeBlock({
     </div>
   );
 }
-function Journey() {
+function RenewalIllustration() {
   return (
     <div
-      className="docs-journey"
-      aria-label="Funding moves from your application, through a Namepass deposit address, to a verified ENS renewal"
+      className="docs-renewal-art"
+      aria-label="USDC deposits fund an ENS renewal"
     >
-      <div className="journey-label">
-        <span className="journey-dot" />
-        THE INTEGRATION AT A GLANCE<span>USDC → renewal time</span>
+      <svg
+        className="art-routes"
+        viewBox="0 0 440 244"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path d="M40 63H135C154 63 164 73 164 92V119" />
+        <path d="M38 178H138C155 178 164 169 164 151V120" />
+        <path d="M164 120H275C294 120 307 131 307 150V190" />
+        <path d="M164 120H361" />
+        <circle cx="164" cy="120" r="4" />
+        <circle cx="307" cy="190" r="3" />
+      </svg>
+      <div className="art-token">
+        <img src="/logos/usdc.svg" alt="USDC" />
+        <span>USDC deposit</span>
       </div>
-      <div className="journey-steps">
-        {[
-          {
-            icon: Wallet,
-            label: "Get the address",
-            detail: "Call the public API",
-          },
-          {
-            icon: Code2,
-            label: "Send USDC",
-            detail: "Use your existing wallet",
-          },
-          {
-            icon: ShieldCheck,
-            label: "Poll until renewed",
-            detail: "Transaction hash + chain ID",
-          },
-        ].map(({ icon: Icon, label, detail }, i) => (
-          <div className="journey-step" key={label}>
-            <div className="journey-icon">
-              <Icon size={20} />
-            </div>
-            <strong>{label}</strong>
-            <span>{detail}</span>
-            {i < 2 && <ArrowRight className="journey-arrow" size={16} />}
-          </div>
-        ))}
+      <div className="art-network">
+        <img src="/logos/base.svg" alt="" />
+        <img src="/logos/arbitrum.svg" alt="" />
+        <img src="/logos/ethereum.svg" alt="" />
+        <span>Supported networks</span>
       </div>
-      <div className="journey-footer">
-        <span>
-          <Clock3 size={13} />
-          Two API calls
-        </span>
-        <span>Get address → send → poll</span>
+      <div className="art-address">
+        <span className="art-overline">ENS NAME</span>
+        <strong>example.eth</strong>
+        <span>Universal deposit address</span>
+        <div className="art-address-bars" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+          <i />
+          <i />
+          <i />
+          <i />
+          <i />
+        </div>
+      </div>
+      <div className="art-renewal">
+        <img src="/logos/ens.svg" alt="ENS" />
+        <div>
+          <strong>ENS renewal</strong>
+          <span>Verified settlement</span>
+        </div>
       </div>
     </div>
+  );
+}
+const examples = [
+  {
+    label: "Address",
+    method: "POST",
+    path: "/address",
+    code: `curl -X POST '${docsOrigin}/api/v1/address' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"name":"example.eth"}'`,
+  },
+  {
+    label: "Quote",
+    method: "POST",
+    path: "/quote",
+    code: `curl -X POST '${docsOrigin}/api/v1/quote' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"name":"example.eth","chainId":"84532","amount":"1000000"}'`,
+  },
+  {
+    label: "Status",
+    method: "GET",
+    path: "/status/{chainId}",
+    code: `curl '${docsOrigin}/api/v1/status/84532?transactionHash={hash}'`,
+  },
+  {
+    label: "History",
+    method: "GET",
+    path: "/names/{name}/renewals",
+    code: `curl '${docsOrigin}/api/v1/names/example.eth/renewals?limit=20'`,
+  },
+];
+function ApiExample() {
+  const [selected, setSelected] = useState(0);
+  const descriptions = [
+    "Get a deposit address",
+    "Estimate renewal time",
+    "Track a transaction",
+    "Retrieve name history",
+  ];
+  const slugs = [
+    "post_address",
+    "post_quote",
+    "get_status",
+    "get_name_renewals",
+  ];
+  return (
+    <section className="docs-example-section" aria-label="API request examples">
+      <h2>Explore the API</h2>
+      <p>Request examples for each endpoint.</p>
+      <div className="docs-example">
+        <div
+          className="docs-example-tabs"
+          role="tablist"
+          aria-label="Request endpoint"
+          aria-orientation="vertical"
+        >
+          {examples.map((example, i) => (
+            <button
+              key={example.label}
+              id={`example-tab-${i}`}
+              role="tab"
+              aria-selected={selected === i}
+              aria-controls="example-panel"
+              onClick={() => setSelected(i)}
+              onKeyDown={(event) => {
+                if (
+                  !["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)
+                )
+                  return;
+                event.preventDefault();
+                const next =
+                  event.key === "Home"
+                    ? 0
+                    : event.key === "End"
+                      ? examples.length - 1
+                      : (selected +
+                          (event.key === "ArrowDown" ? 1 : -1) +
+                          examples.length) %
+                        examples.length;
+                setSelected(next);
+                document.getElementById(`example-tab-${next}`)?.focus();
+              }}
+              tabIndex={selected === i ? 0 : -1}
+            >
+              <span className={`docs-method ${example.method.toLowerCase()}`}>
+                {example.method}
+              </span>
+              <span>{descriptions[i]}</span>
+              <ChevronRight size={14} />
+            </button>
+          ))}
+        </div>
+        <div
+          className="docs-example-panel"
+          id="example-panel"
+          role="tabpanel"
+          aria-labelledby={`example-tab-${selected}`}
+        >
+          <div className="docs-example-header">
+            <span>Command line</span>
+            <CopyButton value={examples[selected].code} label="Copy request" />
+          </div>
+          <CodeBlock value={examples[selected].code} language="bash" />
+          <div className="docs-example-footer">
+            <code>/api/v1{examples[selected].path}</code>
+            <a href={`/docs/reference/${slugs[selected]}`}>
+              API reference <ArrowUpRight size={13} />
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 export default function Docs() {
@@ -240,9 +353,8 @@ export default function Docs() {
   const headings = [...(page?.markdown ?? "").matchAll(/^## (.+)$/gm)].map(
     (m) => ({ title: m[1].replace(/`/g, ""), id: headingId(m[1]) }),
   );
-  const origin = window.location.origin;
   const prompt = page
-    ? `Help me integrate Namepass. Read ${origin}/docs/quickstart.md and the skill at ${origin}/docs/skills/namepass-integration/SKILL.md. Get a deposit address, send supported USDC with the existing wallet, and poll using transaction hash and chain ID. Use the quote endpoint when a price estimate is needed, and name history for past renewals. No Namepass API key is needed. Confirm payment authorization before broadcasting funds.\n\nMy question: `
+    ? `Help me integrate Namepass.\nRead ${docsOrigin}/docs/${page.slug}.md and the integration skill:\n${docsOrigin}/docs/skills/namepass-integration/SKILL.md\n\nMy question: `
     : "";
   const navigate = (next: string, hash = "") => {
     window.history.pushState(
@@ -332,10 +444,10 @@ export default function Docs() {
   };
   const navigation = (
     <nav aria-label="Documentation pages">
-      {[...new Set(peers.map((p) => p.group))].map((group) => (
+      {[...new Set(docs.map((p) => p.group))].map((group) => (
         <div className="docs-nav-group" key={group}>
           <h3>{group}</h3>
-          {peers
+          {docs
             .filter((p) => p.group === group)
             .map((p) =>
               link(
@@ -362,15 +474,20 @@ export default function Docs() {
     ? searchDocs(query, 12)
     : docs.slice(0, 4).map((page) => ({ page, excerpt: page.description }));
   return (
-    <div className="docs-shell">
+    <div className={`docs-shell ${slug === "introduction" ? "docs-home" : ""}`}>
       <a href="#docs-content" className="docs-skip">
         Skip to content
       </a>
       <header className="docs-header">
         <div className="docs-header-inner">
           <a href="/" className="docs-brand" aria-label="Namepass home">
-            <img src="/favicon.svg" width="25" height="25" alt="" />
-            <strong>Namepass</strong>
+            <img
+              src="/namepass-logo.png"
+              width="144"
+              height="23"
+              alt="Namepass"
+              className="docs-wordmark"
+            />
             <span className="brand-divider" />
             <span className="brand-docs">Docs</span>
           </a>
@@ -413,13 +530,10 @@ export default function Docs() {
           </button>
         </div>
         <div className="docs-tab-bar">
-          {tabs.map(({ id, label, icon: Icon, start }) =>
+          {tabs.map(({ id, label, start }) =>
             link(
               `/docs/${start}`,
-              <>
-                <Icon size={14} />
-                {label}
-              </>,
+              label,
               `docs-tab ${tab === id ? "selected" : ""}`,
             ),
           )}
@@ -437,8 +551,8 @@ export default function Docs() {
                   <Sparkles size={15} />
                 </span>
                 <div>
-                  <strong>Built for your agent</strong>
-                  <p>Simple wallet & agent integration</p>
+                  <strong>Agent resources</strong>
+                  <p>Markdown & integration skill</p>
                 </div>
                 <ChevronRight size={14} />
               </>,
@@ -450,7 +564,10 @@ export default function Docs() {
           </div>
         </aside>
         <div className="docs-reading-layout">
-          <main id="docs-content" className="docs-article">
+          <main
+            id="docs-content"
+            className={`docs-article ${slug === "introduction" ? "docs-introduction" : ""}`}
+          >
             {page ? (
               <>
                 <div className="docs-breadcrumb">
@@ -461,12 +578,29 @@ export default function Docs() {
                 <div className="docs-page-header">
                   <div>
                     <h1>
-                      {slug === "introduction"
-                        ? "Get an address. Send. Poll."
-                        : page.title}
+                      {slug === "introduction" ? "Documentation" : page.title}
                     </h1>
-                    <p>{page.description}</p>
+                    {!page.method && <p>{page.description}</p>}
+                    {slug === "introduction" && (
+                      <div className="docs-start-actions">
+                        {link(
+                          "/docs/quickstart",
+                          <>
+                            Start building <ArrowRight size={16} />
+                          </>,
+                          "docs-primary-link",
+                        )}
+                        {link(
+                          "/docs/reference",
+                          <>
+                            API reference <ArrowRight size={14} />
+                          </>,
+                          "docs-secondary-link",
+                        )}
+                      </div>
+                    )}
                   </div>
+                  {slug === "introduction" && <RenewalIllustration />}
                   <DropdownMenu>
                     <DropdownMenuTrigger className="docs-page-actions">
                       <Copy size={14} />
@@ -477,7 +611,7 @@ export default function Docs() {
                       <DropdownMenuItem
                         onSelect={() =>
                           void copy(
-                            `# ${page.title}\n\n${localText(page.markdown)}`,
+                            `# ${page.title}\n\n${page.method ? `\`${page.method} /api/v1${page.path}\`\n\n` : ""}${publishedText(page.markdown)}`,
                             "Page copied as Markdown",
                           )
                         }
@@ -485,7 +619,7 @@ export default function Docs() {
                         <Copy size={16} />
                         <div>
                           <strong>Copy page</strong>
-                          <span>Markdown for your agent</span>
+                          <span>Copy as Markdown</span>
                         </div>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
@@ -507,7 +641,7 @@ export default function Docs() {
                         <Sparkles size={16} />
                         <div>
                           <strong>Ask your agent</strong>
-                          <span>Take this page into your workflow</span>
+                          <span>Copy an integration prompt</span>
                         </div>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
@@ -542,13 +676,73 @@ export default function Docs() {
                     />
                   </div>
                 )}
-                {slug === "introduction" && <Journey />}
+                {slug === "introduction" && (
+                  <>
+                    <section
+                      className="docs-directory"
+                      aria-label="Developer resources"
+                    >
+                      {[
+                        {
+                          title: "Integration",
+                          links: [
+                            { slug: "quickstart", title: "Renew an ENS name" },
+                            {
+                              slug: "addresses",
+                              title: "Get a deposit address",
+                            },
+                            { slug: "quotes", title: "Estimate renewal time" },
+                          ],
+                        },
+                        {
+                          title: "Renewal data",
+                          links: [
+                            { slug: "status", title: "Track a transaction" },
+                            { slug: "history", title: "Read renewal history" },
+                            {
+                              slug: "reference",
+                              title: "Browse the API reference",
+                            },
+                          ],
+                        },
+                        {
+                          title: "Agent resources",
+                          links: [
+                            { slug: "agents", title: "Build with an agent" },
+                            {
+                              slug: "skills",
+                              title: "Install the integration skill",
+                            },
+                            {
+                              slug: "quickstart.md",
+                              title: "Read Markdown documentation",
+                            },
+                          ],
+                        },
+                      ].map((group) => (
+                        <div key={group.title}>
+                          <h2>{group.title}</h2>
+                          {group.links.map((item) =>
+                            link(
+                              `/docs/${item.slug}`,
+                              <>
+                                {item.title}
+                                <ArrowRight size={13} />
+                              </>,
+                            ),
+                          )}
+                        </div>
+                      ))}
+                    </section>
+                    <ApiExample />
+                  </>
+                )}
                 {["agents", "skills"].includes(slug) && (
                   <div className="docs-agent-callout">
                     <Sparkles size={20} />
                     <div>
-                      <strong>Context that travels with you.</strong>
-                      <p>The same guides and API contract, in your editor.</p>
+                      <strong>Agent resources</strong>
+                      <p>Markdown documentation and API instructions.</p>
                     </div>
                   </div>
                 )}
@@ -590,7 +784,7 @@ export default function Docs() {
                       ),
                     }}
                   >
-                    {localText(page.markdown)}
+                    {publishedText(page.markdown)}
                   </Markdown>
                 </div>
                 {slug === "reference" && (
@@ -768,11 +962,10 @@ export default function Docs() {
         <DialogContent className="docs-agent-dialog">
           <DialogTitle>
             <Sparkles size={18} />
-            Take Namepass into your workflow
+            Integrate with an agent
           </DialogTitle>
           <DialogDescription>
-            Copy this context into your coding agent, or open it in your
-            assistant. No API credentials are included.
+            Copy the prompt into your agent or open it in an assistant.
           </DialogDescription>
           <CodeBlock value={prompt} />
           <div className="agent-destinations">

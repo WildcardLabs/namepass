@@ -1,6 +1,6 @@
 # Estimate renewal time
 
-Call `POST /api/v1/quote` to see what an amount of USDC buys before sending it.
+Estimate the renewal duration and fees for a USDC deposit.
 
 ## Request a quote
 
@@ -10,16 +10,28 @@ curl -X POST 'https://beta.namepass.com/api/v1/quote' \
   -d '{"name":"example.eth","chainId":"84532","amount":"1000000"}'
 ```
 
-Use a funding chain from the [address response](/docs/addresses). Amounts use six-decimal USDC integer strings: `1000000` is one USDC.
+Use a chain ID from the [address response](/docs/addresses). Send `amount` as an integer string in USDC's smallest unit: `1000000` represents 1 USDC.
 
-## What it tells you
+## Response
 
-`secondsAdded` is the estimated renewal time. `amountApplied` goes toward ENS renewal, `renewalFee` is the allowance for one processing flow, and `bridgeFee` is zero for the current standard CCTP route. `roundingRemainder` is the amount left after rounding; it is retained by the renewal gateway.
+| Field | Description |
+| --- | --- |
+| `secondsAdded` | Estimated renewal duration in seconds. |
+| `amountApplied` | USDC applied to the ENS renewal. |
+| `renewalFee` | Processing allowance for one renewal flow. |
+| `bridgeFee` | Bridge fee. Currently zero for supported routes. |
+| `roundingRemainder` | USDC remaining after duration rounding, retained by the renewal gateway. |
+| `pricingBlock` | Block number used to calculate the estimate. |
+| `expiresAt` | Quote expiry, 60 seconds after calculation. |
 
-The API reads the active helper at `pricingBlock`, using the same pricing algorithm as the frontend. `expiresAt` is 60 seconds after the quote. Send an amount at least as large as the returned chain's `minimumAmount`.
+All USDC values are integer strings in six-decimal token units.
 
 ## Estimate limits
 
-A quote assumes one processing flow and no existing wallet balance. Deposits can accumulate together, pricing can change, and the final receipt can differ. Use [transaction status](/docs/status) for the actual result.
+A quote assumes one processing flow and no existing balance at the deposit address. Deposits may be combined, and prices may change before settlement. Use [transaction status](/docs/status) for the final renewal result.
 
-An amount above the source chain's live Circle burn limit returns `422` with `error.details.maximumAmount`. Larger deposits need multiple flows and allowances, so a single-flow quote would overstate their renewal time. A name that cannot renew or an amount below the minimum also returns `422`. Disabled burns, a nonzero Circle minimum fee, or unavailable or unverified pricing return `503`; the API does not invent a fallback price.
+## Errors
+
+`422` indicates an unrenewable name, an amount below the minimum, or an amount above the source chain's single-flow limit. For amounts above the limit, `error.details.maximumAmount` gives the maximum quote amount. Larger deposits require multiple processing flows.
+
+`503` indicates unavailable pricing or an unsupported bridge fee configuration. Retry the quote request before funding.

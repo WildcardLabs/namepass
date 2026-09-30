@@ -137,7 +137,7 @@ const spec = {
 		title: "Namepass public API",
 		version: "2026-09-30",
 		description:
-			"Get a deposit address, estimate renewal time, send USDC and poll by transaction hash and source chain ID. Read renewal history for one name. No API keys.",
+			"Deposit addresses, renewal estimates, transaction status and ENS renewal history.",
 	},
 	servers: [{ url: "https://beta.namepass.com/api/v1" }],
 	security: [],
@@ -147,7 +147,7 @@ const spec = {
 				operationId: "post_address",
 				summary: "Get a deposit address",
 				description:
-					"Activate an ENS name and return its payment address, subname and supported chains. No API key or authorization header is required.",
+					"Activate deposit monitoring for an ENS name and return its deposit address, subname and supported funding chains.",
 				requestBody: {
 					required: true,
 					content: {
@@ -171,14 +171,14 @@ const spec = {
 				operationId: "get_status",
 				summary: "Poll a transaction",
 				description:
-					"Poll an already-sent USDC transaction using its source chain ID and hash. No API key, registration or session is required. Complete means every indexed deposit in this transaction has a verified, finalized renewal.",
+					"Retrieve renewal status for a USDC deposit transaction. The transaction is complete when every indexed deposit has a verified, finalized renewal.",
 				parameters: [
 					{
 						name: "chainId",
 						in: "path",
 						required: true,
 						description:
-							"Source blockchain chain ID, from the address response. This is a chain ID, not a CCTP domain.",
+							"Source EVM chain ID from the address response.",
 						schema: amount,
 					},
 					{
@@ -196,7 +196,7 @@ const spec = {
 						"StatusResponse",
 					),
 					404: response(
-						"Deposit not indexed yet. Retry the same URL.",
+						"No matching deposit has been indexed. Retry the same URL.",
 						"Error",
 					),
 					...errors,
@@ -210,13 +210,16 @@ const validationError = response(
 	"Name cannot currently renew, amount is below the minimum, or amount exceeds the single-flow quote limit.",
 	"Error",
 );
-spec.paths["/address"].post.responses[422] = validationError;
+spec.paths["/address"].post.responses[422] = response(
+	"The ENS name cannot currently be renewed.",
+	"Error",
+);
 spec.paths["/quote"] = {
 	post: {
 		operationId: "post_quote",
 		summary: "Estimate a renewal",
 		description:
-			"Estimate how much renewal time an amount of USDC buys for one name and funding chain. Reads the active helper at one block, using the same pricing algorithm as the frontend. The estimate expires after 60 seconds and assumes one processing flow without an existing wallet balance.",
+			"Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Quotes expire after 60 seconds and assume one processing flow with no existing balance at the deposit address.",
 		requestBody: {
 			required: true,
 			content: {
@@ -241,7 +244,7 @@ spec.paths["/names/{name}/renewals"] = {
 		operationId: "get_name_renewals",
 		summary: "List a name's renewals",
 		description:
-			"Past renewal flows for the requested ENS name, with its recorded expiry. Returns canonical renewals newest first. Complete indicates verified hub finality; processing means verification is pending. This is public name-scoped data and does not prove caller ownership.",
+			"Retrieve public renewal history and the recorded expiry for an ENS name. Renewals are ordered newest first. Complete indicates a verified, finalized renewal; processing indicates pending verification.",
 		parameters: [
 			{
 				name: "name",

@@ -1,21 +1,20 @@
 # Use an agent
 
-An agent such as Bankr uses the same flow as an app: get an address, send USDC, then poll the transaction. No Namepass MCP server or API key is needed.
+Use the [integration skill](/docs/skills) to add ENS renewal funding to a wallet or coding agent.
 
-## Give it the task
+## Example prompt
 
 ```text
-Fund the ENS renewal for [name] with [amount] USDC on [chain].
-Read https://beta.namepass.com/docs/quickstart.md and the integration skill at
-https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md.
-Get the address from Namepass. Use the returned chain and USDC token.
-Send with my existing wallet after checking my authorization.
-Save the transaction hash and chain ID, then poll until complete.
-Do not send a second payment because polling is pending.
+Renew [name] with [amount] USDC on [chain] using Namepass.
+Follow the integration skill:
+https://beta.namepass.com/docs/skills/namepass-integration/SKILL.md
 ```
 
-Your wallet or agent manages its own wallet access and payment approvals. Namepass only needs the ENS name, then the source transaction hash and chain ID.
+The agent retrieves the deposit address, submits the transfer through its wallet and polls the renewal status. Payment authorization stays with the wallet.
 
-## Read the contract
+## Resources
 
-Use [Markdown](/docs/quickstart.md), [OpenAPI](/openapi.json) or the [integration skill](/docs/skills). The [documentation index](/llms.txt) lists these resources as plain text.
+- [Quickstart as Markdown](/docs/quickstart.md)
+- [OpenAPI specification](/openapi.json)
+- [Documentation index](/llms.txt)
+- [Full documentation](/llms-full.txt)

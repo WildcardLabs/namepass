@@ -1,14 +1,8 @@
 # List a name's renewals
 
-Past renewal flows for the requested ENS name, with its recorded expiry. Returns canonical renewals newest first. Complete indicates verified hub finality; processing means verification is pending. This is public name-scoped data and does not prove caller ownership.
-
-## Endpoint
-
 `GET /api/v1/names/{name}/renewals`
 
-## Authentication
-
-No API key or authorization header is required.
+Retrieve public renewal history and the recorded expiry for an ENS name. Renewals are ordered newest first. Complete indicates a verified, finalized renewal; processing indicates pending verification.
 
 ## Parameters
 

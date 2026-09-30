@@ -2,14 +2,14 @@
   {
     "slug": "introduction",
     "title": "Introduction",
-    "description": "Get an address. Send USDC. Poll until renewed.",
+    "description": "Integrate USDC payments for ENS renewals.",
     "group": "Get started",
     "tab": "guides"
   },
   {
     "slug": "quickstart",
     "title": "Quickstart",
-    "description": "Integrate Namepass with two HTTP calls and your existing wallet.",
+    "description": "Get a deposit address, fund a renewal and track its status.",
     "group": "Get started",
     "tab": "guides"
   },
@@ -23,7 +23,7 @@
   {
     "slug": "quotes",
     "title": "Estimate renewal time",
-    "description": "See what an amount of USDC buys using the active on-chain price.",
+    "description": "Calculate the estimated renewal duration and fees for a deposit.",
     "group": "Integration",
     "tab": "guides"
   },
@@ -37,28 +37,28 @@
   {
     "slug": "history",
     "title": "Name history",
-    "description": "Read past renewal flows and recorded expiry for a specific ENS name.",
+    "description": "Retrieve renewal history and the recorded expiry for an ENS name.",
     "group": "Integration",
     "tab": "guides"
   },
   {
     "slug": "agents",
     "title": "Use an agent",
-    "description": "Let your existing wallet or coding agent use the same simple HTTP flow.",
+    "description": "Integrate ENS renewal funding with a wallet or coding agent.",
     "group": "Agents",
     "tab": "agents"
   },
   {
     "slug": "skills",
     "title": "Integration skill",
-    "description": "A short get-address, send, poll workflow for agents.",
+    "description": "Install API instructions for your agent.",
     "group": "Agents",
     "tab": "agents"
   },
   {
     "slug": "reference",
     "title": "API reference",
-    "description": "Four public endpoints. No Namepass API keys.",
+    "description": "Endpoints, request schemas and response fields.",
     "group": "API",
     "tab": "api"
   }

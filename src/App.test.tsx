@@ -205,7 +205,12 @@ test("documentation opens directly and supports navigation without price or chai
   await render();
   await act(async () => { await import("./components/Docs"); });
   await vi.waitFor(() => expect(container.querySelector("#three-steps")).not.toBeNull());
-  const settlement = container.querySelector<HTMLAnchorElement>('nav[aria-label="Documentation pages"] a[href="/docs/status"]');
+  expect(container.querySelector('.docs-example code')?.textContent).toContain("https://beta.namepass.com/api/v1/address");
+  const copiedRequest = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: copiedRequest } });
+  await click("Copy request");
+  expect(copiedRequest).toHaveBeenLastCalledWith(expect.stringContaining("https://beta.namepass.com/api/v1/address"));
+  const settlement = container.querySelector<HTMLAnchorElement>('a[href="/docs/status"]');
   expect(settlement).not.toBeNull();
   await act(async () => settlement!.click());
   expect(window.location.pathname).toBe("/docs/status");
@@ -214,6 +219,10 @@ test("documentation opens directly and supports navigation without price or chai
   const popstate = nextPopState();
   await act(async () => { window.history.back(); await popstate; });
   expect(container.querySelector("#three-steps")).not.toBeNull();
+  const quickstart = container.querySelector<HTMLAnchorElement>('a[href="/docs/quickstart"]');
+  await act(async () => quickstart!.click());
+  expect(container.querySelector('.docs-prose pre')?.textContent).toContain("https://beta.namepass.com/api/v1/address");
+  expect(container.querySelector('.docs-prose')?.textContent).not.toContain(window.location.origin);
   await act(async () => window.dispatchEvent(new Event("focus")));
   expect(loadOracleRates).not.toHaveBeenCalled();
   expect(assertGasAllowance).not.toHaveBeenCalled();

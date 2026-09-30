@@ -1,4 +1,4 @@
-Call `GET /api/v1/names/{name}/renewals` to show renewal history for one ENS name. No platform-wide history endpoint is provided.
+Retrieve renewal history and the recorded expiry for an ENS name.
 
 ## Read a name's history
 
@@ -6,13 +6,15 @@ Call `GET /api/v1/names/{name}/renewals` to show renewal history for one ENS nam
 curl '{{DOCS_ORIGIN}}/api/v1/names/example.eth/renewals?limit=20'
 ```
 
-The response contains `name`, `currentExpiry`, `expiryUpdatedAt`, `items` and `nextCursor`. Expiry is the stored ENS state; `expiryUpdatedAt` tells you when that state was read. Getting the deposit address refreshes it.
+## Response
 
-Each item identifies a renewal flow and its source chain, hub transaction, time added, ENS amount, renewal fee, expiry and renewal timestamp. `complete` means its renewal was verified and finalized. `processing` means verification is pending. Unknown evidence remains `null`; it is not a zero value.
+The response contains `name`, `currentExpiry`, `expiryUpdatedAt`, `items` and `nextCursor`. `currentExpiry` is the last recorded ENS expiry; `expiryUpdatedAt` is its read timestamp. An [address request](/docs/addresses) refreshes this state.
 
-## Load more
+Each item includes a flow ID, source chain, renewal transaction, duration added, amount applied, fee, expiry and renewal timestamp. Its status is `complete` after verification and finality, or `processing` while verification is pending. Unavailable fields are `null`.
 
-Pass `nextCursor` as the `cursor` query parameter for the same name. Encode it with `URLSearchParams`. The default limit is 20 and the maximum is 100. A null cursor means no more entries are available. Newest renewals appear first; refresh the first page to see new or late-indexed renewals.
+## Pagination
+
+Results are ordered newest first. Pass `nextCursor` as the `cursor` parameter to retrieve the next page for the same name. The default page size is 20; `limit` accepts values from 1 to 100. `nextCursor: null` marks the last page. Refresh the first page for new or late-indexed renewals.
 
 ```javascript
 const url = new URL("{{DOCS_ORIGIN}}/api/v1/names/example.eth/renewals");
@@ -23,4 +25,8 @@ const history = await (await fetch(url)).json();
 
 ## Scope
 
-History is filtered by ENS name, so an app requests the name its user is viewing. It includes public renewals of that name by any funder. An ENS name is the subject of the query, not a private ownership boundary. A `404` means the name has not been activated; get its deposit address first.
+History is public and includes renewals funded by any sender for the requested name.
+
+## Errors
+
+`404` indicates that the name has not been activated. [Retrieve its deposit address](/docs/addresses) before requesting history.

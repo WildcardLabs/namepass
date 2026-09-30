@@ -39,14 +39,17 @@ After a source-chain burn, an unclaimed payment is not a spendable source-wallet
 ## Interface conventions
 
 `/docs` is a standalone, lazy documentation application with its own header, responsive navigation,
-typography and canvas in `src/components/docs.css`. Its guides teach get-address, send-USDC and
-poll-by-transaction. The two endpoint pages come from OpenAPI. Search, page navigation and focus
+typography and canvas in `src/components/docs.css`. The landing page has a resource directory and
+copyable API examples. Guides use a persistent sidebar and table of contents. The four endpoint
+pages come from OpenAPI. Search, page navigation and focus
 changes do not read pricing, account or chain state.
 
 `docs/content/` owns guide Markdown and navigation. `npm run generate:docs` produces the shared
 catalog, public Markdown, downloadable skill, `llms.txt` and `llms-full.txt`. `npm run check:docs`
 checks freshness and links. Page actions copy Markdown, open plain text and prepare context for
-an existing agent. The skill uses the public HTTP flow; there is no Namepass MCP server.
+an existing agent. Examples, copied prompts and Markdown use the published `docsOrigin` from the
+generated catalog (`https://beta.namepass.com`), including in local previews. In-page navigation
+uses relative paths. The skill uses the public HTTP flow.
 
 The footer, navigation and integration call-to-action open `/docs`. Homepage navigation
 uses `Rates` for the pricing simulator. The desktop menu is centered between the brand and

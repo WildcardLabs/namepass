@@ -15,7 +15,7 @@ export interface paths {
         put?: never;
         /**
          * Get a deposit address
-         * @description Activate an ENS name and return its payment address, subname and supported chains. No API key or authorization header is required.
+         * @description Activate deposit monitoring for an ENS name and return its deposit address, subname and supported funding chains.
          */
         post: operations["post_address"];
         delete?: never;
@@ -33,7 +33,7 @@ export interface paths {
         };
         /**
          * Poll a transaction
-         * @description Poll an already-sent USDC transaction using its source chain ID and hash. No API key, registration or session is required. Complete means every indexed deposit in this transaction has a verified, finalized renewal.
+         * @description Retrieve renewal status for a USDC deposit transaction. The transaction is complete when every indexed deposit has a verified, finalized renewal.
          */
         get: operations["get_status"];
         put?: never;
@@ -55,7 +55,7 @@ export interface paths {
         put?: never;
         /**
          * Estimate a renewal
-         * @description Estimate how much renewal time an amount of USDC buys for one name and funding chain. Reads the active helper at one block, using the same pricing algorithm as the frontend. The estimate expires after 60 seconds and assumes one processing flow without an existing wallet balance.
+         * @description Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Quotes expire after 60 seconds and assume one processing flow with no existing balance at the deposit address.
          */
         post: operations["post_quote"];
         delete?: never;
@@ -73,7 +73,7 @@ export interface paths {
         };
         /**
          * List a name's renewals
-         * @description Past renewal flows for the requested ENS name, with its recorded expiry. Returns canonical renewals newest first. Complete indicates verified hub finality; processing means verification is pending. This is public name-scoped data and does not prove caller ownership.
+         * @description Retrieve public renewal history and the recorded expiry for an ENS name. Renewals are ordered newest first. Complete indicates a verified, finalized renewal; processing indicates pending verification.
          */
         get: operations["get_name_renewals"];
         put?: never;
@@ -245,7 +245,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description Name cannot currently renew, amount is below the minimum, or amount exceeds the single-flow quote limit. */
+            /** @description The ENS name cannot currently be renewed. */
             422: {
                 headers: {
                     /** @description Seconds to wait before polling again when pending or temporarily unavailable. */
@@ -288,7 +288,7 @@ export interface operations {
             };
             header?: never;
             path: {
-                /** @description Source blockchain chain ID, from the address response. This is a chain ID, not a CCTP domain. */
+                /** @description Source EVM chain ID from the address response. */
                 chainId: string;
             };
             cookie?: never;
@@ -317,7 +317,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description Deposit not indexed yet. Retry the same URL. */
+            /** @description No matching deposit has been indexed. Retry the same URL. */
             404: {
                 headers: {
                     /** @description Seconds to wait before polling again when pending or temporarily unavailable. */

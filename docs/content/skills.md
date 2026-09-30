@@ -1,4 +1,4 @@
-[Download the skill](/docs/skills/namepass-integration/SKILL.md) or give its URL to your agent.
+The integration skill provides API instructions for address retrieval, funding, quotes, status polling and renewal history.
 
 ## Install in a project
 
@@ -8,4 +8,4 @@ curl -fsSL '{{DOCS_ORIGIN}}/docs/skills/namepass-integration/SKILL.md' \
   -o .agents/skills/namepass-integration/SKILL.md
 ```
 
-If your agent does not load project skills, ask it to read the file directly. The skill describes the same three steps as the quickstart and adds payment authorization, polling and duplicate-payment rules.
+For agents without project skill support, use the [skill URL](/docs/skills/namepass-integration/SKILL.md) directly.
