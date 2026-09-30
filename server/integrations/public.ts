@@ -1,4 +1,5 @@
 import { wakeIntegrations } from "./wake";
+import { checkRateLimit } from "@vercel/firewall";
 import { sql } from "drizzle-orm";
 import {
 	ApiError,
@@ -18,6 +19,38 @@ import { chain, hash, invalid } from "./validation";
 export function publicApi(method: "POST" | "GET", run: Route) {
 	const route = handler(method, async (request) => {
 		requireEnabled();
+		if (process.env.VERCEL === "1") {
+			const path = new URL(request.url).pathname;
+			const category =
+				method === "GET"
+					? "reads"
+					: path.endsWith("/address")
+						? "address"
+						: "quote";
+			const prefix =
+				process.env.NAMEPASS_RATE_LIMIT_PREFIX ?? "namepass-public";
+			const result = await checkRateLimit(`${prefix}-${category}`, {
+				request,
+			}).catch(() => {
+				throw new ApiError(
+					503,
+					"api_unavailable",
+					"The public API is temporarily unavailable.",
+				);
+			});
+			if (result.error)
+				throw new ApiError(
+					503,
+					"api_unavailable",
+					"The public API is temporarily unavailable.",
+				);
+			if (result.rateLimited)
+				throw new ApiError(
+					429,
+					"rate_limited",
+					"Too many requests. Retry after the indicated delay.",
+				);
+		}
 		return run(request);
 	});
 	return {
@@ -33,7 +66,7 @@ export function publicApi(method: "POST" | "GET", run: Route) {
 			headers.set("access-control-expose-headers", "Retry-After");
 			headers.set("cache-control", "no-store");
 			if ([404, 429, 503].includes(response.status))
-				headers.set("retry-after", "5");
+				headers.set("retry-after", response.status === 429 ? "60" : "5");
 			return new Response(response.body, { status: response.status, headers });
 		},
 	};

@@ -25,6 +25,9 @@ test(
 			[HUB_CHAIN, source].map((c) => [c.rpcEnv, process.env[c.rpcEnv]]),
 		);
 		const enabled = process.env.NAMEPASS_INTEGRATIONS_ENABLED;
+		const iris = process.env.CIRCLE_IRIS_URL;
+		const originalFetch = globalThis.fetch;
+		process.env.CIRCLE_IRIS_URL = "https://iris-api-sandbox.circle.com";
 		process.env.NAMEPASS_INTEGRATIONS_ENABLED = "1";
 		const code = await readFile(
 			new URL("./fixtures/ens-v2-helper-runtime.hex", import.meta.url),
@@ -35,6 +38,26 @@ test(
 		const word = (value: string) =>
 			"0x" + value.replace(/^0x/, "").padStart(64, "0");
 		let bridgeFee = 0n;
+		let feesUnavailable = false;
+		let feePayload: unknown;
+		globalThis.fetch = (async (input, init) => {
+			if (String(input).includes("/v2/burn/USDC/fees/")) {
+				assert.equal(
+					String(input),
+					"https://iris-api-sandbox.circle.com/v2/burn/USDC/fees/6/0",
+				);
+				return new Response(
+					JSON.stringify(
+						feePayload ?? [
+							{ finalityThreshold: 1000, minimumFee: 1.3 },
+							{ finalityThreshold: 2000, minimumFee: Number(bridgeFee) },
+						],
+					),
+					{ status: feesUnavailable ? 503 : 200 },
+				);
+			}
+			return originalFetch(input, init);
+		}) as typeof fetch;
 		let unsupported = false,
 			renewable = true;
 		const budgets: string[] = [];
@@ -92,9 +115,7 @@ test(
 						12345n,
 						890000n,
 					]);
-				} else if (selector === toFunctionSelector("getMinFeeAmount(uint256)"))
-					result = word(bridgeFee.toString(16));
-				else if (selector === toFunctionSelector("renewableBy(string)"))
+				} else if (selector === toFunctionSelector("renewableBy(string)"))
 					result = renewable ? word(HUB_CHAIN.ensRegistrarAddress!) : word("0");
 				else result = replies.get(selector);
 			}
@@ -167,6 +188,24 @@ test(
 			bridgeFee = 1n;
 			assert.equal((await quoteRoute.fetch(request())).status, 503);
 			bridgeFee = 0n;
+			feesUnavailable = true;
+			assert.equal((await quoteRoute.fetch(request())).status, 503);
+			feesUnavailable = false;
+			for (const payload of [
+				[],
+				{},
+				[{ finalityThreshold: 1000, minimumFee: 0 }],
+				[{ finalityThreshold: 2000, minimumFee: "0" }],
+				[{ finalityThreshold: 2000, minimumFee: -1 }],
+				[
+					{ finalityThreshold: 2000, minimumFee: 0 },
+					{ finalityThreshold: 2000, minimumFee: 0 },
+				],
+			]) {
+				feePayload = payload;
+				assert.equal((await quoteRoute.fetch(request())).status, 503);
+			}
+			feePayload = undefined;
 			unsupported = true;
 			const unavailable = await quoteRoute.fetch(request());
 			assert.equal(unavailable.status, 503);
@@ -175,6 +214,9 @@ test(
 				"pricing_unavailable",
 			);
 		} finally {
+			globalThis.fetch = originalFetch;
+			if (iris === undefined) delete process.env.CIRCLE_IRIS_URL;
+			else process.env.CIRCLE_IRIS_URL = iris;
 			for (const [key, value] of previous) {
 				if (value === undefined) delete process.env[key];
 				else process.env[key] = value;

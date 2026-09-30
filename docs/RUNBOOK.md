@@ -186,7 +186,8 @@ required. Set `NAMEPASS_ALIAS_VERIFIED_DEPLOYMENT` to
 `<environment>:<hub-chain-id>:<lowercase-factory-address>` only after recording matching resolver
 and parent evidence. Until then, callers fund the returned full address.
 
-Quote RPCs must serve the reviewed helper runtime and live Circle route limits/minimum fees.
+Quote RPCs must serve the reviewed helper runtime and live Circle burn limits. The Circle
+Iris fee API must return one standard route (`finalityThreshold=2000`) with a zero fee.
 The quote is one flow: amounts above the source burn cap return `422`; disabled burns or a
 nonzero minimum fee return `503`. Quotes do not create work, reserve a price or sign transactions.
 Name history reads stored canonical renewal flows and recorded expiry with name-bound pagination.
@@ -212,6 +213,14 @@ lease/run identity, plus observed settlements awaiting finality. Normalized evid
 raw-payload retention does not remove it. Disabling the release flag stops API/worker work and
 preserves records. Hosted abuse limits belong at the platform/WAF boundary and must not require
 caller accounts or API keys. Test anonymous address activation and five-second polling there.
+
+On Vercel, configure SDK rate-limit IDs `namepass-public-address`, `namepass-public-quote`
+and `namepass-public-reads` before enabling the API. Each rule uses the `rate_limit_api_id`
+condition and an IP bucket. The reviewed starting limits are 30, 60 and 300 requests per
+60 seconds, respectively. `NAMEPASS_RATE_LIMIT_PREFIX` selects a separate staging prefix.
+Missing rules fail closed. The API returns JSON, CORS and `Retry-After: 60` for throttling;
+direct edge blocking does not preserve those application headers. Keep OPTIONS outside
+these counters. Record the deployed enforcement and five-second polling checks.
 
 For local verification, set `TEST_DATABASE_URL` to a disposable loopback PostgreSQL service
 with database-creation privileges and run `npm run test:server`. Tests create and drop their own

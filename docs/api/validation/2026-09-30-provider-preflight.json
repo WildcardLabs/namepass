@@ -8,7 +8,16 @@
       "tip": "47502478",
       "factoryDeployed": true,
       "predictedAddress": "0x5B7516768eD0b04E212041265BB1f11af71841d7",
-      "archiveReceipts": [],
+      "archiveReceipts": [
+        {
+          "hash": "0x12d5a866d27bb8491d4851d75008e2ebbb0151c28f5eb897a1d38f407cd683fc",
+          "status": "success",
+          "blockNumber": "47003968",
+          "canonical": true,
+          "checkedAt": "2026-09-30T13:40:27.587Z",
+          "deploymentEvidence": "2026-09-18"
+        }
+      ],
       "finalizedBlock": null
     },
     {
@@ -18,7 +27,16 @@
       "tip": "314300197",
       "factoryDeployed": true,
       "predictedAddress": "0x5B7516768eD0b04E212041265BB1f11af71841d7",
-      "archiveReceipts": [],
+      "archiveReceipts": [
+        {
+          "hash": "0x890beaa6ff644f97b1f5ef0777c8efb6d33aca8f9c94a692fb788096df768b77",
+          "status": "success",
+          "blockNumber": "310352017",
+          "canonical": true,
+          "checkedAt": "2026-09-30T13:40:30.703Z",
+          "deploymentEvidence": "2026-09-18"
+        }
+      ],
       "finalizedBlock": null
     },
     {

@@ -41,10 +41,25 @@ pending flows. It did not migrate beta.
 
 The [provider preflight](validation/2026-09-30-provider-preflight.json) verified chain IDs,
 factory code and the same derived address on all four configured testnet RPCs. Historical
-receipts and canonical blocks passed on Sepolia and Arc; Sepolia also served `finalized`.
-Base and Arbitrum historical receipt checks are not recorded in this receipt. This is provider
+receipts and canonical blocks passed on all four chains; Sepolia also served `finalized`.
+The Base and Arbitrum receipts come from the September 18 deployment. This is provider
 evidence, not a new public API funding canary.
 
 The rollout wallet page adds four payment boundary tests. The build, TypeScript checks and
 all 64 frontend tests passed. Hosted endpoint, recovery, abuse-limit and signed funding
 checks remain pending; the public API release flag is still disabled on beta.
+
+Initial hosted checks passed preflight/error CORS, scoped history, direct/Arc quotes and a
+recovery wake. Base and Arbitrum quotes exposed an incompatible Circle fee-view assumption;
+the quote now uses Circle's documented standard-route fee API. It rejects missing, ambiguous,
+malformed or nonzero standard fees. The regression covers those unavailable responses.
+
+A 31-request staging burst returned 30 input errors and one platform `429`. That edge response
+omitted CORS and retry headers. The rollout now uses the official Vercel SDK counters before
+API work, with application-owned JSON/CORS/retry responses and closed access when a counter
+is missing. Hosted validation of this revised configuration is pending.
+
+The first staging Sepolia provider omitted two renewal receipts even though its matching
+canonical blocks contain both transactions. The configured beta RPC retrieved the receipts
+and historical ENS state. Staging must pass those same reads before settlement verification
+can be considered validated. No missing receipt was treated as removal or completion.

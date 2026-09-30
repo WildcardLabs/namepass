@@ -31,16 +31,38 @@ export async function quoteResponse(request: Request) {
 				functionName: "localMinter",
 				blockNumber,
 			});
-			const fee = await client.readContract({
-				address: source.tokenMessengerAddress as Address,
-				abi: parseAbi([
-					"function getMinFeeAmount(uint256 amount) view returns(uint256)",
-				]),
-				functionName: "getMinFeeAmount",
-				args: [amount],
-				blockNumber,
-			});
-			if (fee !== 0n)
+			// Circle's route API also supports deployed V2 versions without getMinFeeAmount.
+			// Missing or malformed fee evidence is unavailable, never an assumed zero fee.
+			const iris = new URL(process.env.CIRCLE_IRIS_URL ?? "");
+			if (iris.protocol !== "https:" || iris.username || iris.password)
+				throw new Error("Invalid Circle endpoint.");
+			const response = await fetch(
+				new URL(
+					`/v2/burn/USDC/fees/${source.circleDomain}/${HUB_CHAIN.circleDomain}`,
+					iris,
+				),
+				{
+					headers: { accept: "application/json" },
+					signal: AbortSignal.timeout(8000),
+				},
+			);
+			if (!response.ok) throw new Error("Circle fees unavailable.");
+			const fees: unknown = await response.json();
+			if (!Array.isArray(fees)) throw new Error("Invalid Circle fees.");
+			const standard = fees.filter(
+				(entry) =>
+					entry !== null &&
+					typeof entry === "object" &&
+					entry.finalityThreshold === 2000,
+			);
+			if (
+				standard.length !== 1 ||
+				typeof standard[0].minimumFee !== "number" ||
+				!Number.isFinite(standard[0].minimumFee) ||
+				standard[0].minimumFee < 0
+			)
+				throw new Error("Invalid standard route fee.");
+			if (standard[0].minimumFee !== 0)
 				throw new ApiError(
 					503,
 					"standard_route_unavailable",
