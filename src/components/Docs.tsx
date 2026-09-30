@@ -177,10 +177,10 @@ function CodeBlock({
 }
 function RenewalIllustration() {
   const networks = [
-    { name: "Base", logo: "base", y: 52 },
-    { name: "Arbitrum", logo: "arbitrum", y: 104 },
-    { name: "Ethereum", logo: "ethereum", y: 156 },
-    { name: "Arc", logo: "arc", y: 208 },
+    { logo: "base", y: 52 },
+    { logo: "arbitrum", y: 104 },
+    { logo: "ethereum", y: 156 },
+    { logo: "arc", y: 208 },
   ];
   return (
     <figure
@@ -274,9 +274,6 @@ function RenewalIllustration() {
               width="22"
               height="22"
             />
-            <text x="13" y={network.y + 33} className="art-svg-network">
-              {network.name}
-            </text>
           </g>
         ))}
         <circle

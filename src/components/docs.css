@@ -706,10 +706,6 @@
   letter-spacing: 0.055em;
   fill: #82988a;
 }
-.art-svg-network {
-  font-size: var(--docs-small-size);
-  fill: #718579;
-}
 .art-svg-alias {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--docs-body-size);
