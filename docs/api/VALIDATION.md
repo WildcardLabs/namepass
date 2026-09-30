@@ -46,8 +46,7 @@ The Base and Arbitrum receipts come from the September 18 deployment. This is pr
 evidence, not a new public API funding canary.
 
 The rollout wallet page adds four payment boundary tests. The build, TypeScript checks and
-all 64 frontend tests passed. Hosted endpoint, recovery, abuse-limit and signed funding
-checks remain pending; the public API release flag is still disabled on beta.
+all 64 frontend tests passed. The public API release flag remains disabled on beta.
 
 Initial hosted checks passed preflight/error CORS, scoped history, direct/Arc quotes and a
 recovery wake. Base and Arbitrum quotes exposed an incompatible Circle fee-view assumption;
@@ -57,9 +56,23 @@ malformed or nonzero standard fees. The regression covers those unavailable resp
 A 31-request staging burst returned 30 input errors and one platform `429`. That edge response
 omitted CORS and retry headers. The rollout now uses the official Vercel SDK counters before
 API work, with application-owned JSON/CORS/retry responses and closed access when a counter
-is missing. Hosted validation of this revised configuration is pending.
+is missing. The verified SDK rule uses `header:x-vercel-rate-limit-key`, which binds the
+counter to the caller instead of a function's changing outbound IP. The revised hosted burst
+returned 30 input errors and one JSON `429`, with CORS and `Retry-After: 60`.
 
 The first staging Sepolia provider omitted two renewal receipts even though its matching
 canonical blocks contain both transactions. The configured beta RPC retrieved the receipts
-and historical ENS state. Staging must pass those same reads before settlement verification
-can be considered validated. No missing receipt was treated as removal or completion.
+and historical ENS state. Public alternatives passed the required reads: EthPandaOps on
+Sepolia and dRPC on Arc. The preview worker subsequently verified all eight historical
+settled flows. No missing receipt was treated as removal or completion.
+
+The [hosted preflight receipt](validation/2026-09-30-hosted-preflight.json) records four-chain
+quotes, address activation, scoped history, recovery wakes and throttling. Preview protection
+was bypassed through the Vercel CLI; caller requests supplied no Namepass credentials. This
+does not establish anonymous beta availability or replace fresh funding canaries.
+
+The rehearsal also exposed an external direct renewal with no source link. Evidence recovery
+now binds its exact canonical factory log within the verified renewal receipt. Receipt replay
+preserves that source; unrelated source transactions remain conflicts. The PostgreSQL regression
+covers source recovery and replay alongside finality and invalidation. Complete polling by
+source transaction, hosted propagation/recovery and fresh signed canaries remain release checks.

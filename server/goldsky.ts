@@ -1311,6 +1311,24 @@ export const postgresGoldskyStore: GoldskyStore = {
 					if (existing) {
 						await tx.execute(cctpFlowRowsLockSql([existing.id]));
 						const [lockedExisting] = await tx.select().from(flows).where(eq(flows.id, existing.id));
+						const exactDirectSource = lockedExisting
+							&& !fromCctp
+							&& lockedExisting.originChainId === String(HUB_CHAIN.chainId)
+							&& lockedExisting.originEvidenceTxHash === renewal.txHash
+							&& lockedExisting.depositEventId === null
+							&& lockedExisting.cctpNonce === null
+							&& lockedExisting.cctpMessageIndex === null
+							&& lockedExisting.cctpMessage === null
+							&& lockedExisting.cctpAttestation === null
+							&& transactionEvents.some((source) => {
+								const sourceFacts = source.facts as Record<string, unknown> | null;
+								return source.eventId === lockedExisting.originEventId
+								&& source.canonical && source.eventFamily === "namepass"
+								&& source.eventType === "DepositProcessed"
+								&& source.logIndex > renewal.logIndex
+								&& String(sourceFacts?.wallet_address).toLowerCase() === wallet.toLowerCase()
+								&& String(sourceFacts?.label_key).toLowerCase() === name.labelHash.toLowerCase();
+							});
 						if (
 							!lockedExisting
 							|| lockedExisting.renewalEventId !== renewal.eventId
@@ -1318,7 +1336,7 @@ export const postgresGoldskyStore: GoldskyStore = {
 							|| lockedExisting.trigger !== "external"
 							|| lockedExisting.originTxIntentId !== null
 							|| lockedExisting.claimTxIntentId !== null
-							|| hasCctpSourceEvidence(lockedExisting)
+							|| (hasCctpSourceEvidence(lockedExisting) && !exactDirectSource)
 						) {
 							throw new Error("The renewal event conflicts with a non-external flow.");
 						}

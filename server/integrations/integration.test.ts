@@ -823,6 +823,7 @@ test(
 					const hash = ("0x" + "13".repeat(32)) as `0x${string}`,
 						blockHash = "0x" + "14".repeat(32),
 						key = labelHash("alice") as `0x${string}`;
+					await pool.query("update names set label_hash=$1 where id=$2", [key, n]);
 					const helperAbi = parseAbi([
 						"event HelperUsed(address indexed helper,bytes32 indexed labelHash,address indexed wallet)",
 					]);
@@ -1032,6 +1033,33 @@ test(
 							(await pool.query("select origin_event_id from flows where id=$1", [flow])).rows[0].origin_event_id,
 							"exact-source",
 							"Historical external renewals recover only their exact receipt source.",
+						);
+						const { ingestGoldskyEvent, postgresGoldskyStore } = await import("../goldsky");
+						const replay = {
+							eventFamily: "namepass" as const, chainId: chain.chainId,
+							txHash: hash, blockNumber: "20", blockTime: new Date(100000),
+							gsOp: "c" as const, payload: {},
+						};
+						await ingestGoldskyEvent(postgresGoldskyStore, {
+							...replay, eventId: "exact-source", eventType: "DepositProcessed", logIndex: 3,
+							facts: { wallet_address: wallet, label_key: key, amount: "1000000", remaining_amount: "0" },
+						});
+						const renewalReplay = {
+							...replay, eventId: "exact-renewal", eventType: "Renewed", logIndex: 2,
+							facts: { wallet_address: wallet, label_hash: key, label: "alice", duration: "100",
+								amount_received: "1000000", gas_allowance: "100000", amount_applied: "900000",
+								remainder: "0", from_cctp: "false", new_expiry: "2000000000" },
+						};
+						await pool.query("update flows set origin_evidence_tx_hash=$1 where id=$2", ["0x" + "ff".repeat(32), flow]);
+						await assert.rejects(
+							ingestGoldskyEvent(postgresGoldskyStore, renewalReplay),
+							/conflicts with a non-external flow/,
+						);
+						await pool.query("update flows set origin_evidence_tx_hash=$1 where id=$2", [hash, flow]);
+						await ingestGoldskyEvent(postgresGoldskyStore, renewalReplay);
+						assert.equal(
+							(await pool.query("select origin_event_id from flows where id=$1", [flow])).rows[0].origin_event_id,
+							"exact-source", "Receipt replay preserves the recovered direct source.",
 						);
 						await pool.query(
 							"update chain_events set canonical=false where event_id='exact-renewal'",

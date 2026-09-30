@@ -1,0 +1,334 @@
+{
+  "recordedAt": "2026-09-30T15:11:07Z",
+  "scope": "isolated testnet preview; beta unchanged",
+  "protectedPreview": true,
+  "deployment": "https://namepass-v2-6lv2fj88z-wildcard-labs.vercel.app",
+  "commit": "b1e6dbf",
+  "quotes": [
+    {
+      "label": "quote_11155111",
+      "status": 200,
+      "seconds": 2.506,
+      "headers": {
+        "access-control-allow-headers": "Content-Type",
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "Retry-After",
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8"
+      },
+      "response": {
+        "name": "steve.eth",
+        "chainId": "11155111",
+        "amount": "1000000",
+        "secondsAdded": "3547790",
+        "amountApplied": "900000",
+        "renewalFee": "100000",
+        "bridgeFee": "0",
+        "roundingRemainder": "0",
+        "pricingBlock": "11815239",
+        "expiresAt": "2026-09-30T14:25:50.382Z",
+        "estimate": true
+      },
+      "curlExit": 0
+    },
+    {
+      "label": "quote_84532",
+      "status": 200,
+      "seconds": 2.573,
+      "headers": {
+        "access-control-allow-headers": "Content-Type",
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "Retry-After",
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8"
+      },
+      "response": {
+        "name": "steve.eth",
+        "chainId": "84532",
+        "amount": "1000000",
+        "secondsAdded": "3547790",
+        "amountApplied": "900000",
+        "renewalFee": "100000",
+        "bridgeFee": "0",
+        "roundingRemainder": "0",
+        "pricingBlock": "11815239",
+        "expiresAt": "2026-09-30T14:25:52.956Z",
+        "estimate": true
+      },
+      "curlExit": 0
+    },
+    {
+      "label": "quote_421614",
+      "status": 200,
+      "seconds": 3.089,
+      "headers": {
+        "access-control-allow-headers": "Content-Type",
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "Retry-After",
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8"
+      },
+      "response": {
+        "name": "steve.eth",
+        "chainId": "421614",
+        "amount": "1000000",
+        "secondsAdded": "3547790",
+        "amountApplied": "900000",
+        "renewalFee": "100000",
+        "bridgeFee": "0",
+        "roundingRemainder": "0",
+        "pricingBlock": "11815239",
+        "expiresAt": "2026-09-30T14:25:56.060Z",
+        "estimate": true
+      },
+      "curlExit": 0
+    },
+    {
+      "label": "quote_5042002",
+      "status": 200,
+      "seconds": 3.996,
+      "headers": {
+        "access-control-allow-headers": "Content-Type",
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "Retry-After",
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8"
+      },
+      "response": {
+        "name": "steve.eth",
+        "chainId": "5042002",
+        "amount": "1000000",
+        "secondsAdded": "3547790",
+        "amountApplied": "900000",
+        "renewalFee": "100000",
+        "bridgeFee": "0",
+        "roundingRemainder": "0",
+        "pricingBlock": "11815239",
+        "expiresAt": "2026-09-30T14:26:00.045Z",
+        "estimate": true
+      },
+      "curlExit": 0
+    }
+  ],
+  "endpointChecks": [
+    {
+      "label": "recovery_final_build",
+      "status": 200,
+      "seconds": 3.916,
+      "headers": {
+        "cache-control": "public, max-age=0, must-revalidate",
+        "content-type": "application/json; charset=utf-8"
+      },
+      "response": {
+        "skipped": false,
+        "queuedFlows": 0,
+        "resumableFlows": 0,
+        "overdueUnclaimedFlows": 0,
+        "dueHeldFlows": 0,
+        "unscannedNames": 0,
+        "unbroadcastIntents": 0,
+        "monitoredIntents": 0,
+        "failed": 0
+      },
+      "curlExit": 0
+    },
+    {
+      "label": "address_final_provider",
+      "status": 200,
+      "seconds": 3.984,
+      "headers": {
+        "access-control-allow-headers": "Content-Type",
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "Retry-After",
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8"
+      },
+      "response": {
+        "name": "steve.eth",
+        "depositAddress": "0x5B7516768eD0b04E212041265BB1f11af71841d7",
+        "subname": "steve.namepass.eth",
+        "subnameVerified": false,
+        "chains": [
+          {
+            "chainId": "84532",
+            "name": "Base Sepolia",
+            "tokenAddress": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+            "minimumAmount": "500000"
+          },
+          {
+            "chainId": "421614",
+            "name": "Arbitrum Sepolia",
+            "tokenAddress": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+            "minimumAmount": "500000"
+          },
+          {
+            "chainId": "11155111",
+            "name": "Sepolia",
+            "tokenAddress": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+            "minimumAmount": "500000"
+          },
+          {
+            "chainId": "5042002",
+            "name": "Arc Testnet",
+            "tokenAddress": "0x3600000000000000000000000000000000000000",
+            "minimumAmount": "500000"
+          }
+        ]
+      },
+      "curlExit": 0
+    },
+    {
+      "label": "history_verified",
+      "status": 200,
+      "seconds": 2.283,
+      "headers": {
+        "access-control-allow-headers": "Content-Type",
+        "access-control-allow-methods": "GET, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "Retry-After",
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8"
+      },
+      "response": {
+        "name": "steve.eth",
+        "currentExpiry": "2029-08-12T08:46:16.000Z",
+        "expiryUpdatedAt": "2026-09-30T14:57:31.706Z",
+        "items": [
+          {
+            "flowId": "48d9cf71-7966-4e4d-a055-99ad1f2a5956",
+            "sourceChainId": "5042002",
+            "chainId": "11155111",
+            "transactionHash": "0x51a897a78e9d8825022a6784c1d424c2fbdd97e5c26ef1372ea5c8d635199ddf",
+            "secondsAdded": "3547790",
+            "amountApplied": "900000",
+            "renewalFee": "100000",
+            "expiry": "2029-08-12T08:46:16.000Z",
+            "status": "complete",
+            "renewedAt": "2026-09-21T23:32:24.000Z"
+          },
+          {
+            "flowId": "14cb7228-00ea-4e9d-a98c-823a27f125f8",
+            "sourceChainId": "5042002",
+            "chainId": "11155111",
+            "transactionHash": "0x47fb93e99172e174c5b3da44cf5daf1d3f2a26a2260d15cc1be110b142ad843a",
+            "secondsAdded": "3547790",
+            "amountApplied": "900000",
+            "renewalFee": "100000",
+            "expiry": "2029-07-02T07:16:26.000Z",
+            "status": "complete",
+            "renewedAt": "2026-09-21T23:31:00.000Z"
+          },
+          {
+            "flowId": "6849f6d1-00f3-428b-9147-8bbd43099e1e",
+            "sourceChainId": "11155111",
+            "chainId": "11155111",
+            "transactionHash": "0x6c7b413b55db956bd52b65242ffcba7ec15cbb770ae1f29c67930ea143a65268",
+            "secondsAdded": "3547790",
+            "amountApplied": "900000",
+            "renewalFee": "100000",
+            "expiry": "2029-05-22T05:46:36.000Z",
+            "status": "processing",
+            "renewedAt": "2026-09-21T23:28:00.000Z"
+          }
+        ],
+        "nextCursor": null
+      },
+      "curlExit": 0
+    },
+    {
+      "label": "direct_source_poll",
+      "status": 404,
+      "seconds": 2.95,
+      "headers": {
+        "access-control-allow-headers": "Content-Type",
+        "access-control-allow-methods": "GET, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "Retry-After",
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8",
+        "retry-after": "5"
+      },
+      "response": {
+        "error": {
+          "code": "deposit_not_found",
+          "message": "This transaction has not been indexed as a Namepass deposit. Try again shortly."
+        },
+        "requestId": "lhr1::hbkpq-1790780257070-78a6b6284187"
+      },
+      "curlExit": 0
+    }
+  ],
+  "rateLimit": {
+    "recordedAt": "2026-09-30T15:03:01Z",
+    "requests": 31,
+    "allowed": 30,
+    "limited": 1,
+    "bucket": "header:x-vercel-rate-limit-key",
+    "sampleAllowed": {
+      "label": "activation_limit_1",
+      "status": 400,
+      "seconds": 2.44,
+      "headers": {
+        "access-control-allow-headers": "Content-Type",
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "Retry-After",
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8"
+      },
+      "response": {
+        "error": {
+          "code": "invalid_request",
+          "message": "name must be a non-empty string.",
+          "details": {
+            "field": "name"
+          }
+        },
+        "requestId": "lhr1::44sqd-1790780583122-e299dffec35a"
+      },
+      "curlExit": 0
+    },
+    "sampleLimited": {
+      "label": "activation_limit_29",
+      "status": 429,
+      "seconds": 2.646,
+      "headers": {
+        "access-control-allow-headers": "Content-Type",
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "Retry-After",
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8",
+        "retry-after": "60"
+      },
+      "response": {
+        "error": {
+          "code": "rate_limited",
+          "message": "Too many requests. Retry after the indicated delay."
+        },
+        "requestId": "lhr1::km7nw-1790780592043-df1c5d2c63c1"
+      },
+      "curlExit": 0
+    }
+  },
+  "settlementBackfill": {
+    "settledFlows": 8,
+    "finalizedSettlements": 8,
+    "sourceCoverage": "Pending; receipt finalization does not prove deposit consumption."
+  },
+  "providers": {
+    "sepolia": "https://rpc.sepolia.ethpandaops.io",
+    "arc": "https://rpc.drpc.testnet.arc.io"
+  },
+  "remaining": [
+    "Canonical receipt replay fix must be deployed and checked.",
+    "Source transaction polling must reach complete.",
+    "Fresh user-signed direct and CCTP funding canaries.",
+    "Anonymous availability after approved beta release."
+  ]
+}

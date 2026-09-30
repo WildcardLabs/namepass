@@ -216,7 +216,9 @@ caller accounts or API keys. Test anonymous address activation and five-second p
 
 On Vercel, configure SDK rate-limit IDs `namepass-public-address`, `namepass-public-quote`
 and `namepass-public-reads` before enabling the API. Each rule uses the `rate_limit_api_id`
-condition and an IP bucket. The reviewed starting limits are 30, 60 and 300 requests per
+condition and the `header:x-vercel-rate-limit-key` bucket. The SDK derives that key from
+the caller's IP. An ordinary IP bucket instead counts the function's outbound IP and does
+not enforce the caller limit. The reviewed starting limits are 30, 60 and 300 requests per
 60 seconds, respectively. `NAMEPASS_RATE_LIMIT_PREFIX` selects a separate staging prefix.
 Missing rules fail closed. The API returns JSON, CORS and `Retry-After: 60` for throttling;
 direct edge blocking does not preserve those application headers. Keep OPTIONS outside
