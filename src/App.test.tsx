@@ -210,6 +210,8 @@ test("documentation opens directly and supports navigation without price or chai
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: copiedRequest } });
   await click("Copy request");
   expect(copiedRequest).toHaveBeenLastCalledWith(expect.stringContaining("https://beta.namepass.com/api/v1/address"));
+  await click("Copy page");
+  expect(copiedRequest).toHaveBeenLastCalledWith(expect.stringContaining("# Introduction"));
   const settlement = container.querySelector<HTMLAnchorElement>('a[href="/docs/status"]');
   expect(settlement).not.toBeNull();
   await act(async () => settlement!.click());

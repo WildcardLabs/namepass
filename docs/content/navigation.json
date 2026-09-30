@@ -2,7 +2,7 @@
   {
     "slug": "introduction",
     "title": "Introduction",
-    "description": "Integrate USDC payments for ENS renewals.",
+    "description": "Renew any ENS name from any supported network. One deposit address, automatic renewal.",
     "group": "Get started",
     "tab": "guides"
   },
@@ -43,8 +43,8 @@
   },
   {
     "slug": "agents",
-    "title": "Use an agent",
-    "description": "Integrate ENS renewal funding with a wallet or coding agent.",
+    "title": "AI agents",
+    "description": "Skills and documentation for AI agents.",
     "group": "Agents",
     "tab": "agents"
   },

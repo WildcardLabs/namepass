@@ -176,57 +176,180 @@ function CodeBlock({
   );
 }
 function RenewalIllustration() {
+  const networks = [
+    { name: "Base", logo: "base", y: 52 },
+    { name: "Arbitrum", logo: "arbitrum", y: 104 },
+    { name: "Ethereum", logo: "ethereum", y: 156 },
+    { name: "Arc", logo: "arc", y: 208 },
+  ];
   return (
-    <div
+    <figure
       className="docs-renewal-art"
-      aria-label="USDC deposits fund an ENS renewal"
+      aria-label="Illustrative flow: USDC on Base, Arbitrum, Ethereum or Arc funds alice.namepass.eth and renews alice.eth"
     >
       <svg
-        className="art-routes"
-        viewBox="0 0 440 244"
-        fill="none"
-        aria-hidden="true"
+        viewBox="0 0 480 280"
+        role="img"
+        aria-label="Funding networks connect to a deposit subname, then an ENS renewal"
       >
-        <path d="M40 63H135C154 63 164 73 164 92V119" />
-        <path d="M38 178H138C155 178 164 169 164 151V120" />
-        <path d="M164 120H275C294 120 307 131 307 150V190" />
-        <path d="M164 120H361" />
-        <circle cx="164" cy="120" r="4" />
-        <circle cx="307" cy="190" r="3" />
+        <defs>
+          <linearGradient
+            id="renewal-wallet-fill"
+            x1="178"
+            y1="72"
+            x2="380"
+            y2="194"
+            gradientUnits="userSpaceOnUse"
+          >
+            <stop stopColor="#ffffff" />
+            <stop offset="1" stopColor="#f5faf7" />
+          </linearGradient>
+          <linearGradient
+            id="renewal-edge"
+            x1="70"
+            y1="130"
+            x2="188"
+            y2="130"
+            gradientUnits="userSpaceOnUse"
+          >
+            <stop stopColor="#cdded5" />
+            <stop offset="1" stopColor="#82b397" />
+          </linearGradient>
+          <filter
+            id="renewal-card-shadow"
+            x="-20%"
+            y="-20%"
+            width="140%"
+            height="160%"
+          >
+            <feDropShadow
+              dx="0"
+              dy="5"
+              stdDeviation="7"
+              floodColor="#264535"
+              floodOpacity=".07"
+            />
+          </filter>
+          <radialGradient id="renewal-halo">
+            <stop stopColor="#e8f4eb" />
+            <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        <ellipse
+          cx="283"
+          cy="134"
+          rx="180"
+          ry="117"
+          fill="url(#renewal-halo)"
+        />
+        <text x="15" y="15" className="art-svg-overline">
+          FUND WITH USDC
+        </text>
+        {networks.map((network, i) => (
+          <g key={network.logo}>
+            <path
+              id={`renewal-route-${i}`}
+              d={`M68 ${network.y}H104C139 ${network.y} 128 130 183 130`}
+              className="art-svg-route"
+            />
+            <circle r="2.5" className="art-svg-packet">
+              <animateMotion
+                dur={`${4 + i * 0.35}s`}
+                begin={`-${i * 0.8}s`}
+                repeatCount="indefinite"
+                path={`M68 ${network.y}H104C139 ${network.y} 128 130 183 130`}
+              />
+            </circle>
+            <circle
+              cx="49"
+              cy={network.y}
+              r="19"
+              fill="#fff"
+              stroke="#e1eae4"
+            />
+            <image
+              href={`/logos/${network.logo}.svg`}
+              x="38"
+              y={network.y - 11}
+              width="22"
+              height="22"
+            />
+            <text x="13" y={network.y + 33} className="art-svg-network">
+              {network.name}
+            </text>
+          </g>
+        ))}
+        <circle
+          cx="175"
+          cy="130"
+          r="4"
+          fill="#9cc7ac"
+          stroke="#fff"
+          strokeWidth="2"
+        />
+        <g filter="url(#renewal-card-shadow)">
+          <rect
+            x="183"
+            y="80"
+            width="225"
+            height="111"
+            rx="10"
+            fill="url(#renewal-wallet-fill)"
+            stroke="#d7e5dc"
+          />
+          <text x="200" y="103" className="art-svg-overline">
+            DEPOSIT SUBNAME
+          </text>
+          <text x="200" y="130" className="art-svg-alias">
+            alice.namepass.eth
+          </text>
+          <line x1="200" y1="143" x2="391" y2="143" stroke="#e4ece6" />
+          <image
+            href="/logos/usdc.svg"
+            x="200"
+            y="156"
+            width="15"
+            height="15"
+          />
+          <text x="222" y="168" className="art-svg-caption">
+            USDC funding address
+          </text>
+        </g>
+        <path
+          d="M296 191V216Q296 226 308 226H332"
+          className="art-svg-settlement"
+        />
+        <circle r="3" className="art-svg-packet">
+          <animateMotion
+            dur="3.5s"
+            begin="-1.6s"
+            repeatCount="indefinite"
+            path="M296 191V216Q296 226 308 226H332"
+          />
+        </circle>
+        <g filter="url(#renewal-card-shadow)">
+          <rect
+            x="331"
+            y="204"
+            width="137"
+            height="61"
+            rx="9"
+            fill="#f7fbf8"
+            stroke="#d4e5d9"
+          />
+          <image href="/logos/ens.svg" x="346" y="222" width="25" height="25" />
+          <text x="381" y="224" className="art-svg-overline">
+            RENEW
+          </text>
+          <text x="381" y="245" className="art-svg-target">
+            alice.eth
+          </text>
+        </g>
+        <text x="184" y="259" className="art-svg-example">
+          Illustrative example
+        </text>
       </svg>
-      <div className="art-token">
-        <img src="/logos/usdc.svg" alt="USDC" />
-        <span>USDC deposit</span>
-      </div>
-      <div className="art-network">
-        <img src="/logos/base.svg" alt="" />
-        <img src="/logos/arbitrum.svg" alt="" />
-        <img src="/logos/ethereum.svg" alt="" />
-        <span>Supported networks</span>
-      </div>
-      <div className="art-address">
-        <span className="art-overline">ENS NAME</span>
-        <strong>example.eth</strong>
-        <span>Universal deposit address</span>
-        <div className="art-address-bars" aria-hidden="true">
-          <i />
-          <i />
-          <i />
-          <i />
-          <i />
-          <i />
-          <i />
-          <i />
-        </div>
-      </div>
-      <div className="art-renewal">
-        <img src="/logos/ens.svg" alt="ENS" />
-        <div>
-          <strong>ENS renewal</strong>
-          <span>Verified settlement</span>
-        </div>
-      </div>
-    </div>
+    </figure>
   );
 }
 const examples = [
@@ -356,6 +479,9 @@ export default function Docs() {
   const prompt = page
     ? `Help me integrate Namepass.\nRead ${docsOrigin}/docs/${page.slug}.md and the integration skill:\n${docsOrigin}/docs/skills/namepass-integration/SKILL.md\n\nMy question: `
     : "";
+  const pageMarkdown = page
+    ? `# ${page.title}\n\n${page.method ? `\`${page.method} /api/v1${page.path}\`\n\n` : ""}${publishedText(page.markdown)}`
+    : "";
   const navigate = (next: string, hash = "") => {
     window.history.pushState(
       {},
@@ -442,6 +568,62 @@ export default function Docs() {
       setCopyStatus("Clipboard unavailable. Open Markdown to copy the text.");
     }
   };
+  const pageTools = page ? (
+    <div className="docs-page-tools">
+      <CopyButton
+        key={page.slug}
+        value={pageMarkdown}
+        label="Copy page"
+        className="docs-copy-page"
+      />
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          className="docs-page-actions"
+          aria-label="Page options"
+        >
+          <ChevronDown size={14} />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="docs-dropdown">
+          <DropdownMenuItem
+            onSelect={() => void copy(pageMarkdown, "Page copied as Markdown")}
+          >
+            <Copy size={16} />
+            <div>
+              <strong>Copy page</strong>
+              <span>Copy as Markdown</span>
+            </div>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <a href={`/docs/${page.slug}.md`} target="_blank" rel="noreferrer">
+              <FileText size={16} />
+              <div>
+                <strong>View as Markdown</strong>
+                <span>Read the plain-text page</span>
+              </div>
+              <ArrowUpRight size={13} />
+            </a>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setAgent(true)}>
+            <Sparkles size={16} />
+            <div>
+              <strong>Ask your agent</strong>
+              <span>Copy an integration prompt</span>
+            </div>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <a href="/docs/skills/namepass-integration/SKILL.md" download>
+              <ArrowRight size={16} />
+              <div>
+                <strong>Download integration skill</strong>
+                <span>A reusable workflow for your agent</span>
+              </div>
+            </a>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  ) : null;
   const navigation = (
     <nav aria-label="Documentation pages">
       {[...new Set(docs.map((p) => p.group))].map((group) => (
@@ -483,8 +665,8 @@ export default function Docs() {
           <a href="/" className="docs-brand" aria-label="Namepass home">
             <img
               src="/namepass-logo.png"
-              width="144"
-              height="23"
+              width="96"
+              height="14"
               alt="Namepass"
               className="docs-wordmark"
             />
@@ -586,7 +768,7 @@ export default function Docs() {
                         {link(
                           "/docs/quickstart",
                           <>
-                            Start building <ArrowRight size={16} />
+                            Start building <ArrowRight size={14} />
                           </>,
                           "docs-primary-link",
                         )}
@@ -597,67 +779,12 @@ export default function Docs() {
                           </>,
                           "docs-secondary-link",
                         )}
+                        {pageTools}
                       </div>
                     )}
+                    {slug !== "introduction" && pageTools}
                   </div>
                   {slug === "introduction" && <RenewalIllustration />}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="docs-page-actions">
-                      <Copy size={14} />
-                      <span>Copy page</span>
-                      <ChevronDown size={13} />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="docs-dropdown">
-                      <DropdownMenuItem
-                        onSelect={() =>
-                          void copy(
-                            `# ${page.title}\n\n${page.method ? `\`${page.method} /api/v1${page.path}\`\n\n` : ""}${publishedText(page.markdown)}`,
-                            "Page copied as Markdown",
-                          )
-                        }
-                      >
-                        <Copy size={16} />
-                        <div>
-                          <strong>Copy page</strong>
-                          <span>Copy as Markdown</span>
-                        </div>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <a
-                          href={`/docs/${page.slug}.md`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          <FileText size={16} />
-                          <div>
-                            <strong>View as Markdown</strong>
-                            <span>Read the plain-text page</span>
-                          </div>
-                          <ArrowUpRight size={13} />
-                        </a>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onSelect={() => setAgent(true)}>
-                        <Sparkles size={16} />
-                        <div>
-                          <strong>Ask your agent</strong>
-                          <span>Copy an integration prompt</span>
-                        </div>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <a
-                          href="/docs/skills/namepass-integration/SKILL.md"
-                          download
-                        >
-                          <ArrowRight size={16} />
-                          <div>
-                            <strong>Download integration skill</strong>
-                            <span>A reusable workflow for your agent</span>
-                          </div>
-                        </a>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                   <p role="status" className="docs-copy-status">
                     {copyStatus}
                   </p>
@@ -736,15 +863,6 @@ export default function Docs() {
                     </section>
                     <ApiExample />
                   </>
-                )}
-                {["agents", "skills"].includes(slug) && (
-                  <div className="docs-agent-callout">
-                    <Sparkles size={20} />
-                    <div>
-                      <strong>Agent resources</strong>
-                      <p>Markdown documentation and API instructions.</p>
-                    </div>
-                  </div>
                 )}
                 <div className="docs-prose">
                   <Markdown

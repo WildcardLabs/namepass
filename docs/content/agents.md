@@ -1,4 +1,4 @@
-Use the [integration skill](/docs/skills) to add ENS renewal funding to a wallet or coding agent.
+Provide the [integration skill](/docs/skills) to your agent for Namepass API instructions.
 
 ## Example prompt
 
@@ -7,8 +7,6 @@ Renew [name] with [amount] USDC on [chain] using Namepass.
 Follow the integration skill:
 {{DOCS_ORIGIN}}/docs/skills/namepass-integration/SKILL.md
 ```
-
-The agent retrieves the deposit address, submits the transfer through its wallet and polls the renewal status. Payment authorization stays with the wallet.
 
 ## Resources
 
