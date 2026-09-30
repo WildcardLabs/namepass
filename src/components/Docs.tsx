@@ -399,7 +399,7 @@ export default function Docs() {
             >
               <Github size={18} />
             </a>
-            <a href="https://beta.namepass.eth" className="docs-app-link">
+            <a href="https://beta.namepass.com" className="docs-app-link">
               Open app
               <ArrowUpRight size={13} />
             </a>
