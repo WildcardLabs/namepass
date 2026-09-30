@@ -26,7 +26,7 @@ test("hosted API enforces SDK limits before work and preserves CORS, JSON and re
 		const url = new URL(String(input));
 		assert.equal(url.origin, "https://beta.namepass.com");
 		assert.ok(url.pathname.startsWith("/.well-known/vercel/rate-limit-api/"));
-		const id = url.pathname.split("/").at(-1)!;
+		const id = url.pathname.split("/").pop()!;
 		assert.equal(new Headers(init?.headers).get("x-vercel-rate-limit-api"), id);
 		ids.push(id);
 		return new Response(null, { status: sdkStatus });
