@@ -1,6 +1,6 @@
 # Public API validation
 
-The public integration API is unreleased. Its previous validation and implementation are
+The public integration API remains unreleased until mainnet launch at `namepass.com`. Its previous validation and implementation are
 retained in draft [PR #117](https://github.com/wildcardlabs/namepass/pull/117).
 Migration-applied fixtures did not test compatibility with beta's deployed `0008` schema.
 

@@ -1,11 +1,11 @@
 # Quickstart
 
-> The public integration API is not available. These pages describe the planned API.
+> The public API launches with mainnet. It is not available yet.
 
 ## 1. Get a deposit address
 
 ```bash
-curl -X POST 'https://beta.namepass.com/api/v1/address' \
+curl -X POST 'https://namepass.com/api/v1/address' \
   -H 'Content-Type: application/json' \
   -d '{"name":"example.eth"}'
 ```

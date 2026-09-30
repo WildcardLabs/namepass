@@ -60,22 +60,24 @@ the initial mainnet release; none has a recorded Namepass mainnet deployment. Re
 `dpl_AW7ffYsDGvEzSuE2AvsxyMLg48Jy`, commit
 `e5b0704e3967bf30a12fa10b5950f8cc057083d3` (September 28, 18:26 London).
 The live activity endpoint returned HTTP 200 after rollback. No beta database migration or
-credential change was made. Vercel production domain auto-assignment is paused by the rollback.
-Do not resume it until the reviewed recovery deployment is ready.
+credential change was made. The rollback paused Vercel production domain auto-assignment.
+Restore it only after verifying and promoting the reviewed recovery deployment.
 
 PR #116 deployed shared ORM fields `chain_events.evidence_kind` and `deposits.transfer_kind`
 while beta had only migrations `0000`–`0008`. Explorer reads and Goldsky writes depended on
 these fields even with the integration feature disabled. PostgreSQL rejected the explorer query
 with error `42703` (`chain_events.evidence_kind` does not exist).
 
-The recovery change restores the pre-integration backend and removes migration `0009`, the
+The [recovery release](https://github.com/wildcardlabs/namepass/pull/118) restores the pre-integration backend and removes migration `0009`, the
 unreleased `/api/v1` routes and their evidence worker. It preserves the documentation design,
 marks the API contract as unreleased, and tests real explorer queries and Goldsky writes against
-the deployed `0008` schema. The recovery change is not yet the live deployment.
+the deployed `0008` schema.
 
 ## Integration release gate
 
-The public integration API is not available. Integration development is retained on
+The public integration API remains unreleased until mainnet launch. Its planned base URL is
+`https://namepass.com/api/v1`; public docs, agent resources and examples use `namepass.com`.
+Integration development is retained on
 `codex/integration-rollout` and draft [PR #117](https://github.com/wildcardlabs/namepass/pull/117).
 Documentation and OpenAPI describe the planned contract; they are not evidence of availability.
 

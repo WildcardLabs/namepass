@@ -1,13 +1,13 @@
 # Poll status
 
-> The public integration API is not available. These pages describe the planned API.
+> The public API launches with mainnet. It is not available yet.
 
 Track a USDC deposit using its transaction hash and source chain ID.
 
 ## Request
 
 ```bash
-curl 'https://beta.namepass.com/api/v1/status/84532?transactionHash={hash}'
+curl 'https://namepass.com/api/v1/status/84532?transactionHash={hash}'
 ```
 
 Replace `{hash}` with the transaction hash returned by the wallet. Use the source chain ID from the [address response](/docs/addresses).

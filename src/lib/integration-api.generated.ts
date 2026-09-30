@@ -55,7 +55,7 @@ export interface paths {
         put?: never;
         /**
          * Estimate a renewal
-         * @description Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Quotes expire after 60 seconds and assume one processing flow with no existing balance at the deposit address.
+         * @description Estimate renewal duration and fees for an ENS name, funding chain and USDC amount. Estimates assume one processing flow with no existing balance at the deposit address.
          */
         post: operations["post_quote"];
         delete?: never;
@@ -159,8 +159,6 @@ export interface components {
             roundingRemainder: string;
             /** @description Exact integer encoded as a decimal string. */
             pricingBlock: string;
-            /** Format: date-time */
-            expiresAt: string;
             /** @constant */
             estimate: true;
         };

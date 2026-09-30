@@ -1,8 +1,8 @@
 # API reference
 
-> The public integration API is not available. These pages describe the planned API.
+> The public API launches with mainnet. It is not available yet.
 
-Base URL: `https://beta.namepass.com/api/v1`
+Base URL: `https://namepass.com/api/v1`
 
 | Endpoint | Purpose |
 | --- | --- |

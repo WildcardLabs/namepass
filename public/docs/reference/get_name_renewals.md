@@ -1,6 +1,6 @@
 # List a name's renewals
 
-> The public integration API is not available. These pages describe the planned API.
+> The public API launches with mainnet. It is not available yet.
 
 `GET /api/v1/names/{name}/renewals`
 
