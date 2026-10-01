@@ -1,5 +1,5 @@
 import { Skeleton } from "./components/ui/skeleton";
-import { lazy, Suspense, useCallback, useRef, useEffect, useState } from "react";
+import { lazy, Suspense, startTransition, useCallback, useRef, useEffect, useState } from "react";
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import Protocol from "./components/Protocol";
@@ -139,7 +139,7 @@ function ActiveApp() {
 	}, []);
 
 	const navigate = useCallback((next: Page) => {
-		setPage(next);
+		startTransition(() => setPage(next));
 		window.history.pushState({}, "", pageToPath(next));
 		window.scrollTo({ top: 0 });
 	}, []);
@@ -207,17 +207,37 @@ function ActiveApp() {
 		onSupported: goSupported,
 		onLeaderboard: goLeaderboard,
 	};
+	const footer = <Footer
+		onExplore={goExplorer}
+		onLeaderboard={goLeaderboard}
+		onSimulate={goSimulate}
+		onSupported={goSupported}
+		onDocs={goDocs}
+		onTerms={goTerms}
+		onPrivacy={goPrivacy}
+	/>;
 
 	if (page === "monitoring") {
 		return (
-			<Suspense fallback={<Skeleton role="status" aria-label="Loading dashboard" className="min-h-[100dvh] w-full animate-none rounded-none bg-[#f7f8fb]" />}>
-				<Monitoring onBack={goHome} />
-			</Suspense>
+			<>
+				<Suspense fallback={<Skeleton role="status" aria-label="Loading dashboard" className="min-h-[100dvh] w-full animate-none rounded-none bg-[#f7f8fb]" />}>
+					<Monitoring onBack={goHome} />
+				</Suspense>
+				<div className="public-ui">{footer}</div>
+			</>
 		);
 	}
 
 	if (page === "docs") {
-		return <Suspense fallback={<div className="min-h-screen bg-white p-12 text-sm text-gray-500">Loading documentation…</div>}><Docs /></Suspense>;
+		return (
+			<>
+				<div className="public-ui"><TestnetBanner /></div>
+				<Suspense fallback={<div className="min-h-screen bg-white p-12 text-sm text-gray-500">Loading documentation…</div>}>
+					<Docs onHome={goHome} />
+				</Suspense>
+				<div className="public-ui">{footer}</div>
+			</>
+		);
 	}
 
 	return (
@@ -306,15 +326,7 @@ function ActiveApp() {
 				)}
 			</div>
 
-			<Footer
-				onExplore={goExplorer}
-				onLeaderboard={goLeaderboard}
-				onSimulate={goSimulate}
-				onSupported={goSupported}
-				onDocs={goDocs}
-				onTerms={goTerms}
-				onPrivacy={goPrivacy}
-			/>
+			{footer}
 		</main>
 	);
 }

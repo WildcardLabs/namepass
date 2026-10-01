@@ -405,8 +405,8 @@
 }
 .public-ui .site-cta p {
   color: var(--site-muted);
-  font-size: 16px;
-  line-height: 26px;
+  font-size: 14px;
+  line-height: 22px;
 }
 .public-ui .site-cta button {
   font-size: var(--site-control-size);
@@ -799,6 +799,50 @@
   font-weight: 500;
   line-height: 20px;
   color: var(--site-muted);
+}
+.site-payment-line {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 4px;
+}
+.site-payment-amount {
+  min-width: 0;
+}
+.site-amount-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 32px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--site-accent);
+  white-space: nowrap;
+}
+.site-amount-hint:focus-visible {
+  outline: 2px solid var(--site-accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.site-amount-hint-tooltip {
+  max-width: 260px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--site-ink);
+  color: white;
+  font-size: 13px;
+  line-height: 20px;
+}
+@media (max-width: 479px) {
+  .site-amount-hint span {
+    display: none;
+  }
+  .site-amount-hint {
+    width: 28px;
+    justify-content: center;
+  }
 }
 .site-length-options {
   display: grid;

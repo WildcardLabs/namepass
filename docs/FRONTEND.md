@@ -76,12 +76,20 @@ left panel. Renewal time and the cost breakdown occupy the white right panel. Th
 a 32px time value and consistent 14px label/value rows with light dividers. The panels stack
 below 1024px. The loading state uses the same layout.
 Existing controls and exact math are retained.
-The docs landing page uses the same framing, surface and action tokens. Guide pages retain
-their sidebar, table of contents and readable article width. Legal sections use fine dividers.
+The next-tier suggestion sits to the right of the payment amount, with a tooltip and shortcut.
+All docs tabs use the same 1280px outer frame, header and tab bar. Guide pages retain
+their sidebar, sticky table of contents and readable article width. Horizontal overflow is
+clipped without creating an ancestor scroll container, so navigation sticks to the viewport.
+All routes, including docs and monitoring, render the shared footer with working product and
+legal navigation. Docs also show the existing live testnet renewal strip above their header.
+The strip scrolls away with the page; the header and navigation then stick beneath the viewport top.
+The docs logo returns home through the app router. Route transitions keep the current view
+visible while a lazy page loads, preventing an intermediate header disappearance.
+Legal sections use fine dividers.
 
 All application surfaces use self-hosted Geist Variable from `@fontsource-variable/geist`.
-Public section descriptions use 18px/28px at weight 400. Docs prose and the integration CTA
-paragraph use 16px/26px. The footer link rows use a compact 4px gap. Controls use 14px/500,
+Public section descriptions use 18px/28px at weight 400. Docs prose uses 16px/26px. The
+integration CTA paragraph uses 14px/22px. Footer link rows use a compact 4px gap. Controls use 14px/500,
 and card headings use 24px/32px at weight 600 with normal tracking. Compact protocol paragraphs
 use 14–14.5px/24px on desktop and 18px/28px when the cards stack; the desktop alias paragraph
 fits three lines. Body and table text remain 16px

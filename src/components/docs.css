@@ -1625,7 +1625,7 @@
   }
 }
 
-.docs-home .docs-layout {
+.docs-layout {
   width: calc(100% - 64px);
   max-width: 1280px;
   margin-inline: auto;
@@ -1648,7 +1648,7 @@
   background: var(--site-action-hover);
 }
 @media (max-width: 760px) {
-  .docs-home .docs-layout {
+  .docs-layout {
     width: 100%;
     border-inline: 0;
   }
@@ -1657,15 +1657,15 @@
   }
 }
 
-.docs-home .docs-header-inner,
-.docs-home .docs-tab-bar {
+.docs-header-inner,
+.docs-tab-bar {
   width: calc(100% - 64px);
   max-width: 1280px;
   padding-inline: 40px;
 }
 @media (max-width: 760px) {
-  .docs-home .docs-header-inner,
-  .docs-home .docs-tab-bar {
+  .docs-header-inner,
+  .docs-tab-bar {
     width: 100%;
     padding-inline: 20px;
   }

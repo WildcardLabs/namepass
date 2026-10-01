@@ -1,4 +1,3 @@
-import { motion, AnimatePresence } from "motion/react";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { BadgePercent, TrendingUp } from "lucide-react";
 import {
@@ -14,6 +13,12 @@ import { GAS_ALLOWANCE } from "../lib/fees";
 import { fmtDurationPrecise, fmtUsdc } from "../lib/format";
 import Tooltip from "./Tooltip";
 import PricingError from "./PricingError";
+import {
+  Tooltip as HintTooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 
 const LENGTHS = [
   { len: 3, label: "3 characters", example: "ens.eth" },
@@ -218,38 +223,70 @@ function SimulatorBody() {
         </div>
         <div className="site-calculator-label mt-8">Payment received</div>
 
-        {editing ? (
-          <div className="mt-1 flex items-baseline gap-1">
-            <span className="site-amount text-[44px] md:text-[56px] text-ink-secondary leading-none">
-              $
-            </span>
-            <input
-              autoFocus
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={commitDraft}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commitDraft();
-                if (e.key === "Escape") setEditing(false);
-              }}
-              aria-label="Enter payment amount in USDC"
-              inputMode="decimal"
-              placeholder="0.00"
-              className="w-full min-w-0 bg-transparent outline-none site-amount text-[44px] md:text-[56px] font-normal text-ink-primary tracking-tight leading-none tabular-nums border-b-2 border-[rgba(28,58,41,0.3)]"
-            />
+        <div className="site-payment-line">
+          <div className="site-payment-amount">
+            {editing ? (
+              <div className="mt-1 flex items-baseline gap-1">
+                <span className="site-amount text-[44px] md:text-[56px] text-ink-secondary leading-none">
+                  $
+                </span>
+                <input
+                  autoFocus
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={commitDraft}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitDraft();
+                    if (e.key === "Escape") setEditing(false);
+                  }}
+                  aria-label="Enter payment amount in USDC"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  className="w-full min-w-0 bg-transparent outline-none site-amount text-[44px] md:text-[56px] font-normal text-ink-primary tracking-tight leading-none tabular-nums border-b-2 border-[rgba(28,58,41,0.3)]"
+                />
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setDraft((Number(budget) / 1e6).toFixed(2));
+                  setEditing(true);
+                }}
+                title="Click to type an amount"
+                className="mt-1 block site-amount text-[44px] md:text-[56px] font-normal text-ink-primary tracking-tight leading-none tabular-nums border-b-2 border-transparent hover:border-[rgba(28,58,41,0.2)] transition-colors"
+              >
+                {fmtUsdc(budget)}
+              </button>
+            )}
           </div>
-        ) : (
-          <button
-            onClick={() => {
-              setDraft((Number(budget) / 1e6).toFixed(2));
-              setEditing(true);
-            }}
-            title="Click to type an amount"
-            className="mt-1 block site-amount text-[44px] md:text-[56px] font-normal text-ink-primary tracking-tight leading-none tabular-nums border-b-2 border-transparent hover:border-[rgba(28,58,41,0.2)] transition-colors"
-          >
-            {fmtUsdc(budget)}
-          </button>
-        )}
+          {hint && (
+            <TooltipProvider delayDuration={150}>
+              <HintTooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="site-amount-hint"
+                    onClick={() =>
+                      setBudget(ceilToCent(hint.payable + ALLOWANCE))
+                    }
+                    aria-label={`Add ${fmtUsdc(hint.delta)} to get ${Math.round(Number(hint.gain) / 2629800)} more months`}
+                  >
+                    <TrendingUp aria-hidden="true" size={16} />
+                    <span>Add {fmtUsdc(hint.delta)}</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent
+                  className="site-amount-hint-tooltip"
+                  side="top"
+                  sideOffset={8}
+                >
+                  Add {fmtUsdc(hint.delta)} to get{" "}
+                  {Math.round(Number(hint.gain) / 2629800)} more months. Unlocks
+                  the {hint.years}-year rate · {hint.off} off.
+                </TooltipContent>
+              </HintTooltip>
+            </TooltipProvider>
+          )}
+        </div>
 
         <div className="mt-1.5 text-[12px] text-ink-secondary">
           Tap or click the amount to type your own
@@ -356,39 +393,6 @@ function SimulatorBody() {
         <div className="mt-1 site-result text-[30px] md:text-[38px] font-normal text-ink-primary tracking-tight leading-[1.1]">
           {fmtDurationPrecise(result.seconds)}
         </div>
-
-        {/* The boost hint — where the real money is saved */}
-        <AnimatePresence>
-          {hint && (
-            <motion.div
-              initial={{ opacity: 0, y: -4, height: 0 }}
-              animate={{ opacity: 1, y: 0, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-              className="overflow-hidden"
-            >
-              <button
-                onClick={() => setBudget(ceilToCent(hint.payable + ALLOWANCE))}
-                className="inset-panel inset-action mt-4 w-full text-left group"
-              >
-                <div className="flex items-start gap-2.5">
-                  <TrendingUp className="w-4 h-4 mt-0.5 shrink-0 text-ink-secondary" />
-                  <div className="min-w-0">
-                    <div className="text-[13.5px] text-ink-primary leading-snug">
-                      Add {fmtUsdc(hint.delta)} to get{" "}
-                      <span className="whitespace-nowrap">
-                        {Math.round(Number(hint.gain) / 2629800)} more months
-                      </span>
-                    </div>
-                    <div className="mt-0.5 text-[12px] text-ink-secondary">
-                      Unlocks the {hint.years}-year rate · {hint.off} off
-                    </div>
-                  </div>
-                </div>
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         <dl className="site-result-breakdown mt-6 text-[14px]">
           {/* Same shape as a settled renewal in the Explorer: what went in,

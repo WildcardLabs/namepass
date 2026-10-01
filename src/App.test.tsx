@@ -229,4 +229,9 @@ test("documentation opens directly and supports navigation without price or chai
   expect(loadOracleRates).not.toHaveBeenCalled();
   expect(assertGasAllowance).not.toHaveBeenCalled();
   expect(network).not.toHaveBeenCalled();
+  const home = container.querySelector<HTMLAnchorElement>('.docs-brand');
+  await act(async () => home!.click());
+  expect(window.location.pathname).toBe("/");
+  expect(container.querySelector("#explorer")).not.toBeNull();
+  expect(container.querySelector(".docs-shell")).toBeNull();
 });

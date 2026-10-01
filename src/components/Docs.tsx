@@ -458,7 +458,7 @@ function ApiExample() {
     </section>
   );
 }
-export default function Docs() {
+export default function Docs({ onHome }: { onHome: () => void }) {
   const [slug, setSlug] = useState(currentSlug);
   const [search, setSearch] = useState(false),
     [query, setQuery] = useState("");
@@ -659,7 +659,17 @@ export default function Docs() {
       </a>
       <header className="docs-header">
         <div className="docs-header-inner">
-          <a href="/" className="docs-brand" aria-label="Namepass home">
+          <a
+            href={import.meta.env.BASE_URL}
+            className="docs-brand"
+            aria-label="Namepass home"
+            onClick={(event) => {
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+                return;
+              event.preventDefault();
+              onHome();
+            }}
+          >
             <img
               src="/namepass-logo.png"
               width="96"
