@@ -1101,20 +1101,12 @@
 .docs-page-meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   border-top: 1px solid var(--docs-line);
   margin-top: 48px;
   padding-top: 22px;
   font-size: var(--docs-caption-size);
   color: #6d8073;
-}
-.docs-page-meta > a {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.docs-page-meta > a:hover {
-  color: #4e8269;
 }
 .docs-pagination {
   display: grid;

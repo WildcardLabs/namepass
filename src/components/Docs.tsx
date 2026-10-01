@@ -937,14 +937,6 @@ export default function Docs({ onHome }: { onHome: () => void }) {
                   </div>
                 )}
                 <div className="docs-page-meta">
-                  <a
-                    href={`${repo}/edit/main/${page.source}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Edit this page
-                    <ArrowUpRight size={12} />
-                  </a>
                   <span>Contract {docsVersion}</span>
                 </div>
                 <div className="docs-pagination">

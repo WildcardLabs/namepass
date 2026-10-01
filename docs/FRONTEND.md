@@ -48,8 +48,9 @@ changes do not read pricing, account or chain state.
 `docs/content/` owns guide Markdown and navigation. `npm run generate:docs` produces the shared
 catalog, public Markdown, downloadable skill, `llms.txt` and `llms-full.txt`. `npm run check:docs`
 checks freshness and links. Page actions copy Markdown, open plain text and prepare context for
-an existing agent. Examples, copied prompts and Markdown use the published `docsOrigin` from the
-generated catalog (`https://beta.namepass.com`), including in local previews. In-page navigation
+an existing agent. Public docs do not include GitHub edit links. Examples, copied prompts and
+Markdown use the published `docsOrigin` from the generated catalog (`https://beta.namepass.com`),
+including in local previews. In-page navigation
 uses relative paths. The skill uses the public HTTP flow.
 
 The footer, navigation and integration call-to-action open `/docs`. Homepage navigation
