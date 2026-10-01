@@ -69,9 +69,12 @@ Resources and the footer. The protocol keeps its four-card bento arrangement and
 contain text with a slow, neutral background fade. The fade stops outside the viewport, in
 a hidden tab and for reduced-motion preferences. No additional protocol graphics are present.
 Explorer, pricing, secondary pages and the integration CTA share the surface treatment. The
-Explorer section has a white canvas to separate it from grey bento cards. The activity table
+Explorer section has a white canvas. Protocol cards are white with fine neutral borders. The activity table
 has a quiet toolbar and 14px column labels. The name-view heading and back icon share a
-centered row. The pricing calculator retains its original layout, controls and exact math.
+centered row. The pricing calculator groups name length, amount and discount controls in its
+left panel. Renewal time and the cost breakdown occupy the right panel, with a quiet neutral
+surface and divider. The panels stack below 1024px. The loading state uses the same layout.
+Existing controls and exact math are retained.
 The docs landing page uses the same framing, surface and action tokens. Guide pages retain
 their sidebar, table of contents and readable article width. Legal sections use fine dividers.
 
