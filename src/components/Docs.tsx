@@ -928,7 +928,7 @@ export default function Docs() {
                 )}
                 <div className="docs-page-meta">
                   <a
-                    href={`${repo}/edit/codex/integration-api-plan/${page.source}`}
+                    href={`${repo}/edit/main/${page.source}`}
                     target="_blank"
                     rel="noreferrer"
                   >

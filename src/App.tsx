@@ -1,7 +1,6 @@
 import { Skeleton } from "./components/ui/skeleton";
 import { lazy, Suspense, useCallback, useRef, useEffect, useState } from "react";
 import Navbar from "./components/Navbar";
-import PageShell from "./components/PageShell";
 import Hero from "./components/Hero";
 import Protocol from "./components/Protocol";
 import CtaBand from "./components/CtaBand";
@@ -20,7 +19,6 @@ import { setRates } from "./lib/pricing";
 
 const Docs = lazy(() => import("./components/Docs"));
 const Monitoring = lazy(() => import("./components/Monitoring"));
-const VIDEO_URL = `${import.meta.env.BASE_URL}assets/namepass-bg.mp4`;
 
 type Page = "docs" | "monitoring" | "home" | "leaderboard" | "supported" | "terms" | "privacy";
 
@@ -52,7 +50,7 @@ function pageToPath(page: Page): string {
 }
 
 export default function App() {
-	if (import.meta.env.VITE_NAMEPASS_MAINTENANCE === "1") return <main style={{ padding: "4rem", fontFamily: "sans-serif" }}><h1>Namepass is being upgraded</h1><p>Deposits and renewals are temporarily paused. Please return shortly.</p></main>;
+	if (import.meta.env.VITE_NAMEPASS_MAINTENANCE === "1") return <main style={{ padding: "4rem", fontFamily: "var(--site-font)" }}><h1>Namepass is being upgraded</h1><p>Deposits and renewals are temporarily paused. Please return shortly.</p></main>;
 	return <ActiveApp/>;
 }
 
@@ -66,8 +64,8 @@ function ActiveApp() {
 	 * Everything that quotes a price is downstream of this. `pricing.ts`
 	 * throws until the live values arrive.
 	 *
-	 * Only the parts that actually quote wait on it. The hero copy and
-	 * landscape paint immediately; the Simulator renders its own chrome with
+	 * Only the parts that actually quote wait on it. The hero copy paints
+	 * immediately; the Simulator renders its own chrome with
 	 * skeletons where the numbers go. Nothing announces the read — it takes
 	 * ~150ms and a page narrating its own network calls is noise. Only a
 	 * failure gets words, because there's no cached price to fall back to.
@@ -204,7 +202,10 @@ function ActiveApp() {
 		onSimulate: goSimulate,
 		onSearch: focusSearch,
 		onHome: goHome,
-		onDocs: () => navigate("docs"),
+		onDocs: goDocs,
+		onExplore: goExplorer,
+		onSupported: goSupported,
+		onLeaderboard: goLeaderboard,
 	};
 
 	if (page === "monitoring") {
@@ -220,20 +221,14 @@ function ActiveApp() {
 	}
 
 	return (
-		<main className={`public-ui min-h-screen bg-surface-canvas flex flex-col${page === "home" ? " homepage-ui" : ""}`}>
+		<main className="public-ui min-h-screen bg-surface-canvas flex flex-col">
 			<TestnetBanner />
-			<div className="flex-1">
-				{/* The hero copy and landscape render before pricing is validated.
-				    Only the illustrative ticker and pricing panels wait for the oracle. */}
+			<div className="site-page-frame flex-1">
+				{/* The public introduction renders before pricing is validated. */}
 				{page === "home" && (
 					<>
 						<Navbar {...navProps} />
-						<Hero
-							video={VIDEO_URL}
-							onExplore={goExplorer}
-							onLeaderboard={goLeaderboard}
-							priced={boot.status === "ready"}
-						/>
+						<Hero onExplore={goExplorer} onDocs={goDocs} />
 
 						{/* Four protocol properties render independently of pricing. */}
 						<Protocol />
@@ -261,50 +256,59 @@ function ActiveApp() {
 				)}
 
 				{page === "leaderboard" && (
-					<PageShell cardClassName="min-h-[70vh]">
-						<Navbar {...navProps} showMenu={false} />
-						{/* Every row here is priced, so there's no useful partial state —
-						    the card just stays empty at its `min-h` until the read lands,
-						    which for ~150ms reads as the page still painting rather than
-						    as something missing. */}
-						{boot.status === "ready" && (
-							<Leaderboard
-								onBack={goHome}
-								onViewName={goToName}
-							/>
-						)}
-						{boot.status === "error" && (
-							<div className="w-full px-5 md:px-10 py-24 md:py-32">
-								<PricingError message={boot.message} onRetry={loadPricing} />
-							</div>
-						)}
-					</PageShell>
+					<>
+						<Navbar {...navProps} />
+						<div className="site-secondary-content">
+							{/* Every row here is priced, so there's no useful partial state —
+							    the card just stays empty at its `min-h` until the read lands,
+							    which for ~150ms reads as the page still painting rather than
+							    as something missing. */}
+							{boot.status === "ready" && (
+								<Leaderboard
+									onBack={goHome}
+									onViewName={goToName}
+								/>
+							)}
+							{boot.status === "error" && (
+								<div className="w-full px-5 md:px-10 py-24 md:py-32">
+									<PricingError message={boot.message} onRetry={loadPricing} />
+								</div>
+							)}
+						</div>
+					</>
 				)}
 
 				{page === "supported" && (
-					<PageShell cardClassName="min-h-[70vh]">
-						<Navbar {...navProps} showMenu={false} />
-						<SupportedTokens onBack={goHome} />
-					</PageShell>
+					<>
+						<Navbar {...navProps} />
+						<div className="site-secondary-content">
+							<SupportedTokens onBack={goHome} />
+						</div>
+					</>
 				)}
 
 				{page === "terms" && (
-					<PageShell cardClassName="min-h-[70vh]">
-						<Navbar {...navProps} showMenu={false} />
-						<Terms onBack={goHome} />
-					</PageShell>
+					<>
+						<Navbar {...navProps} />
+						<div className="site-secondary-content">
+							<Terms onBack={goHome} />
+						</div>
+					</>
 				)}
 
 				{page === "privacy" && (
-					<PageShell cardClassName="min-h-[70vh]">
-						<Navbar {...navProps} showMenu={false} />
-						<Privacy onBack={goHome} />
-					</PageShell>
+					<>
+						<Navbar {...navProps} />
+						<div className="site-secondary-content">
+							<Privacy onBack={goHome} />
+						</div>
+					</>
 				)}
 			</div>
 
 			<Footer
 				onExplore={goExplorer}
+				onLeaderboard={goLeaderboard}
 				onSimulate={goSimulate}
 				onSupported={goSupported}
 				onDocs={goDocs}

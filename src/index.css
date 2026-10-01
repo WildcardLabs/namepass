@@ -1,13 +1,8 @@
 @import "tailwindcss";
 @import "./styles/site.css";
 
-@font-face {
-	font-family: "Helvetica Regular";
-	src: url("/fonts/a64ff11d2c24584c767f6257e880dc65.woff2") format("woff2");
-}
-
 @theme {
-	--font-helvetica: "Helvetica Regular", ui-sans-serif, system-ui, sans-serif;
+	--font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
 	/* Public palette: cool gray canvas and restrained green emphasis. */
 	--color-surface-canvas: #f1f3f4;
 	--color-surface-inset: #f1f3f4;
@@ -32,7 +27,18 @@
 }
 
 :root {
-	font-family: var(--font-helvetica);
+	font-family: var(--site-font);
+	font-weight: 400;
+}
+
+.public-ui :is(h1, h2, h3) {
+	font-weight: 600;
+}
+.public-ui button {
+	font-weight: 500;
+}
+.public-ui button > span {
+	font-weight: inherit;
 }
 
 html {

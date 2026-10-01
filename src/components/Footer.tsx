@@ -3,6 +3,7 @@ import { XIcon } from "./icons";
 
 interface Props {
 	onExplore: () => void;
+	onLeaderboard: () => void;
 	onSimulate: () => void;
 	onSupported: () => void;
 	onDocs: () => void;
@@ -12,6 +13,7 @@ interface Props {
 
 export default function Footer({
 	onExplore,
+	onLeaderboard,
 	onSimulate,
 	onSupported,
 	onDocs,
@@ -20,6 +22,7 @@ export default function Footer({
 }: Props) {
 	const product = [
 		{ label: "Explorer", action: onExplore },
+		{ label: "Leaderboard", action: onLeaderboard },
 		{ label: "Rates", action: onSimulate },
 		{ label: "Supported networks", action: onSupported },
 		{ label: "Docs", action: onDocs },

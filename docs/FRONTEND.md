@@ -53,38 +53,43 @@ generated catalog (`https://beta.namepass.com`), including in local previews. In
 uses relative paths. The skill uses the public HTTP flow.
 
 The footer, navigation and integration call-to-action open `/docs`. Homepage navigation
-uses `Rates` for the pricing simulator. The desktop menu is centered between the brand and
-`Get Started`. On mobile, it stays visible in a centered row. The footer lists Explorer,
-Rates, Supported networks, Docs, and the legal pages.
-Public activity labels identify the testnet deployment.
+uses `Rates` for the pricing simulator. The 64px sticky header has Product and Resources
+dropdowns, a direct Docs link and Get Started. Product opens Protocol, Rates and Explorer.
+Resources opens Supported networks and Leaderboard. Mobile navigation uses the existing shadcn
+Sheet with focus management and closes after choosing a destination. The footer also lists
+these destinations and the legal pages. Public activity labels identify the testnet deployment.
 
-Main-site pages share `PageShell` and `Navbar`. The homepage places `Navbar` above its hero.
-Its `homepage-ui` theme uses a white canvas, neutral text, green actions, fine panel borders,
-6px control corners and 8px panel corners. Section headings use a compact semibold hierarchy.
-The existing landscape video is contained below the hero copy. Its illustrative ticker and
-Explorer actions remain inside regular overlay panels. The protocol retains its four-card bento.
-Explorer, pricing and the integration CTA use the same aligned content width and panel treatment.
-The homepage theme is scoped: secondary public pages and monitoring retain their existing styles.
-Reuse existing visual primitives, tooltips and chain labels. Secondary public pages keep borderless
-filled cards on the cool gray `surface-canvas`. Keep keyboard focus indicators visible.
-The hero video uses reduced saturation and multiplies over its cool gray backing.
+The public pages share `Navbar` and the `public-ui` theme in `src/styles/site.css`.
+The theme uses a near-white canvas, neutral text, green actions, fine framing lines,
+6px control corners and 8px panel corners. Content is capped at 1180px; the surrounding frame
+and header are capped at 1280px. Reading columns stay narrower. The text-only hero uses the
+existing heading and description with Get Started and Read the docs. The video, illustrative
+renewal overlay and hero Explorer shortcut are removed. Leaderboard remains available through
+Resources and the footer. The protocol keeps its four-card bento arrangement and existing beam.
+Explorer, pricing, secondary pages and the integration CTA share the surface treatment.
+The docs landing page uses the same framing, surface and action tokens. Guide pages retain
+their sidebar, table of contents and readable article width. Legal sections use fine dividers.
+
+All application surfaces use self-hosted Geist Variable from `@fontsource-variable/geist`.
+Public body text is 16px/400, controls are 14px/500 and headings use 600. Code and contract
+addresses retain monospace. The documentation flow labels `alice.eth` and `alice.namepass.eth`
+share one font family, size and weight. No premium template source or assets are included.
+Reuse existing visual primitives, tooltips and chain labels. Keep keyboard focus indicators
+visible. The public shell and portaled navigation controls override shadcn primary, accent and
+focus colors to green; monitoring retains its separate semantic palette.
+
 Use `surface-selected` for pricing selections and `surface-table` for Explorer headers.
 Use `inset-panel` for shaded information, address fields, renewal hints and transaction rows.
 It owns the opaque `surface-inset` fill, 8px corners and 12px/16px padding. Add `inset-action`
 only when the whole panel is a button or link. Keep its fill steady on hover and press.
-Do not add local opacity, radius or padding variants for the same role. Glass parent cards
-use the same opaque inset panels.
-Use `primary-action` for filled public actions. The `public-ui` shell supplies keyboard focus
-outlines; dark actions use a white inset outline. Error and warning surfaces retain their meaning.
-Reserve the green `savings` and `savings-soft` pair for discount badges; actions, time values and status
-keep their existing green roles. Small white controls use a soft shadow for separation.
+Use `primary-action` for filled public actions. These controls share a fine border and inset
+highlight; keyboard focus stays visible. Error and warning surfaces retain their meaning.
+Reserve the green `savings` and `savings-soft` pair for discount badges.
 Text colors use the shared `ink-*` theme roles in `src/index.css`: `primary` for headings
 and key values, `secondary` for descriptions and supporting data, `label` for small labels,
-and `action` for links and controls. The homepage maps these roles to the shared `site-*` tokens:
-neutral primary and supporting text with green links and controls. Other public surfaces retain
-their brand-green text roles. Use `decorative` only for nonessential numbering.
-Dark surfaces use `inverse` and `inverse-secondary`. Section labels use `tracking-section`.
-Monitoring foreground tokens map to these same roles, including content rendered in portals.
+and `action` for links and controls. Public pages map these roles to the shared `site-*` tokens.
+Use `decorative` only for nonessential numbering. Dark surfaces use `inverse` and
+`inverse-secondary`. Section labels use `tracking-section`.
 Keep error, warning, chart-series and network-brand colors distinct where they convey meaning.
 Monitoring is a separately loaded, GitHub-authenticated page built with the existing shadcn
 components. Its snapshot and manual gas-read behavior are defined in [MONITORING.md](MONITORING.md).
@@ -108,8 +113,8 @@ last feed response and page so Back restores them immediately and resumes pollin
 Pricing refreshes keep validated views mounted. Only the initial load and a retry after failed
 validation use the loading state. A validation failure still disables pricing. Price calculations
 must update when the validated configuration changes, without resetting user input.
-The explicit ENS refresh still precedes the activity refresh. The homepage video and CTA
-effect run only while visible in an active tab. Reduced-motion users do not start the CTA effect.
+The explicit ENS refresh still precedes the activity refresh. The CTA effect runs only while
+visible in an active tab. Reduced-motion users do not start the CTA effect.
 
 Build and verification commands are in [CONTRIBUTING.md](../CONTRIBUTING.md). Deployment facts
 belong in [DEPLOYMENTS.md](DEPLOYMENTS.md).

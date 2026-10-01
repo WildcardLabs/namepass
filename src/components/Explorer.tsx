@@ -290,7 +290,7 @@ function FeedRowContent({
 				backgroundColor: pending ? "rgba(28,58,41,0.028)" : "rgba(28,58,41,0)",
 			}}
 			transition={reduced ? { duration: 0 } : { duration: 0.55, ease: "easeOut" }}
-			className="border-b border-[rgba(28,58,41,0.07)]"
+			className="site-activity-row border-b border-[rgba(28,58,41,0.07)]"
 		>
 			<MobileFlowSummary
 				title={nameTitle}
@@ -396,7 +396,7 @@ function StatusCell({ row, reduced }: { row: FeedItem; reduced: boolean }) {
 				aria-hidden={row.pending}
 				className="inline-flex flex-col items-end gap-0.5 whitespace-nowrap tabular-nums"
 			>
-				<span className="inline-flex items-center gap-1 text-ink-action">
+				<span className="site-status-badge inline-flex items-center gap-1 text-ink-action">
 					<CheckCircle2 aria-hidden="true" className="h-3 w-3" />
 					Renewed
 				</span>
@@ -1454,7 +1454,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								<span className="absolute inline-flex w-full h-full rounded-full bg-[rgba(28,58,41,0.35)] animate-ping" />
 								<span className="relative inline-flex w-2 h-2 rounded-full bg-[rgba(28,58,41,0.8)]" />
 							</span>
-							<span className="text-[11px] uppercase tracking-section text-ink-label">
+							<span className="site-eyebrow text-[11px] uppercase tracking-section text-ink-label">
 								Explorer · Testnet activity
 							</span>
 						</div>

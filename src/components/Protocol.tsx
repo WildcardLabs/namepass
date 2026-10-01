@@ -18,7 +18,7 @@ export default function Protocol() {
 			<div className="max-w-[1100px] mx-auto">
 				<div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
 					<div className="max-w-2xl">
-						<span className={TAG}>The protocol</span>
+						<span className={`site-eyebrow ${TAG}`}>The protocol</span>
 						<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-ink-primary tracking-tight leading-[1.03]">
 							A USDC payment protocol for ENS renewals.
 						</h2>

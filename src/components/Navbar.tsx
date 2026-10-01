@@ -1,77 +1,238 @@
-import { motion } from "motion/react";
-import { ArrowUpRight } from "lucide-react";
+import { useState } from "react";
+import {
+  ArrowUpRight,
+  ArrowRight,
+  Menu,
+  BookOpen,
+  Layers3,
+  Calculator,
+  ChevronDown,
+  Globe2,
+  Trophy,
+  Search,
+} from "lucide-react";
+import { Button } from "./ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "./ui/dropdown-menu";
+import {
+  Sheet,
+  SheetTrigger,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetClose,
+} from "./ui/sheet";
 
 interface Props {
-	onProtocol: () => void;
-	onSimulate: () => void;
-	onSearch: () => void;
-	onHome: () => void;
-	onDocs?: () => void;
-	showMenu?: boolean;
+  onProtocol: () => void;
+  onSimulate: () => void;
+  onSearch: () => void;
+  onHome: () => void;
+  onDocs?: () => void;
+  onExplore?: () => void;
+  onSupported?: () => void;
+  onLeaderboard?: () => void;
+  showMenu?: boolean;
 }
 
-/**
- * Shared public navigation. The homepage theme supplies the docs-style frame;
- * secondary public pages retain their existing PageShell treatment.
- */
 export default function Navbar({
-	onProtocol,
-	onSimulate,
-	onSearch,
-	onHome,
-	onDocs,
-	showMenu = true,
+  onProtocol,
+  onSimulate,
+  onSearch,
+  onHome,
+  onDocs,
+  onExplore,
+  onSupported,
+  onLeaderboard,
+  showMenu = true,
 }: Props) {
-	const items = [
-		{ label: "Protocol", action: onProtocol },
-		{ label: "Rates", action: onSimulate },
-		...(onDocs ? [{label:"Docs",action:onDocs}] : []),
-	];
-
-	return (
-		<nav className="site-nav flex items-center justify-between flex-wrap gap-y-5 py-6 px-6 md:px-10 w-full relative z-10">
-			<a
-				href={import.meta.env.BASE_URL}
-				aria-label="Namepass home"
-				onClick={(e) => {
-					e.preventDefault();
-					onHome();
-				}}
-				className="flex-1 flex items-center gap-2.5 min-w-0"
-			>
-				<img
-					src={`${import.meta.env.BASE_URL}namepass-logo.png`}
-					alt="Namepass"
-					className="h-4 md:h-[18px] w-auto shrink-0"
-				/>
-			</a>
-
-			{showMenu && (
-				<ul className="hidden md:flex items-center gap-8 text-ink-primary font-medium text-[15px]">
-					{items.map((item) => (
-						<li key={item.label}>
-							<button
-								onClick={item.action}
-								className="cursor-pointer hover:text-ink-primary transition-colors"
-							>
-								{item.label}
-							</button>
-						</li>
-					))}
-				</ul>
-			)}
-
-			<div className="flex-1 flex justify-end">
-				<motion.button
-					whileHover={{ scale: 1.02 }}
-					whileTap={{ scale: 0.98 }}
-					onClick={onSearch}
-					className="flex items-center gap-2 primary-action rounded-[10px] px-4 md:px-5 py-2 md:py-2.5 transition-colors"
-				>
-					<span className="text-[14px] font-normal">Get Started</span>
-					<ArrowUpRight className="w-4 h-4 md:w-[18px] md:h-[18px]" />
-				</motion.button>
-			</div>
-		</nav>
-	);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const product = [
+    {
+      label: "Protocol",
+      detail: "ENS renewals via USDC",
+      action: onProtocol,
+      icon: Layers3,
+    },
+    {
+      label: "Rates",
+      detail: "Check ENS renewal prices",
+      action: onSimulate,
+      icon: Calculator,
+    },
+    ...(onExplore
+      ? [
+          {
+            label: "Explorer",
+            detail: "ENS renewal activity",
+            action: onExplore,
+            icon: Search,
+          },
+        ]
+      : []),
+  ];
+  const resources = [
+    ...(onSupported
+      ? [
+          {
+            label: "Supported networks",
+            detail: "USDC contracts",
+            action: onSupported,
+            icon: Globe2,
+          },
+        ]
+      : []),
+    ...(onLeaderboard
+      ? [
+          {
+            label: "Leaderboard",
+            detail: "Renewals",
+            action: onLeaderboard,
+            icon: Trophy,
+          },
+        ]
+      : []),
+  ];
+  const groups = [
+    { label: "Product", items: product },
+    ...(resources.length ? [{ label: "Resources", items: resources }] : []),
+  ];
+  const mobileItems = [
+    ...product,
+    ...(onDocs ? [{ label: "Docs", action: onDocs, icon: BookOpen }] : []),
+    ...resources,
+  ];
+  return (
+    <header className="site-header">
+      <nav className="site-nav" aria-label="Main navigation">
+        <a
+          href={import.meta.env.BASE_URL}
+          aria-label="Namepass home"
+          onClick={(event) => {
+            event.preventDefault();
+            onHome();
+          }}
+          className="site-brand"
+        >
+          <img
+            src={import.meta.env.BASE_URL + "namepass-logo.png"}
+            alt="Namepass"
+          />
+        </a>
+        {showMenu && (
+          <div className="site-desktop-menu">
+            {groups.map((group) => (
+              <DropdownMenu key={group.label}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="site-nav-link">
+                    {group.label}
+                    <ChevronDown
+                      size={14}
+                      className="site-nav-chevron"
+                      aria-hidden="true"
+                    />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  sideOffset={14}
+                  className="site-nav-dropdown"
+                >
+                  {group.items.map((item) => (
+                    <DropdownMenuItem
+                      key={item.label}
+                      onSelect={item.action}
+                      className="site-nav-dropdown-item"
+                    >
+                      <span className="site-nav-icon">
+                        <item.icon size={18} aria-hidden="true" />
+                      </span>
+                      <span className="site-nav-item-copy">
+                        <span>{item.label}</span>
+                        <small>{item.detail}</small>
+                      </span>
+                      <ArrowUpRight
+                        size={14}
+                        className="site-nav-item-arrow"
+                        aria-hidden="true"
+                      />
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ))}
+            {onDocs && (
+              <Button
+                variant="ghost"
+                onClick={onDocs}
+                className="site-nav-link"
+              >
+                Docs
+                <ArrowUpRight size={14} aria-hidden="true" />
+              </Button>
+            )}
+          </div>
+        )}
+        <div className="site-nav-actions">
+          <Button
+            onClick={onSearch}
+            className="primary-action site-start-button"
+          >
+            Get Started
+            <ArrowUpRight size={16} aria-hidden="true" />
+          </Button>
+          {showMenu && (
+            <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="site-menu-trigger"
+                  aria-label="Open navigation menu"
+                >
+                  <Menu size={20} />
+                </Button>
+              </SheetTrigger>
+              <SheetContent
+                className="site-mobile-menu"
+                aria-describedby={undefined}
+              >
+                <SheetHeader>
+                  <SheetTitle>Navigation</SheetTitle>
+                </SheetHeader>
+                <nav
+                  aria-label="Mobile navigation"
+                  className="site-mobile-links"
+                >
+                  {mobileItems.map((item) => (
+                    <SheetClose key={item.label} asChild>
+                      <Button variant="ghost" onClick={item.action}>
+                        <item.icon size={18} aria-hidden="true" />
+                        {item.label}
+                        <ArrowRight
+                          size={16}
+                          className="ml-auto"
+                          aria-hidden="true"
+                        />
+                      </Button>
+                    </SheetClose>
+                  ))}
+                </nav>
+                <SheetClose asChild>
+                  <Button onClick={onSearch} className="primary-action w-full">
+                    Get Started
+                    <ArrowUpRight size={16} aria-hidden="true" />
+                  </Button>
+                </SheetClose>
+              </SheetContent>
+            </Sheet>
+          )}
+        </div>
+      </nav>
+    </header>
+  );
 }

@@ -65,7 +65,7 @@ export default function Simulator({
 		<section id="simulator" className="site-section bg-surface-canvas px-5 md:px-10 py-14 md:py-20">
 			<div className="max-w-[1100px] mx-auto">
 				<div className="max-w-2xl">
-					<span className="text-[11px] uppercase tracking-section text-ink-label">
+					<span className="site-eyebrow text-[11px] uppercase tracking-section text-ink-label">
 						ENS v2 pricing
 					</span>
 					<h2 className="mt-3 text-[36px] md:text-[52px] font-normal text-ink-primary tracking-tight leading-[1.05]">
