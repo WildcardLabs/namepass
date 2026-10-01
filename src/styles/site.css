@@ -179,29 +179,50 @@
 .site-nav .site-menu-trigger {
   display: none;
 }
-.site-mobile-menu {
+.site-mobile-dialog {
   font-family: var(--site-font);
   background: white;
-  color: var(--site-ink);
-  border-color: var(--site-line);
+  color: #567d67;
+  border: 1px solid #e1e9e4;
+  border-radius: 10px;
+  width: calc(100% - 24px);
+  max-height: 86dvh;
+  overflow: auto;
 }
 .site-mobile-menu h2 {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   text-align: left;
 }
 .site-mobile-links {
   display: grid;
-  gap: 6px;
-  margin: 32px 0;
+  gap: 26px;
+  margin: 14px 0 0;
+}
+.site-mobile-group h3 {
+  margin: 0 0 9px 12px;
+  color: var(--site-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
 }
 .site-mobile-links button {
   width: 100%;
-  height: 48px;
+  height: auto;
+  min-height: 36px;
+  padding: 7px 12px;
+  margin: 2px 0;
   justify-content: flex-start;
-  gap: 12px;
-  font-size: 16px;
-  font-weight: 500;
+  border-radius: 5px;
+  color: var(--site-muted);
+  font-size: 14px;
+  line-height: 1.6;
+  font-weight: 400;
+}
+.site-mobile-links button:hover {
+  background: #f5f7f9;
+  color: var(--site-ink);
 }
 .site-mobile-menu .primary-action {
   background: var(--site-action);
@@ -578,19 +599,25 @@
   }
   .site-nav .site-menu-trigger {
     display: inline-flex;
+  }
+  .site-nav .site-menu-trigger,
+  .docs-mobile-menu.site-menu-trigger {
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--site-line);
     width: 40px;
     height: 40px;
-    border-color: var(--site-line);
     border-radius: 6px;
+    box-shadow: none;
     background: white;
     color: var(--site-ink);
   }
-  .site-start-button {
-    min-height: 40px;
-    padding: 0 12px;
-    font-size: 13px;
+  .site-menu-trigger svg {
+    width: 20px;
+    height: 20px;
   }
-  .site-start-button svg {
+  .public-ui .site-start-button {
     display: none;
   }
   .site-nav-actions {
@@ -862,8 +889,18 @@
 }
 @media (max-width: 1023px) {
   .public-ui .protocol-card p {
-    font-size: 18px;
+    font-size: 15px;
+    line-height: 24px;
+  }
+}
+@media (max-width: 767px) {
+  .public-ui .protocol-card h3 {
+    font-size: 20px;
     line-height: 28px;
+  }
+  .public-ui .protocol-card p {
+    font-size: 14px;
+    line-height: 22px;
   }
 }
 
@@ -1016,6 +1053,10 @@ button.site-length-option:not([aria-pressed="true"]):hover {
   }
 }
 @media (max-width: 639px) {
+  .public-ui .site-calculator-results .site-result {
+    font-size: 28px;
+    line-height: 36px;
+  }
   .site-calculator-input,
   .site-calculator-results {
     padding: 24px;

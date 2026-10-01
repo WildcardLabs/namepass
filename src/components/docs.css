@@ -1420,9 +1420,9 @@
     display: none;
   }
   .docs-mobile-menu {
-    display: block;
-    padding: 5px;
-    color: #789c88;
+    display: inline-flex;
+    padding: 0;
+    color: var(--site-ink);
   }
   .docs-tab-bar {
     height: 43px;
@@ -1766,5 +1766,26 @@
   }
   .docs-directory h2 {
     margin-bottom: 12px;
+  }
+}
+
+/* Keep mobile titles and API details readable within the page frame. */
+@media (max-width: 760px) {
+  .docs-page-header h1,
+  .docs-home .docs-page-header h1 {
+    font-size: 32px;
+    line-height: 40px;
+    text-wrap: wrap;
+  }
+  .docs-prose table {
+    min-width: 480px;
+  }
+  .docs-endpoint {
+    flex-wrap: wrap;
+  }
+  .docs-endpoint code {
+    flex: 1 1 calc(100% - 55px);
+    white-space: nowrap;
+    overflow: auto;
   }
 }

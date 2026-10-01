@@ -47,7 +47,7 @@ changes do not read pricing, account or chain state.
 
 `docs/content/` owns guide Markdown and navigation. `npm run generate:docs` produces the shared
 catalog, public Markdown, downloadable skill, `llms.txt` and `llms-full.txt`. `npm run check:docs`
-checks freshness and links. Page actions copy Markdown, open plain text and prepare context for
+checks freshness and links. The quote guide is titled Calculate renewal duration. Page actions copy Markdown, open plain text and prepare context for
 an existing agent. Public docs do not include GitHub edit links. Examples, copied prompts and
 Markdown use the published `docsOrigin` from the generated catalog (`https://beta.namepass.com`),
 including in local previews. In-page navigation
@@ -56,8 +56,10 @@ uses relative paths. The skill uses the public HTTP flow.
 The footer, navigation and integration call-to-action open `/docs`. Homepage navigation
 uses `Rates` for the pricing simulator. The 64px sticky header has Product and Resources
 dropdowns, a direct Docs link and Get Started. Product opens Protocol, Explorer and Rates.
-Resources opens Supported networks and Leaderboard. Mobile navigation uses the existing shadcn
-Sheet with focus management and closes after choosing a destination. The footer also lists
+Resources opens Supported networks and Leaderboard. Mobile navigation uses the same centered shadcn
+Dialog popup as docs, with grouped links, focus management and closure after choosing a destination.
+Docs and public pages share the 40px bordered hamburger control. The public header hides Get Started
+on mobile; the action remains inside the popup. The footer also lists
 these destinations and the legal pages. Public activity labels identify the testnet deployment.
 
 The public pages share `Navbar` and the `public-ui` theme in `src/styles/site.css`.
@@ -102,10 +104,14 @@ Public section descriptions use 18px/28px at weight 400. Docs prose uses 16px/26
 integration CTA paragraph uses 14px/22px. Footer link rows use a compact 4px gap. Controls use 14px/500,
 and card headings use 24px/32px at weight 600 with normal tracking. Docs resource cards use
 22px/30px headings and 15px/22px links. Compact protocol paragraphs
-use 14–14.5px/24px on desktop and 18px/28px when the cards stack; the desktop alias paragraph
+use 14–14.5px/24px on desktop, 15px/24px on tablet and 14px/22px on mobile. Mobile card
+headings use 20px/28px, below the section title and subtitle scale; the desktop alias paragraph
 fits three lines. Body and table text remain 16px
 and 14px where density matters. Text uses neutral #171717 and #737373, with green action roles. Code and contract
-addresses retain monospace. The documentation flow labels `alice.eth` and `alice.namepass.eth`
+addresses retain monospace.
+Mobile calculator results use 28px/36px type below 640px to keep long renewal durations readable.
+Docs titles use 32px/40px below 761px. API tables keep a 480px minimum width and scroll inside
+their container. Endpoint paths stay on one line, with the copy action wrapping below on narrow screens. The documentation flow labels `alice.eth` and `alice.namepass.eth`
 share one font family, size and weight. No premium template source or assets are included.
 Reuse existing visual primitives, tooltips and chain labels. Keep keyboard focus indicators
 visible. The public shell and portaled navigation controls override shadcn primary, accent and

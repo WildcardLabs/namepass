@@ -7,7 +7,7 @@
 - [Introduction](https://beta.namepass.com/docs/introduction.md): Renew any ENS name from any supported network. One deposit address, automatic renewal.
 - [Quickstart](https://beta.namepass.com/docs/quickstart.md): Get a deposit address, fund a renewal and track its status.
 - [Get an address](https://beta.namepass.com/docs/addresses.md): Activate an ENS name and retrieve its deposit address.
-- [Estimate renewal time](https://beta.namepass.com/docs/quotes.md): Calculate the estimated renewal duration and fees for a deposit.
+- [Calculate renewal duration](https://beta.namepass.com/docs/quotes.md): See how much ENS renewal time a USDC payment can buy.
 - [Poll status](https://beta.namepass.com/docs/status.md): Track a deposit through to renewal using its transaction hash and chain ID.
 - [Name history](https://beta.namepass.com/docs/history.md): Retrieve renewal history and the recorded expiry for an ENS name.
 - [AI agents](https://beta.namepass.com/docs/agents.md): Skills and documentation for AI agents.

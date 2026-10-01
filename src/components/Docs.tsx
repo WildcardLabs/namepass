@@ -379,7 +379,7 @@ function ApiExample() {
   const [selected, setSelected] = useState(0);
   const descriptions = [
     "Get a deposit address",
-    "Estimate renewal time",
+    "Calculate renewal duration",
     "Track a transaction",
     "Retrieve name history",
   ];
@@ -711,7 +711,7 @@ export default function Docs({ onHome }: { onHome: () => void }) {
             </a>
           </div>
           <button
-            className="docs-mobile-menu"
+            className="docs-mobile-menu site-menu-trigger"
             aria-label="Open documentation menu"
             onClick={() => setMobile(true)}
           >
@@ -825,7 +825,7 @@ export default function Docs({ onHome }: { onHome: () => void }) {
                               slug: "addresses",
                               title: "Get a deposit address",
                             },
-                            { slug: "quotes", title: "Estimate renewal time" },
+                            { slug: "quotes", title: "Calculate renewal duration" },
                           ],
                         },
                         {
@@ -1056,7 +1056,7 @@ export default function Docs({ onHome }: { onHome: () => void }) {
         </div>
       </CommandDialog>
       <Dialog open={mobile} onOpenChange={setMobile}>
-        <DialogContent className="docs-mobile-dialog">
+        <DialogContent className="site-mobile-dialog docs-mobile-dialog">
           <DialogTitle>Documentation</DialogTitle>
           <DialogDescription>
             Explore the Namepass integration.

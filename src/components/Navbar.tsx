@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   ArrowUpRight,
-  ArrowRight,
   Menu,
   BookOpen,
   Layers3,
@@ -19,13 +18,12 @@ import {
   DropdownMenuItem,
 } from "./ui/dropdown-menu";
 import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetClose,
-} from "./ui/sheet";
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogTitle,
+  DialogClose,
+} from "./ui/dialog";
 
 interface Props {
   onProtocol: () => void;
@@ -101,10 +99,15 @@ export default function Navbar({
     { label: "Product", items: product },
     ...(resources.length ? [{ label: "Resources", items: resources }] : []),
   ];
-  const mobileItems = [
-    ...product,
-    ...(onDocs ? [{ label: "Docs", action: onDocs, icon: BookOpen }] : []),
-    ...resources,
+  const mobileGroups = [
+    {
+      label: "Product",
+      items: [
+        ...product,
+        ...(onDocs ? [{ label: "Docs", action: onDocs, icon: BookOpen }] : []),
+      ],
+    },
+    ...(resources.length ? [{ label: "Resources", items: resources }] : []),
   ];
   return (
     <header className="site-header">
@@ -186,8 +189,8 @@ export default function Navbar({
             <ArrowUpRight size={16} aria-hidden="true" />
           </Button>
           {showMenu && (
-            <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-              <SheetTrigger asChild>
+            <Dialog open={menuOpen} onOpenChange={setMenuOpen}>
+              <DialogTrigger asChild>
                 <Button
                   variant="outline"
                   size="icon"
@@ -196,40 +199,34 @@ export default function Navbar({
                 >
                   <Menu size={20} />
                 </Button>
-              </SheetTrigger>
-              <SheetContent
-                className="site-mobile-menu"
+              </DialogTrigger>
+              <DialogContent
+                className="site-mobile-dialog site-mobile-menu"
                 aria-describedby={undefined}
               >
-                <SheetHeader>
-                  <SheetTitle>Navigation</SheetTitle>
-                </SheetHeader>
-                <nav
-                  aria-label="Mobile navigation"
-                  className="site-mobile-links"
-                >
-                  {mobileItems.map((item) => (
-                    <SheetClose key={item.label} asChild>
-                      <Button variant="ghost" onClick={item.action}>
-                        <item.icon size={18} aria-hidden="true" />
-                        {item.label}
-                        <ArrowRight
-                          size={16}
-                          className="ml-auto"
-                          aria-hidden="true"
-                        />
-                      </Button>
-                    </SheetClose>
+                <DialogTitle>Navigation</DialogTitle>
+                <nav aria-label="Mobile navigation" className="site-mobile-links">
+                  {mobileGroups.map((group) => (
+                    <div className="site-mobile-group" key={group.label}>
+                      <h3>{group.label}</h3>
+                      {group.items.map((item) => (
+                        <DialogClose key={item.label} asChild>
+                          <Button variant="ghost" onClick={item.action}>
+                            {item.label}
+                          </Button>
+                        </DialogClose>
+                      ))}
+                    </div>
                   ))}
                 </nav>
-                <SheetClose asChild>
+                <DialogClose asChild>
                   <Button onClick={onSearch} className="primary-action w-full">
                     Get Started
                     <ArrowUpRight size={16} aria-hidden="true" />
                   </Button>
-                </SheetClose>
-              </SheetContent>
-            </Sheet>
+                </DialogClose>
+              </DialogContent>
+            </Dialog>
           )}
         </div>
       </nav>

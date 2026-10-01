@@ -5,7 +5,7 @@ Base URL: `https://beta.namepass.com/api/v1`
 | Endpoint | Purpose |
 | --- | --- |
 | `POST /api/v1/address` | Get a name's deposit address and supported networks. |
-| `POST /api/v1/quote` | Estimate renewal time from a USDC amount. |
+| `POST /api/v1/quote` | Calculate the estimated renewal duration from a USDC amount. |
 | `GET /api/v1/status/{chainId}?transactionHash={hash}` | Track a deposit through renewal. |
 | `GET /api/v1/names/{name}/renewals` | Read a name's past renewals and recorded expiry. |
 

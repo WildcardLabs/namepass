@@ -22,8 +22,8 @@
   },
   {
     "slug": "quotes",
-    "title": "Estimate renewal time",
-    "description": "Calculate the estimated renewal duration and fees for a deposit.",
+    "title": "Calculate renewal duration",
+    "description": "See how much ENS renewal time a USDC payment can buy.",
     "group": "Integration",
     "tab": "guides"
   },

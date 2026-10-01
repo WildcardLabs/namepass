@@ -10,7 +10,7 @@ curl -X POST 'https://beta.namepass.com/api/v1/address' \
 
 The response contains `depositAddress`, `subname` and supported `chains`. This request activates deposit monitoring for the name. Send payments to `depositAddress`; the subname is safe to use when `subnameVerified` is `true`.
 
-To estimate renewal time before funding, [request a quote](/docs/quotes).
+To calculate renewal duration before funding, [request a quote](/docs/quotes).
 
 ## 2. Send USDC
 

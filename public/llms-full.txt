@@ -34,7 +34,7 @@ curl -X POST 'https://beta.namepass.com/api/v1/address' \
 
 The response contains `depositAddress`, `subname` and supported `chains`. This request activates deposit monitoring for the name. Send payments to `depositAddress`; the subname is safe to use when `subnameVerified` is `true`.
 
-To estimate renewal time before funding, [request a quote](/docs/quotes).
+To calculate renewal duration before funding, [request a quote](/docs/quotes).
 
 ## 2. Send USDC
 
@@ -105,11 +105,11 @@ Transfer USDC to `depositAddress` on a returned chain. Use the subname only when
 
 ---
 
-# Estimate renewal time
+# Calculate renewal duration
 
 Source: https://beta.namepass.com/docs/quotes
 
-Estimate the renewal duration and fees for a USDC deposit.
+Request a quote using the ENS name, source chain and USDC amount.
 
 ## Request a quote
 
@@ -282,7 +282,7 @@ Base URL: `https://beta.namepass.com/api/v1`
 | Endpoint | Purpose |
 | --- | --- |
 | `POST /api/v1/address` | Get a name's deposit address and supported networks. |
-| `POST /api/v1/quote` | Estimate renewal time from a USDC amount. |
+| `POST /api/v1/quote` | Calculate the estimated renewal duration from a USDC amount. |
 | `GET /api/v1/status/{chainId}?transactionHash={hash}` | Track a deposit through renewal. |
 | `GET /api/v1/names/{name}/renewals` | Read a name's past renewals and recorded expiry. |
 
