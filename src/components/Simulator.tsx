@@ -330,7 +330,7 @@ function SimulatorBody() {
                 className={`relative rounded-[8px] border px-1.5 py-4 text-center transition-colors ${
                   on
                     ? "border-transparent bg-surface-selected"
-                    : "border-[rgba(28,58,41,0.12)] hover:border-[rgba(28,58,41,0.3)] hover:bg-surface-inset"
+                    : "border-[rgba(28,58,41,0.12)] hover:border-[rgba(28,58,41,0.3)]"
                 }`}
               >
                 {/* Exact, not rounded to a whole percent. "−13%" for a

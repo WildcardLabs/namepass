@@ -58,12 +58,6 @@ export default function Navbar({
       action: onProtocol,
       icon: Layers3,
     },
-    {
-      label: "Rates",
-      detail: "Check ENS renewal prices",
-      action: onSimulate,
-      icon: Calculator,
-    },
     ...(onExplore
       ? [
           {
@@ -74,6 +68,12 @@ export default function Navbar({
           },
         ]
       : []),
+    {
+      label: "Rates",
+      detail: "Check ENS renewal prices",
+      action: onSimulate,
+      icon: Calculator,
+    },
   ];
   const resources = [
     ...(onSupported

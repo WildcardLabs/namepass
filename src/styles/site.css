@@ -910,9 +910,8 @@
     background-color 150ms,
     box-shadow 150ms;
 }
-button.site-length-option:hover {
+button.site-length-option:not([aria-pressed="true"]):hover {
   border-color: #c4c4c4;
-  background: #fafafa;
 }
 .site-length-option[aria-pressed="true"] {
   border-color: var(--site-accent);

@@ -54,7 +54,7 @@ uses relative paths. The skill uses the public HTTP flow.
 
 The footer, navigation and integration call-to-action open `/docs`. Homepage navigation
 uses `Rates` for the pricing simulator. The 64px sticky header has Product and Resources
-dropdowns, a direct Docs link and Get Started. Product opens Protocol, Rates and Explorer.
+dropdowns, a direct Docs link and Get Started. Product opens Protocol, Explorer and Rates.
 Resources opens Supported networks and Leaderboard. Mobile navigation uses the existing shadcn
 Sheet with focus management and closes after choosing a destination. The footer also lists
 these destinations and the legal pages. Public activity labels identify the testnet deployment.
@@ -76,6 +76,7 @@ left panel. Renewal time and the cost breakdown occupy the white right panel. Th
 a 32px time value and consistent 14px label/value rows with light dividers. The panels stack
 below 1024px. The loading state uses the same layout.
 Existing controls and exact math are retained.
+Calculator option cards change only their border on hover; selected options keep their fill.
 The next-tier suggestion sits to the right of the payment amount, with a tooltip and shortcut.
 All docs tabs use the same 1280px outer frame, header and tab bar. Guide pages retain
 their sidebar, sticky table of contents and readable article width. Horizontal overflow is
