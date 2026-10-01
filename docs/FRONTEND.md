@@ -61,7 +61,11 @@ these destinations and the legal pages. Public activity labels identify the test
 
 The public pages share `Navbar` and the `public-ui` theme in `src/styles/site.css`.
 The theme uses a near-white canvas, neutral text, green actions, fine framing lines,
-6px control corners and 12px panel corners. Protocol and docs resource cards use 16px corners. Content is capped at 1180px; the surrounding frame
+6px control corners and 12px panel corners. Protocol and docs resource cards use 16px corners.
+Public action buttons match the existing docs buttons: 38px tall with 13px horizontal padding,
+14px/20px text and 14px icons. Header actions are 36px tall with 12px padding and 13px icons.
+Explorer's search bar is 46px tall around a 38px input and square search button.
+Content is capped at 1180px; the surrounding frame
 and header are capped at 1280px. Reading columns stay narrower. The text-only hero uses the
 existing heading and description with Get Started and Read the docs. The video, illustrative
 renewal overlay and hero Explorer shortcut are removed. Leaderboard remains available through

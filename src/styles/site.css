@@ -107,9 +107,9 @@
   justify-content: center;
 }
 .site-nav .site-nav-link {
-  height: 40px;
-  min-height: 40px;
-  padding: 0 14px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 12px;
   color: var(--site-ink);
   font-size: 14px;
   font-weight: 500;
@@ -208,7 +208,14 @@
   color: white;
   font-weight: 500;
 }
-.public-ui .primary-action {
+.public-ui .primary-action,
+.site-mobile-menu .primary-action {
+  height: 38px;
+  min-height: 38px;
+  padding: 0 13px;
+  font-size: 14px;
+  line-height: 20px;
+  gap: 10px;
   border-radius: var(--site-control-radius);
   background: var(--site-action);
   color: white;
@@ -218,6 +225,17 @@
     inset 0 -2px 0 #163b2520,
     0 1px 2px #20352918;
   font-weight: 500;
+}
+.public-ui .site-start-button {
+  height: 36px;
+  min-height: 36px;
+  padding: 0 12px;
+  line-height: 1.6;
+  gap: 7px;
+}
+.site-start-button svg {
+  width: 13px;
+  height: 13px;
 }
 .public-ui .primary-action:hover,
 .public-ui .primary-action:active {
@@ -272,12 +290,19 @@
   margin-top: 28px;
 }
 .home-hero-actions button {
-  min-height: 44px;
-  padding: 0 18px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 13px;
   border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
-  gap: 8px;
+  line-height: 20px;
+  gap: 10px;
+}
+.home-hero-actions button svg,
+.public-ui .site-cta button svg {
+  width: 14px;
+  height: 14px;
 }
 .home-hero-actions button:not(.primary-action) {
   border-color: var(--site-line);
@@ -353,11 +378,24 @@
   letter-spacing: normal;
 }
 .public-ui .site-outline-action {
+  height: 38px;
+  min-height: 38px;
+  padding: 0 13px;
+  line-height: 20px;
+  gap: 10px;
   border: 1px solid var(--site-line);
   border-radius: var(--site-control-radius);
   box-shadow: none;
   font-size: var(--site-control-size);
   font-weight: 500;
+}
+.public-ui .site-outline-action svg {
+  width: 14px;
+  height: 14px;
+}
+.public-ui .site-search button.primary-action {
+  width: 38px;
+  padding: 0;
 }
 .public-ui .site-outline-action:hover {
   background: #f6f9f7;
@@ -374,6 +412,8 @@
   border-radius: var(--site-panel-radius);
 }
 .public-ui .site-search {
+  height: 46px;
+  padding: 3px 3px 3px 12px;
   border: 1px solid #dbe0e7;
   border-radius: var(--site-control-radius);
   box-shadow: 0 2px 3px #1e294103;
@@ -383,7 +423,10 @@
   box-shadow: 0 0 0 2px #387e6720;
 }
 .public-ui .site-search input {
+  height: 38px;
+  padding-block: 0;
   font-size: 14px;
+  line-height: 20px;
 }
 .public-ui .site-amount {
   font-size: 44px;
@@ -571,9 +614,6 @@
   .home-hero-actions {
     flex-wrap: wrap;
     gap: 8px;
-  }
-  .home-hero-actions button {
-    padding: 0 12px;
   }
   .public-ui .site-section {
     padding: 36px 24px 40px;
