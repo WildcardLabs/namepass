@@ -61,17 +61,26 @@ these destinations and the legal pages. Public activity labels identify the test
 
 The public pages share `Navbar` and the `public-ui` theme in `src/styles/site.css`.
 The theme uses a near-white canvas, neutral text, green actions, fine framing lines,
-6px control corners and 8px panel corners. Content is capped at 1180px; the surrounding frame
+6px control corners and 12px panel corners. Protocol and docs resource cards use 16px corners. Content is capped at 1180px; the surrounding frame
 and header are capped at 1280px. Reading columns stay narrower. The text-only hero uses the
 existing heading and description with Get Started and Read the docs. The video, illustrative
 renewal overlay and hero Explorer shortcut are removed. Leaderboard remains available through
-Resources and the footer. The protocol keeps its four-card bento arrangement and existing beam.
-Explorer, pricing, secondary pages and the integration CTA share the surface treatment.
+Resources and the footer. The protocol keeps its four-card bento arrangement and existing beam. The other three cards
+contain text with a slow, neutral background fade. The fade stops outside the viewport, in
+a hidden tab and for reduced-motion preferences. No additional protocol graphics are present.
+Explorer, pricing, secondary pages and the integration CTA share the surface treatment. The
+Explorer section has a white canvas to separate it from grey bento cards. The activity table
+has a quiet toolbar and 14px column labels. The name-view heading and back icon share a
+centered row. The pricing calculator retains its original layout, controls and exact math.
 The docs landing page uses the same framing, surface and action tokens. Guide pages retain
 their sidebar, table of contents and readable article width. Legal sections use fine dividers.
 
 All application surfaces use self-hosted Geist Variable from `@fontsource-variable/geist`.
-Public body text is 16px/400, controls are 14px/500 and headings use 600. Code and contract
+Public section descriptions and docs prose use 18px/28px at weight 400. Controls use 14px/500
+and card headings use 24px/32px at weight 600 with normal tracking. Compact protocol paragraphs
+use 14–14.5px/24px on desktop and 18px/28px when the cards stack; the desktop alias paragraph
+fits three lines. Body and table text remain 16px
+and 14px where density matters. Text uses neutral #171717 and #737373, with green action roles. Code and contract
 addresses retain monospace. The documentation flow labels `alice.eth` and `alice.namepass.eth`
 share one font family, size and weight. No premium template source or assets are included.
 Reuse existing visual primitives, tooltips and chain labels. Keep keyboard focus indicators

@@ -1,4 +1,5 @@
-import { motion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
+import { motion, useInView, useReducedMotion } from "motion/react";
 import { Github, Timer, Unplug, WalletMinimal } from "lucide-react";
 import { AnimatedBeamDemo } from "./AnimatedBeamDemo";
 
@@ -9,12 +10,21 @@ const TAG =
 	"text-[11px] uppercase tracking-section text-ink-label";
 const META_ICON = "h-3.5 w-3.5 shrink-0 text-ink-secondary";
 const CARD =
-	"site-panel bg-white p-6 md:p-7";
+	"site-panel protocol-card bg-white p-6 md:p-7";
 const HOVER = { y: -2, boxShadow: "0 4px 14px rgba(32,38,49,0.04)", transition: { duration: 0.18 } };
 
 export default function Protocol() {
+  const ref = useRef<HTMLElement>(null);
+  const visible = useInView(ref);
+  const reduced = useReducedMotion();
+  const [activeTab, setActiveTab] = useState(() => !document.hidden);
+  useEffect(() => {
+    const update = () => setActiveTab(!document.hidden);
+    document.addEventListener("visibilitychange", update);
+    return () => document.removeEventListener("visibilitychange", update);
+  }, []);
 	return (
-		<section id="protocol" className="site-section bg-surface-canvas px-5 md:px-10 py-14 md:py-20">
+		<section ref={ref} data-background-active={visible && activeTab && !reduced} id="protocol" className="site-section bg-surface-canvas px-5 md:px-10 py-14 md:py-20">
 			<div className="max-w-[1100px] mx-auto">
 				<div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
 					<div className="max-w-2xl">
@@ -43,12 +53,12 @@ export default function Protocol() {
 				<div className="mt-10 grid lg:grid-cols-2 gap-4">
 					{/* 01 — tall */}
 					<motion.div
-						whileHover={HOVER}
-						initial={{ opacity: 0, y: 20 }}
+						whileHover={reduced ? undefined : HOVER}
+						initial={reduced ? false : { opacity: 0, y: 20 }}
 						whileInView={{ opacity: 1, y: 0 }}
 						viewport={{ once: true, margin: "-80px" }}
 						transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-						className={`${CARD} lg:row-span-2 flex flex-col`}
+						className={`${CARD} lg:row-span-2 flex flex-col protocol-address-card`}
 					>
 						<div className="flex items-center justify-between gap-2">
 							<span className={`${TAG} inline-flex items-center gap-2`}>
@@ -73,8 +83,8 @@ export default function Protocol() {
 
 					{/* 02 — wide */}
 					<motion.div
-						whileHover={HOVER}
-						initial={{ opacity: 0, y: 20 }}
+						whileHover={reduced ? undefined : HOVER}
+						initial={reduced ? false : { opacity: 0, y: 20 }}
 						whileInView={{ opacity: 1, y: 0 }}
 						viewport={{ once: true, margin: "-80px" }}
 						transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
@@ -100,8 +110,8 @@ export default function Protocol() {
 					{/* 03 + 04 — two halves */}
 					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						<motion.div
-							whileHover={HOVER}
-							initial={{ opacity: 0, y: 20 }}
+							whileHover={reduced ? undefined : HOVER}
+							initial={reduced ? false : { opacity: 0, y: 20 }}
 							whileInView={{ opacity: 1, y: 0 }}
 							viewport={{ once: true, margin: "-80px" }}
 							transition={{ duration: 0.7, delay: 0.16, ease: [0.16, 1, 0.3, 1] }}
@@ -123,8 +133,8 @@ export default function Protocol() {
 						</motion.div>
 
 						<motion.div
-							whileHover={HOVER}
-							initial={{ opacity: 0, y: 20 }}
+							whileHover={reduced ? undefined : HOVER}
+							initial={reduced ? false : { opacity: 0, y: 20 }}
 							whileInView={{ opacity: 1, y: 0 }}
 							viewport={{ once: true, margin: "-80px" }}
 							transition={{ duration: 0.7, delay: 0.24, ease: [0.16, 1, 0.3, 1] }}

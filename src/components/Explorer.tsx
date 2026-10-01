@@ -571,8 +571,9 @@ function LiveFeed({ onSelect, feed, setFeed, pageIndex, setPageIndex }: {
 		<>
 			{loadError && <p role="alert" className="mb-3 text-[12.5px] text-red-700">{loadError}</p>}
 			<div ref={tableRef} className="site-table scroll-mt-6 border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
+			<div className="site-feed-toolbar"><span><Clock size={15} aria-hidden="true" />ENS renewal activity</span><small>Testnet</small></div>
 			{/* Desktop column headers, hidden on mobile where rows become cards */}
-			<div className={`hidden lg:grid ${LIVE_FEED_COLUMNS} gap-4 px-5 py-3 bg-surface-table border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-ink-label`}>
+			<div className={`site-column-headings hidden lg:grid ${LIVE_FEED_COLUMNS} gap-4 px-5 py-3 bg-surface-table border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-ink-label`}>
 				<span>ENS name</span>
 				<span>Chain</span>
 				<span className="text-right">Received</span>
@@ -933,14 +934,13 @@ function NameDetail({
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: reducedMotion ? 0 : 0.4, ease: [0.16, 1, 0.3, 1] }}
 		>
-			<div className="flex min-w-0 items-start gap-2.5">
+			<div className="site-name-heading flex min-w-0 items-center gap-3">
 				<BackButton
 					onClick={onBack}
 					label="Back to Explorer"
-					className="relative -top-0.5 md:top-1"
 				/>
 
-				<h3 className="min-w-0 break-words text-[32px] md:text-[44px] font-normal text-ink-primary tracking-tight leading-none">
+				<h3 className="site-name-title min-w-0 break-words text-[32px] md:text-[44px] font-normal text-ink-primary tracking-tight leading-none">
 					{record.name}
 				</h3>
 			</div>
@@ -1192,7 +1192,7 @@ function NameDetail({
 				</div>
 
 				<div className="site-table border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
-					<div className={`hidden lg:grid ${NAME_ACTIVITY_COLUMNS} gap-4 px-5 py-3 bg-surface-table border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-ink-label`}>
+					<div className={`site-column-headings hidden lg:grid ${NAME_ACTIVITY_COLUMNS} gap-4 px-5 py-3 bg-surface-table border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-ink-label`}>
 						<span>Date</span>
 						<span>Event</span>
 						<span>Chain</span>
