@@ -23,7 +23,7 @@ function Toggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void })
 		<div
 			role="group"
 			aria-label="Rank names by"
-			className="inline-flex items-center gap-1 rounded-[10px] bg-surface-inset p-1"
+			className="site-segmented-control inline-flex items-center gap-1 rounded-[10px] bg-surface-inset p-1"
 		>
 			{OPTIONS.map((o) => (
 				<button
@@ -255,7 +255,7 @@ export default function Leaderboard({ onBack, onViewName }: Props) {
 					<Toggle mode={mode} onChange={setMode} />
 				</div>
 
-				<div className="mt-6 border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden divide-y divide-[rgba(28,58,41,0.07)]">
+				<div className="site-panel mt-6 overflow-hidden divide-y divide-[rgba(28,58,41,0.07)]">
 					{loaded && !loadError && page.length === 0 && (
 						<p role="status" className="px-5 py-10 text-center text-[13px] text-ink-secondary">
 							No completed renewals yet.

@@ -37,7 +37,7 @@ vi.mock("./components/Leaderboard", () => ({ default: () => null }));
 vi.mock("./components/Terms", () => ({ default: () => null }));
 vi.mock("./components/Privacy", () => ({ default: () => null }));
 vi.mock("./components/SupportedTokens", () => ({ default: () => null }));
-vi.mock("./components/TestnetBanner", () => ({ default: () => null, VIEWPORT_BELOW_BANNER: "" }));
+vi.mock("./components/TestnetBanner", () => ({ default: () => <div role="status" aria-label="Testnet renewals" />, VIEWPORT_BELOW_BANNER: "" }));
 vi.mock("./components/Footer", () => ({ default: () => null }));
 
 const rates: OracleRates = {
@@ -205,6 +205,8 @@ test("documentation opens directly and supports navigation without price or chai
   await render();
   await act(async () => { await import("./components/Docs"); });
   await vi.waitFor(() => expect(container.querySelector("#three-steps")).not.toBeNull());
+  const renewalStrip = container.querySelector('[aria-label="Testnet renewals"]');
+  expect(renewalStrip).not.toBeNull();
   expect(container.querySelector('.docs-example code')?.textContent).toContain("https://beta.namepass.com/api/v1/address");
   const copiedRequest = vi.fn().mockResolvedValue(undefined);
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: copiedRequest } });
@@ -229,4 +231,10 @@ test("documentation opens directly and supports navigation without price or chai
   expect(loadOracleRates).not.toHaveBeenCalled();
   expect(assertGasAllowance).not.toHaveBeenCalled();
   expect(network).not.toHaveBeenCalled();
+  const home = container.querySelector<HTMLAnchorElement>('.docs-brand');
+  await act(async () => home!.click());
+  expect(window.location.pathname).toBe("/");
+  expect(container.querySelector("#explorer")).not.toBeNull();
+  expect(container.querySelector(".docs-shell")).toBeNull();
+  expect(container.querySelector('[aria-label="Testnet renewals"]')).toBe(renewalStrip);
 });

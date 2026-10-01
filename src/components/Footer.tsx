@@ -3,6 +3,7 @@ import { XIcon } from "./icons";
 
 interface Props {
 	onExplore: () => void;
+	onLeaderboard: () => void;
 	onSimulate: () => void;
 	onSupported: () => void;
 	onDocs: () => void;
@@ -12,6 +13,7 @@ interface Props {
 
 export default function Footer({
 	onExplore,
+	onLeaderboard,
 	onSimulate,
 	onSupported,
 	onDocs,
@@ -20,6 +22,7 @@ export default function Footer({
 }: Props) {
 	const product = [
 		{ label: "Explorer", action: onExplore },
+		{ label: "Leaderboard", action: onLeaderboard },
 		{ label: "Rates", action: onSimulate },
 		{ label: "Supported networks", action: onSupported },
 		{ label: "Docs", action: onDocs },
@@ -30,7 +33,7 @@ export default function Footer({
 	];
 
 	return (
-		<footer className="bg-surface-canvas border-t border-[rgba(28,58,41,0.08)] px-5 md:px-10 py-14 md:py-16">
+		<footer className="site-footer bg-surface-canvas border-t border-[rgba(28,58,41,0.08)] px-5 md:px-10 py-14 md:py-16">
 			<div className="max-w-[1100px] mx-auto">
 				<div className="flex flex-col md:flex-row md:justify-between gap-10 md:gap-6">
 					<div className="max-w-xs">
@@ -69,7 +72,7 @@ export default function Footer({
 							<div className="text-[10px] uppercase tracking-wider text-ink-label">
 								Product
 							</div>
-							<ul className="mt-3 space-y-2.5">
+							<ul className="mt-3 space-y-1">
 								{product.map((l) => (
 									<li key={l.label}>
 										<button
@@ -87,7 +90,7 @@ export default function Footer({
 							<div className="text-[10px] uppercase tracking-wider text-ink-label">
 								Legal
 							</div>
-							<ul className="mt-3 space-y-2.5">
+							<ul className="mt-3 space-y-1">
 								{legal.map((l) => (
 									<li key={l.label}>
 										<button

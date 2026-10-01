@@ -1,7 +1,6 @@
 import { Skeleton } from "./components/ui/skeleton";
-import { lazy, Suspense, useCallback, useRef, useEffect, useState } from "react";
+import { lazy, Suspense, startTransition, useCallback, useRef, useEffect, useState } from "react";
 import Navbar from "./components/Navbar";
-import PageShell from "./components/PageShell";
 import Hero from "./components/Hero";
 import Protocol from "./components/Protocol";
 import CtaBand from "./components/CtaBand";
@@ -11,16 +10,16 @@ import Leaderboard from "./components/Leaderboard";
 import Terms from "./components/Terms";
 import Privacy from "./components/Privacy";
 import SupportedTokens from "./components/SupportedTokens";
-import TestnetBanner, { VIEWPORT_BELOW_BANNER } from "./components/TestnetBanner";
+import TestnetBanner from "./components/TestnetBanner";
 import Footer from "./components/Footer";
 import PricingError from "./components/PricingError";
 import { loadOracleRates } from "./lib/oracle";
 import { assertGasAllowance } from "./lib/fees";
 import { setRates } from "./lib/pricing";
+import { IS_TESTNET } from "./lib/chains";
 
 const Docs = lazy(() => import("./components/Docs"));
 const Monitoring = lazy(() => import("./components/Monitoring"));
-const VIDEO_URL = `${import.meta.env.BASE_URL}assets/namepass-bg.mp4`;
 
 type Page = "docs" | "monitoring" | "home" | "leaderboard" | "supported" | "terms" | "privacy";
 
@@ -52,8 +51,15 @@ function pageToPath(page: Page): string {
 }
 
 export default function App() {
-	if (import.meta.env.VITE_NAMEPASS_MAINTENANCE === "1") return <main style={{ padding: "4rem", fontFamily: "sans-serif" }}><h1>Namepass is being upgraded</h1><p>Deposits and renewals are temporarily paused. Please return shortly.</p></main>;
-	return <ActiveApp/>;
+	if (import.meta.env.VITE_NAMEPASS_MAINTENANCE === "1") return <main style={{ padding: "4rem", fontFamily: "var(--site-font)" }}><h1>Namepass is being upgraded</h1><p>Deposits and renewals are temporarily paused. Please return shortly.</p></main>;
+	return (
+		<div className="site-app" data-testnet={IS_TESTNET}>
+			<div className="public-ui site-renewal-strip"><TestnetBanner /></div>
+			<Suspense fallback={<div className="min-h-screen bg-white p-12 text-sm text-gray-500">Loading Namepass…</div>}>
+				<ActiveApp />
+			</Suspense>
+		</div>
+	);
 }
 
 function ActiveApp() {
@@ -66,8 +72,8 @@ function ActiveApp() {
 	 * Everything that quotes a price is downstream of this. `pricing.ts`
 	 * throws until the live values arrive.
 	 *
-	 * Only the parts that actually quote wait on it. The hero is copy over
-	 * video and paints immediately; the Simulator renders its own chrome with
+	 * Only the parts that actually quote wait on it. The hero copy paints
+	 * immediately; the Simulator renders its own chrome with
 	 * skeletons where the numbers go. Nothing announces the read — it takes
 	 * ~150ms and a page narrating its own network calls is noise. Only a
 	 * failure gets words, because there's no cached price to fall back to.
@@ -141,7 +147,7 @@ function ActiveApp() {
 	}, []);
 
 	const navigate = useCallback((next: Page) => {
-		setPage(next);
+		startTransition(() => setPage(next));
 		window.history.pushState({}, "", pageToPath(next));
 		window.scrollTo({ top: 0 });
 	}, []);
@@ -204,47 +210,51 @@ function ActiveApp() {
 		onSimulate: goSimulate,
 		onSearch: focusSearch,
 		onHome: goHome,
-		onDocs: () => navigate("docs"),
+		onDocs: goDocs,
+		onExplore: goExplorer,
+		onSupported: goSupported,
+		onLeaderboard: goLeaderboard,
 	};
+	const footer = <Footer
+		onExplore={goExplorer}
+		onLeaderboard={goLeaderboard}
+		onSimulate={goSimulate}
+		onSupported={goSupported}
+		onDocs={goDocs}
+		onTerms={goTerms}
+		onPrivacy={goPrivacy}
+	/>;
 
 	if (page === "monitoring") {
 		return (
-			<Suspense fallback={<Skeleton role="status" aria-label="Loading dashboard" className="min-h-[100dvh] w-full animate-none rounded-none bg-[#f7f8fb]" />}>
-				<Monitoring onBack={goHome} />
-			</Suspense>
+			<>
+				<Suspense fallback={<Skeleton role="status" aria-label="Loading dashboard" className="min-h-[100dvh] w-full animate-none rounded-none bg-[#f7f8fb]" />}>
+					<Monitoring onBack={goHome} />
+				</Suspense>
+				<div className="public-ui">{footer}</div>
+			</>
 		);
 	}
 
 	if (page === "docs") {
-		return <Suspense fallback={<div className="min-h-screen bg-white p-12 text-sm text-gray-500">Loading documentation…</div>}><Docs /></Suspense>;
+		return (
+			<>
+				<Docs onHome={goHome} />
+				<div className="public-ui">{footer}</div>
+			</>
+		);
 	}
 
 	return (
 		<main className="public-ui min-h-screen bg-surface-canvas flex flex-col">
-			<TestnetBanner />
-			<div className="flex-1">
-				{/* The hero is copy over video and quotes nothing, so it renders
-				    immediately and the oracle read happens behind it. Only the
-				    sections that price wait — they're below the fold at load, so the
-				    wait is invisible. Holding Home back as a whole put a white card
-				    where the hero belongs for ~220ms on every reload. */}
+			<div className="site-page-frame flex-1">
+				{/* The public introduction renders before pricing is validated. */}
 				{page === "home" && (
 					<>
-						<PageShell
-							video={VIDEO_URL}
-							outerClassName={VIEWPORT_BELOW_BANNER}
-							cardClassName="h-full"
-						>
-							<Navbar {...navProps} />
-							<Hero
-								onExplore={goExplorer}
-								onLeaderboard={goLeaderboard}
-								priced={boot.status === "ready"}
-							/>
-						</PageShell>
+						<Navbar {...navProps} />
+						<Hero onExplore={goExplorer} onDocs={goDocs} />
 
-						{/* What the protocol actually is — four real properties, in the
-						    RIVR template's bento. Static copy, so it never waits on pricing. */}
+						{/* Four protocol properties render independently of pricing. */}
 						<Protocol />
 
 						{/* Search and public activity remain available while price quotes load. */}
@@ -270,56 +280,57 @@ function ActiveApp() {
 				)}
 
 				{page === "leaderboard" && (
-					<PageShell cardClassName="min-h-[70vh]">
-						<Navbar {...navProps} showMenu={false} />
-						{/* Every row here is priced, so there's no useful partial state —
-						    the card just stays empty at its `min-h` until the read lands,
-						    which for ~150ms reads as the page still painting rather than
-						    as something missing. */}
-						{boot.status === "ready" && (
-							<Leaderboard
-								onBack={goHome}
-								onViewName={goToName}
-							/>
-						)}
-						{boot.status === "error" && (
-							<div className="w-full px-5 md:px-10 py-24 md:py-32">
-								<PricingError message={boot.message} onRetry={loadPricing} />
-							</div>
-						)}
-					</PageShell>
+					<>
+						<Navbar {...navProps} />
+						<div className="site-secondary-content">
+							{/* Every row here is priced, so there's no useful partial state —
+							    the card just stays empty at its `min-h` until the read lands,
+							    which for ~150ms reads as the page still painting rather than
+							    as something missing. */}
+							{boot.status === "ready" && (
+								<Leaderboard
+									onBack={goHome}
+									onViewName={goToName}
+								/>
+							)}
+							{boot.status === "error" && (
+								<div className="w-full px-5 md:px-10 py-24 md:py-32">
+									<PricingError message={boot.message} onRetry={loadPricing} />
+								</div>
+							)}
+						</div>
+					</>
 				)}
 
 				{page === "supported" && (
-					<PageShell cardClassName="min-h-[70vh]">
-						<Navbar {...navProps} showMenu={false} />
-						<SupportedTokens onBack={goHome} />
-					</PageShell>
+					<>
+						<Navbar {...navProps} />
+						<div className="site-secondary-content">
+							<SupportedTokens onBack={goHome} />
+						</div>
+					</>
 				)}
 
 				{page === "terms" && (
-					<PageShell cardClassName="min-h-[70vh]">
-						<Navbar {...navProps} showMenu={false} />
-						<Terms onBack={goHome} />
-					</PageShell>
+					<>
+						<Navbar {...navProps} />
+						<div className="site-secondary-content">
+							<Terms onBack={goHome} />
+						</div>
+					</>
 				)}
 
 				{page === "privacy" && (
-					<PageShell cardClassName="min-h-[70vh]">
-						<Navbar {...navProps} showMenu={false} />
-						<Privacy onBack={goHome} />
-					</PageShell>
+					<>
+						<Navbar {...navProps} />
+						<div className="site-secondary-content">
+							<Privacy onBack={goHome} />
+						</div>
+					</>
 				)}
 			</div>
 
-			<Footer
-				onExplore={goExplorer}
-				onSimulate={goSimulate}
-				onSupported={goSupported}
-				onDocs={goDocs}
-				onTerms={goTerms}
-				onPrivacy={goPrivacy}
-			/>
+			{footer}
 		</main>
 	);
 }

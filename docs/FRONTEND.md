@@ -38,46 +38,97 @@ After a source-chain burn, an unclaimed payment is not a spendable source-wallet
 
 ## Interface conventions
 
-`/docs` is a standalone, lazy documentation application with its own header, responsive navigation,
-typography and canvas in `src/components/docs.css`. The landing page has a resource directory and
+`/docs` is a standalone, lazy documentation application with its own header and responsive navigation
+in `src/components/docs.css`. It shares font, text, action and border tokens with the homepage in
+`src/styles/site.css`. The documentation landing page has a resource directory and
 copyable API examples. Guides use a persistent sidebar and table of contents. The four endpoint
 pages come from OpenAPI. Search, page navigation and focus
 changes do not read pricing, account or chain state.
 
 `docs/content/` owns guide Markdown and navigation. `npm run generate:docs` produces the shared
 catalog, public Markdown, downloadable skill, `llms.txt` and `llms-full.txt`. `npm run check:docs`
-checks freshness and links. Page actions copy Markdown, open plain text and prepare context for
-an existing agent. Examples, copied prompts and Markdown use the published `docsOrigin` from the
-generated catalog (`https://beta.namepass.com`), including in local previews. In-page navigation
+checks freshness and links. The quote guide is titled Calculate renewal duration. Page actions copy Markdown, open plain text and prepare context for
+an existing agent. Public docs do not include GitHub edit links. Examples, copied prompts and
+Markdown use the published `docsOrigin` from the generated catalog (`https://beta.namepass.com`),
+including in local previews. In-page navigation
 uses relative paths. The skill uses the public HTTP flow.
 
 The footer, navigation and integration call-to-action open `/docs`. Homepage navigation
-uses `Rates` for the pricing simulator. The desktop menu is centered between the brand and
-`Get Started`. On mobile, it stays visible in a centered row. The footer lists Explorer,
-Rates, Supported networks, Docs, and the legal pages.
-Public activity labels identify the testnet deployment.
+uses `Rates` for the pricing simulator. The 64px sticky header has Product and Resources
+dropdowns, a direct Docs link and Get Started. Product opens Protocol, Explorer and Rates.
+Resources opens Supported networks and Leaderboard. Mobile navigation uses the same centered shadcn
+Dialog popup as docs, with grouped links, focus management and closure after choosing a destination.
+Docs and public pages share the 40px bordered hamburger control. The public header hides Get Started
+on mobile; the action remains inside the popup. The footer also lists
+these destinations and the legal pages. Public activity labels identify the testnet deployment.
 
-Main-site pages share `PageShell` and `Navbar`. Reuse existing visual primitives, tooltips and chain labels.
-On public pages, filled cards and controls have no visible perimeter border. Use borders for
-unfilled controls and internal dividers, and keep keyboard focus indicators visible.
-Public page backgrounds use the cool gray `surface-canvas`, including the hero corner cutouts.
-The hero video uses reduced saturation and multiplies over that canvas to cool its sky highlights.
+The public pages share `Navbar` and the `public-ui` theme in `src/styles/site.css`.
+The theme uses a near-white canvas, neutral text, green actions, fine framing lines,
+6px control corners and 12px panel corners. Protocol and docs resource cards use 16px corners.
+Public action buttons match the existing docs buttons: 38px tall with 13px horizontal padding,
+14px/20px text and 14px icons. Header actions are 36px tall with 12px padding and 13px icons.
+Explorer's search bar is 46px tall around a 38px input and square search button.
+Content is capped at 1180px; the surrounding frame
+and header are capped at 1280px. Reading columns stay narrower. The text-only hero uses the
+existing heading and description with Get Started and Read the docs. The video, illustrative
+renewal overlay and hero Explorer shortcut are removed. Leaderboard remains available through
+Resources and the footer. The protocol keeps its four-card bento arrangement and existing beam. The other three cards
+contain text with a slow, neutral background fade. The fade stops outside the viewport, in
+a hidden tab and for reduced-motion preferences. No additional protocol graphics are present.
+Explorer, pricing, secondary pages and the integration CTA share the surface treatment. The
+Explorer section has a white canvas. Protocol cards are white with fine neutral borders. The activity table
+has a quiet toolbar and 14px column labels. The name-view heading and back icon share a
+centered row. The pricing calculator groups name length, amount and discount controls in its
+left panel. Renewal time and the cost breakdown occupy the white right panel. The result uses
+a 32px time value and consistent 14px label/value rows with light dividers. The panels stack
+below 1024px. The loading state uses the same layout.
+Existing controls and exact math are retained.
+Calculator option cards change only their border on hover; selected options keep their fill.
+The next-tier suggestion sits to the right of the payment amount, with a tooltip and shortcut.
+All docs tabs use the same 1280px outer frame, header and tab bar. Guide pages retain
+their sidebar, sticky table of contents and readable article width. Horizontal overflow is
+clipped without creating an ancestor scroll container, so navigation sticks to the viewport.
+All routes, including docs and monitoring, render the shared footer with working product and
+legal navigation. The live testnet renewal strip is mounted once in the shared app shell,
+so route changes preserve its data, polling subscription and marquee position.
+The renewal strip sticks above the public and docs headers. Headers, docs navigation and
+anchor offsets account for its 32px mobile and 36px desktop height. Docs and public logos
+share exact positioning and dimensions, including the 64px header height on mobile.
+The docs logo returns home through the app router. Route transitions keep the current view
+visible while a lazy page loads, preventing an intermediate header disappearance.
+Legal sections use fine dividers, 32px/40px titles (28px/36px on mobile),
+18px/26px section headings and 15px/24px paragraphs.
+
+All application surfaces use self-hosted Geist Variable from `@fontsource-variable/geist`.
+Public section descriptions use 18px/28px at weight 400. Docs prose uses 16px/26px. The
+integration CTA paragraph uses 14px/22px. Footer link rows use a compact 4px gap. Controls use 14px/500,
+and card headings use 24px/32px at weight 600 with normal tracking. Docs resource cards use
+22px/30px headings and 15px/22px links. Compact protocol paragraphs
+use 14–14.5px/24px on desktop, 15px/24px on tablet and 14px/22px on mobile. Mobile card
+headings use 20px/28px, below the section title and subtitle scale; the desktop alias paragraph
+fits three lines. Body and table text remain 16px
+and 14px where density matters. Text uses neutral #171717 and #737373, with green action roles. Code and contract
+addresses retain monospace.
+Mobile calculator results use 28px/36px type below 640px to keep long renewal durations readable.
+Docs titles use 32px/40px below 761px. API tables keep a 480px minimum width and scroll inside
+their container. Endpoint paths stay on one line, with the copy action wrapping below on narrow screens. The documentation flow labels `alice.eth` and `alice.namepass.eth`
+share one font family, size and weight. No premium template source or assets are included.
+Reuse existing visual primitives, tooltips and chain labels. Keep keyboard focus indicators
+visible. The public shell and portaled navigation controls override shadcn primary, accent and
+focus colors to green; monitoring retains its separate semantic palette.
+
 Use `surface-selected` for pricing selections and `surface-table` for Explorer headers.
 Use `inset-panel` for shaded information, address fields, renewal hints and transaction rows.
 It owns the opaque `surface-inset` fill, 8px corners and 12px/16px padding. Add `inset-action`
 only when the whole panel is a button or link. Keep its fill steady on hover and press.
-Do not add local opacity, radius or padding variants for the same role. Glass parent cards
-use the same opaque inset panels.
-Use `primary-action` for filled public actions. The `public-ui` shell supplies keyboard focus
-outlines; dark actions use a white inset outline. Error and warning surfaces retain their meaning.
-Reserve the green `savings` and `savings-soft` pair for discount badges; actions, time values and status
-keep their existing green roles. Small white controls use a soft shadow for separation.
+Use `primary-action` for filled public actions. These controls share a fine border and inset
+highlight; keyboard focus stays visible. Error and warning surfaces retain their meaning.
+Reserve the green `savings` and `savings-soft` pair for discount badges.
 Text colors use the shared `ink-*` theme roles in `src/index.css`: `primary` for headings
 and key values, `secondary` for descriptions and supporting data, `label` for small labels,
-and `action` for links and controls. Supporting text and labels use 70% brand green for
-readability on white and grey surfaces. Use `decorative` only for nonessential numbering.
-Dark surfaces use `inverse` and `inverse-secondary`. Section labels use `tracking-section`.
-Monitoring foreground tokens map to these same roles, including content rendered in portals.
+and `action` for links and controls. Public pages map these roles to the shared `site-*` tokens.
+Use `decorative` only for nonessential numbering. Dark surfaces use `inverse` and
+`inverse-secondary`. Section labels use `tracking-section`.
 Keep error, warning, chart-series and network-brand colors distinct where they convey meaning.
 Monitoring is a separately loaded, GitHub-authenticated page built with the existing shadcn
 components. Its snapshot and manual gas-read behavior are defined in [MONITORING.md](MONITORING.md).
@@ -101,8 +152,8 @@ last feed response and page so Back restores them immediately and resumes pollin
 Pricing refreshes keep validated views mounted. Only the initial load and a retry after failed
 validation use the loading state. A validation failure still disables pricing. Price calculations
 must update when the validated configuration changes, without resetting user input.
-The explicit ENS refresh still precedes the activity refresh. The homepage video and CTA
-effect run only while visible in an active tab. Reduced-motion users do not start the CTA effect.
+The explicit ENS refresh still precedes the activity refresh. The CTA effect runs only while
+visible in an active tab. Reduced-motion users do not start the CTA effect.
 
 Build and verification commands are in [CONTRIBUTING.md](../CONTRIBUTING.md). Deployment facts
 belong in [DEPLOYMENTS.md](DEPLOYMENTS.md).

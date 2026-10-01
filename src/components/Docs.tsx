@@ -379,7 +379,7 @@ function ApiExample() {
   const [selected, setSelected] = useState(0);
   const descriptions = [
     "Get a deposit address",
-    "Estimate renewal time",
+    "Calculate renewal duration",
     "Track a transaction",
     "Retrieve name history",
   ];
@@ -458,7 +458,7 @@ function ApiExample() {
     </section>
   );
 }
-export default function Docs() {
+export default function Docs({ onHome }: { onHome: () => void }) {
   const [slug, setSlug] = useState(currentSlug);
   const [search, setSearch] = useState(false),
     [query, setQuery] = useState("");
@@ -529,7 +529,7 @@ export default function Docs() {
         for (const entry of entries)
           if (entry.isIntersecting) setActiveHeading(entry.target.id);
       },
-      { rootMargin: "-120px 0px -65% 0px" },
+      { rootMargin: `-${Math.ceil(document.querySelector(".docs-header")?.getBoundingClientRect().bottom ?? 120)}px 0px -65% 0px` },
     );
     document
       .querySelectorAll(".docs-prose h2")
@@ -659,7 +659,17 @@ export default function Docs() {
       </a>
       <header className="docs-header">
         <div className="docs-header-inner">
-          <a href="/" className="docs-brand" aria-label="Namepass home">
+          <a
+            href={import.meta.env.BASE_URL}
+            className="docs-brand"
+            aria-label="Namepass home"
+            onClick={(event) => {
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+                return;
+              event.preventDefault();
+              onHome();
+            }}
+          >
             <img
               src="/namepass-logo.png"
               width="96"
@@ -701,7 +711,7 @@ export default function Docs() {
             </a>
           </div>
           <button
-            className="docs-mobile-menu"
+            className="docs-mobile-menu site-menu-trigger"
             aria-label="Open documentation menu"
             onClick={() => setMobile(true)}
           >
@@ -815,7 +825,7 @@ export default function Docs() {
                               slug: "addresses",
                               title: "Get a deposit address",
                             },
-                            { slug: "quotes", title: "Estimate renewal time" },
+                            { slug: "quotes", title: "Calculate renewal duration" },
                           ],
                         },
                         {
@@ -927,14 +937,6 @@ export default function Docs() {
                   </div>
                 )}
                 <div className="docs-page-meta">
-                  <a
-                    href={`${repo}/edit/codex/integration-api-plan/${page.source}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Edit this page
-                    <ArrowUpRight size={12} />
-                  </a>
                   <span>Contract {docsVersion}</span>
                 </div>
                 <div className="docs-pagination">
@@ -1054,7 +1056,7 @@ export default function Docs() {
         </div>
       </CommandDialog>
       <Dialog open={mobile} onOpenChange={setMobile}>
-        <DialogContent className="docs-mobile-dialog">
+        <DialogContent className="site-mobile-dialog docs-mobile-dialog">
           <DialogTitle>Documentation</DialogTitle>
           <DialogDescription>
             Explore the Namepass integration.

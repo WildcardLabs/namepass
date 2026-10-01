@@ -1,6 +1,6 @@
-# Estimate renewal time
+# Calculate renewal duration
 
-Estimate the renewal duration and fees for a USDC deposit.
+Request a quote using the ENS name, source chain and USDC amount.
 
 ## Request a quote
 

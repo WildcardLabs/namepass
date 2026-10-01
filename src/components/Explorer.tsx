@@ -290,7 +290,7 @@ function FeedRowContent({
 				backgroundColor: pending ? "rgba(28,58,41,0.028)" : "rgba(28,58,41,0)",
 			}}
 			transition={reduced ? { duration: 0 } : { duration: 0.55, ease: "easeOut" }}
-			className="border-b border-[rgba(28,58,41,0.07)]"
+			className="site-activity-row border-b border-[rgba(28,58,41,0.07)]"
 		>
 			<MobileFlowSummary
 				title={nameTitle}
@@ -396,7 +396,7 @@ function StatusCell({ row, reduced }: { row: FeedItem; reduced: boolean }) {
 				aria-hidden={row.pending}
 				className="inline-flex flex-col items-end gap-0.5 whitespace-nowrap tabular-nums"
 			>
-				<span className="inline-flex items-center gap-1 text-ink-action">
+				<span className="site-status-badge inline-flex items-center gap-1 text-ink-action">
 					<CheckCircle2 aria-hidden="true" className="h-3 w-3" />
 					Renewed
 				</span>
@@ -424,14 +424,14 @@ function ActivityPagination({
 	if (totalPages <= 1) return null;
 	const previous = page > 0;
 	const next = page + 1 < totalPages;
-	const buttonClass = "flex h-10 items-center justify-center rounded-xl border border-[rgba(28,58,41,0.12)] px-3 text-[13px] text-ink-action transition-colors hover:border-[rgba(28,58,41,0.3)] disabled:pointer-events-none disabled:opacity-35";
+	const buttonClass = "site-pagination flex h-10 items-center justify-center rounded-xl border border-[rgba(28,58,41,0.12)] px-3 text-[13px] text-ink-action transition-colors hover:border-[rgba(28,58,41,0.3)] disabled:pointer-events-none disabled:opacity-35";
 	return (
 		<div className="mt-6 flex items-center justify-center gap-2">
 			<button type="button" onClick={() => onPage(0)} disabled={!previous || loading} className={buttonClass}>First</button>
 			<button type="button" aria-label="Previous page" onClick={() => onPage(page - 1)} disabled={!previous || loading} className={buttonClass}>
 				<ArrowLeft className="h-4 w-4" />
 			</button>
-			<span className="flex h-10 items-center rounded-xl border border-[rgba(28,58,41,0.12)] px-4 text-[13px] text-ink-secondary tabular-nums">
+			<span className="site-pagination flex h-10 items-center rounded-xl border border-[rgba(28,58,41,0.12)] px-4 text-[13px] text-ink-secondary tabular-nums">
 				{loading && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
 				Page {page + 1} of {totalPages}
 			</span>
@@ -570,9 +570,10 @@ function LiveFeed({ onSelect, feed, setFeed, pageIndex, setPageIndex }: {
 	return (
 		<>
 			{loadError && <p role="alert" className="mb-3 text-[12.5px] text-red-700">{loadError}</p>}
-			<div ref={tableRef} className="scroll-mt-6 border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
+			<div ref={tableRef} className="site-table scroll-mt-6 border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
+			<div className="site-feed-toolbar"><span><Clock size={15} aria-hidden="true" />ENS renewal activity</span><small>Testnet</small></div>
 			{/* Desktop column headers, hidden on mobile where rows become cards */}
-			<div className={`hidden lg:grid ${LIVE_FEED_COLUMNS} gap-4 px-5 py-3 bg-surface-table border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-ink-label`}>
+			<div className={`site-column-headings hidden lg:grid ${LIVE_FEED_COLUMNS} gap-4 px-5 py-3 bg-surface-table border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-ink-label`}>
 				<span>ENS name</span>
 				<span>Chain</span>
 				<span className="text-right">Received</span>
@@ -933,21 +934,20 @@ function NameDetail({
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: reducedMotion ? 0 : 0.4, ease: [0.16, 1, 0.3, 1] }}
 		>
-			<div className="flex min-w-0 items-start gap-2.5">
+			<div className="site-name-heading flex min-w-0 items-center gap-3">
 				<BackButton
 					onClick={onBack}
 					label="Back to Explorer"
-					className="relative -top-0.5 md:top-1"
 				/>
 
-				<h3 className="min-w-0 break-words text-[32px] md:text-[44px] font-normal text-ink-primary tracking-tight leading-none">
+				<h3 className="site-name-title min-w-0 break-words text-[32px] md:text-[44px] font-normal text-ink-primary tracking-tight leading-none">
 					{record.name}
 				</h3>
 			</div>
 
 			{/* The two-panel model: what expires vs. what is permanent */}
 			<div className="mt-8 grid md:grid-cols-2 gap-4">
-				<div className="rounded-[1.4rem] bg-white shadow-[0_3px_10px_rgba(28,58,41,0.08)] p-5 flex flex-col">
+				<div className="site-panel rounded-[1.4rem] bg-white shadow-[0_3px_10px_rgba(28,58,41,0.08)] p-5 flex flex-col">
 					<div className="flex items-center gap-2 text-[11px] uppercase tracking-section text-ink-label">
 						<Clock className="w-3.5 h-3.5" />
 						The ENS name · expires
@@ -1191,8 +1191,8 @@ function NameDetail({
 					)}
 				</div>
 
-				<div className="border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
-					<div className={`hidden lg:grid ${NAME_ACTIVITY_COLUMNS} gap-4 px-5 py-3 bg-surface-table border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-ink-label`}>
+				<div className="site-table border border-[rgba(28,58,41,0.1)] rounded-2xl overflow-hidden">
+					<div className={`site-column-headings hidden lg:grid ${NAME_ACTIVITY_COLUMNS} gap-4 px-5 py-3 bg-surface-table border-b border-[rgba(28,58,41,0.1)] text-[11px] uppercase tracking-wider text-ink-label`}>
 						<span>Date</span>
 						<span>Event</span>
 						<span>Chain</span>
@@ -1445,7 +1445,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 	}, [query]);
 
 	return (
-		<section id="explorer" className="bg-surface-canvas px-5 md:px-10 py-14 md:py-20">
+		<section id="explorer" className="site-section bg-surface-canvas px-5 md:px-10 py-14 md:py-20">
 			<div className="max-w-[1100px] mx-auto">
 				<div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
 					<div>
@@ -1454,7 +1454,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 								<span className="absolute inline-flex w-full h-full rounded-full bg-[rgba(28,58,41,0.35)] animate-ping" />
 								<span className="relative inline-flex w-2 h-2 rounded-full bg-[rgba(28,58,41,0.8)]" />
 							</span>
-							<span className="text-[11px] uppercase tracking-section text-ink-label">
+							<span className="site-eyebrow text-[11px] uppercase tracking-section text-ink-label">
 								Explorer · Testnet activity
 							</span>
 						</div>
@@ -1468,7 +1468,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 					</div>
 
 					<div className="w-full md:w-[340px] shrink-0">
-						<div className="flex items-center gap-2 bg-white rounded-[12px] pl-4 pr-1.5 py-1.5 shadow-[0_3px_10px_rgba(28,58,41,0.08)] focus-within:shadow-[0_4px_14px_rgba(28,58,41,0.14)] transition-shadow">
+						<div className="site-search flex items-center gap-2 bg-white rounded-[12px] pl-4 pr-1.5 py-1.5 shadow-[0_3px_10px_rgba(28,58,41,0.08)] focus-within:shadow-[0_4px_14px_rgba(28,58,41,0.14)] transition-shadow">
 							<input
 								aria-label="Search an ENS name"
 								value={query}
@@ -1491,7 +1491,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 						</div>
 
 						{suggestions.length > 0 && (
-							<div className="mt-2 rounded-[0.9rem] overflow-hidden bg-white shadow-[0_3px_10px_rgba(28,58,41,0.08)]">
+							<div className="site-panel mt-2 rounded-[0.9rem] overflow-hidden bg-white shadow-[0_3px_10px_rgba(28,58,41,0.08)]">
 								{suggestions.map((s) => (
 									<button
 										key={s.name}
@@ -1578,7 +1578,7 @@ export default function Explorer({ selected, onSelect, onActivated, onSupportedT
 				</div>
 				{requestError && <p role="alert" className="mt-3 text-[12.5px] text-red-700">{requestError}</p>}
 
-				<div className="mt-8 md:mt-10 bg-white rounded-2xl p-4 md:p-6">
+				<div className="site-panel mt-8 bg-white p-4 md:p-6">
 					{record ? (
 						<NameDetail
 							record={record}

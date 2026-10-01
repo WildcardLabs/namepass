@@ -72,7 +72,7 @@ export default function SupportedTokens({ onBack }: { onBack: () => void }) {
 					{SUPPORTED_TOKENS.map((t) => (
 						<div
 							key={t.chain}
-							className="rounded-[1.4rem] bg-white shadow-[0_3px_10px_rgba(28,58,41,0.08)] px-4 py-4"
+							className="site-panel bg-white px-4 py-4"
 						>
 							<div className="flex items-center justify-between gap-3">
 								<div className="flex items-center gap-2.5 min-w-0">

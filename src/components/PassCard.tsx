@@ -62,14 +62,14 @@ export default function PassCard({
 	const split = layout === "split";
 
 	return (
-		<div className={`rounded-[1.4rem] ${cardBg} p-5 md:p-6`}>
+		<div className={`site-pass-card rounded-[1.4rem] ${cardBg} p-5 md:p-6`}>
 			<div className={split ? "sm:flex sm:items-start sm:gap-6" : ""}>
 			<div className={split ? "sm:w-[200px] sm:shrink-0" : ""}>
 			{/* QR */}
 			<div className="flex justify-center">
 				<div className="relative">
 					<div
-						className={`rounded-[1.4rem] p-4 ${glass ? "bg-white/80" : "bg-white"}`}
+						className={`site-qr rounded-[1.4rem] p-4 ${glass ? "bg-white/80" : "bg-white"}`}
 					>
 						{matrix ? (
 							<svg
