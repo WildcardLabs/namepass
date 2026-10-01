@@ -2,8 +2,10 @@ import { motion } from "motion/react";
 import HeroBadge from "./HeroBadge";
 import BottomLeftCard from "./BottomLeftCard";
 import BottomRightCorner from "./BottomRightCorner";
+import PageShell from "./PageShell";
 
 interface Props {
+	video: string;
 	onExplore: () => void;
 	onLeaderboard: () => void;
 	/**
@@ -14,14 +16,14 @@ interface Props {
 	priced: boolean;
 }
 
-/** Home's hero content, rendered inside PageShell's video card, below Navbar. */
-export default function Hero({ onExplore, onLeaderboard, priced }: Props) {
+/** The existing landscape is a contained illustration beneath the public copy. */
+export default function Hero({ video, onExplore, onLeaderboard, priced }: Props) {
 	return (
-		<>
-			<div className="w-full flex flex-col items-center pt-12 md:pt-16 px-6 text-center max-w-4xl">
+		<section className="home-hero">
+			<div className="home-hero-copy">
 				<HeroBadge />
 
-				<h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-[70px] font-normal text-ink-primary mb-2 tracking-tight leading-[1.05]">
+				<h1 className="text-ink-primary">
 					Give a name more time
 				</h1>
 
@@ -29,15 +31,19 @@ export default function Hero({ onExplore, onLeaderboard, priced }: Props) {
 					initial={{ opacity: 0 }}
 					animate={{ opacity: 1 }}
 					transition={{ duration: 0.7, delay: 0.15, ease: "easeOut" }}
-					className="text-sm sm:text-base md:text-lg text-ink-secondary leading-relaxed max-w-xl font-normal"
+					className="text-ink-secondary"
 				>
 					Send USDC to an ENS name’s deposit address. Watch it turn into renewal time.
 				</motion.p>
 			</div>
 
-			{/* The ticker needs ENS rates, while the headline renders immediately. */}
-			{priced && <BottomLeftCard onLeaderboard={onLeaderboard} />}
-			<BottomRightCorner onOpen={onExplore} />
-		</>
+			<PageShell video={video} outerClassName="home-landscape-shell" cardClassName="home-landscape">
+				<div className="home-landscape-panels">
+					{/* Only the illustrative ticker waits for validated ENS rates. */}
+					{priced && <BottomLeftCard onLeaderboard={onLeaderboard} />}
+					<BottomRightCorner onOpen={onExplore} />
+				</div>
+			</PageShell>
+		</section>
 	);
 }

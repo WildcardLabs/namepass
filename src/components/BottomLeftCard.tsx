@@ -16,10 +16,7 @@ const INBOUND = [
 const START_EXPIRY = Date.UTC(2029, 2, 18);
 const CYCLE_MS = 3600;
 
-/* Isolated from BottomLeftCard's own 3.6s ticker — without this, the parent's
-   frequent re-renders were retriggering ShineBorder's CSS animation before it
-   ever completed a visible sweep. Styled identically to HeroBadge: ShineBorder
-   ring + AnimatedShinyText, nothing extra. */
+/* The Leaderboard action remains separate from the illustrative ticker values. */
 const LeaderboardButton = memo(function LeaderboardButton({
 	onLeaderboard,
 }: {
@@ -30,7 +27,7 @@ const LeaderboardButton = memo(function LeaderboardButton({
 			whileHover={{ scale: 1.02 }}
 			whileTap={{ scale: 0.98 }}
 			onClick={onLeaderboard}
-			className="flex items-center bg-white rounded-[10px] pl-1.5 pr-4 py-1.5 gap-2 hover:bg-white/90 transition-colors self-start w-fit"
+			className="home-leaderboard-button transition-colors self-start w-fit"
 		>
 			<div className="bg-[rgba(28,58,41,0.1)] p-1 rounded-md flex items-center justify-center">
 				<Trophy className="w-4 h-4 text-ink-action" />
@@ -73,7 +70,7 @@ export default function BottomLeftCard({ onLeaderboard }: { onLeaderboard: () =>
 			initial={{ x: -20, opacity: 0 }}
 			animate={{ x: 0, opacity: 1 }}
 			transition={{ duration: 0.8, delay: 0.2 }}
-			className="absolute bottom-28 right-4 left-auto md:left-6 md:right-auto md:bottom-6 lg:bottom-10 lg:left-10 p-3 md:p-4 lg:p-5 rounded-[14px] bg-white/55 backdrop-blur-xl flex flex-col gap-2 lg:gap-3 min-w-[140px] md:min-w-[150px] lg:min-w-[180px] w-fit"
+			className="home-example"
 		>
 			<span className="text-[10px] font-medium uppercase tracking-[0.12em] text-ink-label">
 				Illustrative example
@@ -86,7 +83,7 @@ export default function BottomLeftCard({ onLeaderboard }: { onLeaderboard: () =>
 						animate={{ opacity: 1, y: 0 }}
 						exit={{ opacity: 0, y: -6 }}
 						transition={{ duration: 0.35, ease: "easeOut" }}
-						className="text-2xl md:text-3xl font-normal text-ink-primary tracking-tight"
+						className="home-example-date"
 					>
 						{fmtMonthYear(expiry)}
 					</motion.span>

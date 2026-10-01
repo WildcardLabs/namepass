@@ -62,7 +62,7 @@ export default function Simulator({
 	onRetry: () => void;
 }) {
 	return (
-		<section id="simulator" className="bg-surface-canvas px-5 md:px-10 py-14 md:py-20">
+		<section id="simulator" className="site-section bg-surface-canvas px-5 md:px-10 py-14 md:py-20">
 			<div className="max-w-[1100px] mx-auto">
 				<div className="max-w-2xl">
 					<span className="text-[11px] uppercase tracking-section text-ink-label">
@@ -76,7 +76,7 @@ export default function Simulator({
 					</p>
 				</div>
 
-				<div className="mt-10 bg-white rounded-[1.5rem] md:rounded-[2rem] overflow-hidden">
+				<div className="site-panel mt-8 bg-white overflow-hidden">
 					{priced ? (
 						<SimulatorBody />
 					) : problem ? (
@@ -233,7 +233,7 @@ function SimulatorBody() {
 
 							{editing ? (
 								<div className="mt-1 flex items-baseline gap-1">
-									<span className="text-[44px] md:text-[56px] text-ink-secondary leading-none">
+									<span className="site-amount text-[44px] md:text-[56px] text-ink-secondary leading-none">
 										$
 									</span>
 									<input
@@ -248,7 +248,7 @@ function SimulatorBody() {
 										aria-label="Enter payment amount in USDC"
 										inputMode="decimal"
 										placeholder="0.00"
-										className="w-full min-w-0 bg-transparent outline-none text-[44px] md:text-[56px] font-normal text-ink-primary tracking-tight leading-none tabular-nums border-b-2 border-[rgba(28,58,41,0.3)]"
+										className="w-full min-w-0 bg-transparent outline-none site-amount text-[44px] md:text-[56px] font-normal text-ink-primary tracking-tight leading-none tabular-nums border-b-2 border-[rgba(28,58,41,0.3)]"
 									/>
 								</div>
 							) : (
@@ -258,7 +258,7 @@ function SimulatorBody() {
 										setEditing(true);
 									}}
 									title="Click to type an amount"
-									className="mt-1 block text-[44px] md:text-[56px] font-normal text-ink-primary tracking-tight leading-none tabular-nums border-b-2 border-transparent hover:border-[rgba(28,58,41,0.2)] transition-colors"
+									className="mt-1 block site-amount text-[44px] md:text-[56px] font-normal text-ink-primary tracking-tight leading-none tabular-nums border-b-2 border-transparent hover:border-[rgba(28,58,41,0.2)] transition-colors"
 								>
 									{fmtUsdc(budget)}
 								</button>
@@ -365,7 +365,7 @@ function SimulatorBody() {
 							<div className="text-[11px] uppercase tracking-section text-ink-label">
 								Renewal time bought
 							</div>
-							<div className="mt-1 text-[30px] md:text-[38px] font-normal text-ink-primary tracking-tight leading-[1.1]">
+							<div className="mt-1 site-result text-[30px] md:text-[38px] font-normal text-ink-primary tracking-tight leading-[1.1]">
 								{fmtDurationPrecise(result.seconds)}
 							</div>
 

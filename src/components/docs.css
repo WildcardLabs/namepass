@@ -5,14 +5,12 @@
   .docs-agent-dialog,
   .docs-mobile-dialog
 ) {
-  --docs-font:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Regular",
-    sans-serif;
+  --docs-font: var(--site-font);
   --docs-title-size: 32px;
   --docs-section-size: 20px;
   --docs-lead-size: 16px;
-  --docs-body-size: 14px;
-  --docs-control-size: 13px;
+  --docs-body-size: var(--site-body-size);
+  --docs-control-size: var(--site-control-size);
   --docs-small-size: 12px;
   --docs-caption-size: 11px;
   --docs-label-size: 10px;
@@ -26,13 +24,11 @@
   --docs-space-12: 48px;
 }
 .docs-shell {
-  --docs-ink: #202631;
-  --docs-muted: #68717e;
-  --docs-line: #e5e8ee;
-  --docs-accent: #297358;
-  --docs-font:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Regular",
-    sans-serif;
+  --docs-ink: var(--site-ink);
+  --docs-muted: var(--site-muted);
+  --docs-line: var(--site-line);
+  --docs-accent: var(--site-accent);
+  --docs-font: var(--site-font);
   font-family: var(--docs-font);
   background: white;
   color: var(--docs-ink);
@@ -657,12 +653,12 @@
 }
 .docs-primary-link {
   color: white;
-  background: #337f5e;
-  border: 1px solid #337f5e;
+  background: var(--site-action);
+  border: 1px solid var(--site-action);
 }
 .docs-primary-link:hover {
-  background: #25684a;
-  border-color: #25684a;
+  background: var(--site-action-hover);
+  border-color: var(--site-action-hover);
 }
 .docs-secondary-link {
   color: #526a5b;
@@ -1146,9 +1142,7 @@
   justify-content: flex-end;
 }
 .docs-dropdown {
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Regular",
-    sans-serif;
+  font-family: var(--site-font);
   background: #fff !important;
   border-color: #e0e8e4 !important;
   border-radius: 8px !important;
@@ -1183,9 +1177,7 @@
   margin-top: 3px;
 }
 .docs-search-dialog {
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Regular",
-    sans-serif;
+  font-family: var(--site-font);
   background: white;
   color: #557c68;
 }
@@ -1246,7 +1238,7 @@
 }
 .docs-agent-dialog,
 .docs-mobile-dialog {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--site-font);
   background: white !important;
   border: 1px solid #e1e9e4 !important;
   border-radius: 10px !important;

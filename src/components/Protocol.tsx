@@ -2,21 +2,19 @@ import { motion } from "motion/react";
 import { Github, Timer, Unplug, WalletMinimal } from "lucide-react";
 import { AnimatedBeamDemo } from "./AnimatedBeamDemo";
 
-/* The RIVR template's "Architected for high-performance DeFi" bento, repurposed
-   as the four things that actually make Namepass work. Each card is one real
-   property of the protocol — nothing here is aspirational copy. */
+/* Four protocol properties share the public panel and typography rules. */
 
 const NUM = "font-normal text-[13px] text-ink-decorative tabular-nums";
 const TAG =
 	"text-[11px] uppercase tracking-section text-ink-label";
 const META_ICON = "h-3.5 w-3.5 shrink-0 text-ink-secondary";
 const CARD =
-	"rounded-[1.25rem] bg-white p-6 md:p-7";
-const HOVER = { y: -2, boxShadow: "0 12px 28px rgba(28,58,41,0.06)", transition: { duration: 0.18 } };
+	"site-panel bg-white p-6 md:p-7";
+const HOVER = { y: -2, boxShadow: "0 4px 14px rgba(32,38,49,0.04)", transition: { duration: 0.18 } };
 
 export default function Protocol() {
 	return (
-		<section id="protocol" className="bg-surface-canvas px-5 md:px-10 py-14 md:py-20">
+		<section id="protocol" className="site-section bg-surface-canvas px-5 md:px-10 py-14 md:py-20">
 			<div className="max-w-[1100px] mx-auto">
 				<div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
 					<div className="max-w-2xl">
@@ -34,7 +32,7 @@ export default function Protocol() {
 						href="https://github.com/wildcardlabs/namepass"
 						target="_blank"
 						rel="noopener noreferrer"
-						className="group shrink-0 self-start sm:self-auto inline-flex items-center gap-2 rounded-[10px] bg-white px-5 py-2.5 text-[14px] text-ink-action shadow-[0_3px_10px_rgba(28,58,41,0.08)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
+						className="site-outline-action group shrink-0 self-start sm:self-auto inline-flex items-center gap-2 rounded-[10px] bg-white px-5 py-2.5 text-[14px] text-ink-action shadow-[0_3px_10px_rgba(28,58,41,0.08)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(28,58,41,0.6)]"
 					>
 						<Github aria-hidden="true" className="w-4 h-4 transition-transform duration-200 group-hover:-translate-y-0.5" />
 						View source

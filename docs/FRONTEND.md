@@ -38,8 +38,9 @@ After a source-chain burn, an unclaimed payment is not a spendable source-wallet
 
 ## Interface conventions
 
-`/docs` is a standalone, lazy documentation application with its own header, responsive navigation,
-typography and canvas in `src/components/docs.css`. The landing page has a resource directory and
+`/docs` is a standalone, lazy documentation application with its own header and responsive navigation
+in `src/components/docs.css`. It shares font, text, action and border tokens with the homepage in
+`src/styles/site.css`. The documentation landing page has a resource directory and
 copyable API examples. Guides use a persistent sidebar and table of contents. The four endpoint
 pages come from OpenAPI. Search, page navigation and focus
 changes do not read pricing, account or chain state.
@@ -57,11 +58,16 @@ uses `Rates` for the pricing simulator. The desktop menu is centered between the
 Rates, Supported networks, Docs, and the legal pages.
 Public activity labels identify the testnet deployment.
 
-Main-site pages share `PageShell` and `Navbar`. Reuse existing visual primitives, tooltips and chain labels.
-On public pages, filled cards and controls have no visible perimeter border. Use borders for
-unfilled controls and internal dividers, and keep keyboard focus indicators visible.
-Public page backgrounds use the cool gray `surface-canvas`, including the hero corner cutouts.
-The hero video uses reduced saturation and multiplies over that canvas to cool its sky highlights.
+Main-site pages share `PageShell` and `Navbar`. The homepage places `Navbar` above its hero.
+Its `homepage-ui` theme uses a white canvas, neutral text, green actions, fine panel borders,
+6px control corners and 8px panel corners. Section headings use a compact semibold hierarchy.
+The existing landscape video is contained below the hero copy. Its illustrative ticker and
+Explorer actions remain inside regular overlay panels. The protocol retains its four-card bento.
+Explorer, pricing and the integration CTA use the same aligned content width and panel treatment.
+The homepage theme is scoped: secondary public pages and monitoring retain their existing styles.
+Reuse existing visual primitives, tooltips and chain labels. Secondary public pages keep borderless
+filled cards on the cool gray `surface-canvas`. Keep keyboard focus indicators visible.
+The hero video uses reduced saturation and multiplies over its cool gray backing.
 Use `surface-selected` for pricing selections and `surface-table` for Explorer headers.
 Use `inset-panel` for shaded information, address fields, renewal hints and transaction rows.
 It owns the opaque `surface-inset` fill, 8px corners and 12px/16px padding. Add `inset-action`
@@ -74,8 +80,9 @@ Reserve the green `savings` and `savings-soft` pair for discount badges; actions
 keep their existing green roles. Small white controls use a soft shadow for separation.
 Text colors use the shared `ink-*` theme roles in `src/index.css`: `primary` for headings
 and key values, `secondary` for descriptions and supporting data, `label` for small labels,
-and `action` for links and controls. Supporting text and labels use 70% brand green for
-readability on white and grey surfaces. Use `decorative` only for nonessential numbering.
+and `action` for links and controls. The homepage maps these roles to the shared `site-*` tokens:
+neutral primary and supporting text with green links and controls. Other public surfaces retain
+their brand-green text roles. Use `decorative` only for nonessential numbering.
 Dark surfaces use `inverse` and `inverse-secondary`. Section labels use `tracking-section`.
 Monitoring foreground tokens map to these same roles, including content rendered in portals.
 Keep error, warning, chart-series and network-brand colors distinct where they convey meaning.

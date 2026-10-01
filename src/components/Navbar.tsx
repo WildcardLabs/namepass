@@ -11,9 +11,8 @@ interface Props {
 }
 
 /**
- * Header in the original RIVR-template design this project was built on: brand
- * mark left, plain centred text links, one action right. The button is squared
- * (10px), not a pill, and has no circled-arrow chrome.
+ * Shared public navigation. The homepage theme supplies the docs-style frame;
+ * secondary public pages retain their existing PageShell treatment.
  */
 export default function Navbar({
 	onProtocol,
@@ -30,7 +29,7 @@ export default function Navbar({
 	];
 
 	return (
-		<nav className="flex items-center justify-between flex-wrap gap-y-5 py-6 px-6 md:px-10 w-full relative z-10">
+		<nav className="site-nav flex items-center justify-between flex-wrap gap-y-5 py-6 px-6 md:px-10 w-full relative z-10">
 			<a
 				href={import.meta.env.BASE_URL}
 				aria-label="Namepass home"

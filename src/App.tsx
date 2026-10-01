@@ -11,7 +11,7 @@ import Leaderboard from "./components/Leaderboard";
 import Terms from "./components/Terms";
 import Privacy from "./components/Privacy";
 import SupportedTokens from "./components/SupportedTokens";
-import TestnetBanner, { VIEWPORT_BELOW_BANNER } from "./components/TestnetBanner";
+import TestnetBanner from "./components/TestnetBanner";
 import Footer from "./components/Footer";
 import PricingError from "./components/PricingError";
 import { loadOracleRates } from "./lib/oracle";
@@ -66,8 +66,8 @@ function ActiveApp() {
 	 * Everything that quotes a price is downstream of this. `pricing.ts`
 	 * throws until the live values arrive.
 	 *
-	 * Only the parts that actually quote wait on it. The hero is copy over
-	 * video and paints immediately; the Simulator renders its own chrome with
+	 * Only the parts that actually quote wait on it. The hero copy and
+	 * landscape paint immediately; the Simulator renders its own chrome with
 	 * skeletons where the numbers go. Nothing announces the read — it takes
 	 * ~150ms and a page narrating its own network calls is noise. Only a
 	 * failure gets words, because there's no cached price to fall back to.
@@ -220,31 +220,22 @@ function ActiveApp() {
 	}
 
 	return (
-		<main className="public-ui min-h-screen bg-surface-canvas flex flex-col">
+		<main className={`public-ui min-h-screen bg-surface-canvas flex flex-col${page === "home" ? " homepage-ui" : ""}`}>
 			<TestnetBanner />
 			<div className="flex-1">
-				{/* The hero is copy over video and quotes nothing, so it renders
-				    immediately and the oracle read happens behind it. Only the
-				    sections that price wait — they're below the fold at load, so the
-				    wait is invisible. Holding Home back as a whole put a white card
-				    where the hero belongs for ~220ms on every reload. */}
+				{/* The hero copy and landscape render before pricing is validated.
+				    Only the illustrative ticker and pricing panels wait for the oracle. */}
 				{page === "home" && (
 					<>
-						<PageShell
+						<Navbar {...navProps} />
+						<Hero
 							video={VIDEO_URL}
-							outerClassName={VIEWPORT_BELOW_BANNER}
-							cardClassName="h-full"
-						>
-							<Navbar {...navProps} />
-							<Hero
-								onExplore={goExplorer}
-								onLeaderboard={goLeaderboard}
-								priced={boot.status === "ready"}
-							/>
-						</PageShell>
+							onExplore={goExplorer}
+							onLeaderboard={goLeaderboard}
+							priced={boot.status === "ready"}
+						/>
 
-						{/* What the protocol actually is — four real properties, in the
-						    RIVR template's bento. Static copy, so it never waits on pricing. */}
+						{/* Four protocol properties render independently of pricing. */}
 						<Protocol />
 
 						{/* Search and public activity remain available while price quotes load. */}
