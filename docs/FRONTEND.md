@@ -81,16 +81,21 @@ All docs tabs use the same 1280px outer frame, header and tab bar. Guide pages r
 their sidebar, sticky table of contents and readable article width. Horizontal overflow is
 clipped without creating an ancestor scroll container, so navigation sticks to the viewport.
 All routes, including docs and monitoring, render the shared footer with working product and
-legal navigation. Docs also show the existing live testnet renewal strip above their header.
-The strip scrolls away with the page; the header and navigation then stick beneath the viewport top.
+legal navigation. The live testnet renewal strip is mounted once in the shared app shell,
+so route changes preserve its data, polling subscription and marquee position.
+The renewal strip sticks above the public and docs headers. Headers, docs navigation and
+anchor offsets account for its 32px mobile and 36px desktop height. Docs and public logos
+share exact positioning and dimensions, including the 64px header height on mobile.
 The docs logo returns home through the app router. Route transitions keep the current view
 visible while a lazy page loads, preventing an intermediate header disappearance.
-Legal sections use fine dividers.
+Legal sections use fine dividers, 32px/40px titles (28px/36px on mobile),
+18px/26px section headings and 15px/24px paragraphs.
 
 All application surfaces use self-hosted Geist Variable from `@fontsource-variable/geist`.
 Public section descriptions use 18px/28px at weight 400. Docs prose uses 16px/26px. The
 integration CTA paragraph uses 14px/22px. Footer link rows use a compact 4px gap. Controls use 14px/500,
-and card headings use 24px/32px at weight 600 with normal tracking. Compact protocol paragraphs
+and card headings use 24px/32px at weight 600 with normal tracking. Docs resource cards use
+22px/30px headings and 15px/22px links. Compact protocol paragraphs
 use 14–14.5px/24px on desktop and 18px/28px when the cards stack; the desktop alias paragraph
 fits three lines. Body and table text remain 16px
 and 14px where density matters. Text uses neutral #171717 and #737373, with green action roles. Code and contract

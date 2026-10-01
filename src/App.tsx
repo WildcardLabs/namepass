@@ -16,6 +16,7 @@ import PricingError from "./components/PricingError";
 import { loadOracleRates } from "./lib/oracle";
 import { assertGasAllowance } from "./lib/fees";
 import { setRates } from "./lib/pricing";
+import { IS_TESTNET } from "./lib/chains";
 
 const Docs = lazy(() => import("./components/Docs"));
 const Monitoring = lazy(() => import("./components/Monitoring"));
@@ -51,7 +52,14 @@ function pageToPath(page: Page): string {
 
 export default function App() {
 	if (import.meta.env.VITE_NAMEPASS_MAINTENANCE === "1") return <main style={{ padding: "4rem", fontFamily: "var(--site-font)" }}><h1>Namepass is being upgraded</h1><p>Deposits and renewals are temporarily paused. Please return shortly.</p></main>;
-	return <Suspense fallback={<div className="min-h-screen bg-white p-12 text-sm text-gray-500">Loading Namepass…</div>}><ActiveApp /></Suspense>;
+	return (
+		<div className="site-app" data-testnet={IS_TESTNET}>
+			<div className="public-ui site-renewal-strip"><TestnetBanner /></div>
+			<Suspense fallback={<div className="min-h-screen bg-white p-12 text-sm text-gray-500">Loading Namepass…</div>}>
+				<ActiveApp />
+			</Suspense>
+		</div>
+	);
 }
 
 function ActiveApp() {
@@ -231,7 +239,6 @@ function ActiveApp() {
 	if (page === "docs") {
 		return (
 			<>
-				<div className="public-ui"><TestnetBanner /></div>
 				<Docs onHome={goHome} />
 				<div className="public-ui">{footer}</div>
 			</>
@@ -240,7 +247,6 @@ function ActiveApp() {
 
 	return (
 		<main className="public-ui min-h-screen bg-surface-canvas flex flex-col">
-			<TestnetBanner />
 			<div className="site-page-frame flex-1">
 				{/* The public introduction renders before pricing is validated. */}
 				{page === "home" && (

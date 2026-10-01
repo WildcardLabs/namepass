@@ -529,7 +529,7 @@ export default function Docs({ onHome }: { onHome: () => void }) {
         for (const entry of entries)
           if (entry.isIntersecting) setActiveHeading(entry.target.id);
       },
-      { rootMargin: "-120px 0px -65% 0px" },
+      { rootMargin: `-${Math.ceil(document.querySelector(".docs-header")?.getBoundingClientRect().bottom ?? 120)}px 0px -65% 0px` },
     );
     document
       .querySelectorAll(".docs-prose h2")

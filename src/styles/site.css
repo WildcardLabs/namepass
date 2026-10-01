@@ -15,6 +15,21 @@
   --site-control-radius: 6px;
   --site-panel-radius: 12px;
   --site-content-width: 1180px;
+  --site-strip-height: 0px;
+}
+.site-app[data-testnet="true"] {
+  --site-strip-height: 32px;
+}
+@media (min-width: 768px) {
+  .site-app[data-testnet="true"] {
+    --site-strip-height: 36px;
+  }
+}
+.site-renewal-strip {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  flex-shrink: 0;
 }
 .public-ui,
 .site-nav-dropdown,
@@ -50,7 +65,7 @@
 .site-header {
   width: 100%;
   position: sticky;
-  top: 0;
+  top: var(--site-strip-height);
   z-index: 40;
   background: #ffffffed;
   backdrop-filter: blur(16px);
@@ -75,6 +90,15 @@
 .site-brand img {
   width: 120px;
   height: auto;
+  flex-shrink: 0;
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .site-nav {
+    gap: 16px;
+  }
+  .site-brand {
+    min-width: 120px;
+  }
 }
 .site-desktop-menu {
   display: flex;
@@ -286,7 +310,7 @@
 .public-ui .site-section {
   padding: 56px 40px 64px;
   border-top: 1px solid var(--site-line);
-  scroll-margin-top: 80px;
+  scroll-margin-top: calc(var(--site-strip-height) + 80px);
 }
 .public-ui .site-section > div {
   max-width: var(--site-content-width);
@@ -593,6 +617,28 @@
 .site-secondary-content .site-legal-sections > div {
   padding-top: 24px;
   border-top: 1px solid var(--site-line);
+}
+.public-ui .site-legal-page h1 {
+  font-size: 32px;
+  line-height: 40px;
+}
+.public-ui .site-legal-page h2 {
+  font-size: 18px;
+  line-height: 26px;
+}
+.public-ui .site-legal-page p {
+  font-size: 15px;
+  line-height: 24px;
+}
+.public-ui .site-legal-page .site-page-meta {
+  font-size: 12px;
+  line-height: 20px;
+}
+@media (max-width: 767px) {
+  .public-ui .site-legal-page h1 {
+    font-size: 28px;
+    line-height: 36px;
+  }
 }
 
 @media (max-width: 767px) {

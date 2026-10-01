@@ -15,7 +15,7 @@ interface Props {
 
 export default function LegalPage({ title, updated, intro, sections, onBack }: Props) {
 	return (
-		<div className="w-full px-5 md:px-10 pt-4 pb-20 md:pb-28">
+		<div className="site-legal-page w-full px-5 md:px-10 pt-4 pb-20 md:pb-28">
 			<div className="max-w-[720px] mx-auto">
 				<BackButton onClick={onBack} label="Back to Namepass" />
 
