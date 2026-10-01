@@ -51,7 +51,7 @@ function pageToPath(page: Page): string {
 
 export default function App() {
 	if (import.meta.env.VITE_NAMEPASS_MAINTENANCE === "1") return <main style={{ padding: "4rem", fontFamily: "var(--site-font)" }}><h1>Namepass is being upgraded</h1><p>Deposits and renewals are temporarily paused. Please return shortly.</p></main>;
-	return <ActiveApp/>;
+	return <Suspense fallback={<div className="min-h-screen bg-white p-12 text-sm text-gray-500">Loading Namepass…</div>}><ActiveApp /></Suspense>;
 }
 
 function ActiveApp() {
@@ -232,9 +232,7 @@ function ActiveApp() {
 		return (
 			<>
 				<div className="public-ui"><TestnetBanner /></div>
-				<Suspense fallback={<div className="min-h-screen bg-white p-12 text-sm text-gray-500">Loading documentation…</div>}>
-					<Docs onHome={goHome} />
-				</Suspense>
+				<Docs onHome={goHome} />
 				<div className="public-ui">{footer}</div>
 			</>
 		);
