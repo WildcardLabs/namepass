@@ -390,7 +390,7 @@ function SimulatorBody() {
           )}
         </AnimatePresence>
 
-        <dl className="mt-6 space-y-3 text-[14px]">
+        <dl className="site-result-breakdown mt-6 text-[14px]">
           {/* Same shape as a settled renewal in the Explorer: what went in,
 								    what the bridge takes, what the registry actually sees. */}
           <div className="flex justify-between gap-4">
@@ -399,7 +399,7 @@ function SimulatorBody() {
               −{fmtUsdc(ALLOWANCE)}
             </dd>
           </div>
-          <div className="flex justify-between gap-4 pb-3 border-b border-[rgba(28,58,41,0.08)]">
+          <div className="flex justify-between gap-4">
             <dt className="text-ink-secondary">Reaches renewal</dt>
             <dd className="text-ink-primary text-right tabular-nums">
               {fmtUsdc(applied)}
@@ -414,7 +414,7 @@ function SimulatorBody() {
           <div className="flex justify-between gap-4">
             <dt className="text-ink-secondary">Discount</dt>
             <dd
-              className={`text-right ${result.off ? "text-ink-primary" : "text-ink-secondary"}`}
+              className={`text-right ${result.off ? "site-result-discount" : "text-ink-secondary"}`}
             >
               {result.off ? `${result.off} off` : "None"}
             </dd>
@@ -427,7 +427,7 @@ function SimulatorBody() {
                 : "-"}
             </dd>
           </div>
-          <div className="flex justify-between gap-4 pt-3 border-t border-[rgba(28,58,41,0.08)]">
+          <div className="flex justify-between gap-4">
             <dt className="text-ink-secondary">Exact seconds</dt>
             <dd className="text-ink-secondary text-right tabular-nums text-[13px]">
               {result.seconds.toLocaleString("en-US")}

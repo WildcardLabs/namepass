@@ -72,14 +72,16 @@ Explorer, pricing, secondary pages and the integration CTA share the surface tre
 Explorer section has a white canvas. Protocol cards are white with fine neutral borders. The activity table
 has a quiet toolbar and 14px column labels. The name-view heading and back icon share a
 centered row. The pricing calculator groups name length, amount and discount controls in its
-left panel. Renewal time and the cost breakdown occupy the right panel, with a quiet neutral
-surface and divider. The panels stack below 1024px. The loading state uses the same layout.
+left panel. Renewal time and the cost breakdown occupy the white right panel. The result uses
+a 32px time value and consistent 14px label/value rows with light dividers. The panels stack
+below 1024px. The loading state uses the same layout.
 Existing controls and exact math are retained.
 The docs landing page uses the same framing, surface and action tokens. Guide pages retain
 their sidebar, table of contents and readable article width. Legal sections use fine dividers.
 
 All application surfaces use self-hosted Geist Variable from `@fontsource-variable/geist`.
-Public section descriptions and docs prose use 18px/28px at weight 400. Controls use 14px/500
+Public section descriptions use 18px/28px at weight 400. Docs prose and the integration CTA
+paragraph use 16px/26px. The footer link rows use a compact 4px gap. Controls use 14px/500,
 and card headings use 24px/32px at weight 600 with normal tracking. Compact protocol paragraphs
 use 14–14.5px/24px on desktop and 18px/28px when the cards stack; the desktop alias paragraph
 fits three lines. Body and table text remain 16px

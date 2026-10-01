@@ -72,7 +72,7 @@ export default function Footer({
 							<div className="text-[10px] uppercase tracking-wider text-ink-label">
 								Product
 							</div>
-							<ul className="mt-3 space-y-2.5">
+							<ul className="mt-3 space-y-1">
 								{product.map((l) => (
 									<li key={l.label}>
 										<button
@@ -90,7 +90,7 @@ export default function Footer({
 							<div className="text-[10px] uppercase tracking-wider text-ink-label">
 								Legal
 							</div>
-							<ul className="mt-3 space-y-2.5">
+							<ul className="mt-3 space-y-1">
 								{legal.map((l) => (
 									<li key={l.label}>
 										<button

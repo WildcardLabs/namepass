@@ -9,7 +9,7 @@
   --docs-title-size: 36px;
   --docs-section-size: 24px;
   --docs-lead-size: 18px;
-  --docs-body-size: 18px;
+  --docs-body-size: 16px;
   --docs-control-size: var(--site-control-size);
   --docs-small-size: 12px;
   --docs-caption-size: 12px;
@@ -397,7 +397,7 @@
 .docs-prose {
   font-family: var(--docs-font);
   font-size: var(--docs-body-size);
-  line-height: 28px;
+  line-height: 26px;
   color: var(--site-muted);
 }
 .docs-prose p {
@@ -1748,8 +1748,8 @@
   opacity: 1;
 }
 .docs-home .docs-prose > ol > li {
-  font-size: 18px;
-  line-height: 28px;
+  font-size: 16px;
+  line-height: 26px;
   color: var(--site-muted);
 }
 .art-svg-alias,
